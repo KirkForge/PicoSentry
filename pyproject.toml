@@ -1,0 +1,173 @@
+[build-system]
+requires = ["setuptools>=77.0.3", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "picosentry"
+version = "2.0.0"
+description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
+readme = "README.md"
+license = "BUSL-1.1"
+license-files = ["LICENSE*", "COMMERCIAL-LICENSE.md"]
+requires-python = ">=3.10"
+authors = [{name = "Henrik Kirk", email = "kirk@kirkforge.dev"}]
+maintainers = [{name = "KirkForge", email = "kirk@kirkforge.dev"}]
+keywords = [
+    "security", "supply-chain", "sandbox", "llm-defense",
+    "prompt-injection", "scanner", "npm", "pnpm",
+    "deterministic", "audit", "orchestration",
+    "devsecops", "ci-cd",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: System Administrators",
+    "Intended Audience :: Information Technology",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Software Development :: Build Tools",
+    "Topic :: System :: Monitoring",
+    "Environment :: Console",
+    "Framework :: FastAPI",
+    "Framework :: Pytest",
+    "Typing :: Typed",
+]
+
+# ── Core dependencies (always installed) ──────────────────────────────────
+# Lightweight: scanner + sandbox + watch logic work without HTTP deps.
+dependencies = [
+    "pyyaml>=6.0",
+]
+
+# ── Extras ──
+[project.optional-dependencies]
+# Supply-chain scanner: online corpus management
+scan = [
+    "requests>=2.31.0",
+]
+# LLM defender HTTP daemon (lightweight FastAPI)
+watch-server = [
+    "fastapi>=0.100",
+    "uvicorn>=0.23",
+]
+# Orchestration server (FastAPI + dashboard + all middleware)
+serve = [
+    "fastapi>=0.104.0",
+    "uvicorn[standard]>=0.24.0",
+    "pydantic>=2.0.0",
+    "PyJWT>=2.8.0",
+    "passlib[bcrypt]>=1.7.4",
+    "python-multipart>=0.0.6",
+    "croniter>=1.0.0",
+]
+# OpenTelemetry observability
+otel = [
+    "opentelemetry-api>=1.20",
+    "opentelemetry-sdk>=1.20",
+    "opentelemetry-exporter-otlp>=1.20",
+]
+# Sigstore signing
+sigstore = [
+    "sigstore>=3.0",
+]
+# Everything
+all = [
+    "picosentry[scan,watch-server,serve,otel,sigstore]",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pytest-asyncio>=0.21",
+    "pytest-timeout>=2.0",
+    "httpx>=0.24",
+    "ruff>=0.8",
+    "mypy>=1.0",
+    "build>=1.0",
+    "twine>=5.0",
+    "jsonschema>=4.0",
+    "types-PyYAML",
+]
+
+[project.urls]
+Homepage = "https://github.com/KirkForge/PicoSentry"
+Documentation = "https://github.com/KirkForge/PicoSentry#readme"
+Repository = "https://github.com/KirkForge/PicoSentry"
+Issues = "https://github.com/KirkForge/PicoSentry/issues"
+Changelog = "https://github.com/KirkForge/PicoSentry/blob/main/CHANGELOG.md"
+"Release Notes" = "https://github.com/KirkForge/PicoSentry/releases"
+"Source Code" = "https://github.com/KirkForge/PicoSentry"
+"Bug Tracker" = "https://github.com/KirkForge/PicoSentry/issues"
+Commercial = "https://github.com/KirkForge/PicoShogun"
+
+[project.scripts]
+picosentry = "picosentry.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["picosentry*"]
+
+[tool.setuptools.package-data]
+picosentry = ["py.typed"]
+"picosentry.scan" = [
+    "corpus/*.json",
+    "corpus/ioc/*.json",
+    "corpus/advisories/*.json",
+    "docs/rules/*.md",
+    "py.typed",
+]
+"picosentry.watch" = [
+    "py.typed",
+]
+"picosentry.watch.rules" = ["prompt_injection/*.yaml", "prompt_injection/*.yml", "output_policy/*.yaml", "output_policy/*.yml"]
+"picosentry.sandbox" = ["py.typed", "docs/rules/*.md"]
+"picosentry.serve" = ["config/*.json"]
+"picosentry.serve.plugins" = ["*/plugin.json", "*/*.py"]
+"picosentry.serve.front" = ["*.html", "*.css", "*.js", "*.svg", "*.png", "assets/*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["picosentry", "tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = ["-ra", "--strict-markers", "--tb=short"]
+norecursedirs = ["scripts", "plugins"]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "network: marks tests that require network access",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+ignore = [
+    "E501", "N806", "N818", "N802", "N812",
+    "A002", "B007", "B905",
+    "SIM105", "SIM102", "SIM108", "SIM117", "C416",
+    "B008",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+
+[tool.mypy]
+python_version = "3.10"
+strict = false
+warn_unused_ignores = true
+warn_redundant_casts = true
+warn_unreachable = true
+ignore_missing_imports = true
+exclude = ["build/", "dist/", ".venv/"]

@@ -1,0 +1,15 @@
+{
+    "name": "crossenv",
+    "version": "1.0.0",
+    "description": "Credential theft IoC — malicious npm package that mimicked cross-env but stole environment variables and SSH keys via postinstall script. Tests: L2-POST-001 (postinstall + preinstall scripts), L2-CRED-001 (credential exfiltration via curl), L2-OBFS-001 (obfuscated payload URL).",
+    "expected_findings": {
+        "L2-POST-001": "postinstall and preinstall scripts that execute arbitrary code",
+        "L2-CRED-001": "preinstall script uses curl to download and execute remote payload — potential credential theft",
+        "L2-PROV-001": "No repository field — provenance cannot be verified"
+    },
+    "ioc_type": "credential_theft",
+    "references": [
+        "https://medium.com/@ceyhunoglu/crossenv-malicious-npm-package-6b1d3b6e4b7c",
+        "https://snyk.io/vuln/npm:crossenv"
+    ]
+}

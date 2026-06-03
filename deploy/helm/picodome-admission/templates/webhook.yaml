@@ -1,0 +1,27 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingWebhookConfiguration
+metadata:
+  name: {{ include "picodome-admission.fullname" . }}
+  labels:
+    {{- include "picodome-admission.labels" . | nindent 4 }}
+  {{- if .Values.tls.certManager.enabled }}
+  annotations:
+    cert-manager.io/inject-ca-from: {{ .Release.Namespace }}/{{ include "picodome-admission.fullname" . }}-cert
+  {{- end }}
+webhooks:
+  - name: {{ include "picodome-admission.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+    failurePolicy: {{ .Values.webhook.failurePolicy }}
+    sideEffects: None
+    admissionReviewVersions: ["v1"]
+    clientConfig:
+      service:
+        name: {{ include "picodome-admission.fullname" . }}
+        namespace: {{ .Release.Namespace }}
+        port: {{ .Values.service.port }}
+        path: /validate
+    {{- if .Values.webhook.namespaceSelector }}
+    namespaceSelector:
+      {{- toYaml .Values.webhook.namespaceSelector | nindent 6 }}
+    {{- end }}
+    rules:
+      {{- toYaml .Values.webhook.rules | nindent 6 }}

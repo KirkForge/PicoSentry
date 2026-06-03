@@ -1,0 +1,86 @@
+syntax = "proto3";
+
+package picodome;
+
+// PicoDome gRPC Service — high-throughput transport for sandbox-as-a-service.
+// This is the protobuf schema for the gRPC transport layer.
+// gRPC is OPTIONAL; PicoDome works perfectly without it.
+
+// ─── Messages ───────────────────────────────────────────────────────────────
+
+message ScanRequest {
+  // Command to execute (e.g. ["python3", "-c", "print('hello')"])
+  repeated string command = 1;
+  // Policy name or JSON-encoded policy
+  optional string policy = 2;
+  // Timeout in seconds (default: 30)
+  optional double timeout = 3;
+  // Working directory
+  optional string cwd = 4;
+}
+
+message ScanResponse {
+  // Result as JSON string (SandboxResult + AnalysisResult combined)
+  string result_json = 1;
+  // Process exit code
+  int32 exit_code = 2;
+  // Overall verdict: ALLOW, DENY, KILL, CLEAN, SUSPICIOUS, MALICIOUS
+  string verdict = 3;
+  // Job ID for tracking
+  string job_id = 4;
+  // L3 verdict
+  string l3_verdict = 5;
+  // L4 verdict
+  string l4_verdict = 6;
+  // Number of findings
+  int32 findings_count = 7;
+}
+
+message HealthCheckRequest {
+  // No fields needed — just a ping
+}
+
+message HealthCheckResponse {
+  bool healthy = 1;
+  string version = 2;
+  string detail = 3;
+  int32 uptime_seconds = 4;
+}
+
+message PolicyGetRequest {
+  string name = 1;
+  optional int32 version = 2;
+}
+
+message PolicyGetResponse {
+  string policy_json = 1;
+  string name = 2;
+  int32 version = 3;
+}
+
+message AuditQueryRequest {
+  optional string event_type = 1;
+  optional string actor = 2;
+  optional string target = 3;
+  optional string since = 4;
+  optional string until = 5;
+  optional int32 limit = 6;
+}
+
+message AuditQueryResponse {
+  string events_json = 1;
+  int32 count = 2;
+}
+
+// ─── Service ─────────────────────────────────────────────────────────────────
+
+service PicoDomeService {
+  // Submit a sandbox scan job and wait for result
+  rpc Scan(ScanRequest) returns (ScanResponse);
+  // Health check
+  rpc Health(HealthCheckRequest) returns (HealthCheckResponse);
+  // Get a policy by name
+  rpc GetPolicy(PolicyGetRequest) returns (PolicyGetResponse);
+  // Query the audit log
+  rpc QueryAudit(AuditQueryRequest) returns (AuditQueryResponse);
+}

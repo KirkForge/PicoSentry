@@ -1,0 +1,20 @@
+{
+  "name": "nx-postinstall-rce",
+  "version": "1.0.0",
+  "description": "MALICIOUS: Typosquat of nx (Nrwl's monorepo tool) with postinstall RCE",
+  "ioc_type": "supply_chain_attack",
+  "attack_vector": "typosquat_postinstall",
+  "references": [
+    "https://blog.phylum.io/typosquatting-attack-targets-nx-monorepo-tool/"
+  ],
+  "indicators": {
+    "package_names": ["nx1", "nxx", "nx-cli", "nxrunner"],
+    "attack_pattern": "typosquat_postinstall_rce",
+    "what_happened": "Packages named to look like nx (Nrwl's monorepo tool) contained postinstall scripts that downloaded and executed remote code."
+  },
+  "expected_detections": [
+    "L2-TYPO-001",
+    "L2-POST-001",
+    "L2-CRED-001"
+  ]
+}

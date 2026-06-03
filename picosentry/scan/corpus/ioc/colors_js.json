@@ -1,0 +1,13 @@
+{
+  "id": "colors-js-1.4.2",
+  "name": "colors",
+  "version": "1.4.2",
+  "attack_type": "protestware_dos",
+  "date": "2022-01-05",
+  "description": "Maintainer deliberately broke the package by adding an infinite loop to postinstall, causing denial of service for all dependents including faker.js. This was protestware against commercial use of open-source.",
+  "expected_detections": ["L2-POST-001", "L2-PROV-001"],
+  "references": [
+    "https://github.com/Marak/colors.js/issues/285",
+    "https://www.bleepingcomputer.com/news/security/dev-corrupts-npm-libs-colors-and-faker-breaking-thousands-of-apps/"
+  ]
+}

@@ -1,0 +1,201 @@
+{
+  "annotations": {},
+  "description": "PicoDome — Sandbox & Admission Controller Dashboard",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+    {
+      "title": "Scan Rate",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "targets": [
+        {
+          "expr": "rate(picodome_scan_total[5m])",
+          "legendFormat": "{{verdict}} / {{backend}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "scans/s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Scan Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(picodome_scan_duration_seconds_bucket[5m]))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(picodome_scan_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(picodome_scan_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Admission Requests",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "targets": [
+        {
+          "expr": "rate(picodome_admission_requests_total{allowed=\"true\"}[5m])",
+          "legendFormat": "allowed"
+        },
+        {
+          "expr": "rate(picodome_admission_requests_total{allowed=\"false\"}[5m])",
+          "legendFormat": "denied"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "req/s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Admission Latency (p50/p95/p99)",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, rate(picodome_admission_duration_seconds_bucket[5m]))",
+          "legendFormat": "p50"
+        },
+        {
+          "expr": "histogram_quantile(0.95, rate(picodome_admission_duration_seconds_bucket[5m]))",
+          "legendFormat": "p95"
+        },
+        {
+          "expr": "histogram_quantile(0.99, rate(picodome_admission_duration_seconds_bucket[5m]))",
+          "legendFormat": "p99"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Policy Violations by Rule",
+      "type": "barchart",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 16 },
+      "targets": [
+        {
+          "expr": "increase(picodome_admission_violations_total[1h])",
+          "legendFormat": "{{rule}}"
+        }
+      ]
+    },
+    {
+      "title": "Rate Limiting",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 16 },
+      "targets": [
+        {
+          "expr": "rate(picodome_rate_limit_requests_total{result=\"rejected\"}[5m])",
+          "legendFormat": "rejected"
+        },
+        {
+          "expr": "picodome_rate_limit_queue_depth",
+          "legendFormat": "queue depth ({{priority}})"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "req/s",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "title": "Webhook Delivery Status",
+      "type": "timeseries",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "targets": [
+        {
+          "expr": "rate(picodome_webhook_deliveries_total{status=\"delivered\"}[5m])",
+          "legendFormat": "delivered"
+        },
+        {
+          "expr": "rate(picodome_webhook_deliveries_total{status=\"failed\"}[5m])",
+          "legendFormat": "failed"
+        }
+      ]
+    },
+    {
+      "title": "Audit Chain Integrity",
+      "type": "stat",
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 24 },
+      "targets": [
+        {
+          "expr": "picodome_audit_chain_integrity",
+          "legendFormat": "Chain Intact"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "steps": [
+              { "value": null, "color": "red" },
+              { "value": 1, "color": "green" }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "title": "Storage Usage",
+      "type": "timeseries",
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 24 },
+      "targets": [
+        {
+          "expr": "picodome_storage_bytes",
+          "legendFormat": "{{type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    }
+  ],
+  "schemaVersion": 39,
+  "tags": ["picodome", "security", "admission"],
+  "templating": {
+    "list": [
+      {
+        "name": "namespace",
+        "type": "datasource",
+        "query": "label_values(picodome_up, namespace)",
+        "includeAll": true,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "title": "PicoDome",
+  "uid": "picodome",
+  "version": 1
+}

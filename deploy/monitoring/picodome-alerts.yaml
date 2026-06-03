@@ -1,0 +1,185 @@
+# PicoDome Prometheus Alert Rules
+#
+# Install with:
+#   kubectl apply -f picodome-alerts.yaml
+#
+# Requires Prometheus Operator with PrometheusRule CRD,
+# or add rules directly to your Prometheus config.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: picodome-alerts
+  namespace: picodome
+  labels:
+    app: picodome
+    release: prometheus
+spec:
+  groups:
+    # ── SLO Burn Rate Alerts ──────────────────────────────────────
+    - name: picodome.slo
+      rules:
+        # Availability SLO: 99.9% (error budget: 43.8 min/month)
+        - alert: PicoDomeHighErrorRate
+          expr: |
+            (
+              rate(picodome_scan_errors_total[1h]) /
+              rate(picodome_scan_total[1h])
+            ) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+            slo: availability
+          annotations:
+            summary: "PicoDome error rate exceeds 1%"
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/ci-failures.md"
+
+        # Latency SLO: p95 < 2s
+        - alert: PicoDomeHighLatency
+          expr: |
+            histogram_quantile(0.95,
+              rate(picodome_scan_duration_seconds_bucket[5m])
+            ) > 2.0
+          for: 10m
+          labels:
+            severity: warning
+            slo: latency
+          annotations:
+            summary: "PicoDome scan p95 latency exceeds 2s SLO"
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/ci-failures.md"
+
+        # Throughput SLO: >= 10 scans/min
+        - alert: PicoDomeLowThroughput
+          expr: |
+            rate(picodome_scan_total[5m]) * 60 < 10
+          for: 15m
+          labels:
+            severity: warning
+            slo: throughput
+          annotations:
+            summary: "PicoDome throughput below 10 scans/min SLO"
+
+    # ── Admission Controller Alerts ──────────────────────────────
+    - name: picodome.admission
+      rules:
+        - alert: PicoDomeAdmissionWebhookDown
+          expr: picodome_up == 0
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PicoDome admission controller is down"
+            description: "The PicoDome admission webhook is not responding. Pod creation may be blocked depending on failurePolicy."
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/webhook-outage.md"
+
+        - alert: PicoDomeAdmissionHighDenialRate
+          expr: |
+            (
+              rate(picodome_admission_requests_total{allowed="false"}[5m]) /
+              rate(picodome_admission_requests_total[5m])
+            ) > 0.1
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome denying >10% of admission requests"
+            description: "High denial rate may indicate a policy misconfiguration or an active attack."
+
+        - alert: PicoDomeAdmissionLatencySpike
+          expr: |
+            histogram_quantile(0.99,
+              rate(picodome_admission_duration_seconds_bucket[5m])
+            ) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome admission p99 latency exceeds 1s"
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/webhook-outage.md"
+
+    # ── Certificate Alerts ───────────────────────────────────────
+    - name: picodome.certificates
+      rules:
+        - alert: PicoDomeCertExpiringSoon
+          expr: |
+            cert_manager_certificate_expiration_timestamp_seconds{certificate=~"picodome.*"} - time() < 86400 * 30
+          for: 1h
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome TLS certificate expires in less than 30 days"
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/cert-rotation.md"
+
+        - alert: PicoDomeCertExpiringCritical
+          expr: |
+            cert_manager_certificate_expiration_timestamp_seconds{certificate=~"picodome.*"} - time() < 86400 * 7
+          for: 30m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PicoDome TLS certificate expires in less than 7 days"
+            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/cert-rotation.md"
+
+    # ── Security Alerts ─────────────────────────────────────────
+    - name: picodome.security
+      rules:
+        - alert: PicoDomeAuditChainBroken
+          expr: picodome_audit_chain_integrity == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PicoDome audit log hash chain is broken"
+            description: "The audit log integrity check failed. Possible tampering or data corruption."
+
+        - alert: PicoDomePolicyVerificationFailure
+          expr: |
+            increase(picodome_policy_verification_failures_total[5m]) > 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "PicoDome policy signature verification failed"
+            description: "A policy was loaded with an invalid or missing signature. Possible tampering."
+
+        - alert: PicoDomeRateLimitExhausted
+          expr: |
+            rate(picodome_rate_limit_requests_total{result="rejected"}[5m]) > 0
+          for: 10m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome rate limit rejections detected"
+            description: "Requests are being rate-limited. May indicate abuse or need for capacity increase."
+
+    # ── Infrastructure Alerts ────────────────────────────────────
+    - name: picodome.infrastructure
+      rules:
+        - alert: PicoDomePodCrashLooping
+          expr: |
+            rate(kube_pod_container_status_restarts_total{pod=~"picodome.*"}[15m]) > 0
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome pod is crash looping"
+
+        - alert: PicoDomeStorageQuotaNearLimit
+          expr: |
+            picodome_storage_bytes > 450 * 1024 * 1024
+          for: 30m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome storage approaching quota limit (450MB/500MB)"
+
+        - alert: PicoDomeWebhookDeliveryFailures
+          expr: |
+            rate(picodome_webhook_deliveries_total{status="failed"}[5m]) > 0
+          for: 15m
+          labels:
+            severity: warning
+          annotations:
+            summary: "PicoDome webhook deliveries are failing"
+          annotations:
+            description: "External webhook notifications are failing. Check endpoint availability."

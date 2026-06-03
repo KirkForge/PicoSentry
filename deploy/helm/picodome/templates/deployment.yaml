@@ -1,0 +1,163 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "picodome.fullname" . }}
+  labels:
+    {{- include "picodome.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "picodome.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "picodome.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.monitoring.prometheus.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.monitoring.prometheus.port }}"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+        checksum/tokens: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "picodome.serviceAccountName" . }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+        seccompProfile:
+          type: {{ .Values.securityContext.seccompProfile.type }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: {{ .Values.daemon.port }}
+              protocol: TCP
+            {{- if .Values.metrics.separatePort }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: PICODOME_DAEMON_HOST
+              value: {{ .Values.daemon.host | quote }}
+            - name: PICODOME_DAEMON_PORT
+              value: {{ .Values.daemon.port | quote }}
+            {{- if .Values.metrics.separatePort }}
+            - name: PICODOME_METRICS_PORT
+              value: {{ .Values.metrics.port | quote }}
+            {{- end }}
+            {{- if .Values.auth.existingSecret }}
+            - name: PICODOME_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: api-tokens
+            {{- else if .Values.auth.tokens }}
+            - name: PICODOME_API_TOKENS
+              value: {{ .Values.auth.tokens | quote }}
+            {{- end }}
+            {{- if .Values.enterprise.enabled }}
+            - name: PICODOME_ENTERPRISE_MODE
+              value: "1"
+            {{- end }}
+            {{- if .Values.mtls.enabled }}
+            - name: PICODOME_TLS_CERT
+              value: "/tls/tls.crt"
+            - name: PICODOME_TLS_KEY
+              value: "/tls/tls.key"
+            - name: PICODOME_TLS_CA
+              value: "/tls/ca.crt"
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: PICODOME_JOB_STORE_DIR
+              value: "/home/picodome/.picodome"
+            {{- end }}
+            {{- if .Values.policySigning.verify }}
+            - name: PICODOME_POLICY_VERIFY
+              value: "1"
+            {{- end }}
+            {{- if .Values.policySigning.existingSecret }}
+            - name: PICODOME_POLICY_KEY_FILE
+              value: "/etc/picodome/keys/key"
+            {{- else if .Values.policySigning.key }}
+            - name: PICODOME_POLICY_KEY
+              value: {{ .Values.policySigning.key | quote }}
+            {{- end }}
+            {{- if .Values.policySigning.keyId }}
+            - name: PICODOME_POLICY_KEY_ID
+              value: {{ .Values.policySigning.keyId | quote }}
+            {{- end }}
+            {{- if ne .Values.store.backend "jsonl" }}
+            - name: PICODOME_STORE_BACKEND
+              value: {{ .Values.store.backend | quote }}
+            {{- end }}
+            {{- if .Values.store.sqlitePath }}
+            - name: PICODOME_SQLITE_PATH
+              value: {{ .Values.store.sqlitePath | quote }}
+            {{- end }}
+            - name: PICODOME_CORS_ORIGINS
+              value: {{ .Values.cors.origins | quote }}
+          volumeMounts:
+            {{- if .Values.mtls.enabled }}
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            {{- end }}
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /home/picodome/.picodome
+            {{- end }}
+            {{- if .Values.policySigning.existingSecret }}
+            - name: policy-key
+              mountPath: /etc/picodome/keys
+              readOnly: true
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.healthProbe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.liveness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.healthProbe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.readiness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        {{- if .Values.mtls.enabled }}
+        - name: tls
+          secret:
+            secretName: {{ .Values.mtls.existingTLSSecret | default (printf "%s-tls" (include "picodome.fullname" .)) }}
+        {{- end }}
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "picodome.fullname" . }}-data
+        {{- end }}
+        {{- if .Values.policySigning.existingSecret }}
+        - name: policy-key
+          secret:
+            secretName: {{ .Values.policySigning.existingSecret }}
+        {{- end }}

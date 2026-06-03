@@ -1,0 +1,54 @@
+# PicoDome AppArmor profile for Kubernetes deployment
+# Install on nodes: apparmor_parser -r picodome-apparmor.yaml
+# Reference in pod spec: securityContext.appArmorProfile.type: RuntimeDefault
+# Or custom profile: securityContext.appArmorProfile.type: Localhost
+#                        securityContext.appArmorProfile.localhostProfile: picodome
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: picodome-apparmor-profile
+  namespace: picodome
+  labels:
+    app: picodome
+data:
+  picodome: |
+    #include <tunables/global>
+
+    profile picodome flags=(attach_disconnected,mediate_deleted) {
+      #include <abstractions/base>
+      #include <abstractions/nameservice>
+
+      # Allow reading PicoDome config and policies
+      /home/picodome/.picodome/** r,
+      /etc/picodome/** r,
+
+      # Allow writing scan results and audit logs
+      /home/picodome/.picodome/ w,
+      /home/picodome/.picodome/** rw,
+
+      # Allow TLS cert read
+      /tls/* r,
+
+      # Allow Python execution
+      /usr/bin/python3 rix,
+      /usr/local/bin/picodome rix,
+
+      # Allow seccomp operations (for sandbox)
+      /usr/lib/**/libseccomp* rm,
+
+      # Deny network except DNS and HTTPS
+      network inet tcp,
+      network inet6 tcp,
+      network inet udp,
+      network inet6 udp,
+
+      # Deny ptrace (anti-debugging)
+      ptrace (trace) deny,
+
+      # Deny dangerous capabilities
+      capability sys_admin deny,
+      capability sys_ptrace deny,
+      capability net_admin deny,
+      capability sys_resource deny,
+    }

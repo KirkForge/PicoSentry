@@ -1,0 +1,126 @@
+"""OpenTelemetry trace integration (ADR-002).
+
+Optional dependency: pip install picowatch[otel]
+
+Provides distributed tracing for every LLM request/response cycle.
+Each scan/validation becomes a span with standardized attributes.
+"""
+
+from __future__ import annotations
+
+import logging
+from typing import Any
+
+from picosentry.watch.types import PromptScanResult, ValidationResult
+
+logger = logging.getLogger("picowatch.otel")
+
+# Lazy imports — these are optional dependencies
+_tracer: Any = None
+_initialized = False
+
+
+def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -> bool:
+    """Initialize OpenTelemetry tracing.
+
+    Args:
+        service_name: Service name for traces.
+        endpoint: OTLP endpoint (e.g. 'localhost:4317'). If None, uses OTEL_EXPORTER_OTLP_ENDPOINT env var.
+
+    Returns:
+        True if tracing was initialized, False if dependencies are missing.
+    """
+    global _tracer, _initialized
+
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.resources import Resource
+        from opentelemetry.sdk.trace import TracerProvider
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
+        resource = Resource.create({"service.name": service_name, "service.version": "1.0.1"})
+        provider = TracerProvider(resource=resource)
+
+        if endpoint:
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+            exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+            provider.add_span_processor(BatchSpanProcessor(exporter))
+        else:
+            # Try env var or use default OTLP exporter
+            try:
+                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+
+                exporter = OTLPSpanExporter()
+                provider.add_span_processor(BatchSpanProcessor(exporter))
+            except Exception:
+                logger.warning("OTLP exporter not configured. Traces will be dropped.")
+
+        trace.set_tracer_provider(provider)
+        _tracer = trace.get_tracer("picowatch", "1.0.1")
+        _initialized = True
+        logger.info("OpenTelemetry tracing initialized (service=%s, endpoint=%s)", service_name, endpoint)
+        return True
+
+    except ImportError:
+        logger.debug("OpenTelemetry dependencies not installed. Tracing disabled.")
+        return False
+
+
+def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> None:
+    """Record a span for a prompt scan (L5).
+
+    Creates an OpenTelemetry span with standardized attributes per ADR-002.
+    No-op if OTel is not installed.
+    """
+    if not _initialized or _tracer is None:
+        return
+
+    try:
+        from opentelemetry import trace
+
+        with _tracer.start_as_current_span("picowatch.prompt_guard.scan") as span:
+            span.set_attribute("picowatch.request.id", result.details.get("request_id", ""))
+            span.set_attribute("picowatch.prompt.blocked", result.blocked)
+            span.set_attribute("picowatch.prompt.score", result.score)
+            span.set_attribute("picowatch.prompt.rules_matched", ",".join(result.rules_matched))
+            span.set_attribute("picowatch.prompt.verdict", result.verdict.value)
+            span.set_attribute("picowatch.prompt.corpus_hash", result.corpus_hash)
+            span.set_attribute("picowatch.prompt.corpus_version", result.corpus_version)
+            span.set_attribute("picowatch.latency_ms", result.duration_ms)
+            if model:
+                span.set_attribute("picowatch.model", model)
+
+            if result.blocked:
+                span.set_status(trace.StatusCode.ERROR, "Prompt blocked")
+    except Exception:
+        logger.debug("Failed to record prompt scan span", exc_info=True)
+
+
+def trace_output_validation(result: ValidationResult, model: str | None = None) -> None:
+    """Record a span for an output validation (L6).
+
+    Creates an OpenTelemetry span with standardized attributes per ADR-002.
+    No-op if OTel is not installed.
+    """
+    if not _initialized or _tracer is None:
+        return
+
+    try:
+        from opentelemetry import trace
+
+        with _tracer.start_as_current_span("picowatch.output_guard.validate") as span:
+            span.set_attribute("picowatch.output.valid", result.valid)
+            span.set_attribute("picowatch.output.score", result.score)
+            span.set_attribute("picowatch.output.violations", ",".join(result.violations))
+            span.set_attribute("picowatch.output.verdict", result.verdict.value)
+            span.set_attribute("picowatch.output.corpus_hash", result.corpus_hash)
+            span.set_attribute("picowatch.output.corpus_version", result.corpus_version)
+            span.set_attribute("picowatch.latency_ms", result.duration_ms)
+            if model:
+                span.set_attribute("picowatch.model", model)
+
+            if not result.valid:
+                span.set_status(trace.StatusCode.ERROR, "Output validation failed")
+    except Exception:
+        logger.debug("Failed to record output validation span", exc_info=True)

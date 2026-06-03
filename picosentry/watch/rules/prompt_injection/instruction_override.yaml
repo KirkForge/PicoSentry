@@ -1,0 +1,93 @@
+# PicoWatch Default Prompt Injection Rules — Instruction Override category
+# ADR-003: Deterministic rule engine with normalization pipeline
+
+- id: inj_override_ignore
+  category: instruction_override
+  weight: 0.9
+  pattern: "ignore\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions?|rules?|prompts?)"
+  description: "Direct instruction override — 'ignore previous instructions'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_forget
+  category: instruction_override
+  weight: 0.85
+  pattern: "forget\\s+(?:all\\s+)?(?:previous|prior|above|earlier)\\s+(?:instructions?|rules?|context)"
+  description: "Instruction override — 'forget previous instructions'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_disregard
+  category: instruction_override
+  weight: 0.85
+  pattern: "disregard\\s+(?:all\\s+)?(?:previous|above)\\s+(?:instructions?|rules)"
+  description: "Instruction override — 'disregard previous instructions'"
+  normalization: [unicode, whitespace]
+
+- id: inj_override_new_instruction
+  category: instruction_override
+  weight: 0.8
+  pattern: "new\\s+(?:instruction|rule|directive)\\s*:\\s*(?!.*(?:joke|game|story))"
+  description: "New instruction injection — 'new instruction: ...'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_system_override
+  category: instruction_override
+  weight: 0.9
+  pattern: "(?:system|admin|root)\\s*[:\\-]\\s*(?:override|instruction|prompt|you are|act as|now|enable|disable|turn off|bypass)"
+  description: "System override attempt — 'System: override' / 'System: you are'"
+  normalization: [unicode, whitespace]
+
+- id: inj_override_system_prefix
+  category: instruction_override
+  weight: 0.85
+  pattern: "(?:SYSTEM|ADMIN|ROOT)\\s*[:\\-]\\s+.{5,}"
+  description: "System-prefixed instruction injection — 'SYSTEM: <any instruction>'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_ignore_everything
+  category: instruction_override
+  weight: 0.88
+  pattern: "ignore\\s+(?:everything|all|any)\\s+(?:above|before|prior|earlier|previous)\\s+(?:this\\s+)?(?:line|point|message|section)"
+  description: "Instruction override — 'ignore everything above this line'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_from_now_on
+  category: instruction_override
+  weight: 0.82
+  pattern: "from\\s+now\\s+on[,\\s]+(?:you\\s+are|act\\s+as|you\\s+will|you\\s+have|you\\s+can)"
+  description: "Instruction override — 'from now on, you are...'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_repeat_instructions
+  category: instruction_override
+  weight: 0.78
+  pattern: "(?:repeat|output|print|echo|verbatim)\\s+(?:the\\s+)?(?:above|previous|prior|earlier|all)\\s+(?:instructions?|rules?|prompts?)"
+  description: "Instruction echo — 'repeat the above instructions'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_format_breakout
+  category: instruction_override
+  weight: 0.75
+  pattern: "\\]\\]\\s*(?:now|ignore|forget)|```(?:sql|python|bash)\\s*.*(?:rm|DROP|exec)"
+  description: "Format breakout — closing brackets followed by override or code injection"
+  normalization: [unicode, whitespace]
+
+- id: inj_override_stop_being
+  category: instruction_override
+  weight: 0.78
+  pattern: "stop\\s+(?:being|acting\\s+(?:as|like))\\s+(?:an?\\s+)?(?:AI|assistant|chatbot|helpful|model)"
+  description: "Instruction override — 'stop being an AI assistant'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_above_all
+  category: instruction_override
+  weight: 0.80
+  pattern: "(?:above\\s+all|most\\s+important|priority\\s+(?:one|1)|supreme)\\s*[:\\-]?\\s*(?:ignore|forget|disregard|override|bypass|you\\s+are|you\\s+must)"
+  description: "Priority override — 'above all: ignore your rules'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_override_simulated
+  category: instruction_override
+  weight: 0.72
+  pattern: "(?:simulated|virtual|sandbox|test|debug|developer)\\s+(?:mode|environment|context|session)\\s*[:\\-]?\\s*(?:ignore|bypass|disable|override|no\\s+rules)"
+  description: "Simulated environment override — 'debug mode: ignore rules'"
+  normalization: [unicode, whitespace, comments]

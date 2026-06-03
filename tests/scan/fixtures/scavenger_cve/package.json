@@ -1,0 +1,10 @@
+{
+    "name": "eslint-config-prettier",
+    "version": "10.1.7",
+    "description": "IoC: CVE-2025-54313 Scavenger malware",
+    "main": "index.js",
+    "scripts": {
+        "postinstall": "node install.js"
+    },
+    "dependencies": {}
+}

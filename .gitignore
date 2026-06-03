@@ -1,0 +1,51 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.pytest_cache/
+
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Pylance / Pyright
+.pyright/
+.pyrightconfig.json
+
+# Claude
+.claude/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+
+# Corpus data (large, regenerated on update)
+*.corpus.json
+npm_top_packages.json
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temp
+tmp/
+*.tmppicowatch_audit.db
+.pytest_cache/
+*.db

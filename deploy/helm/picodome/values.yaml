@@ -1,0 +1,154 @@
+# PicoDome Helm values
+replicaCount: 2
+
+image:
+  repository: kirkforge/picodome
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+daemon:
+  host: "0.0.0.0"
+  port: 8443
+
+# Enterprise mode: requires enforcement backend, no dev bypass
+enterprise:
+  enabled: true
+
+# Policy signing configuration
+# Sign policies with HMAC-SHA256 and verify on load.
+# In K8s, create a Secret and mount it as a file:
+#   kubectl create secret generic picodome-policy-key \
+#     --from-literal=key=<hex-encoded-key>
+policySigning:
+  # Enable signature verification when loading policy files
+  verify: false
+  # Key ID for rotation (default: "default")
+  keyId: "default"
+  # Reference to a K8s Secret containing the policy signing key
+  # The secret must have a key named "key" with the hex-encoded HMAC key
+  existingSecret: ""
+  # Or set directly (not recommended for production — use existingSecret)
+  key: ""
+
+auth:
+  # Comma-separated API tokens (or use existingSecret)
+  # WARNING: Change this in production! Tokens must be >= 32 chars in enterprise mode.
+  tokens: ""
+  existingSecret: ""
+  # Set to true to auto-generate a secret with a random admin token
+  createSecret: true
+
+store:
+  # Backend: jsonl (default) or sqlite (production-grade, indexed, WAL mode)
+  backend: jsonl
+  # Path for SQLite database (only used when backend=sqlite)
+  sqlitePath: ""
+
+mtls:
+  enabled: true
+  # Reference to a TLS secret with tls.crt, tls.key, ca.crt
+  existingTLSSecret: ""
+  devMode: false
+
+metrics:
+  # If true, expose /metrics on a separate port without auth
+  separatePort: true
+  # Port for metrics (only used if separatePort is true)
+  port: 9100
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+persistence:
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+
+cors:
+  # Allowed origins for CORS headers (default: * for all)
+  origins: "*"
+
+ratelimit:
+  enabled: true
+  ratePerSecond: 2.0
+  burstSize: 10
+  globalRPS: 50.0
+
+webhooks:
+  enabled: false
+  endpoints: []
+  # - url: https://hooks.slack.com/services/...
+  #   secret: my-signing-secret
+  #   events: ["scan_alert"]
+  #   minSeverity: high
+
+slos:
+  enabled: true
+
+retention:
+  scanResultsDays: 90
+  auditLogsDays: 365
+  baselinesDays: 0
+  secureDelete: true
+  storageQuotaMB: 500
+
+monitoring:
+  prometheus:
+    enabled: true
+    scrape: true
+    port: 8443
+    path: /metrics
+
+service:
+  type: ClusterIP
+  port: 8443
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from: []
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+healthProbe:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+# Horizontal Pod Autoscaler — scale based on CPU/memory utilization.
+# Requires metrics-server in the cluster.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  scaleDownStabilizationSeconds: 300
+  scaleUpStabilizationSeconds: 60
+
+# PodDisruptionBudget — ensures minimum availability during voluntary disruptions.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""

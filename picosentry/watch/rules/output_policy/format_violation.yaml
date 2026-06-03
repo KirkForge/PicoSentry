@@ -1,0 +1,50 @@
+# PicoWatch Default Output Policy Rules — Format Violation category
+
+- id: out_fmt_json_injection
+  category: format_violation
+  weight: 0.7
+  pattern: "(?:```(?:json|javascript|python|bash|sql)|\\$\\{|\\{\\{|<script|onerror\\s*=)"
+  description: "Code injection in JSON-only output mode"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_markdown_injection
+  category: format_violation
+  weight: 0.6
+  pattern: "(?:\\[.*\\]\\(javascript:|\\[\\[.*\\]\\]|<iframe|<object|<embed)"
+  description: "Markdown injection — XSS via links or iframes"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_schema_violation
+  category: format_violation
+  weight: 0.65
+  pattern: "(?:additional|extra|unexpected)\\s+(?:field|property|key)\\s*:"
+  description: "Schema violation indicator — unexpected fields"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_xml_injection
+  category: format_violation
+  weight: 0.65
+  pattern: "(?:<!ENTITY|<!DOCTYPE|<?xml|<\\?xml-stylesheet|SYSTEM\\s+|PUBLIC\\s+)"
+  description: "XML injection — XXE or entity expansion attack"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_sql_injection
+  category: format_violation
+  weight: 0.72
+  pattern: "(?:UNION\\s+(?:ALL\\s+)?SELECT|OR\\s+1\\s*=\\s*1|DROP\\s+TABLE|;\\s*--|'\\s+OR\\s+'|INFORMATION_SCHEMA)"
+  description: "SQL injection in output fields"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_log4shell
+  category: format_violation
+  weight: 0.85
+  pattern: "\\$\\{(?:jndi|lower|upper|env|sys|java|date):[^}]*\\}"
+  description: "Log4Shell/Log4j injection — JNDI lookup string"
+  normalization: [unicode, whitespace]
+
+- id: out_fmt_prompt_leak_marker
+  category: format_violation
+  weight: 0.60
+  pattern: "(?:<\\|im_start\\||<\\|im_end\\||\\[INST\\]|\\[/INST\\]|<\\|endoftext\\|>|<\\|system\\|>)"
+  description: "LLM prompt markers leaked in output (chat template delimiters)"
+  normalization: [unicode, whitespace]

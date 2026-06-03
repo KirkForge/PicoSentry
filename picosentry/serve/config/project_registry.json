@@ -1,0 +1,62 @@
+{
+  "picosentry": {
+    "id": "picosentry",
+    "name": "PicoSentry",
+    "category": "supply-chain",
+    "priority": 1,
+    "dependencies": [],
+    "cron_schedule": "0 */6 * * *",
+    "estimated_duration": 60,
+    "status": "active",
+    "version": "0.16.0",
+    "description": "Deterministic npm/pnpm supply-chain scanner",
+    "package": "picosentry",
+    "intelligence_outputs": ["vulnerability_report", "advisory_match"],
+    "intelligence_inputs": ["package_json", "lock_file"]
+  },
+  "picodome": {
+    "id": "picodome",
+    "name": "PicoDome",
+    "category": "runtime",
+    "priority": 1,
+    "dependencies": [],
+    "cron_schedule": "0 */6 * * *",
+    "estimated_duration": 30,
+    "status": "active",
+    "version": "0.5.0",
+    "description": "Deterministic runtime sandbox and behavioral analysis",
+    "package": "picodome",
+    "intelligence_outputs": ["behavioral_report", "anomaly_alert"],
+    "intelligence_inputs": ["command_spec", "policy_file"]
+  },
+  "picowatch": {
+    "id": "picowatch",
+    "name": "PicoWatch",
+    "category": "llm-defense",
+    "priority": 1,
+    "dependencies": [],
+    "cron_schedule": "0 */6 * * *",
+    "estimated_duration": 30,
+    "status": "active",
+    "version": "0.7.0",
+    "description": "LLM prompt injection detection and defense",
+    "package": "picowatch",
+    "intelligence_outputs": ["injection_report", "threat_score"],
+    "intelligence_inputs": ["prompt_text", "llm_response"]
+  },
+  "picoshogun": {
+    "id": "picoshogun",
+    "name": "PicoShogun",
+    "category": "orchestration",
+    "priority": 1,
+    "dependencies": ["picosentry", "picodome", "picowatch"],
+    "cron_schedule": "*/5 * * * *",
+    "estimated_duration": 10,
+    "status": "active",
+    "version": "1.0.1",
+    "description": "Command centre, firewall, and monitoring for the Pico Security Series",
+    "package": "picoshogun",
+    "intelligence_outputs": ["correlated_alert", "aggregate_threat_score"],
+    "intelligence_inputs": ["picosentry_report", "picodome_report", "picowatch_report"]
+  }
+}

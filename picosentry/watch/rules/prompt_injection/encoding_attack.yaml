@@ -1,0 +1,57 @@
+# PicoWatch Default Prompt Injection Rules — Encoding Attack category
+
+- id: inj_encode_base64
+  category: encoding_attack
+  weight: 0.75
+  pattern: "(?:aWdub3Jl|Zm9yZ2V0|ZGlzcmVnYXJk|b3ZlcnJpZGU=|c3lzdGVtIHByb21wdA==)"
+  description: "Base64-encoded injection payloads (common injection words)"
+  normalization: [unicode, whitespace]
+
+- id: inj_encode_rot13
+  category: encoding_attack
+  weight: 0.7
+  pattern: "(?:vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz cezcg)"
+  description: "ROT13-encoded injection words (ignore/forget/disregard/override/system prompt)"
+  normalization: [unicode, whitespace]
+
+- id: inj_encode_url
+  category: encoding_attack
+  weight: 0.65
+  pattern: "(?:%69%67%6e%6f%72%65|%66%6f%72%67%65%74|%6f%76%65%72%72%69%64%65|%73%79%73%74%65%6d)"
+  description: "URL-encoded injection keywords"
+  normalization: [unicode, whitespace]
+
+- id: inj_unicode_homoglyph
+  category: encoding_attack
+  weight: 0.7
+  pattern: "[\\u0430\\u0435\\u043e\\u0440\\u0441\\u0443\\u0445\\u0456\\u0458]"
+  description: "Cyrillic homoglyphs that look like ASCII letters (after NFKC normalization triggers rules)"
+  normalization: [unicode]
+
+- id: inj_zwnj
+  category: encoding_attack
+  weight: 0.65
+  pattern: "[\\u200b\\u200c\\u200d\\ufeff]"
+  description: "Zero-width characters injected between instruction words"
+  normalization: [unicode, whitespace]
+
+- id: inj_encode_hex_string
+  category: encoding_attack
+  weight: 0.68
+  pattern: "(?:0x[0-9a-f]{2}[\\s,]*){4,}|(?:\\\\x[0-9a-f]{2}[\\s]*){4,}"
+  description: "Hex-encoded string payloads"
+  normalization: [unicode, whitespace]
+
+- id: inj_encode_char_ref
+  category: encoding_attack
+  weight: 0.65
+  pattern: "(?:&#\\d{2,4};|&#x[0-9a-f]{2,4};){4,}"
+  description: "HTML character reference encoding"
+  normalization: [unicode, whitespace]
+
+- id: inj_encode_morse
+  category: encoding_attack
+  weight: 0.50
+  pattern: "(?:[.-]{1,4}\\s?){10,}"
+  description: "Morse code payload - long sequences of dots and dashes"
+  normalization: [unicode, whitespace]

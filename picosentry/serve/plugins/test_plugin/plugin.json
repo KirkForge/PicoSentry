@@ -1,0 +1,14 @@
+{
+  "name": "test_plugin",
+  "version": "1.0.1",
+  "author": "PicoShogun",
+  "description": "Test plugin to verify dynamic loading works end-to-end",
+  "entry_point": "test_handler",
+  "hooks": [
+    "project_complete",
+    "alert"
+  ],
+  "dependencies": [],
+  "public_key": "d2f11fc27e16fb9f8633f8da43ebc8b2c7ed6199cce019bebf38004cb23dd499",
+  "signature": "ecdc338cf33ab1124bfa226747664f0477d18d950bef2be454d0fa53713e2421c6b5e0a931d4743bf4278345afac9775bee0a60977506619ca635c26c4a6a306"
+}

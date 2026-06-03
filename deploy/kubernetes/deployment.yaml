@@ -1,0 +1,196 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: picodome
+  labels:
+    app: picodome
+    version: v0.5.0
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: picodome
+  template:
+    metadata:
+      labels:
+        app: picodome
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "8443"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: picodome
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: picodome
+          image: kirkforge/picodome:v0.5.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8443
+              protocol: TCP
+          env:
+            - name: PICODOME_DAEMON_HOST
+              value: "0.0.0.0"
+            - name: PICODOME_DAEMON_PORT
+              value: "8443"
+            - name: PICODOME_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: picodome-tokens
+                  key: api-tokens
+            - name: PICODOME_ENTERPRISE_MODE
+              value: "1"
+            - name: PICODOME_TLS_CERT
+              value: "/tls/tls.crt"
+            - name: PICODOME_TLS_KEY
+              value: "/tls/tls.key"
+            - name: PICODOME_TLS_CA
+              value: "/tls/ca.crt"
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+            - name: data
+              mountPath: /home/picodome/.picodome
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 30
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+      volumes:
+        - name: tls
+          secret:
+            secretName: picodome-tls
+        - name: data
+          persistentVolumeClaim:
+            claimName: picodome-data
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: picodome
+  labels:
+    app: picodome
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8443
+      targetPort: http
+      protocol: TCP
+  selector:
+    app: picodome
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: picodome-data
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+---
+# IMPORTANT: Create this secret with a strong token before deploying.
+# Do NOT store real tokens in this manifest.
+#
+# Example:
+#   kubectl create secret generic picodome-tokens \
+#     --from-literal=api-tokens='picodome-admin-$(openssl rand -hex 32)'
+#
+apiVersion: v1
+kind: Secret
+metadata:
+  name: picodome-tokens
+type: Opaque
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: picodome
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: picodome
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames: ["picodome-tokens", "picodome-tls"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: picodome
+subjects:
+  - kind: ServiceAccount
+    name: picodome
+roleRef:
+  kind: Role
+  name: picodome
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: picodome-network-policy
+  namespace: default
+spec:
+  podSelector:
+    matchLabels:
+      app: picodome
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 8443
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443

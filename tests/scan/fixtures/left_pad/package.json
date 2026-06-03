@@ -1,0 +1,14 @@
+{
+    "name": "left-pad",
+    "version": "1.3.0",
+    "description": "String left pad — the package that broke npm when unpublished",
+    "main": "index.js",
+    "scripts": {
+        "test": "node test"
+    },
+    "dependencies": {},
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/stevemao/left-pad"
+    }
+}

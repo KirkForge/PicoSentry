@@ -1,0 +1,92 @@
+"""L4 environment variable leakage detector.
+
+Detects suspicious access to or exfiltration of environment variables
+that commonly contain secrets, credentials, or sensitive configuration.
+"""
+
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.models import Severity
+
+# Environment variable names that should never be read or logged in sandboxed code
+SENSITIVE_ENV_VARS = {
+    "AWS_ACCESS_KEY_ID",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_SESSION_TOKEN",
+    "AZURE_CLIENT_SECRET",
+    "AZURE_CLIENT_ID",
+    "DATABASE_URL",
+    "DB_PASSWORD",
+    "GITHUB_TOKEN",
+    "GOOGLE_APPLICATION_CREDENTIALS",
+    "HEROKU_API_KEY",
+    "MAILGUN_API_KEY",
+    "MANDRILL_API_KEY",
+    "MONGO_URL",
+    "NETLIFY_AUTH_TOKEN",
+    "NPM_TOKEN",
+    "PGPASSWORD",
+    "POSTGRES_PASSWORD",
+    "REDIS_URL",
+    "SENDGRID_API_KEY",
+    "SLACK_TOKEN",
+    "STRIPE_SECRET_KEY",
+    "TWILIO_AUTH_TOKEN",
+    "VAULT_TOKEN",
+}
+
+# Patterns indicating env var access or exfiltration in output
+
+
+def detect_env_leak(
+    profile: BehavioralProfile,
+    baselines: dict[str, Baseline] | None = None,
+) -> list[Finding]:
+    """Detect access to or leakage of sensitive environment variables."""
+    findings: list[Finding] = []
+
+    # Check filesystem ops for .env file access
+    for op in profile.fs_ops:
+        path_lower = op.path.lower()
+        if path_lower.endswith(".env") or path_lower.endswith(".env.local") or path_lower.endswith(".env.production"):
+            findings.append(
+                Finding(
+                    rule_id="L4-ENV-001",
+                    severity=Severity.HIGH,
+                    message=f"Access to .env file ({op.operation}): {op.path}",
+                    location=op.path,
+                    evidence={"operation": op.operation, "path": op.path},
+                )
+            )
+
+    # Check network calls for potential env-var exfiltration in URLs
+    for call in profile.network_calls:
+        for var_name in SENSITIVE_ENV_VARS:
+            lower_val = var_name.lower()
+            lower_addr = call.address.lower()
+            if lower_val in lower_addr or var_name.lower() in lower_addr:
+                findings.append(
+                    Finding(
+                        rule_id="L4-ENV-002",
+                        severity=Severity.CRITICAL,
+                        message=f"Sensitive env var {var_name} referenced in network address: {call.address}",
+                        location=call.address,
+                        evidence={"env_var": var_name, "address": call.address, "port": call.port},
+                    )
+                )
+
+    # Check process spawns for env-dumping commands
+    env_dump_commands = {"env", "printenv", "set", "export"}
+    for spawn in profile.spawns:
+        exe_base = spawn.executable.split("/")[-1].lower()
+        if exe_base in env_dump_commands:
+            findings.append(
+                Finding(
+                    rule_id="L4-ENV-003",
+                    severity=Severity.HIGH,
+                    message=f"Environment dumping command spawned: {spawn.executable}",
+                    location=spawn.executable,
+                    evidence={"executable": spawn.executable, "args": spawn.args},
+                )
+            )
+
+    return findings

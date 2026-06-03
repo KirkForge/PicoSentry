@@ -1,6 +1,6 @@
 {
   "name": "discord_notifier",
-  "version": "1.0.1",
+  "version": "2.0.0",
   "author": "PicoShogun",
   "description": "Sends alerts to Discord via webhook. Falls back to log-only if DISCORD_WEBHOOK_URL is not set.",
   "entry_point": "notifier",

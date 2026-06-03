@@ -44,6 +44,7 @@ classifiers = [
 # Lightweight: scanner + sandbox + watch logic work without HTTP deps.
 dependencies = [
     "pyyaml>=6.0",
+    "pico-core>=0.1.0",
 ]
 
 # ── Extras ──

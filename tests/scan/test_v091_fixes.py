@@ -28,8 +28,7 @@ class TestVersionFlag:
             cwd=str(Path(__file__).parent.parent),
         )
         assert result.returncode == 0
-        assert "picosentry v" in result.stdout
-        assert "corpus:" in result.stdout
+        assert "PicoSentry (unified)" in result.stdout
 
     def test_version_flag_short(self):
         """-V should also work."""
@@ -42,7 +41,7 @@ class TestVersionFlag:
             cwd=str(Path(__file__).parent.parent),
         )
         assert result.returncode == 0
-        assert "picosentry v" in result.stdout
+        assert "PicoSentry (unified)" in result.stdout
 
 
 # -- apply_baseline O(n) tests --

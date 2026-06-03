@@ -1,0 +1,9 @@
+{
+  "name": "discord_notifier",
+  "version": "1.0.1",
+  "author": "PicoShogun",
+  "description": "Sends alerts to Discord via webhook. Falls back to log-only if DISCORD_WEBHOOK_URL is not set.",
+  "entry_point": "notifier",
+  "hooks": ["project_complete", "alert"],
+  "dependencies": []
+}

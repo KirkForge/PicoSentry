@@ -1,0 +1,50 @@
+# PicoWatch Default Prompt Injection Rules — Context Injection category
+
+- id: inj_context_hidden
+  category: context_injection
+  weight: 0.7
+  pattern: "(?:hidden|secret|invisible|embedded)\\s+(?:instruction|command|directive|message)\\s*[:=]"
+  description: "Hidden instruction embedded in context"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_context_append
+  category: context_injection
+  weight: 0.65
+  pattern: "\\[\\[.*instructions?:.*\\]\\]|<!--.*(?:ignore|forget|disregard|override).*-->"
+  description: "Appended instructions in brackets or HTML comments"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_context_retrieved
+  category: context_injection
+  weight: 0.7
+  pattern: "(?:retrieved|provided|reference)\\s+(?:context|document|data)\\s*(?:says|states|contains)\\s*[:=]"
+  description: "Injection via retrieved context framing"
+  normalization: [unicode, whitespace]
+
+- id: inj_context_system_prompt
+  category: context_injection
+  weight: 0.75
+  pattern: "(?:above|previous|initial|original)\\s+(?:system|admin)\\s+(?:prompt|instruction|message)\\s+(?:was|is|says)"
+  description: "Claiming knowledge of system prompt"
+  normalization: [unicode, whitespace]
+
+- id: inj_context_data_exfil
+  category: context_injection
+  weight: 0.72
+  pattern: "(?:the\\s+)?(?:following|below|attached|included|provided)\\s+(?:data|document|file|text|content|information)\\s+(?:contains?|has|includes?)\\s+(?:important|critical|urgent)\\s+(?:instructions?|commands?|directives?)"
+  description: "Context injection via data document — 'the following data contains important instructions'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_context_markdown_injection
+  category: context_injection
+  weight: 0.68
+  pattern: "\\[.*\\]\\((?:javascript|data):[^)]*\\)|<!\\[CDATA\\[.*(?:ignore|forget|override).*\\]\\]>"
+  description: "Markdown/CDATA injection in retrieved content"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_context_indirect
+  category: context_injection
+  weight: 0.65
+  pattern: "(?:according\\s+to|based\\s+on|per|as\\s+stated\\s+(?:in|by))\\s+(?:the\\s+)?(?:document|text|source|reference|context|page)\\s*,?\\s+(?:you\\s+(?:must|should|need|have)|please|kindly)"
+  description: "Indirect injection — 'according to the document, you must...'"
+  normalization: [unicode, whitespace]

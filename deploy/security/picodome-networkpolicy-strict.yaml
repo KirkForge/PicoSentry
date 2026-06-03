@@ -1,0 +1,101 @@
+# PicoDome Strict Network Policy — egress controls for production
+#
+# This policy restricts the PicoDome daemon to only:
+#   Ingress: From kube-system (admission webhook) and Prometheus (metrics)
+#   Egress: DNS (53), HTTPS (443) for outgoing webhooks, PicoDome daemon (8443)
+#
+# Apply with: kubectl apply -f picodome-networkpolicy-strict.yaml
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: picodome-strict-egress
+  namespace: picodome
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: picodome
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Allow from kube-system (admission webhook controller)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8443
+    # Allow from Prometheus for metrics scraping
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+      ports:
+        - protocol: TCP
+          port: 8443
+    # Allow same-namespace traffic
+    - from:
+        - podSelector: {}
+  egress:
+    # Allow DNS resolution
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Allow HTTPS outbound (webhook delivery, external API calls)
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+    # Allow same-namespace traffic
+    - to:
+        - podSelector: {}
+---
+# Admission controller egress — only needs DNS and daemon connection
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: picodome-admission-strict-egress
+  namespace: picodome
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: picodome-admission
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    # Only kube-system can call the webhook
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: TCP
+          port: 8443
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+    # Connect to PicoDome daemon for image scanning
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: picodome
+      ports:
+        - protocol: TCP
+          port: 8443

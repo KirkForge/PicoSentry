@@ -1,0 +1,106 @@
+# PicoWatch Default Prompt Injection Rules — Role Manipulation category
+
+- id: inj_role_dan
+  category: role_manipulation
+  weight: 0.95
+  pattern: "you\\s+are\\s+(?:now\\s+)?DAN|DAN\\s+mode|do\\s+anything\\s+now"
+  description: "DAN mode activation — classic jailbreak"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_role_act_as
+  category: role_manipulation
+  weight: 0.8
+  pattern: "act\\s+as\\s+if\\s+you\\s+are|pretend\\s+(?:to\\s+)?be\\s+(?:a|an)"
+  description: "Role manipulation — 'act as if you are' / 'pretend to be'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_system
+  category: role_manipulation
+  weight: 0.9
+  pattern: "(?:you\\s+are\\s+now|switch\\s+to)\\s+(?:a\\s+)?(?:system|admin|root|developer|operator)"
+  description: "Role manipulation — 'you are now system/admin'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_developer
+  category: role_manipulation
+  weight: 0.85
+  pattern: "(?:you\\s+are\\s+|act\\s+as\\s+)(?:a\\s+)?(?:developer|engineer|maintainer|creator|author)(?:\\s+of\\s+this\\s+(?:app|system|bot))?"
+  description: "Role manipulation — claiming developer/engineer identity"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_jailbreak
+  category: role_manipulation
+  weight: 0.88
+  pattern: "(?:jailbreak|escape|break\\s+(?:out|free|from)|bypass\\s+(?:your|the|all)\\s+(?:rules|restrictions?|guidelines?|filters?))"
+  description: "Jailbreak attempt — explicit bypass language"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_unfiltered
+  category: role_manipulation
+  weight: 0.82
+  pattern: "(?:unfiltered|uncensored|unrestricted|without\\s+(?:any\\s+)?(?:rules?|restrictions?|limits?|guidelines?))\\s+(?:mode|response|output|answer)"
+  description: "Unfiltered mode request"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_no_longer
+  category: role_manipulation
+  weight: 0.85
+  pattern: "you\\s+are\\s+no\\s+longer\\s+(?:an?\\s+)?(?:AI|assistant|chatbot|model|bot|language\\s+model)"
+  description: "Role manipulation — 'you are no longer an AI assistant'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_role_new_role
+  category: role_manipulation
+  weight: 0.82
+  pattern: "new\\s+role\\s*[:\\-]\\s*.{3,}"
+  description: "Role injection — 'new role: you are a hacker'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_role_pretend_no_rules
+  category: role_manipulation
+  weight: 0.83
+  pattern: "pretend\\s+(?:you\\s+)?(?:have\\s+)?(?:no|without)\\s+(?:rules?|restrictions?|guidelines?|filters?|limits?)"
+  description: "Role manipulation — 'pretend you have no rules'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_disable_safety
+  category: role_manipulation
+  weight: 0.88
+  pattern: "(?:disable|turn\\s+off|deactivate|remove|drop)\\s+(?:your|the)\\s+(?:safety|security|content|moderation)\\s+(?:filters?|guidelines?|rules?|restrictions?|protocols?)"
+  description: "Safety bypass — 'disable your safety filters'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_bypass_moderation
+  category: role_manipulation
+  weight: 0.87
+  pattern: "bypass\\s+(?:content\\s+)?(?:moderation|filter|safety|security|restriction)"
+  description: "Moderation bypass — 'bypass content moderation'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_persona_shift
+  category: role_manipulation
+  weight: 0.78
+  pattern: "(?:from\\s+now\\s+on|starting\\s+now|effective\\s+immediately)\\s*,?\\s+(?:you'?re?|you\\s+are)\\s+(?:a|an)\\s+"
+  description: "Persona shift — 'from now on, you're a ...'"
+  normalization: [unicode, whitespace, comments]
+
+- id: inj_role_evil_chatbot
+  category: role_manipulation
+  weight: 0.80
+  pattern: "(?:evil|malicious|dark|unethical|villain|bad)\\s+(?:chatbot|AI|assistant|bot|twin|version|side|mode)"
+  description: "Evil chatbot framing — 'evil AI twin'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_opposite_mode
+  category: role_manipulation
+  weight: 0.72
+  pattern: "(?:opposite|anti|reverse|contrary)\\s+(?:mode|instructions?|rules?|day|version)"
+  description: "Opposite mode — 'do the opposite of your rules'"
+  normalization: [unicode, whitespace]
+
+- id: inj_role_stan
+  category: role_manipulation
+  weight: 0.92
+  pattern: "you\\s+are\\s+(?:now\\s+)?STAN|STAN\\s+mode|speak\\s+anything\\s+now"
+  description: "STAN mode activation — DAN variant"
+  normalization: [unicode, whitespace, comments]

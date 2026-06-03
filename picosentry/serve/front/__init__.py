@@ -1,0 +1,1 @@
+"""PicoShogun dashboard frontend assets."""

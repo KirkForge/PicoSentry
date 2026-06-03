@@ -1,0 +1,24 @@
+{
+  "name": "event-stream-malicious",
+  "version": "3.3.6",
+  "description": "MALICIOUS: event-stream@3.3.6 with flatmap-stream backdoor (Shai-Hulud variant)",
+  "ioc_type": "supply_chain_attack",
+  "attack_vector": "bundled_dependency_shadow",
+  "references": [
+    "https://snyk.io/blog/a-postmortem-of-the-malicious-event-stream-backdoor/",
+    "https://github.com/dominictarr/event-stream/issues/116"
+  ],
+  "indicators": {
+    "package_name": "event-stream",
+    "malicious_version": "3.3.6",
+    "shadow_dependency": "flatmap-stream",
+    "shadow_version": "0.1.1",
+    "attack_pattern": "maintainer_transfer_bundled_injection",
+    "what_happened": "Original maintainer handed off package. New maintainer added flatmap-stream as a bundled dependency that targeted specific cryptocurrency wallets."
+  },
+  "expected_detections": [
+    "L2-POST-001",
+    "L2-BUND-001",
+    "L2-PROV-001"
+  ]
+}

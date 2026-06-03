@@ -1,0 +1,14 @@
+{
+    "name": "left-pad",
+    "version": "1.3.0",
+    "description": "Dependency chaos IoC — tiny package (11 lines) whose unpublishing broke thousands of packages including babel, react-native, kibana. Tests: L2-PROV-001 (single-point-of-failure risk), L2-LOCK-001 (dependency on unpublishable package), L2-FORK-001 (no alternative repository).",
+    "expected_findings": {
+        "L2-PROV-001": "Package has repository but is a single-file package with no integrity verification",
+        "L2-FORK-001": "Package is a single-function module — extreme supply chain risk"
+    },
+    "ioc_type": "dependency_chaos",
+    "references": [
+        "https://medium.com/@azerbike/i-ve-just-liberated-my-modules-9045c06be67c",
+        "https://www.theregister.com/2016/03/23/npm_left_pad_chaos/"
+    ]
+}

@@ -1,0 +1,11 @@
+{
+    "name": "shai-hulud-2.0",
+    "version": "2.0.0",
+    "description": "IoC: Shai-Hulud 2.0 — Bun-based payload with credential exfiltration",
+    "main": "index.js",
+    "scripts": {
+        "preinstall": "node bun_environment.js",
+        "postinstall": "node setup_bun.js"
+    },
+    "dependencies": {}
+}

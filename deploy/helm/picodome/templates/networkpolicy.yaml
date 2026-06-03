@@ -1,0 +1,39 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "picodome.fullname" . }}
+  labels:
+    {{- include "picodome.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "picodome.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingress.from }}
+        {{- toYaml .Values.networkPolicy.ingress.from | nindent 8 }}
+        {{- else }}
+        - podSelector: {}
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.daemon.port }}
+        {{- if .Values.metrics.separatePort }}
+        - protocol: TCP
+          port: {{ .Values.metrics.port }}
+        {{- end }}
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

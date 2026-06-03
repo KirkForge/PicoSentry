@@ -1,0 +1,13 @@
+{
+  "id": "ua-parser-js-7.7.8",
+  "name": "ua-parser-js",
+  "version": "7.7.8",
+  "attack_type": "account_takeover_rce",
+  "date": "2021-10-22",
+  "description": "Attacker compromised the npm maintainer account and published versions 7.7.8 and 7.7.9 with malicious postinstall scripts that downloaded and executed cryptominers from pastebin.",
+  "expected_detections": ["L2-POST-001", "L2-PROV-001"],
+  "references": [
+    "https://github.com/faisalman/ua-parser-js/issues/536",
+    "https://blog.cloudflare.com/ua-parser-js-attack/"
+  ]
+}

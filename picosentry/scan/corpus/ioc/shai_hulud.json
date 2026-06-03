@@ -1,0 +1,3618 @@
+{
+  "name": "shai-hulud-npm-worm",
+  "version": "2.0.0",
+  "description": "MALICIOUS: Shai-Hulud npm worm and CVE-2025-54313 (Scavenger) \u2014 691 packages with 1192 compromised versions. Self-propagating postinstall worm that clones itself into new npm packages, exfiltrates credentials, and creates GitHub repos.",
+  "ioc_type": "supply_chain_attack",
+  "attack_vector": "postinstall_propagation",
+  "references": [
+    "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
+    "https://blog.sandboxescaper.com/shai-hulud-npm-worm-analysis/",
+    "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
+    "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/"
+  ],
+  "indicators": {
+    "package_names": [
+      "shai-hulud",
+      "shai-hulud-1",
+      "shai-hulud-2"
+    ],
+    "attack_pattern": "postinstall_self_propagation",
+    "what_happened": "Postinstall script cloned itself and published new variants via npm, creating a self-propagating worm. Later variants (Shai-Hulud 2.0) use Bun-based payloads (setup_bun.js, bun_environment.js) and exfiltrate credentials to GitHub. 691 packages with 1192 compromised versions across CrowdStrike, @ctrl, @nativescript-community, @things-factory, and many others.",
+    "c2_domains": [
+      "shai-hulud.cc",
+      "firebase.su",
+      "dieorsuffer.com",
+      "smartscreen-api.com",
+      "webhook.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7",
+      "npmjs.help",
+      "npmjs.support",
+      "npmjs.security"
+    ],
+    "phishing_domains": [
+      "npmjs.help",
+      "npmjs.support",
+      "npmjs.security",
+      "npnjs.com"
+    ],
+    "bundle_hashes_sha256": {
+      "version_1": "de0e25a3e6c1e1e5998b306b7141b3dc4c0088da9d7bb47c1c00c91e6e4f85d6",
+      "version_2": "81d2a004a1bca6ef87a1caf7d0e0b355ad1764238e40ff6d1b1cb77ad4f595c3",
+      "version_3": "83a650ce44b2a9854802a7fb4c202877815274c129af49e6c2d1d5d5d55c501e",
+      "version_4": "4b2399646573bb737c4969563303d8ee2e9ddbd1b271f1ca9e35ea78062538db",
+      "version_5": "dc67467a39b70d1cd4c1f7f7a459b35058163592f4a9e8fb4dffcbba98ef210c",
+      "version_6": "46faab8ab153fae6e80e7cca38eab363075bb524edd79e42269217a083628f09",
+      "version_7": "b74caeaa75e077c99f7d44f46daaf9796a3be43ecf24f2a1fd381844669da777",
+      "version_8_bun_environment": "62ee164b9b306250c1172583f138c9614139264f889fa99614903c12755468d0",
+      "version_9_bun_environment": "f099c5d9ec417d4445a0328ac0ada9cde79fc37410914103ae9c609cbc0ee068",
+      "version_10_bun_environment": "cbb9bc5a8496243e02f3cc080efbe3e4a1430ba0671f2e43a202bf45b05479cd",
+      "version_11_setup_bun": "a3894003ad1d293ba96d77881ccd2071446dc3f65f434669b49b3da92421901a"
+    },
+    "patient_zero": {
+      "package": "rxnt-authentication",
+      "version": "0.0.3",
+      "published": "2025-09-14T17:58:50Z"
+    },
+    "campaign_names": [
+      "MUT-8694",
+      "s1ngularity/Nx"
+    ],
+    "shai_hulud_2_payloads": [
+      "setup_bun.js",
+      "bun_environment.js"
+    ],
+    "cve_scavenger": {
+      "cve": "CVE-2025-54313",
+      "malware_name": "Scavenger",
+      "c2_domains": [
+        "firebase.su",
+        "dieorsuffer.com",
+        "smartscreen-api.com",
+        "npnjs.com"
+      ],
+      "file_hashes_sha256": {
+        "node-gyp.dll": "c68e42f416f482d43653f36cd14384270b54b68d6496a8e34ce887687de5b441",
+        "scavenger_malware": "5bed39728e404838ecd679df65048abcb443f8c7a9484702a2ded60104b8c4a9",
+        "install.js": "32d0dbdfef0e5520ba96a2673244267e204b94a49716ea13bf635fa9af6f66bf"
+      },
+      "malicious_files": {
+        "windows": [
+          "node-gyp.dll",
+          "loader.dll",
+          "version.dll",
+          "umpdc.dll",
+          "profapi.dll"
+        ],
+        "linux": [
+          "node-gyp.so",
+          "loader.so",
+          "version.so",
+          "libumpdc.so",
+          "libprofapi.so"
+        ]
+      },
+      "behavioral_indicators": [
+        "logDiskSpace function",
+        "XOR key: FuckOff",
+        "rundll32 execution",
+        "Platform checks (Windows/Linux)",
+        "Child process spawning"
+      ]
+    },
+    "mini_shai_hulud_2026": {
+      "cve": "CVE-2026-45321",
+      "ghsa": "GHSA-g7cv-rxg3-hmpx",
+      "payload_hashes_sha256": [
+        "ab4fcadaec49c03278063dd269ea5eef82d24f2124a8e15d7b90f2fa8601266c",
+        "2ec78d556d696e208927cc503d48e4b5eb56b31abc2870c2ed2e98d6be27fc96",
+        "2258284d65f63829bd67eaba01ef6f1ada2f593f9bbe41678b2df360bd90d3df",
+        "a68dd1e6a6e35ec3771e1f94fe796f55dfe65a2b94560516ff4ac189390dfa1c"
+      ],
+      "payload_filenames": [
+        "router_init.js",
+        "tanstack_runner.js",
+        "router_runtime.js",
+        "opensearch_init.js",
+        "setup.mjs",
+        "vite_setup.mjs",
+        "index.js"
+      ],
+      "malicious_setup_packages": [
+        "@tanstack/setup",
+        "@antv/setup"
+      ],
+      "malicious_commit_shas": [
+        "79ac49eedf774dd4b0cfa308722bc463cfe5885c",
+        "1916faa365f2788b6e193514872d51a242876569",
+        "7cb42f57561c321ecb09b4552802ae0ac55b3a7a",
+        "dc3d62a2181beb9f326952a2d212900c94f2e13d"
+      ],
+      "c2_domains": [
+        "git-tanstack.com",
+        "filev2.getsession.org",
+        "api.masscan.cloud",
+        "t.m-kosche.com"
+      ],
+      "persistence_daemons": [
+        "gh-token-monitor",
+        "kitty-monitor"
+      ],
+      "dead_drop_keyword": "firedalazer",
+      "compromised_versions": {
+        "@tanstack/react-router": ["1.169.5", "1.169.8"],
+        "@tanstack/router-core": ["1.169.5", "1.169.8"],
+        "@tanstack/react-start": ["1.167.68", "1.167.71"],
+        "@tanstack/router-plugin": ["1.167.38", "1.167.41"]
+      },
+      "references": [
+        "https://github.com/TanStack/router/security/advisories/GHSA-g7cv-rxg3-hmpx",
+        "https://snyk.io/blog/tanstack-npm-packages-compromised/",
+        "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/"
+      ]
+    }
+  },
+  "compromised_packages": [
+    {
+      "package_name": "@accordproject/concerto-analysis",
+      "version_range": "3.24.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/concerto-linter",
+      "version_range": "3.24.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/concerto-linter-default-ruleset",
+      "version_range": "3.24.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/concerto-metamodel",
+      "version_range": "3.12.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/concerto-types",
+      "version_range": "3.24.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/markdown-it-cicero",
+      "version_range": "0.16.26",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@accordproject/template-engine",
+      "version_range": "2.7.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/css-to-react-native-transform",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/native",
+      "version_range": "0.1.32",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/node-server",
+      "version_range": "1.1.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-absolute",
+      "version_range": "0.8.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-daum-postcode",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-kakaosdk",
+      "version_range": "0.9.27",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-actionsheet",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-devtools",
+      "version_range": "0.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-fast-image",
+      "version_range": "8.5.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-kakao-channel",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-kakao-navi",
+      "version_range": "2.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-less-transformer",
+      "version_range": "1.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-naver-login",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-simple-video",
+      "version_range": "1.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@actbase/react-native-tiktok",
+      "version_range": "1.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@afetcan/api",
+      "version_range": "0.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@afetcan/storage",
+      "version_range": "0.0.27",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ahmedhfarag/ngx-perfect-scrollbar",
+      "version_range": "20.0.20",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ahmedhfarag/ngx-virtual-scroller",
+      "version_range": "4.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alaan/s2s-auth",
+      "version_range": "2.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexadark/amadeus-api",
+      "version_range": "1.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexadark/gatsby-theme-events",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexadark/gatsby-theme-wordpress-blog",
+      "version_range": "2.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexadark/reusable-functions",
+      "version_range": "1.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexcolls/nuxt-socket.io",
+      "version_range": "0.0.7 || 0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@alexcolls/nuxt-ux",
+      "version_range": "0.6.1 || 0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@antstackio/eslint-config-antstack",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@antstackio/express-graphql-proxy",
+      "version_range": "0.2.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@antstackio/graphql-body-parser",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@antstackio/json-to-graphql",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@antstackio/shelbysam",
+      "version_range": "1.1.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/common",
+      "version_range": "2.0.28",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/config-eslint",
+      "version_range": "2.0.4 || 2.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/config-ts",
+      "version_range": "2.0.7 || 2.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/db-context",
+      "version_range": "2.0.24 || 2.0.21",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/di",
+      "version_range": "2.0.28 || 2.0.32",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/di-node",
+      "version_range": "2.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/eslint",
+      "version_range": "1.0.5 || 1.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/fastify-http-server",
+      "version_range": "2.0.24 || 2.0.27",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/http-server",
+      "version_range": "2.0.21 || 2.0.25",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/openapi",
+      "version_range": "0.1.12 || 0.1.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/package-base",
+      "version_range": "1.0.5 || 1.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/prettier",
+      "version_range": "1.0.5 || 1.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/slf",
+      "version_range": "2.0.15 || 2.0.22",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/ssl-info",
+      "version_range": "1.0.10 || 1.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@art-ws/web-app",
+      "version_range": "1.0.3 || 1.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@aryanhussain/my-angular-lib",
+      "version_range": "0.0.23",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/avro-schema-parser",
+      "version_range": "3.0.25 || 3.0.26",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/bundler",
+      "version_range": "0.6.5 || 0.6.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/cli",
+      "version_range": "4.1.3 || 4.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/converter",
+      "version_range": "1.6.3 || 1.6.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/diff",
+      "version_range": "0.5.1 || 0.5.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/dotnet-rabbitmq-template",
+      "version_range": "1.0.2 || 1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/edavisualiser",
+      "version_range": "1.2.2 || 1.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/generator",
+      "version_range": "2.8.5 || 2.8.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/generator-components",
+      "version_range": "0.3.2 || 0.3.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/generator-helpers",
+      "version_range": "0.2.1 || 0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/generator-react-sdk",
+      "version_range": "1.1.5 || 1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/go-watermill-template",
+      "version_range": "0.2.77 || 0.2.76",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/html-template",
+      "version_range": "3.3.2 || 3.3.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/java-spring-cloud-stream-template",
+      "version_range": "0.13.5 || 0.13.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/java-spring-template",
+      "version_range": "1.6.2 || 1.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/java-template",
+      "version_range": "0.3.6 || 0.3.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/keeper",
+      "version_range": "0.0.2 || 0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/markdown-template",
+      "version_range": "1.6.8 || 1.6.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/modelina",
+      "version_range": "5.10.3 || 5.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/modelina-cli",
+      "version_range": "5.10.3 || 5.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/multi-parser",
+      "version_range": "2.2.1 || 2.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/nodejs-template",
+      "version_range": "3.0.6 || 3.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/nodejs-ws-template",
+      "version_range": "0.10.1 || 0.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/nunjucks-filters",
+      "version_range": "2.1.1 || 2.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/openapi-schema-parser",
+      "version_range": "3.0.25 || 3.0.26",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/optimizer",
+      "version_range": "1.0.6 || 1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/parser",
+      "version_range": "3.4.1 || 3.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/php-template",
+      "version_range": "0.1.1 || 0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/problem",
+      "version_range": "1.0.2 || 1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/protobuf-schema-parser",
+      "version_range": "3.5.2 || 3.6.1 || 3.5.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/python-paho-template",
+      "version_range": "0.2.15 || 0.2.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/react-component",
+      "version_range": "2.6.7 || 2.6.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/server-api",
+      "version_range": "0.16.24 || 0.16.25",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/specs",
+      "version_range": "6.9.1 || 6.10.1 || 6.8.3 || 6.8.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/studio",
+      "version_range": "1.0.3 || 1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@asyncapi/web-component",
+      "version_range": "2.6.7 || 2.6.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@basic-ui-components-stc/basic-ui-components",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@bdkinc/knex-ibmi",
+      "version_range": "0.5.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/bb9",
+      "version_range": "1.2.21",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/director-ai",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/mcp",
+      "version_range": "2.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/mcp-server-browserbase",
+      "version_range": "2.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/sdk-functions",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/stagehand",
+      "version_range": "3.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@browserbasehq/stagehand-docs",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@caretive/caret-cli",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@chtijs/eslint-config",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@clausehq/flows-step-httprequest",
+      "version_range": "0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@clausehq/flows-step-jsontoxml",
+      "version_range": "0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@clausehq/flows-step-mqtt",
+      "version_range": "0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@clausehq/flows-step-sendgridemail",
+      "version_range": "0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@clausehq/flows-step-taskscreateurl",
+      "version_range": "0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@cllbk/ghl",
+      "version_range": "1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@commute/bloom",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@commute/market-data",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@commute/market-data-chartjs",
+      "version_range": "2.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/commitlint",
+      "version_range": "8.1.1 || 8.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/falcon-shoelace",
+      "version_range": "0.4.1 || 0.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/foundry-js",
+      "version_range": "0.19.1 || 0.19.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/glide-core",
+      "version_range": "0.34.2 || 0.34.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/logscale-dashboard",
+      "version_range": "1.205.1 || 1.205.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/logscale-file-editor",
+      "version_range": "1.205.1 || 1.205.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/logscale-parser-edit",
+      "version_range": "1.205.1 || 1.205.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/logscale-search",
+      "version_range": "1.205.1 || 1.205.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/node-exporter",
+      "version_range": "0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/tailwind-toucan-base",
+      "version_range": "5.0.1 || 5.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@crowdstrike/threat-center",
+      "version_range": "1.205.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/deluge",
+      "version_range": "7.2.1 || 7.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/golang-template",
+      "version_range": "1.4.2 || 1.4.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/magnet-link",
+      "version_range": "4.0.3 || 4.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/ngx-codemirror",
+      "version_range": "7.0.1 || 7.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/ngx-csv",
+      "version_range": "6.0.1 || 6.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/ngx-emoji-mart",
+      "version_range": "9.2.1 || 9.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/ngx-rightclick",
+      "version_range": "4.0.1 || 4.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/qbittorrent",
+      "version_range": "9.7.1 || 9.7.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/react-adsense",
+      "version_range": "2.0.1 || 2.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/shared-torrent",
+      "version_range": "6.3.1 || 6.3.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/tinycolor",
+      "version_range": "4.1.1 || 4.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/torrent-file",
+      "version_range": "4.1.1 || 4.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/transmission",
+      "version_range": "7.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ctrl/ts-base32",
+      "version_range": "4.0.1 || 4.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@dev-blinq/ai-qa-logic",
+      "version_range": "1.0.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@dev-blinq/blinqioclient",
+      "version_range": "1.0.21",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@dev-blinq/cucumber-js",
+      "version_range": "1.0.131",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@dev-blinq/cucumber_client",
+      "version_range": "1.0.738",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@dev-blinq/ui-systems",
+      "version_range": "1.0.93",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@elsedev/react-csr-sdk",
+      "version_range": "0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/address-encoder",
+      "version_range": "1.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/blacklist",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/buffer",
+      "version_range": "0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ccip-read-cf-worker",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ccip-read-dns-gateway",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ccip-read-router",
+      "version_range": "0.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ccip-read-worker-viem",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/content-hash",
+      "version_range": "3.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/curvearithmetics",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/cypress-metamask",
+      "version_range": "1.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/dnsprovejs",
+      "version_range": "0.5.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/dnssec-oracle-anchors",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/dnssecoraclejs",
+      "version_range": "0.2.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/durin",
+      "version_range": "0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/durin-middleware",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ens-archived-contracts",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ens-avatar",
+      "version_range": "1.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ens-contracts",
+      "version_range": "1.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ens-test-env",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ens-validation",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ensjs",
+      "version_range": "4.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ensjs-react",
+      "version_range": "0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/eth-ens-namehash",
+      "version_range": "2.0.16",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/hackathon-registrar",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/hardhat-chai-matchers-viem",
+      "version_range": "0.1.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/hardhat-toolbox-viem-extended",
+      "version_range": "0.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/mock",
+      "version_range": "2.1.52",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/name-wrapper",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/offchain-resolver-contracts",
+      "version_range": "0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/op-resolver-contracts",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/react-ens-address",
+      "version_range": "0.0.32",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/renewal",
+      "version_range": "0.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/renewal-widget",
+      "version_range": "0.1.10",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/reverse-records",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/server-analytics",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/solsha1",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/subdomain-registrar",
+      "version_range": "0.2.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/test-utils",
+      "version_range": "1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/thorin",
+      "version_range": "0.6.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/ui",
+      "version_range": "3.4.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/unicode-confusables",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/unruggable-gateways",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/vite-plugin-i18next-loader",
+      "version_range": "4.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ensdomains/web3modal",
+      "version_range": "1.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@everreal/react-charts",
+      "version_range": "2.0.2 || 2.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@everreal/validate-esmoduleinterop-imports",
+      "version_range": "1.4.5 || 1.4.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@everreal/web-analytics",
+      "version_range": "0.0.1 || 0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@faq-component/core",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@faq-component/react",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@fishingbooker/browser-sync-plugin",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@fishingbooker/react-loader",
+      "version_range": "1.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@fishingbooker/react-pagination",
+      "version_range": "2.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@fishingbooker/react-raty",
+      "version_range": "2.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@fishingbooker/react-swiper",
+      "version_range": "0.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hapheus/n8n-nodes-pgp",
+      "version_range": "1.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/core",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/cqrs",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/demo",
+      "version_range": "0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/eslint-config",
+      "version_range": "0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/logger",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/scalar",
+      "version_range": "0.1.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hestjs/validation",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hover-design/core",
+      "version_range": "0.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hover-design/react",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/auth-vue",
+      "version_range": "0.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/core",
+      "version_range": "0.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/core-nuxt",
+      "version_range": "0.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/form-naiveui",
+      "version_range": "0.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/i18n",
+      "version_range": "0.8.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@huntersofbook/ui",
+      "version_range": "0.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@hyperlook/telemetry-sdk",
+      "version_range": "1.0.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ifelsedeveloper/protocol-contracts-svm-idl",
+      "version_range": "0.1.2 || 0.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ifings/design-system",
+      "version_range": "4.9.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ifings/metatron3",
+      "version_range": "0.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@jayeshsadhwani/telemetry-sdk",
+      "version_range": "1.0.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/cli",
+      "version_range": "0.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/components",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/habbit-e2e-test",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/medusa-plugin-announcement",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/medusa-plugin-management",
+      "version_range": "0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/medusa-plugin-newsletter",
+      "version_range": "0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/medusa-plugin-product-reviews",
+      "version_range": "0.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/medusa-plugin-promotion",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@kvytech/web",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/api-client",
+      "version_range": "9.12.2 || 9.12.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/babel-preset",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/electron-group-api-client",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/eslint-config",
+      "version_range": "1.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/material-icons",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/react-table-context",
+      "version_range": "2.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lessondesk/schoolbus",
+      "version_range": "5.2.2 || 5.2.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@livecms/live-edit",
+      "version_range": "0.0.32",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@livecms/nuxt-live-edit",
+      "version_range": "1.9.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lokeswari-satyanarayanan/rn-zustand-expo-template",
+      "version_range": "1.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@louisle2/core",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@louisle2/cortex-js",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lpdjs/firestore-repo-service",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lui-ui/lui-nuxt",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lui-ui/lui-tailwindcss",
+      "version_range": "0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@lui-ui/lui-vue",
+      "version_range": "1.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@markvivanco/app-version-checker",
+      "version_range": "1.0.2 || 1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mcp-use/cli",
+      "version_range": "2.2.7 || 2.2.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mcp-use/inspector",
+      "version_range": "0.6.3 || 0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mcp-use/mcp-use",
+      "version_range": "1.0.2 || 1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@micado-digital/stadtmarketing-kufstein-external",
+      "version_range": "1.9.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mizzle-dev/orm",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mparpaillon/connector-parse",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mparpaillon/imagesloaded",
+      "version_range": "4.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@mparpaillon/page",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/arraybuffers",
+      "version_range": "1.1.6 || 1.1.7 || 1.1.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/gesturehandler",
+      "version_range": "2.0.35",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/perms",
+      "version_range": "3.0.5 || 3.0.6 || 3.0.7 || 3.0.8 || 3.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/sentry",
+      "version_range": "4.6.43",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/sqlite",
+      "version_range": "3.5.2 || 3.5.3 || 3.5.4 || 3.5.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/text",
+      "version_range": "1.6.10 || 1.6.11 || 1.6.12 || 1.6.13 || 1.6.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/typeorm",
+      "version_range": "0.2.30 || 0.2.31 || 0.2.32 || 0.2.33",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-collectionview",
+      "version_range": "6.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-document-picker",
+      "version_range": "1.1.27 || 1.1.28",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-drawer",
+      "version_range": "0.1.30",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-image",
+      "version_range": "4.5.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-label",
+      "version_range": "1.3.35 || 1.3.36 || 1.3.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-bottom-navigation",
+      "version_range": "7.2.72 || 7.2.73 || 7.2.74 || 7.2.75",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-bottomsheet",
+      "version_range": "7.2.72",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-core",
+      "version_range": "7.2.72 || 7.2.73 || 7.2.74 || 7.2.75 || 7.2.76",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-core-tabs",
+      "version_range": "7.2.72 || 7.2.73 || 7.2.74 || 7.2.75 || 7.2.76",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-ripple",
+      "version_range": "7.2.72 || 7.2.73 || 7.2.74 || 7.2.75",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-material-tabs",
+      "version_range": "7.2.72 || 7.2.73 || 7.2.74 || 7.2.75",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-pager",
+      "version_range": "14.1.36 || 14.1.37 || 14.1.38",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nativescript-community/ui-pulltorefresh",
+      "version_range": "2.5.4 || 2.5.5 || 2.5.6 || 2.5.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nexe/config-manager",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nexe/eslint-config",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nexe/logger",
+      "version_range": "0.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/angular",
+      "version_range": "20.0.4 || 20.0.5 || 20.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/focus",
+      "version_range": "20.0.4 || 20.0.5 || 20.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/nativescript-checkbox",
+      "version_range": "2.0.6 || 2.0.7 || 2.0.8 || 2.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/nativescript-loading-indicator",
+      "version_range": "5.0.1 || 5.0.2 || 5.0.3 || 5.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/ui-collectionview",
+      "version_range": "5.1.11 || 5.1.12 || 5.1.13 || 5.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/web",
+      "version_range": "20.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/web-angular",
+      "version_range": "20.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/xplat",
+      "version_range": "20.0.5 || 20.0.6 || 20.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@nstudio/xplat-utils",
+      "version_range": "20.0.5 || 20.0.6 || 20.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ntnx/passport-wso2",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ntnx/t",
+      "version_range": "0.0.101",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/accordion",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/alert-dialog",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/arrow",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/aspect-ratio",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/avatar",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/checkbox",
+      "version_range": "0.6.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/collapsible",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/collection",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/dialog",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/direction",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/dismissable-layer",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/focus-guards",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/focus-scope",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/hover-card",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/label",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/menu",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/motion",
+      "version_range": "0.4.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/motion-nuxt",
+      "version_range": "0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/popover",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/popper",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/portal",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/presence",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/primitive",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/primitives",
+      "version_range": "0.7.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/primitives-nuxt",
+      "version_range": "0.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/progress",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/provide",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/radio-group",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/roving-focus",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/scroll-area",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/separator",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/slider",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/slot",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/switch",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/tabs",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/toast",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/toggle",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/toggle-group",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/toolbar",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/tooltip",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/use-composable",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/utils",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@oku-ui/visually-hidden",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/board",
+      "version_range": "9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/data-grist",
+      "version_range": "9.0.29 || 9.0.35 || 9.0.36 || 9.0.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/graphql",
+      "version_range": "9.0.22 || 9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/headroom",
+      "version_range": "9.0.2 || 9.0.35 || 9.0.36 || 9.0.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/help",
+      "version_range": "9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/i18n",
+      "version_range": "9.0.35 || 9.0.36 || 9.0.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/input",
+      "version_range": "9.0.27 || 9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/layout",
+      "version_range": "9.0.35 || 9.0.36 || 9.0.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/popup",
+      "version_range": "9.0.22 || 9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/pull-to-refresh",
+      "version_range": "9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/shell",
+      "version_range": "9.0.22 || 9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/styles",
+      "version_range": "9.0.2 || 9.0.35 || 9.0.36 || 9.0.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@operato/utils",
+      "version_range": "9.0.22 || 9.0.35 || 9.0.36 || 9.0.37 || 9.0.38 || 9.0.39 || 9.0.40 || 9.0.41 || 9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@orbitgtbelgium/mapbox-gl-draw-cut-polygon-mode",
+      "version_range": "2.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@orbitgtbelgium/mapbox-gl-draw-scale-rotate-mode",
+      "version_range": "1.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@orbitgtbelgium/orbit-components",
+      "version_range": "1.2.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@orbitgtbelgium/time-slider",
+      "version_range": "1.0.187",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@osmanekrem/bmad",
+      "version_range": "1.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@osmanekrem/error-handler",
+      "version_range": "1.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pergel/cli",
+      "version_range": "0.11.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pergel/module-box",
+      "version_range": "0.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pergel/module-graphql",
+      "version_range": "0.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pergel/module-ui",
+      "version_range": "0.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pergel/nuxt",
+      "version_range": "0.25.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pkgr/core",
+      "version_range": "0.2.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/agent",
+      "version_range": "1.24.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/ai",
+      "version_range": "7.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/automatic-cohorts-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/bitbucket-release-tracker",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/cli",
+      "version_range": "0.5.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/clickhouse",
+      "version_range": "1.7.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/core",
+      "version_range": "1.5.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/currency-normalization-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/customerio-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/databricks-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/drop-events-on-property-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/event-sequence-timer-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/filter-out-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/first-time-event-tracker",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/geoip-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/github-release-tracking-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/gitub-star-sync-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/heartbeat-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/hedgehog-mode",
+      "version_range": "0.0.42",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/icons",
+      "version_range": "0.36.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/ingestion-alert-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/intercom-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/kinesis-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/laudspeaker-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/lemon-ui",
+      "version_range": "0.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/maxmind-plugin",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/migrator3000-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/netdata-event-processing",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/nextjs",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/nextjs-config",
+      "version_range": "1.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/nuxt",
+      "version_range": "1.2.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/pagerduty-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/piscina",
+      "version_range": "3.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/plugin-contrib",
+      "version_range": "0.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/plugin-server",
+      "version_range": "1.10.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/plugin-unduplicates",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/postgres-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/react-rrweb-player",
+      "version_range": "1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrdom",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb-player",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb-record",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb-replay",
+      "version_range": "0.0.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb-snapshot",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/rrweb-utils",
+      "version_range": "0.0.31",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/sendgrid-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/siphash",
+      "version_range": "1.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/snowflake-export-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/taxonomy-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/twilio-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/twitter-followers-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/url-normalizer-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/variance-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/web-dev-server",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/wizard",
+      "version_range": "1.18.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@posthog/zendesk-plugin",
+      "version_range": "0.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/aether-icons",
+      "version_range": "2.23.2 || 2.23.3 || 2.23.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/csv-parse",
+      "version_range": "4.0.3 || 4.0.5 || 4.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/final-node-keytar",
+      "version_range": "7.9.3 || 7.9.1 || 7.9.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/mcp-ui-client",
+      "version_range": "5.5.2 || 5.5.3 || 5.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/node-keytar",
+      "version_range": "7.9.4 || 7.9.5 || 7.9.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/pm-bin-linux-x64",
+      "version_range": "1.24.3 || 1.24.5 || 1.24.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/pm-bin-macos-arm64",
+      "version_range": "1.24.3 || 1.24.5 || 1.24.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/pm-bin-macos-x64",
+      "version_range": "1.24.3 || 1.24.5 || 1.24.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/pm-bin-windows-x64",
+      "version_range": "1.24.3 || 1.24.5 || 1.24.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/postman-collection-fork",
+      "version_range": "4.3.3 || 4.3.5 || 4.3.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/postman-mcp-cli",
+      "version_range": "1.0.4 || 1.0.5 || 1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/postman-mcp-server",
+      "version_range": "2.4.12 || 2.4.10 || 2.4.11",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/pretty-ms",
+      "version_range": "6.1.2 || 6.1.3 || 6.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/secret-scanner-wasm",
+      "version_range": "2.1.4 || 2.1.3 || 2.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/tunnel-agent",
+      "version_range": "0.6.5 || 0.6.7 || 0.6.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/wdio-allure-reporter",
+      "version_range": "0.0.7 || 0.0.8 || 0.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@postman/wdio-junit-reporter",
+      "version_range": "0.0.4 || 0.0.5 || 0.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pradhumngautam/common-app",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@productdevbook/animejs-vue",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@productdevbook/auth",
+      "version_range": "0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@productdevbook/chatwoot",
+      "version_range": "2.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@productdevbook/motion",
+      "version_range": "1.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@productdevbook/ts-i18n",
+      "version_range": "1.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@pruthvi21/use-debounce",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-document-translator",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-git-clean-markdown",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-markdown",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-markdown-compose",
+      "version_range": "1.4.2506300029",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-markdown-image",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-markdown-print",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-markdown-translator",
+      "version_range": "1.4.2509202331",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-remove-image-background",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@quick-start-soft/quick-task-refine",
+      "version_range": "1.4.2511142126",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@relyt/claude-context-core",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@relyt/claude-context-mcp",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@relyt/mcp-server-relytone",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@rxap/ngx-bootstrap",
+      "version_range": "19.0.3 || 19.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@sameepsi/sor",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@sameepsi/sor2",
+      "version_range": "2.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@seezo/sdr-mcp-server",
+      "version_range": "0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@seung-ju/next",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@seung-ju/openapi-generator",
+      "version_range": "0.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@seung-ju/react-hooks",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@seung-ju/react-native-action-sheet",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/better-auth",
+      "version_range": "0.8.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/drizzle",
+      "version_range": "0.8.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/ecosystem",
+      "version_range": "0.7.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/graphql",
+      "version_range": "0.7.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/module-builder",
+      "version_range": "0.8.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/openapi",
+      "version_range": "0.7.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/permission",
+      "version_range": "0.6.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/ratelimit",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/scalar",
+      "version_range": "0.6.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@silgi/yoga",
+      "version_range": "0.7.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@sme-ui/aoma-vevasound-metadata-lib",
+      "version_range": "0.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@strapbuild/react-native-date-time-picker",
+      "version_range": "2.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@strapbuild/react-native-perspective-image-cropper",
+      "version_range": "0.4.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@strapbuild/react-native-perspective-image-cropper-2",
+      "version_range": "0.4.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@strapbuild/react-native-perspective-image-cropper-poojan31",
+      "version_range": "0.4.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@suraj_h/medium-common",
+      "version_range": "1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teriyakibomb/ember-velcro",
+      "version_range": "2.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/bio-parsers",
+      "version_range": "0.4.30",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/bounce-loader",
+      "version_range": "0.3.16 || 0.3.17",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/file-utils",
+      "version_range": "0.3.22",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/liquibase-tools",
+      "version_range": "0.4.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/ove",
+      "version_range": "0.7.40",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/range-utils",
+      "version_range": "0.3.14 || 0.3.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/react-list",
+      "version_range": "0.8.19 || 0.8.20",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/react-table",
+      "version_range": "6.10.19 || 6.10.20 || 6.10.22",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/sequence-utils",
+      "version_range": "0.3.34",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@teselagen/ui",
+      "version_range": "0.9.10",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@thangved/callback-window",
+      "version_range": "1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@thedelta/eslint-config",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/attachment-base",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51 || 9.0.52 || 9.0.53 || 9.0.54 || 9.0.55",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/auth-base",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/email-base",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45 || 9.0.46 || 9.0.47 || 9.0.48 || 9.0.49 || 9.0.50 || 9.0.51 || 9.0.52 || 9.0.53 || 9.0.54 || 9.0.55 || 9.0.56 || 9.0.57 || 9.0.58 || 9.0.59",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/env",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/integration-base",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/integration-marketplace",
+      "version_range": "9.0.43 || 9.0.44 || 9.0.45",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@things-factory/shell",
+      "version_range": "9.0.42 || 9.0.43 || 9.0.44 || 9.0.45",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tiaanduplessis/json",
+      "version_range": "2.0.2 || 2.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tiaanduplessis/react-progressbar",
+      "version_range": "1.0.2 || 1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tnf-dev/api",
+      "version_range": "1.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tnf-dev/core",
+      "version_range": "1.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tnf-dev/js",
+      "version_range": "1.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tnf-dev/mui",
+      "version_range": "1.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@tnf-dev/react",
+      "version_range": "1.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trackstar/angular-trackstar-link",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trackstar/react-trackstar-link",
+      "version_range": "2.0.21",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trackstar/react-trackstar-link-upgrade",
+      "version_range": "1.1.10",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trackstar/test-angular-package",
+      "version_range": "0.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trackstar/test-package",
+      "version_range": "1.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trefox/sleekshop-js",
+      "version_range": "0.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix",
+      "version_range": "7.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-acl",
+      "version_range": "4.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-elasticsearch",
+      "version_range": "2.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-mongoose",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-orientdb",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-postgres",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-pubsub",
+      "version_range": "4.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-redis",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-soap",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/atrix-swagger",
+      "version_range": "3.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/bool-expressions",
+      "version_range": "4.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/eslint-config-trigo",
+      "version_range": "3.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/fsm",
+      "version_range": "3.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/hapi-auth-signedlink",
+      "version_range": "1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/jsdt",
+      "version_range": "0.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/keycloak-api",
+      "version_range": "1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/node-soap",
+      "version_range": "0.5.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/pathfinder-ui-css",
+      "version_range": "0.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trigo/trigo-hapijs",
+      "version_range": "5.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trpc-rate-limiter/cloudflare",
+      "version_range": "0.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@trpc-rate-limiter/hono",
+      "version_range": "0.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@typescript_eslinter/eslint",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@ui-ux-gang/devextreme-angular-rpk",
+      "version_range": "24.1.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@varsityvibe/api-client",
+      "version_range": "1.3.36 || 1.3.37",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@varsityvibe/utils",
+      "version_range": "5.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@varsityvibe/validation-schemas",
+      "version_range": "0.6.7 || 0.6.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@viapip/eslint-config",
+      "version_range": "0.2.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@vishadtyagi/full-year-calendar",
+      "version_range": "0.1.11",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/alexa-types",
+      "version_range": "2.15.60 || 2.15.61",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/anthropic",
+      "version_range": "0.4.4 || 0.4.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/api-sdk",
+      "version_range": "3.28.59 || 3.28.58",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/backend-utils",
+      "version_range": "5.0.1 || 5.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/base-types",
+      "version_range": "2.136.3 || 2.136.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/body-parser",
+      "version_range": "1.21.3 || 1.21.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/chat-types",
+      "version_range": "2.14.59 || 2.14.58",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/circleci-config-sdk-orb-import",
+      "version_range": "0.2.1 || 0.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/commitlint-config",
+      "version_range": "2.6.2 || 2.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/common",
+      "version_range": "8.9.1 || 8.9.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/default-prompt-wrappers",
+      "version_range": "1.7.4 || 1.7.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/dependency-cruiser-config",
+      "version_range": "1.8.11 || 1.8.12",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/dtos-interact",
+      "version_range": "1.40.2 || 1.40.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/encryption",
+      "version_range": "0.3.2 || 0.3.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/eslint-config",
+      "version_range": "7.16.4 || 7.16.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/eslint-plugin",
+      "version_range": "1.6.2 || 1.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/exception",
+      "version_range": "1.10.1 || 1.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/fetch",
+      "version_range": "1.11.1 || 1.11.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/general-types",
+      "version_range": "3.2.22 || 3.2.23",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/git-branch-check",
+      "version_range": "1.4.3 || 1.4.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/google-dfes-types",
+      "version_range": "2.17.12 || 2.17.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/google-types",
+      "version_range": "2.21.12 || 2.21.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/husky-config",
+      "version_range": "1.3.2 || 1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/logger",
+      "version_range": "2.4.3 || 2.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/metrics",
+      "version_range": "1.5.2 || 1.5.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/natural-language-commander",
+      "version_range": "0.5.2 || 0.5.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/nestjs-common",
+      "version_range": "2.75.3 || 2.75.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/nestjs-mongodb",
+      "version_range": "1.3.2 || 1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/nestjs-rate-limit",
+      "version_range": "1.3.2 || 1.3.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/nestjs-redis",
+      "version_range": "1.3.2 || 1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/nestjs-timeout",
+      "version_range": "1.3.2 || 1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/npm-package-json-lint-config",
+      "version_range": "1.1.2 || 1.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/openai",
+      "version_range": "3.2.3 || 3.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/pino",
+      "version_range": "6.11.4 || 6.11.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/pino-pretty",
+      "version_range": "4.4.1 || 4.4.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/prettier-config",
+      "version_range": "1.10.1 || 1.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/react-chat",
+      "version_range": "1.65.3 || 1.65.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/runtime",
+      "version_range": "1.29.2 || 1.29.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/runtime-client-js",
+      "version_range": "1.17.2 || 1.17.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/sdk-runtime",
+      "version_range": "1.43.2 || 1.43.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/secrets-provider",
+      "version_range": "1.9.2 || 1.9.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/semantic-release-config",
+      "version_range": "1.4.2 || 1.4.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/serverless-plugin-typescript",
+      "version_range": "2.1.8 || 2.1.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/slate-serializer",
+      "version_range": "1.7.4 || 1.7.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/stitches-react",
+      "version_range": "2.3.3 || 2.3.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/storybook-config",
+      "version_range": "1.2.3 || 1.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/stylelint-config",
+      "version_range": "1.1.2 || 1.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/test-common",
+      "version_range": "2.1.1 || 2.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/tsconfig",
+      "version_range": "1.12.1 || 1.12.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/tsconfig-paths",
+      "version_range": "1.1.5 || 1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/utils-designer",
+      "version_range": "1.74.20 || 1.74.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/verror",
+      "version_range": "1.1.5 || 1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/vite-config",
+      "version_range": "2.6.2 || 2.6.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/vitest-config",
+      "version_range": "1.10.3 || 1.10.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/voice-types",
+      "version_range": "2.10.58 || 2.10.59",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/voiceflow-types",
+      "version_range": "3.32.45 || 3.32.46",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@voiceflow/widget",
+      "version_range": "1.7.18 || 1.7.19",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@vucod/email",
+      "version_range": "0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@yoobic/design-system",
+      "version_range": "6.5.17",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@yoobic/jpeg-camera-es6",
+      "version_range": "1.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@yoobic/yobi",
+      "version_range": "8.7.53",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/ai-actions",
+      "version_range": "0.1.18 || 0.1.19 || 0.1.20",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/ai-actions-react",
+      "version_range": "0.1.13 || 0.1.12 || 0.1.14",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/babel-preset-zapier",
+      "version_range": "6.4.2 || 6.4.1 || 6.4.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/browserslist-config-zapier",
+      "version_range": "1.0.4 || 1.0.5 || 1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/eslint-plugin-zapier",
+      "version_range": "11.0.5 || 11.0.3 || 11.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/mcp-integration",
+      "version_range": "3.0.3 || 3.0.1 || 3.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/secret-scrubber",
+      "version_range": "1.1.5 || 1.1.3 || 1.1.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/spectral-api-ruleset",
+      "version_range": "1.9.3 || 1.9.2 || 1.9.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/stubtree",
+      "version_range": "0.1.4 || 0.1.3 || 0.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "@zapier/zapier-sdk",
+      "version_range": "0.15.7 || 0.15.6 || 0.15.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "airchief",
+      "version_range": "0.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "airpilot",
+      "version_range": "0.8.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "angulartics2",
+      "version_range": "14.1.1 || 14.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "another-shai",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ansi-styles",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "browser-webdriver-downloader",
+      "version_range": "3.0.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "capacitor-notificationhandler",
+      "version_range": "0.0.2 || 0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "capacitor-plugin-healthapp",
+      "version_range": "0.0.2 || 0.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "capacitor-plugin-ihealth",
+      "version_range": "1.1.8 || 1.1.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "capacitor-plugin-vonage",
+      "version_range": "1.0.2 || 1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "capacitorandroidpermissions",
+      "version_range": "0.0.4 || 0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "chalk",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "config-cordova",
+      "version_range": "0.8.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "cordova-plugin-voxeet2",
+      "version_range": "1.0.24",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "cordova-voxeet",
+      "version_range": "1.0.32",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "create-hest-app",
+      "version_range": "0.1.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "db-evo",
+      "version_range": "1.1.4 || 1.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "debug",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "devextreme-angular-rpk",
+      "version_range": "21.2.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-browser-services",
+      "version_range": "5.0.2 || 5.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-headless-form",
+      "version_range": "1.1.2 || 1.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-headless-form-yup",
+      "version_range": "1.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-headless-table",
+      "version_range": "2.1.5 || 2.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-url-hash-polyfill",
+      "version_range": "1.0.12 || 1.0.13",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ember-velcro",
+      "version_range": "2.2.1 || 2.2.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "encounter-playground",
+      "version_range": "0.0.2 || 0.0.3 || 0.0.4 || 0.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "eslint-config-crowdstrike",
+      "version_range": "11.0.2 || 11.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "eslint-config-crowdstrike-node",
+      "version_range": "4.0.3 || 4.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "eslint-config-prettier",
+      "version_range": "10.1.6 || 10.1.7 || 8.10.1 || 9.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "eslint-config-teselagen",
+      "version_range": "6.1.7 || 6.1.8",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "eslint-plugin-prettier",
+      "version_range": "4.2.2 || 4.2.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "globalize-rpk",
+      "version_range": "1.7.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "got-fetch",
+      "version_range": "5.1.11 || 5.1.12",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "graphql-sequelize-teselagen",
+      "version_range": "5.3.8 || 5.3.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "haski",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "html-to-base64-image",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "is",
+      "version_range": "3.3.1 || 5.0.0",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "json-rules-engine-simplified",
+      "version_range": "0.2.1 || 0.2.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "jumpgate",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "koa2-swagger-ui",
+      "version_range": "5.11.1 || 5.11.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "larpexodus",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mcfly-semantic-release",
+      "version_range": "1.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mcp-knowledge-base",
+      "version_range": "0.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mcp-knowledge-graph",
+      "version_range": "1.2.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mobioffice-cli",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "monorepo-next",
+      "version_range": "13.0.1 || 13.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mstate-angular",
+      "version_range": "0.4.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mstate-cli",
+      "version_range": "0.4.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mstate-dev-react",
+      "version_range": "1.1.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "mstate-react",
+      "version_range": "1.6.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "napi-postinstall",
+      "version_range": "0.3.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ng2-file-upload",
+      "version_range": "7.0.2 || 7.0.3 || 8.0.1 || 8.0.2 || 8.0.3 || 9.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ngx-bootstrap",
+      "version_range": "18.1.4 || 19.0.3 || 19.0.4 || 20.0.3 || 20.0.4 || 20.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ngx-color",
+      "version_range": "10.0.1 || 10.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ngx-toastr",
+      "version_range": "19.0.1 || 19.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ngx-trend",
+      "version_range": "8.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ngx-ws",
+      "version_range": "1.1.5 || 1.1.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "oradm-to-gql",
+      "version_range": "35.0.14 || 35.0.15",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "oradm-to-sqlz",
+      "version_range": "1.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ove-auto-annotate",
+      "version_range": "0.0.10 || 0.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "pm2-gelf-json",
+      "version_range": "1.0.4 || 1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "printjs-rpk",
+      "version_range": "1.6.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "pupeter",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "pupetier",
+      "version_range": "*",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "react-complaint-image",
+      "version_range": "0.0.32 || 0.0.35",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "react-jsonschema-form-conditionals",
+      "version_range": "0.3.18 || 0.3.21",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "react-jsonschema-form-extras",
+      "version_range": "1.0.4",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "react-jsonschema-rxnt-extras",
+      "version_range": "0.4.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "remark-preset-lint-crowdstrike",
+      "version_range": "4.0.1 || 4.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "rxnt-authentication",
+      "version_range": "0.0.3 || 0.0.4 || 0.0.5 || 0.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "rxnt-healthchecks-nestjs",
+      "version_range": "1.0.2 || 1.0.3 || 1.0.4 || 1.0.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "rxnt-kue",
+      "version_range": "1.0.4 || 1.0.5 || 1.0.6 || 1.0.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "swc-plugin-component-annotate",
+      "version_range": "1.9.1 || 1.9.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "synckit",
+      "version_range": "0.11.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tailwind-toucan-base",
+      "version_range": "5.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tbssnch",
+      "version_range": "1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "teselagen-interval-tree",
+      "version_range": "1.1.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tg-client-query-builder",
+      "version_range": "2.14.4 || 2.14.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tg-redbird",
+      "version_range": "1.3.1 || 1.3.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tg-seq-gen",
+      "version_range": "1.0.10 || 1.0.9",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "thangved-react-grid",
+      "version_range": "1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ts-gaussian",
+      "version_range": "3.0.5 || 3.0.6",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ts-imports",
+      "version_range": "1.0.1 || 1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "tvi-cli",
+      "version_range": "0.1.5",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ve-bamreader",
+      "version_range": "0.2.6 || 0.2.7",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "ve-editor",
+      "version_range": "1.0.1 || 1.0.2",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "verror-extra",
+      "version_range": "6.0.1",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "voip-callkit",
+      "version_range": "1.0.2 || 1.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "wdio-web-reporter",
+      "version_range": "0.1.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "yargs-help-output",
+      "version_range": "5.0.3",
+      "severity": "CRITICAL"
+    },
+    {
+      "package_name": "yoo-styles",
+      "version_range": "6.0.326",
+      "severity": "CRITICAL"
+    }
+  ],
+  "expected_detections": [
+    "L2-POST-001",
+    "L2-OBFS-001",
+    "L2-CRED-001",
+    "L2-IOC-001",
+    "L2-WORM-001",
+    "L2-NETEX-001"
+  ]
+}

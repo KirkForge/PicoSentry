@@ -1,0 +1,37 @@
+{{- if .Values.networkPolicy.enabled }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "picodome-admission.fullname" . }}
+  labels:
+    {{- include "picodome-admission.labels" . | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "picodome-admission.selectorLabels" . | nindent 6 }}
+  policyTypes:
+    - Ingress
+    - Egress
+  ingress:
+    - from:
+        {{- if .Values.networkPolicy.ingress.from }}
+        {{- toYaml .Values.networkPolicy.ingress.from | nindent 8 }}
+        {{- else }}
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+        {{- end }}
+      ports:
+        - protocol: TCP
+          port: {{ .Values.admission.port }}
+  egress:
+    - to:
+        - podSelector: {}
+      ports:
+        - protocol: TCP
+          port: 53
+    - to: []
+      ports:
+        - protocol: TCP
+          port: 443
+{{- end }}

@@ -1,0 +1,80 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "picodome-admission.fullname" . }}
+  labels:
+    {{- include "picodome-admission.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "picodome-admission.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "picodome-admission.selectorLabels" . | nindent 8 }}
+      annotations:
+        checksum/tls: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "picodome-admission.serviceAccountName" . }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: admission
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "admission"
+            - "--port={{ .Values.admission.port }}"
+            - "--cert-file=/tls/tls.crt"
+            - "--key-file=/tls/tls.key"
+          env:
+            - name: PICODOME_ADMISSION_SCAN_ENABLED
+              value: {{ .Values.admission.scanEnabled | quote }}
+            - name: PICODOME_ADMISSION_SCAN_MIN_SEVERITY
+              value: {{ .Values.admission.scanMinSeverity | quote }}
+            - name: PICODOME_ADMISSION_DAEMON_URL
+              value: {{ .Values.admission.daemonUrl | quote }}
+          ports:
+            - name: https
+              containerPort: {{ .Values.admission.port }}
+              protocol: TCP
+          volumeMounts:
+            - name: tls
+              mountPath: /tls
+              readOnly: true
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: {{ .Values.securityContext.readOnlyRootFilesystem }}
+            allowPrivilegeEscalation: {{ .Values.securityContext.allowPrivilegeEscalation }}
+            capabilities:
+              drop:
+                {{- toYaml .Values.securityContext.capabilities.drop | nindent 16 }}
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.healthProbe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.liveness.periodSeconds }}
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: https
+              scheme: HTTPS
+            initialDelaySeconds: {{ .Values.healthProbe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.readiness.periodSeconds }}
+      volumes:
+        - name: tls
+          secret:
+            {{- if .Values.tls.existingSecret }}
+            secretName: {{ .Values.tls.existingSecret }}
+            {{- else }}
+            secretName: {{ include "picodome-admission.fullname" . }}-tls
+            {{- end }}

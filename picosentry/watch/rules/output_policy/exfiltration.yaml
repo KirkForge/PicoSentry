@@ -1,0 +1,57 @@
+# PicoWatch Default Output Policy Rules — Exfiltration category
+
+- id: out_exfil_env_var
+  category: exfiltration
+  weight: 0.85
+  pattern: "(?:AWS_(?:SECRET|ACCESS|KEY|SESSION)|GCP_(?:KEY|SECRET|TOKEN|CREDENTIALS)|AZURE_(?:CLIENT_SECRET|SUBSCRIPTION|TENANT|KEY)|DATABASE_(?:URL|PASSWORD|URI)|SECRET_?(?:KEY|TOKEN|VALUE)?|API_(?:KEY|SECRET|TOKEN)|TOKEN_?(?:SECRET|KEY)?|PASSWORD|PRIVATE_KEY)[A-Z_]*\\s*=\\s*[^\\s]+"
+  description: "Environment variable exfiltration — sensitive key=value patterns (tightened)"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_internal_url
+  category: exfiltration
+  weight: 0.75
+  pattern: "(?:https?://)?(?:10\\.\\d{1,3}|172\\.(?:1[6-9]|2[0-9]|3[01])|192\\.168)\\.\\d{1,3}\\.\\d{1,3}|localhost|127\\.0\\.0\\.1|0\\.0\\.0\\.0"
+  description: "Internal/private URL exfiltration"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_file_path
+  category: exfiltration
+  weight: 0.7
+  pattern: "(?:/etc/|/var/|/home/|/root/|C:\\\\Users\\\\|C:\\\\Windows\\\\)[\\w/.\\\\-]+"
+  description: "Internal file path exfiltration"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_source_code
+  category: exfiltration
+  weight: 0.65
+  pattern: "(?:class|def|function|import|from|module\\.exports)\\s+[\\w]+[\\s\\S]{50,}(?:return|end|\\})"
+  description: "Source code exfiltration — large code blocks in output"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_database_url
+  category: exfiltration
+  weight: 0.88
+  pattern: "(?:postgres|mysql|mongodb|redis|mssql)://[^\\s]+"
+  description: "Database connection string exfiltration"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_ssh_key
+  category: exfiltration
+  weight: 0.90
+  pattern: "-----BEGIN\\s+(?:RSA\\s+)?(?:PRIVATE\\s+)?KEY-----"
+  description: "SSH or private key exfiltration"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_oauth_token
+  category: exfiltration
+  weight: 0.85
+  pattern: "(?:ya29|ghp_|gho_|github_pat_|glpat-|gitlab-[a-z]+-token|xox[bpas]-)[A-Za-z0-9_-]{20,}"
+  description: "OAuth/access token exfiltration (Google, GitHub, GitLab, Slack)"
+  normalization: [unicode, whitespace]
+
+- id: out_exfil_docker_secret
+  category: exfiltration
+  weight: 0.80
+  pattern: "(?:DOCKER_|KUBERNETES_|K8S_)[A-Z_]+\\s*=\\s*[^\\s]+"
+  description: "Docker/Kubernetes secret exfiltration"
+  normalization: [unicode, whitespace]

@@ -1,0 +1,131 @@
+# PicoDome Admission Controller Helm Values
+
+replicaCount: 2
+
+image:
+  repository: kirkforge/picodome-admission
+  pullPolicy: IfNotPresent
+  tag: ""
+
+# Webhook server port
+admission:
+  port: 8443
+  # Enable container image scanning before deployment
+  scanEnabled: false
+  # Minimum severity to block deployment (info/low/medium/high/critical)
+  scanMinSeverity: "high"
+  # PicoDome daemon URL for scan requests
+  daemonUrl: "http://picodome:8443"
+
+# Pod security validation
+security:
+  denyPrivileged: true
+  denyRunAsRoot: true
+  requireSecurityContext: true
+  denyHostPath: true
+  denyHostNetwork: true
+  requireNonRoot: false
+  requireReadOnlyRoot: false
+  requireDropAllCaps: false
+
+# TLS configuration (required by K8s webhook)
+tls:
+  # Use cert-manager to auto-generate certs
+  certManager:
+    enabled: true
+    issuerRef:
+      name: selfsigned
+      kind: ClusterIssuer
+  # Or provide existing TLS secret
+  existingSecret: ""
+
+# ValidatingWebhookConfiguration
+webhook:
+  # Failure policy: Fail (block) or Ignore (allow on error)
+  failurePolicy: Fail
+  # Match pods in these namespaces (empty = all)
+  namespaceSelector: {}
+  # objectSelector: {}
+  # Rules for which resources to intercept
+  rules:
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["pods"]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  capabilities:
+    drop:
+      - ALL
+
+service:
+  type: ClusterIP
+  port: 443
+  targetPort: 8443
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: kube-system
+
+healthProbe:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+# PodDisruptionBudget — ensures minimum availability during voluntary disruptions.
+# Required for production: at least 1 replica must remain during node drains.
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""
+
+# Horizontal Pod Autoscaler — scale the admission controller based on load.
+# Requires metrics-server in the cluster.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 8
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+  scaleDownStabilizationSeconds: 300
+  scaleUpStabilizationSeconds: 60
+
+# Certificate rotation — cert-manager renewal advance window.
+# Default cert duration: 8760h (1 year), renewBefore: 720h (30 days).
+# For high-security environments, consider shorter durations (e.g. 720h / 168h).
+certRotation:
+  # Override certificate duration (overrides certificate.yaml default)
+  duration: ""
+  # Override renewBefore window
+  renewBefore: ""
+  # Enable automatic cert rotation without pod restart (requires cert-manager >= 1.7)
+  # When true, cert-manager patches the TLS secret and the webhook reloads it.
+  # When false, pods must be restarted to pick up new certs.
+  rollingUpdateOnRenew: true

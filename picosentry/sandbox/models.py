@@ -1,0 +1,101 @@
+"""Shared models for PicoDome L3 + L4 pipeline.
+
+Deterministic by default: Finding.finding_id defaults to "" (empty string),
+not uuid4. SandboxResult.run_id and .timestamp also default to "".
+Use _generate_finding_id(), _generate_run_id(), _generate_timestamp() to
+fill in non-deterministic values when needed.
+"""
+
+from __future__ import annotations
+
+import time
+import uuid
+from dataclasses import dataclass, field
+from enum import Enum
+
+from picosentry._core.models import ScanStats as _ScanStats
+from picosentry._core.models import FindingProtocol, Severity, Verdict
+
+
+# Re-export for backward compatibility — existing imports still work.
+__all__ = [
+    "Severity",
+    "Verdict",
+    "BehavioralVerdict",
+    "Finding",
+    "ScanStats",
+    "_now_ms",
+    "_now_iso",
+    "_generate_finding_id",
+    "_generate_run_id",
+    "_generate_timestamp",
+    "FindingProtocol",
+]
+
+
+class BehavioralVerdict(str, Enum):
+    CLEAN = "CLEAN"
+    SUSPICIOUS = "SUSPICIOUS"
+    MALICIOUS = "MALICIOUS"
+
+
+@dataclass(frozen=True)
+class Finding:  # rationale: sandbox finding, frozen for determinism, empty finding_id by default
+    """A single finding from a detector rule. Frozen for determinism.
+
+    finding_id defaults to "" (deterministic mode). Use _generate_finding_id()
+    to produce a real UUID when non-deterministic output is desired.
+    """
+
+    rule_id: str
+    severity: Severity
+    message: str
+    location: str = ""
+    evidence: dict = field(default_factory=dict)
+    finding_id: str = ""
+
+    def to_dict(self, deterministic: bool = False) -> dict:
+        """Serialize to dict. Sort keys for deterministic JSON output.
+
+        In deterministic mode, omit finding_id if empty.
+        """
+        d: dict = {
+            "rule_id": self.rule_id,
+            "severity": self.severity.value,
+            "message": self.message,
+            "location": self.location,
+            "evidence": self.evidence,
+        }
+        if not deterministic and self.finding_id:
+            d["finding_id"] = self.finding_id
+        return {k: v for k, v in sorted(d.items())}
+
+
+# Inherit from picosentry._core.models.ScanStats for shared interface.
+# PicoDome-specific: adds no extra fields, so this is a direct alias.
+ScanStats = _ScanStats
+
+
+def _now_ms() -> float:
+    """Monotonic clock in milliseconds."""
+    return time.monotonic() * 1000
+
+
+def _now_iso() -> str:
+    """ISO 8601 timestamp."""
+    return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+
+
+def _generate_finding_id() -> str:
+    """Generate a non-deterministic finding ID (UUID4)."""
+    return str(uuid.uuid4())
+
+
+def _generate_run_id() -> str:
+    """Generate a non-deterministic run ID (UUID4)."""
+    return str(uuid.uuid4())
+
+
+def _generate_timestamp() -> str:
+    """Generate a non-deterministic timestamp (ISO 8601)."""
+    return _now_iso()

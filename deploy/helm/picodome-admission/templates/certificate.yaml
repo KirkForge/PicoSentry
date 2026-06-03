@@ -1,0 +1,19 @@
+{{- if .Values.tls.certManager.enabled }}
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: {{ include "picodome-admission.fullname" . }}-cert
+  labels:
+    {{- include "picodome-admission.labels" . | nindent 4 }}
+spec:
+  secretName: {{ include "picodome-admission.fullname" . }}-tls
+  duration: 8760h  # 1 year
+  renewBefore: 720h  # 30 days
+  issuerRef:
+    {{- toYaml .Values.tls.certManager.issuerRef | nindent 4 }}
+  dnsNames:
+    - {{ include "picodome-admission.fullname" . }}
+    - {{ include "picodome-admission.fullname" . }}.{{ .Release.Namespace }}
+    - {{ include "picodome-admission.fullname" . }}.{{ .Release.Namespace }}.svc
+    - {{ include "picodome-admission.fullname" . }}.{{ .Release.Namespace }}.svc.cluster.local
+{{- end }}

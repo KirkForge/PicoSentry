@@ -1,0 +1,6 @@
+apiVersion: v2
+name: picodome-admission
+description: PicoDome Kubernetes Admission Controller — validates pod security and scans container images
+type: application
+version: 0.1.0
+appVersion: "0.1.0"

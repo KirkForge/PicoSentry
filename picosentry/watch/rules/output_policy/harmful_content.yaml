@@ -1,0 +1,50 @@
+# PicoWatch Default Output Policy Rules — Harmful Content category
+
+- id: out_harm_violence
+  category: harmful_content
+  weight: 0.85
+  pattern: "(?:how\\s+to\\s+)?(?:make|build|create|synthesiz|manufactur)\\s+(?:a\\s+)?(?:bomb|weapon|explosiv|gun|firearm|poison|toxin)"
+  description: "Violence/harmful content — weapon creation instructions"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_csam
+  category: harmful_content
+  weight: 0.99
+  pattern: "(?:child|minor|underage)\\s+(?:sexual|abuse|exploitation|pornograph)"
+  description: "CSAM content indicator — highest severity"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_self_harm
+  category: harmful_content
+  weight: 0.9
+  pattern: "(?:how\\s+to\\s+)?(?:kill|end|harm|hurt|cut)\\s+(?:myself|yourself|oneself)|(?:suicide|self.?harm|self.?injury)\\s+(?:method|guide|how)"
+  description: "Self-harm instruction indicators"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_hacking
+  category: harmful_content
+  weight: 0.7
+  pattern: "(?:how\\s+to\\s+)?(?:hack|exploit|breach|intrude|penetrat)\\s+(?:into\\s+)?(?:a\\s+)?(?:system|server|network|database|account)"
+  description: "Hacking instructions targeting specific systems"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_phishing
+  category: harmful_content
+  weight: 0.75
+  pattern: "(?:how\\s+to\\s+)?(?:create|build|make|design|craft|write)\\s+(?:a\\s+)?(?:phishing|spoofed|fake\\s+login|credential\\s+harvest)\\s+(?:page|site|email|campaign|link)"
+  description: "Phishing content generation instructions"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_malware
+  category: harmful_content
+  weight: 0.80
+  pattern: "(?:create|write|build|generate|develop)\\s+(?:a\\s+)?(?:malware|ransomware|trojan|keylogger|rootkit|spyware|worm|virus|backdoor)"
+  description: "Malware creation instructions"
+  normalization: [unicode, whitespace]
+
+- id: out_harm_social_eng
+  category: harmful_content
+  weight: 0.70
+  pattern: "(?:how\\s+to\\s+)?(?:manipulate|coerce|blackmail|extort|gaslight|groom|social\\s+engineer)\\s+(?:someone|a\\s+person|people|a\\s+user|target)"
+  description: "Social engineering or manipulation instructions"
+  normalization: [unicode, whitespace]

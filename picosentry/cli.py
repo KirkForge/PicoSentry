@@ -3,7 +3,7 @@
 PicoSentry — unified CLI for the Pico Security Series.
 
 Subcommands:
-    scan      Supply-chain scanner (npm/pnpm) [from PicoSentry]
+    scan      Supply-chain scanner (7 ecosystems) [from PicoSentry]
     sandbox   Runtime sandbox and behavioral analysis [from PicoDome]
     watch     LLM prompt injection detection and output validation [from PicoWatch]
     serve     API server, dashboard, and orchestration [from PicoShogun]
@@ -41,7 +41,7 @@ def main(argv: list[str] | None = None) -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
     # -- scan (PicoSentry) --
-    scan_parser = subparsers.add_parser("scan", help="Supply-chain scanner for npm/pnpm")
+    scan_parser = subparsers.add_parser("scan", help="Supply-chain scanner for 7 ecosystems (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)")
     scan_parser.add_argument("target", nargs="*", type=str, help="Project directory to scan")
     scan_parser.add_argument("--format", choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"], default="table")
     scan_parser.add_argument("--quiet", "-q", action="store_true", help="CI-friendly summary only")

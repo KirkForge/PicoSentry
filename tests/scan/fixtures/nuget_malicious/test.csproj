@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <AssemblyName>EvilApp</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
+    <PackageReference Include="xunit" Version="2.6.0" />
+    <!-- Typosquat: "Nwetonsoft.Json" vs "Newtonsoft.Json" -->
+    <PackageReference Include="Nwetonsoft.Json" Version="13.0.3" />
+    <!-- Dep confusion: Company.Internal.Lib without private source -->
+    <PackageReference Include="Company.Internal.Lib" Version="1.0.0" />
+  </ItemGroup>
+
+</Project>

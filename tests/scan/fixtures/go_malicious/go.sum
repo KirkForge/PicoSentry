@@ -1,0 +1,8 @@
+github.com/gin-gonic/gin v1.9.1 h1:FOiRnU0XFgWcUyUIeITPJhH5JzPRRExHxUZdBd4M70c=
+github.com/gin-gonic/gin v1.9.1/go.mod h1:FOiRnU0XFgWcUyUIeITPJhH5JzPRRExHxUZdBd4M70c=
+github.com/jin v0.1.0 h1:abc123def456=
+github.com/jin v0.1.0/go.mod h1:abc123def456=
+internal-secrets v0.0.0-20240101 h1:4567890abcdef=
+internal-secrets v0.0.0-20240101/go.mod h1:4567890abcdef=
+my-corp-private-lib v1.0.0 h1:feedbac98765=
+my-corp-private-lib v1.0.0/go.mod h1:feedbac98765=

@@ -14,7 +14,7 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from picosentry.serve.api.deps import auth_service
-from picosentry.serve.api.routers import admin, anomaly, auth, dashboard, health, metrics, orgs, plugins, projects, scans, webhooks, ws
+from picosentry.serve.api.routers import admin, anomaly, auth, correlation, dashboard, health, metrics, orgs, plugins, projects, scans, webhooks, ws
 from picosentry.serve.api.routers import scheduler as scheduler_router
 from picosentry.serve.config.logging_config import configure_logging
 from picosentry.serve.config.settings import settings
@@ -35,6 +35,11 @@ from picosentry.serve.services.event_bus import event_bus
 from picosentry.serve.services.observability import init_telemetry, setup_fastapi_instrumentation
 from picosentry.serve.services.plugin_manager import plugin_manager
 from picosentry.serve.services.scheduler import scheduler
+
+# Late imports to avoid circular dependencies
+_correlation_imported = False
+_alert_hub_imported = False
+_webhook_manager_imported = False
 
 # ─── Configure structured logging ──────────────────────────────────────
 configure_logging(
@@ -78,8 +83,106 @@ async def lifespan(app: FastAPI):
 
     # Wire alert_hub into anomaly detector now that all services are ready
     from picosentry.serve.services.alert_hub import AlertHub
-    anomaly_detector.alert_hub = AlertHub()
+    alert_hub = AlertHub()
+    anomaly_detector.alert_hub = alert_hub
     logger.info("Alert hub wired to anomaly detector")
+
+    # ── Correlation engine initialization (Phase 3+4) ───────────────
+    from picosentry.serve.services.correlation import (
+        correlation_engine,
+    )
+    from picosentry.serve.services.orchestrator import PICO_CLI
+    from picosentry.serve.services.webhooks import webhook_manager
+
+    # Try to enable persistence (DB table must exist from migration)
+    try:
+        from picosentry.serve.database.manager import db
+        db.execute("SELECT 1 FROM correlation_events LIMIT 1")
+        correlation_engine.PERSIST_ENABLED = True
+        loaded = correlation_engine.load_events()
+        logger.info("Correlation persistence ready — loaded %d event(s)", loaded)
+    except Exception:
+        correlation_engine.PERSIST_ENABLED = False
+        logger.info("Correlation persistence not available (run migrations first)")
+
+    # Wire escalation callbacks: AlertHub + WebhookManager → kill chains
+    _alert_hub_global = alert_hub
+    _webhook_manager_global = webhook_manager
+
+    def _chain_escalated_alert(chain):
+        """Send alert when a chain crosses critical threshold."""
+        try:
+            _alert_hub_global.send(
+                project_id=chain.artifact_id,
+                alert_type="chain_escalated",
+                severity="critical" if chain.chain_score >= 0.8 else "high",
+                message=(
+                    f"Kill chain for '{chain.artifact_id}' crossed critical threshold "
+                    f"(score={chain.chain_score:.2f}). "
+                    f"{chain.narrative[:200]}"
+                ),
+                metadata={
+                    "chain_score": chain.chain_score,
+                    "phases": list(chain.phases.keys()),
+                    "severity": chain.severity.value,
+                    "phase_count": len(chain.phases),
+                    "event_count": sum(len(e) for e in chain.phases.values()),
+                },
+            )
+        except Exception as exc:
+            logger.error("Chain escalation alert failed: %s", exc)
+
+    def _chain_escalated_webhook(chain):
+        """Fire webhook event when chain crosses critical threshold."""
+        try:
+            _webhook_manager_global.dispatch(
+                "chain.escalated",
+                {
+                    "artifact_id": chain.artifact_id,
+                    "chain_score": chain.chain_score,
+                    "severity": chain.severity.value,
+                    "chain": chain.to_dict(),
+                },
+            )
+        except Exception as exc:
+            logger.error("Chain escalation webhook failed: %s", exc)
+
+    correlation_engine.on_chain_escalated(_chain_escalated_alert)
+    correlation_engine.on_chain_escalated(_chain_escalated_webhook)
+    logger.info("Correlation escalation callbacks wired")
+
+    # Subscribe to auto_analyze events for cross-layer analysis
+    def _on_auto_analyze(event):
+        """Handle auto_analyze events by triggering downstream orchestration."""
+        payload = event.payload
+        downstream = payload.get("downstream_project", "")
+        target = payload.get("target", "")
+        if downstream and target and downstream in PICO_CLI:
+            logger.info(
+                "Auto-analyze queued: %s → %s (%s)",
+                payload.get("source_project", "?"), downstream, target,
+            )
+            # Emit a project.run.requested event for the scheduler/orchestrator
+            event_bus.publish(
+                "project.run.requested",
+                {
+                    "project_id": downstream,
+                    "target": target,
+                    "trigger": "correlation_auto_analysis",
+                    "source_artifact": payload.get("artifact_id"),
+                    "source_run_id": payload.get("run_id"),
+                },
+                source="correlation_engine",
+                priority="high",
+            )
+
+    event_bus.subscribe(
+        "project.run.auto_analyze",
+        _on_auto_analyze,
+        persistent=True,
+        subscriber_id="correlation-auto-analyze",
+    )
+    logger.info("Cross-layer auto-analysis subscriber registered")
 
     # Start background services
     anomaly_detector.start()
@@ -209,6 +312,7 @@ app.include_router(webhooks.router)
 app.include_router(scheduler_router.router)
 app.include_router(admin.router)
 app.include_router(anomaly.router)
+app.include_router(correlation.router)
 app.include_router(metrics.router)
 app.include_router(ws.router)
 

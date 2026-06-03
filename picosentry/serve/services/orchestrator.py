@@ -13,6 +13,10 @@ from typing import Any
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.alert_hub import AlertHub
+from picosentry.serve.services.correlation import (
+    build_event_from_intel,
+    correlation_engine,
+)
 from picosentry.serve.services.event_bus import event_bus
 from picosentry.serve.services.intelligence import IntelligenceEngine
 from picosentry.serve.services.metrics import metrics
@@ -29,6 +33,13 @@ PICO_CLI = {
     "picodome": ["picosentry", "sandbox", "run"],
     "picowatch": ["picosentry", "watch", "scan-prompt"],
     "picoshogun": ["picosentry", "health"],
+}
+
+# Map project IDs to correlation engine layers
+PROJECT_LAYER_MAP: dict[str, str] = {
+    "picosentry": "scan",
+    "picodome": "sandbox_l3",
+    "picowatch": "watch",
 }
 
 @dataclass
@@ -60,6 +71,16 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         self._semaphore = threading.Semaphore(self._concurrent_limit)
         self._load_registry()
         self._init_projects_db()
+        # Subscribe correlation engine to run-completed events
+        event_bus.subscribe(
+            "project.run.completed",
+            lambda evt: correlation_engine.on_run_completed(
+                project_id=evt.payload.get("project_id", ""),
+                run_id=str(evt.payload.get("run_id", "")),
+            ),
+            persistent=True,
+            subscriber_id="correlation-engine",
+        )
 
     def _load_registry(self):
         if REGISTRY_PATH.exists():
@@ -241,6 +262,18 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             # Feed intelligence
             for intel in intel_data:
                 self.intel.ingest(project_id, intel)
+
+            # Feed correlation engine
+            layer = PROJECT_LAYER_MAP.get(project_id, "scan")
+            correlated_events = []
+            for intel in intel_data:
+                event = build_event_from_intel(
+                    intel, project_id, run_id=str(run_id), layer=layer,
+                )
+                if event is not None:
+                    correlated_events.append(event)
+            if correlated_events:
+                correlation_engine.ingest_many(correlated_events)
 
             # Fire alert on real failure (non-zero exit)
             if status == "failed":

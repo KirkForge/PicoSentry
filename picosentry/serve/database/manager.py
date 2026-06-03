@@ -294,6 +294,47 @@ MIGRATIONS = [
         -- No-op: column rename handled in Python _migrate_orgs_api_key_hash()
         -- This placeholder ensures migration 8 is recorded as applied.
         SELECT 1;
+    """),
+
+    Migration(9, "add_correlation_events", """
+        CREATE TABLE IF NOT EXISTS correlation_events (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            dedup_key TEXT UNIQUE NOT NULL,
+            artifact_id TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            confidence TEXT NOT NULL,
+            target TEXT,
+            title TEXT,
+            detail TEXT,
+            timestamp TEXT NOT NULL,
+            run_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_artifact
+            ON correlation_events(artifact_id, timestamp);
+        CREATE INDEX IF NOT EXISTS idx_correlation_layer
+            ON correlation_events(layer);
+        CREATE INDEX IF NOT EXISTS idx_correlation_severity
+            ON correlation_events(severity);
+
+        CREATE TABLE IF NOT EXISTS correlation_chains (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            artifact_id TEXT UNIQUE NOT NULL,
+            chain_score REAL NOT NULL DEFAULT 0.0,
+            severity TEXT NOT NULL DEFAULT 'INFO',
+            confidence TEXT NOT NULL DEFAULT 'LOW',
+            narrative TEXT,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            phase_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_score
+            ON correlation_chains(chain_score DESC);
     """)]
 
 

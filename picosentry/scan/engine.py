@@ -124,16 +124,17 @@ class ScanEngine:
         """Resolve corpus directory with priority: explicit > user > built-in.
 
         1. If caller passed a corpus_dir (CLI --corpus), use that.
-        2. If user corpus dir has npm_top_packages.json, use that.
+        2. If user corpus dir has any ecosystem corpus file, use that.
         3. Fall back to built-in corpus (shipped with the package).
         """
         if explicit:
             return explicit
         user_dir = user_corpus_dir()
-        user_corpus = user_dir / "npm_top_packages.json"
-        if user_corpus.is_file():
-            logger.info("Using user corpus: %s", user_dir)
-            return user_dir
+        # Check for any ecosystem corpus file
+        for eco_file in ("npm_top_packages.json", "pypi_top_packages.json", "go_top_packages.json", "cargo_top_packages.json", "maven_top_packages.json", "rubygems_top_packages.json", "nuget_top_packages.json"):
+            if (user_dir / eco_file).is_file():
+                logger.info("Using user corpus: %s", user_dir)
+                return user_dir
         # Built-in corpus (shipped with the package)
         return Path(__file__).parent / "corpus"
 
@@ -191,7 +192,59 @@ class ScanEngine:
             logger.error("Scan target does not exist: %s", target_path)
             return ScanResult(target=str(target_path))
 
+        # ── Ecosystem auto-detection ──────────────────────────────────────
+        # Detect which ecosystems are present at the target so we only run
+        # relevant rules. PyPI rules check detect_pypi_project() internally,
+        # but filtering at this level avoids running the detector function
+        # at all when the ecosystem isn't present.
+        _detected_npm = (target_path / "package.json").is_file() or (target_path / "node_modules").is_dir()
+        _detected_pypi = (target_path / "pyproject.toml").is_file() or \
+            (target_path / "setup.py").is_file() or \
+            (target_path / "requirements.txt").is_file() or \
+            (target_path / ".venv").is_dir()
+        _detected_go = (target_path / "go.mod").is_file()
+        _detected_cargo = (target_path / "Cargo.toml").is_file()
+        _detected_maven = (target_path / "pom.xml").is_file() or \
+            (target_path / "build.gradle").is_file()
+        _detected_rubygems = (target_path / "Gemfile").is_file() or \
+            (target_path / "Gemfile.lock").is_file()
+        _detected_nuget = bool(list(target_path.glob("*.csproj"))) or \
+            (target_path / "packages.config").is_file()
+
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
+
+        # Filter out ecosystem-specific rules when that ecosystem isn't detected.
+        # npm rules are always included for backward compatibility.
+        if not _detected_pypi:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-PYPI-")
+            }
+        if not _detected_go:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-GO-")
+            }
+        if not _detected_cargo:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-CARGO-")
+            }
+        if not _detected_maven:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-MAVEN-")
+            }
+        if not _detected_rubygems:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-RUBYGEMS-")
+            }
+        if not _detected_nuget:
+            selected_rules = {
+                k: v for k, v in selected_rules.items()
+                if not k.startswith("L2-NUGET-")
+            }
 
         if not selected_rules:
             logger.warning("No detector rules selected for scan")
@@ -213,7 +266,7 @@ class ScanEngine:
         packages_scanned = 0
         rule_timings: dict[str, int] = {}
 
-        # Count packages if node_modules or similar structure
+        # Count packages if node_modules or site-packages
         # Includes scoped packages (@scope/pkg) as individual packages
         nm_path = target_path / "node_modules"
         if nm_path.is_dir():
@@ -226,6 +279,15 @@ class ScanEngine:
                     packages_scanned += sum(1 for s in d.iterdir() if s.is_dir())
                 else:
                     packages_scanned += 1
+
+        # Count site-packages for Python projects
+        if not packages_scanned:
+            for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
+                if sp_path.is_dir():
+                    packages_scanned = sum(
+                        1 for d in sp_path.iterdir()
+                        if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
+                    )
 
         # Deduplicate: multiple rule_ids may map to the same function (sub-rules).
         # Call each unique function once, then filter findings by requested rule_ids.
@@ -240,7 +302,7 @@ class ScanEngine:
             primary_rule_id = rule_ids_for_fn[0]
             rule_start = _now_ms()
             try:
-                if rule_fn.__name__ == "detect_advisory_vulnerabilities":
+                if rule_fn.__name__ in ("detect_advisory_vulnerabilities", "detect_pypi_advisory_vulnerabilities", "detect_go_advisory_vulnerabilities", "detect_cargo_advisory_vulnerabilities", "detect_maven_advisory_vulnerabilities", "detect_rubygems_advisory_vulnerabilities", "detect_nuget_advisory_vulnerabilities"):
                     findings = rule_fn(
                         target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
                     )
@@ -313,6 +375,17 @@ class ScanEngine:
                 ".lock",
                 ".npmrc",
                 ".env",
+                ".py",
+                ".toml",
+                ".cfg",
+                ".ini",
+                ".go",
+                ".xml",
+                ".gradle",
+                ".rb",
+                ".gemspec",
+                ".csproj",
+                ".sln",
             }
         )
         if target_path.is_dir():
@@ -330,6 +403,26 @@ class ScanEngine:
                     "yarn.lock",
                     ".npmrc",
                     "pnpm-workspace.yaml",
+                    "requirements.txt",
+                    "pyproject.toml",
+                    "setup.cfg",
+                    "setup.py",
+                    "poetry.lock",
+                    "uv.lock",
+                    "Pipfile",
+                    "Pipfile.lock",
+                    "METADATA",
+                    "PKG-INFO",
+                    "go.mod",
+                    "go.sum",
+                    "go.env",
+                    "pom.xml",
+                    "build.gradle",
+                    "Gemfile",
+                    "Gemfile.lock",
+                    "packages.config",
+                    "packages.lock.json",
+                    "nuget.config",
                 }:
                     files_scanned += 1
         else:
@@ -390,8 +483,20 @@ class ScanEngine:
         return result
 
 
-def create_default_engine(corpus_dir: Path | None = None, advisory_db_path: str | None = None) -> ScanEngine:
-    """Create a ScanEngine with all built-in detector rules registered."""
+def create_default_engine(
+    corpus_dir: Path | None = None,
+    advisory_db_path: str | None = None,
+    ecosystems: list[str] | None = None,
+) -> ScanEngine:
+    """Create a ScanEngine with all built-in detector rules registered.
+
+    Args:
+        corpus_dir: Optional explicit corpus directory.
+        advisory_db_path: Optional explicit advisory DB path.
+        ecosystems: Optional list of ecosystems to restrict rules to.
+            If None, ecosystems are auto-detected from the target at scan time.
+            Valid values: "npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget".
+    """
     from .rules.advisory_check import detect_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
@@ -408,11 +513,32 @@ def create_default_engine(corpus_dir: Path | None = None, advisory_db_path: str 
     from .rules.pnpm_config import detect_pnpm_config
     from .rules.post_install import detect_post_install_scripts
     from .rules.provenance import detect_provenance_issues
+    from .rules.go_advisory_check import detect_go_advisory_vulnerabilities
+    from .rules.go_dep_confusion import detect_go_dep_confusion
+    from .rules.go_typosquat import detect_go_typosquat
+    from .rules.cargo_advisory_check import detect_cargo_advisory_vulnerabilities
+    from .rules.cargo_dep_confusion import detect_cargo_dep_confusion
+    from .rules.cargo_typosquat import detect_cargo_typosquat
+    from .rules.maven_advisory_check import detect_maven_advisory_vulnerabilities
+    from .rules.maven_dep_confusion import detect_maven_dep_confusion
+    from .rules.maven_typosquat import detect_maven_typosquat
+    from .rules.rubygems_advisory_check import detect_rubygems_advisory_vulnerabilities
+    from .rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+    from .rules.rubygems_typosquat import detect_rubygems_typosquat
+    from .rules.nuget_advisory_check import detect_nuget_advisory_vulnerabilities
+    from .rules.nuget_dep_confusion import detect_nuget_dep_confusion
+    from .rules.nuget_typosquat import detect_nuget_typosquat
+    from .rules.pypi_advisory_check import detect_pypi_advisory_vulnerabilities
+    from .rules.pypi_dep_confusion import detect_pypi_dep_confusion
+    from .rules.pypi_obfuscation import detect_pypi_obfuscation
+    from .rules.pypi_post_install import detect_pypi_post_install
+    from .rules.pypi_typosquat import detect_pypi_typosquat
     from .rules.sideloading import detect_sideloading
     from .rules.typosquat import detect_typosquat
     from .rules.worm_propagation import detect_worm_propagation
 
     engine = ScanEngine(corpus_dir=corpus_dir, advisory_db_path=advisory_db_path)
+    # ── npm rules (always registered, backward compatible) ─────────────────
     engine.register("L2-POST-001", detect_post_install_scripts)
     engine.register("L2-OBFS-001", detect_obfuscation)
     engine.register("L2-OBFS-002", detect_obfuscation)  # sub-rule: hex obfuscation
@@ -436,6 +562,45 @@ def create_default_engine(corpus_dir: Path | None = None, advisory_db_path: str 
     engine.register("L2-ADV-001", detect_advisory_vulnerabilities)
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
+
+    # ── PyPI rules (always registered — scan() filters by ecosystem) ─────
+    engine.register("L2-PYPI-TYPO-001", detect_pypi_typosquat)
+    engine.register("L2-PYPI-DEPC-001", detect_pypi_dep_confusion)
+    engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
+    engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-002", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-003", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-004", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-005", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-006", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-OBFS-007", detect_pypi_obfuscation)
+    engine.register("L2-PYPI-ADV-001", detect_pypi_advisory_vulnerabilities)
+
+    # ── Go rules (always registered — scan() filters by ecosystem) ─────────
+    engine.register("L2-GO-TYPO-001", detect_go_typosquat)
+    engine.register("L2-GO-DEPC-001", detect_go_dep_confusion)
+    engine.register("L2-GO-ADV-001", detect_go_advisory_vulnerabilities)
+
+    # ── Cargo rules (always registered — scan() filters by ecosystem) ──────
+    engine.register("L2-CARGO-TYPO-001", detect_cargo_typosquat)
+    engine.register("L2-CARGO-DEPC-001", detect_cargo_dep_confusion)
+    engine.register("L2-CARGO-ADV-001", detect_cargo_advisory_vulnerabilities)
+
+    # ── Maven rules (always registered — scan() filters by ecosystem) ───────
+    engine.register("L2-MAVEN-TYPO-001", detect_maven_typosquat)
+    engine.register("L2-MAVEN-DEPC-001", detect_maven_dep_confusion)
+    engine.register("L2-MAVEN-ADV-001", detect_maven_advisory_vulnerabilities)
+
+    # ── RubyGems rules (always registered — scan() filters by ecosystem) ─────
+    engine.register("L2-RUBYGEMS-TYPO-001", detect_rubygems_typosquat)
+    engine.register("L2-RUBYGEMS-DEPC-001", detect_rubygems_dep_confusion)
+    engine.register("L2-RUBYGEMS-ADV-001", detect_rubygems_advisory_vulnerabilities)
+
+    # ── NuGet rules (always registered — scan() filters by ecosystem) ────────
+    engine.register("L2-NUGET-TYPO-001", detect_nuget_typosquat)
+    engine.register("L2-NUGET-DEPC-001", detect_nuget_dep_confusion)
+    engine.register("L2-NUGET-ADV-001", detect_nuget_advisory_vulnerabilities)
+
     return engine
 
 

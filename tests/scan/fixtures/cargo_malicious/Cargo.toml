@@ -1,0 +1,14 @@
+[package]
+name = "evil-crate"
+version = "1.0.0"
+edition = "2021"
+
+[dependencies]
+serde = "1.0"
+tokio = "1.35"
+# Typosquat: "srede" is edit distance 1 from "serde"
+srede = "1.0"
+# Dep confusion: "internal-auth" looks like an internal crate
+internal-auth = "0.1.0"
+# Dep confusion: "my-corp-lib" looks like a private company crate
+my-corp-lib = "2.0.0"

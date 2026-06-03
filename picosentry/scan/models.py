@@ -84,19 +84,23 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
     remediation: str
     references: list[str] = field(default_factory=list)
     line: int | None = None
+    ecosystem: str = "npm"
 
     def fingerprint(self) -> tuple:
         """Deterministic fingerprint for baseline matching.
 
         Two findings match if they have the same fingerprint:
-        (rule_id, package, file). This is used for --baseline
+        (rule_id, ecosystem, package, file). This is used for --baseline
         to suppress known findings.
+
+        Includes ecosystem so same rule+package from different ecosystems
+        are treated as distinct findings.
         """
-        return (self.rule_id, self.package, self.file)
+        return (self.rule_id, self.ecosystem, self.package, self.file)
 
     def sort_key(self) -> tuple:
         """Deterministic sort key for stable ordering."""
-        return (self.rule_id, self.package, self.file, self.line or 0)
+        return (self.rule_id, self.ecosystem, self.package, self.file, self.line or 0)
 
     def to_dict(self) -> dict[str, Any]:
         """Deterministic dict — sorted keys, no random IDs, no timestamps."""
@@ -104,6 +108,7 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
             "rule_id": self.rule_id,
             "severity": self.severity.value,
             "confidence": self.confidence.value,
+            "ecosystem": self.ecosystem,
             "package": self.package,
             "file": self.file,
             "line": self.line,
@@ -137,11 +142,15 @@ def load_baseline(path: Path) -> set:
     """Load a baseline file and return set of finding fingerprints.
 
     A baseline is a previous scan JSON output. Findings matching
-    (rule_id, package, file) tuples from the baseline are "known"
+    (rule_id, ecosystem, package, file) tuples from the baseline are "known"
     and will be suppressed.
 
+    Supports both:
+    - Legacy 3-tuple (rule_id, package, file) — ecosystem defaults to "npm"
+    - Current 4-tuple (rule_id, ecosystem, package, file)
+
     Also supports simple ignore format: one rule_id per line,
-    optionally with package pattern (rule_id:package_pattern).
+    optionally with ecosystem:package pattern (ecosystem:rule_id:package).
     Lines starting with # are comments. Blank lines are skipped.
     """
     text = path.read_text(encoding="utf-8")
@@ -152,24 +161,37 @@ def load_baseline(path: Path) -> set:
         if "findings" in data:
             fingerprints = set()
             for f in data["findings"]:
-                key = (f.get("rule_id", ""), f.get("package", ""), f.get("file", ""))
+                key = (
+                    f.get("rule_id", ""),
+                    f.get("ecosystem", "npm"),
+                    f.get("package", ""),
+                    f.get("file", ""),
+                )
                 fingerprints.add(key)
             return fingerprints
     except json.JSONDecodeError:
         pass
 
     # Simple ignore format: one entry per line
-    # Format: RULE_ID or RULE_ID:package_pattern or RULE_ID:package_pattern:file_pattern
+    # Format: RULE_ID or ecosystem:RULE_ID:package or RULE_ID:package:file
     fingerprints = set()
     for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        parts = line.split(":", 2)
-        rule_id = parts[0].strip()
-        package = parts[1].strip() if len(parts) > 1 else ""
-        file_path = parts[2].strip() if len(parts) > 2 else ""
-        fingerprints.add((rule_id, package, file_path))
+        parts = line.split(":", 3)
+        # Detect if first part is an ecosystem hint
+        if parts[0] in {"npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"}:
+            ecosystem = parts[0].strip()
+            rule_id = parts[1].strip() if len(parts) > 1 else ""
+            package = parts[2].strip() if len(parts) > 2 else ""
+            file_p = parts[3].strip() if len(parts) > 3 else ""
+        else:
+            ecosystem = "npm"
+            rule_id = parts[0].strip()
+            package = parts[1].strip() if len(parts) > 1 else ""
+            file_p = parts[2].strip() if len(parts) > 2 else ""
+        fingerprints.add((rule_id, ecosystem, package, file_p))
 
     return fingerprints
 
@@ -179,24 +201,36 @@ def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineRe
 
     Args:
         result: Original scan result with all findings.
-        baseline_fingerprints: Set of (rule_id, package, file) tuples from baseline.
+        baseline_fingerprints: Set of fingerprints from baseline.
+            Supports both:
+            - 4-tuple (rule_id, ecosystem, package, file) — current format
+            - 3-tuple (rule_id, package, file) — legacy format, treated as
+              ecosystem="npm" for backward compatibility
 
     Returns:
         BaselineResult with suppressed/remaining counts and filtered findings.
 
     O(n) — builds lookup sets once, then constant-time matching per finding.
     """
-    # Pre-build sets for partial matching: rule_id-only and (rule_id, package)
-    rule_only = {fp[0] for fp in baseline_fingerprints if not fp[1]}
-    rule_pkg = {(fp[0], fp[1]) for fp in baseline_fingerprints if fp[1] and not fp[2]}
-    exact = {fp for fp in baseline_fingerprints if fp[2]}
+    # Normalize to 4-tuples: pad 3-tuples with "npm" ecosystem
+    normalized: set[tuple[str, str, str, str]] = set()
+    for fp in baseline_fingerprints:
+        if len(fp) == 3:
+            normalized.add((fp[0], "npm", fp[1], fp[2]))
+        else:
+            normalized.add((fp[0], fp[1], fp[2], fp[3]))
+
+    # Pre-build sets for partial matching: rule_id-only and (rule_id, ecosystem, package)
+    rule_only = {fp[0] for fp in normalized if not fp[2]}
+    rule_ecosystem_pkg = {(fp[0], fp[1], fp[2]) for fp in normalized if fp[2] and not fp[3]}
+    exact = {fp for fp in normalized if fp[3]}
 
     remaining = []
     for f in result.findings:
         fp = f.fingerprint()
         if fp in exact:
             continue
-        if (fp[0], fp[1]) in rule_pkg:
+        if (fp[0], fp[1], fp[2]) in rule_ecosystem_pkg:
             continue
         if fp[0] in rule_only:
             continue
@@ -353,7 +387,7 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             "",
         ]
         for f in sorted_findings:
-            line = f"[{f.severity.value}] {f.rule_id} {f.package} {f.file}"
+            line = f"[{f.severity.value}] {f.rule_id} ({f.ecosystem}) {f.package} {f.file}"
             if f.line:
                 line += f":{f.line}"
             line += f" | {f.evidence}"

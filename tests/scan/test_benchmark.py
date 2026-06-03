@@ -80,7 +80,7 @@ def test_bench_cold_start():
     e = create_default_engine()
     elapsed_ms = (time.monotonic() - start) * 1000
 
-    assert len(e.list_rules()) == 23
+    assert len(e.list_rules()) == 49
     assert e._corpus_version
 
     if elapsed_ms > TARGETS["cold_start_ms"]:
@@ -92,11 +92,9 @@ def test_bench_cold_start():
 
 
 def test_bench_rule_registration(engine):
-    """All 21 rules register quickly."""
+    """All rules register quickly."""
     rules = engine.list_rules()
-    assert len(rules) == 23
-
-    # Verify all rule IDs are valid
+    assert len(rules) == 49
     valid_prefixes = {
         "L2-POST",
         "L2-OBFS",
@@ -115,11 +113,16 @@ def test_bench_rule_registration(engine):
         "L2-SIDELOAD",
         "L2-ADV",
         "L2-IOC",
-        "L2-OBFS",
         "L2-TYPO",
         "L2-POST",
         "L2-WORM",
         "L2-NETEX",
+        "L2-PYPI",
+        "L2-GO",
+        "L2-CARGO",
+        "L2-MAVEN",
+        "L2-RUBYGEMS",
+        "L2-NUGET",
     }
     for rule_id in rules:
         prefix = "-".join(rule_id.split("-")[:2])
@@ -149,11 +152,11 @@ def test_bench_small_scan(engine, small_project):
 def test_bench_typosquat():
     """Typosquat check against 327 top packages should be fast."""
     from picosentry.scan.engine import create_default_engine
-    from picosentry.scan.rules.typosquat import _load_corpus
+    from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem, BUILTIN_TOP_100
 
     engine = create_default_engine()
     start = time.monotonic()
-    packages = _load_corpus(engine._corpus_dir)
+    packages = load_corpus_for_ecosystem(engine._corpus_dir, "npm", BUILTIN_TOP_100)
     elapsed_ms = (time.monotonic() - start) * 1000
 
     assert len(packages) > 300  # 327 in current corpus

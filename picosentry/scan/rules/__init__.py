@@ -18,6 +18,26 @@ from .obfuscation import detect_obfuscation
 from .pnpm_config import detect_pnpm_config
 from .post_install import detect_post_install_scripts
 from .provenance import detect_provenance_issues
+from .go_advisory_check import detect_go_advisory_vulnerabilities
+from .go_dep_confusion import detect_go_dep_confusion
+from .go_typosquat import detect_go_typosquat
+from .cargo_advisory_check import detect_cargo_advisory_vulnerabilities
+from .cargo_dep_confusion import detect_cargo_dep_confusion
+from .cargo_typosquat import detect_cargo_typosquat
+from .pypi_advisory_check import detect_pypi_advisory_vulnerabilities
+from .pypi_dep_confusion import detect_pypi_dep_confusion
+from .pypi_obfuscation import detect_pypi_obfuscation
+from .pypi_post_install import detect_pypi_post_install
+from .pypi_typosquat import detect_pypi_typosquat
+from .maven_advisory_check import detect_maven_advisory_vulnerabilities
+from .maven_dep_confusion import detect_maven_dep_confusion
+from .maven_typosquat import detect_maven_typosquat
+from .rubygems_advisory_check import detect_rubygems_advisory_vulnerabilities
+from .rubygems_dep_confusion import detect_rubygems_dep_confusion
+from .rubygems_typosquat import detect_rubygems_typosquat
+from .nuget_advisory_check import detect_nuget_advisory_vulnerabilities
+from .nuget_dep_confusion import detect_nuget_dep_confusion
+from .nuget_typosquat import detect_nuget_typosquat
 from .sideloading import detect_sideloading
 from .typosquat import detect_typosquat
 from .worm_propagation import detect_worm_propagation
@@ -40,6 +60,26 @@ __all__ = [
     "detect_sideloading",
     "detect_worm_propagation",
     "detect_network_exfiltration",
+    "detect_go_typosquat",
+    "detect_go_dep_confusion",
+    "detect_go_advisory_vulnerabilities",
+    "detect_pypi_typosquat",
+    "detect_pypi_dep_confusion",
+    "detect_pypi_post_install",
+    "detect_pypi_obfuscation",
+    "detect_pypi_advisory_vulnerabilities",
+    "detect_cargo_typosquat",
+    "detect_cargo_dep_confusion",
+    "detect_cargo_advisory_vulnerabilities",
+    "detect_maven_typosquat",
+    "detect_maven_dep_confusion",
+    "detect_maven_advisory_vulnerabilities",
+    "detect_rubygems_typosquat",
+    "detect_rubygems_dep_confusion",
+    "detect_rubygems_advisory_vulnerabilities",
+    "detect_nuget_typosquat",
+    "detect_nuget_dep_confusion",
+    "detect_nuget_advisory_vulnerabilities",
 ]
 
 # Base documentation URL for PicoSentry rules
@@ -207,6 +247,194 @@ RULE_INFO = {
         "severity": "CRITICAL",
         "category": "supply-chain",
         "helpUri": f"{_DOCS_BASE}/L2-NETEX-001.md",
+    },
+    # ── Go rules ───────────────────────────────────────────────────────────
+    "L2-GO-TYPO-001": {
+        "name": "go_typosquat",
+        "description": "Go module short names within edit distance <=2 of top Go packages",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-GO-TYPO-001.md",
+    },
+    "L2-GO-DEPC-001": {
+        "name": "go_dep_confusion",
+        "description": "Internal Go modules without private proxy configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-GO-DEPC-001.md",
+    },
+    "L2-GO-ADV-001": {
+        "name": "go_advisory_vulnerability",
+        "description": "Checks Go modules against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-GO-ADV-001.md",
+    },
+    # ── Cargo rules ─────────────────────────────────────────────────────────
+    "L2-CARGO-TYPO-001": {
+        "name": "cargo_typosquat",
+        "description": "Crate names within edit distance <=2 of top Rust crates",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-CARGO-TYPO-001.md",
+    },
+    "L2-CARGO-DEPC-001": {
+        "name": "cargo_dep_confusion",
+        "description": "Internal crates without private registry configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-CARGO-DEPC-001.md",
+    },
+    "L2-CARGO-ADV-001": {
+        "name": "cargo_advisory_vulnerability",
+        "description": "Checks Rust crates against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-CARGO-ADV-001.md",
+    },
+    # ── PyPI rules ─────────────────────────────────────────────────────────
+    "L2-PYPI-TYPO-001": {
+        "name": "pypi_typosquat",
+        "description": "Package names within edit distance <=2 of top PyPI packages",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-TYPO-001.md",
+    },
+    "L2-PYPI-DEPC-001": {
+        "name": "pypi_dep_confusion",
+        "description": "Internal PyPI dependencies without private index configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-DEPC-001.md",
+    },
+    "L2-PYPI-POST-001": {
+        "name": "pypi_post_install",
+        "description": "setup.py/pyproject.toml with install-time code execution",
+        "severity": "CRITICAL",
+        "category": "execution",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-POST-001.md",
+    },
+    "L2-PYPI-OBFS-001": {
+        "name": "pypi_obfuscation_eval",
+        "description": "exec/eval calls in Python packages",
+        "severity": "CRITICAL",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-001.md",
+    },
+    "L2-PYPI-OBFS-002": {
+        "name": "pypi_obfuscation_base64",
+        "description": "Base64-decoded strings in Python packages",
+        "severity": "HIGH",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-002.md",
+    },
+    "L2-PYPI-OBFS-003": {
+        "name": "pypi_obfuscation_hex",
+        "description": "Hex-encoded strings in Python packages",
+        "severity": "HIGH",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-003.md",
+    },
+    "L2-PYPI-OBFS-004": {
+        "name": "pypi_obfuscation_unicode",
+        "description": "Unicode character arithmetic obfuscation in Python packages",
+        "severity": "HIGH",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-004.md",
+    },
+    "L2-PYPI-OBFS-005": {
+        "name": "pypi_obfuscation_zlib",
+        "description": "Compressed (zlib) payload imported for execution",
+        "severity": "CRITICAL",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-005.md",
+    },
+    "L2-PYPI-OBFS-006": {
+        "name": "pypi_obfuscation_marshal",
+        "description": "Marshal deserialization (arbitrary code execution)",
+        "severity": "CRITICAL",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-006.md",
+    },
+    "L2-PYPI-OBFS-007": {
+        "name": "pypi_obfuscation_b64_exec",
+        "description": "Base64 decode followed by exec/eval",
+        "severity": "CRITICAL",
+        "category": "obfuscation",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-OBFS-007.md",
+    },
+    "L2-PYPI-ADV-001": {
+        "name": "pypi_advisory_vulnerability",
+        "description": "Checks installed Python packages against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-PYPI-ADV-001.md",
+    },
+    # ── Maven rules ──────────────────────────────────────────────────────────
+    "L2-MAVEN-TYPO-001": {
+        "name": "maven_typosquat",
+        "description": "Artifact IDs within edit distance <=2 of top Maven packages",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-MAVEN-TYPO-001.md",
+    },
+    "L2-MAVEN-DEPC-001": {
+        "name": "maven_dep_confusion",
+        "description": "Internal Maven artifacts without private repository configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-MAVEN-DEPC-001.md",
+    },
+    "L2-MAVEN-ADV-001": {
+        "name": "maven_advisory_vulnerability",
+        "description": "Checks Maven artifacts against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-MAVEN-ADV-001.md",
+    },
+    # ── RubyGems rules ────────────────────────────────────────────────────────
+    "L2-RUBYGEMS-TYPO-001": {
+        "name": "rubygems_typosquat",
+        "description": "Gem names within edit distance <=2 of top RubyGems packages",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-RUBYGEMS-TYPO-001.md",
+    },
+    "L2-RUBYGEMS-DEPC-001": {
+        "name": "rubygems_dep_confusion",
+        "description": "Internal gems without private gem server configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-RUBYGEMS-DEPC-001.md",
+    },
+    "L2-RUBYGEMS-ADV-001": {
+        "name": "rubygems_advisory_vulnerability",
+        "description": "Checks Ruby gems against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-RUBYGEMS-ADV-001.md",
+    },
+    # ── NuGet rules ──────────────────────────────────────────────────────────
+    "L2-NUGET-TYPO-001": {
+        "name": "nuget_typosquat",
+        "description": "Package IDs within edit distance <=2 of top NuGet packages",
+        "severity": "HIGH",
+        "category": "typosquat",
+        "helpUri": f"{_DOCS_BASE}/L2-NUGET-TYPO-001.md",
+    },
+    "L2-NUGET-DEPC-001": {
+        "name": "nuget_dep_confusion",
+        "description": "Internal NuGet packages without private package source configuration",
+        "severity": "CRITICAL",
+        "category": "dependency",
+        "helpUri": f"{_DOCS_BASE}/L2-NUGET-DEPC-001.md",
+    },
+    "L2-NUGET-ADV-001": {
+        "name": "nuget_advisory_vulnerability",
+        "description": "Checks .NET packages against OSV advisory database for known CVEs",
+        "severity": "HIGH",
+        "category": "vulnerability",
+        "helpUri": f"{_DOCS_BASE}/L2-NUGET-ADV-001.md",
     },
 }
 

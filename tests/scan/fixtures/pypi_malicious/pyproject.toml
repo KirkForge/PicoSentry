@@ -1,0 +1,13 @@
+[project]
+name = "evil-payload"
+version = "0.1.0"
+description = "A package that looks legitimate"
+dependencies = [
+    "requsts>=1.0.0",
+    "numpyy>=1.0.0",
+    "internal-secrets>=0.0.1",
+]
+
+[build-system]
+requires = ["setuptools"]
+build-backend = "setuptools.backends._legacy:_Backend"

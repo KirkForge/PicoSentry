@@ -78,7 +78,7 @@ class Advisory:
         for affected in data.get("affected", []):
             pkg = affected.get("package", {})
             ecosystem = pkg.get("ecosystem", "")
-            if ecosystem.lower() == "npm":
+            if ecosystem.lower() in ("npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"):
                 pkg_name = pkg.get("name", "")
             for r in affected.get("ranges", []):
                 introduced = ""

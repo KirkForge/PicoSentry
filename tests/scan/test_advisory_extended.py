@@ -152,8 +152,8 @@ class TestAdvisoryFromOsv(unittest.TestCase):
         self.assertEqual(adv.package_name, "lodash")
         self.assertEqual(adv.severity, "CRITICAL")
 
-    def test_returns_none_when_no_npm_package(self):
-        data = _make_osv(ecosystem="PyPI", pkg_name="requests")
+    def test_returns_none_when_no_npm_pypi_go_or_cargo_package(self):
+        data = _make_osv(ecosystem="CocoaPods", pkg_name="some-pod")
         self.assertIsNone(Advisory.from_osv(data))
 
     def test_returns_none_when_empty_affected(self):
@@ -295,9 +295,9 @@ class TestAdvisoryDBLoad(unittest.TestCase):
         self.assertTrue(db.is_loaded)
         self.assertEqual(db.advisory_count, 1)
 
-    def test_load_skips_non_npm_entries(self):
+    def test_load_skips_unsupported_ecosystem_entries(self):
         d = self._dir()
-        _write_json(d / "pypi.json", _make_osv(ecosystem="PyPI", pkg_name="requests"))
+        _write_json(d / "cocoapods.json", _make_osv(ecosystem="CocoaPods", pkg_name="some-pod"))
         db = AdvisoryDB(d)
         self.assertTrue(db.is_loaded)
         self.assertEqual(db.advisory_count, 0)

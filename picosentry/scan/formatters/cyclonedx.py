@@ -17,8 +17,18 @@ from pathlib import Path
 from picosentry.scan.models import ScanResult, Severity
 from picosentry.scan.rules.utils import load_package_json
 
-# PURL prefix for npm packages
-_PURL_PREFIX = "pkg:npm"
+# PURL prefix per ecosystem
+_ECOSYSTEM_PURL_PREFIXES = {
+    "npm": "pkg:npm",
+    "pypi": "pkg:pypi",
+    "go": "pkg:golang",
+    "cargo": "pkg:cargo",
+    "maven": "pkg:maven",
+    "rubygems": "pkg:gem",
+    "nuget": "pkg:nuget",
+}
+
+_PURL_PREFIX = "pkg:npm"  # default for backward compatibility
 
 
 def _walk_node_modules(target: Path) -> list[dict]:

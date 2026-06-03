@@ -1,0 +1,3 @@
+requsts==0.0.1
+numpyy==0.0.1
+internal-secrets==0.1.0

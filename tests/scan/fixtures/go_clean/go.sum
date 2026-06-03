@@ -1,0 +1,8 @@
+github.com/gin-gonic/gin v1.9.1 h1:FOiRnU0XFgWcUyUIeITPJhH5JzPRRExHxUZdBd4M70c=
+github.com/gin-gonic/gin v1.9.1/go.mod h1:FOiRnU0XFgWcUyUIeITPJhH5JzPRRExHxUZdBd4M70c=
+github.com/go-sql-driver/mysql v1.7.1 h1:lUIinVbN1DY0xBg0eMOzmmtGoHwWBbvnWubQUrtU8EI=
+github.com/go-sql-driver/mysql v1.7.1/go.mod h1:OXbVy3sEdcQ2Doequ6Z5BW6fXNQTmx+9S1MCNJN6H4Y=
+go.uber.org/zap v1.25.0 h1:4Hvk6Gkoctz6p6HDkJq1o2EYGJy6P5YYbDbMqW3T4pI=
+go.uber.org/zap v1.25.0/go.mod h1:4Hvk6Gkoctz6p6HDkJq1o2EYGJy6P5YYbDbMqW3T4pI=
+golang.org/x/crypto v0.14.0 h1:wBqGXzWJW6m1XrIKlAH0Hs1JJ7+9KBwnIO8v66Q9cHc=
+golang.org/x/crypto v0.14.0/go.mod h1:MVFd36DqK4CsrnJYDkBA3VC4m2GkXAM0PvzMCn4JQf4=

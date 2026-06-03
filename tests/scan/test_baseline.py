@@ -29,6 +29,7 @@ def _finding(
     message="test",
     evidence="test",
     remediation="fix it",
+    ecosystem="npm",
 ):
     return Finding(
         rule_id=rule_id,
@@ -39,6 +40,7 @@ def _finding(
         message=message,
         evidence=evidence,
         remediation=remediation,
+        ecosystem=ecosystem,
     )
 
 
@@ -72,8 +74,8 @@ class TestLoadBaseline:
 
         fingerprints = load_baseline(baseline_file)
         assert len(fingerprints) == 2
-        assert ("L2-POST-001", "evil-pkg", "evil/package.json") in fingerprints
-        assert ("L2-TYPO-001", "reqct", "project/package.json") in fingerprints
+        assert ("L2-POST-001", "npm", "evil-pkg", "evil/package.json") in fingerprints
+        assert ("L2-TYPO-001", "npm", "reqct", "project/package.json") in fingerprints
 
     def test_load_simple_ignore_file(self, tmp_path):
         """Simple ignore format: one rule_id per line, comments allowed."""
@@ -88,11 +90,11 @@ L2-LICENSE-001:evil-pkg:evil/package.json
         fingerprints = load_baseline(baseline_file)
         assert len(fingerprints) == 3
         # Full rule_id match (any package)
-        assert ("L2-POST-001", "", "") in fingerprints
+        assert ("L2-POST-001", "npm", "", "") in fingerprints
         # rule_id + package pattern
-        assert ("L2-TYPO-001", "reqct", "") in fingerprints
+        assert ("L2-TYPO-001", "npm", "reqct", "") in fingerprints
         # Full match
-        assert ("L2-LICENSE-001", "evil-pkg", "evil/package.json") in fingerprints
+        assert ("L2-LICENSE-001", "npm", "evil-pkg", "evil/package.json") in fingerprints
 
     def test_load_empty_file(self, tmp_path):
         """Empty baseline file produces empty fingerprints."""
@@ -147,7 +149,7 @@ class TestApplyBaseline:
                 _finding(rule_id="L2-TYPO-001", package="reqct", file="project/package.json"),
             ]
         )
-        baseline = {("L2-POST-001", "evil-pkg", "evil/package.json")}
+        baseline = {("L2-POST-001", "npm", "evil-pkg", "evil/package.json")}
         br = apply_baseline(result, baseline)
         assert br.original_count == 2
         assert br.suppressed_count == 1
@@ -163,7 +165,7 @@ class TestApplyBaseline:
                 _finding(rule_id="L2-TYPO-001", package="reqct"),
             ]
         )
-        baseline = {("L2-POST-001", "", "")}
+        baseline = {("L2-POST-001", "npm", "", "")}
         br = apply_baseline(result, baseline)
         assert br.suppressed_count == 2
         assert br.new_count == 1
@@ -178,7 +180,7 @@ class TestApplyBaseline:
                 _finding(rule_id="L2-POST-001", package="other-pkg", file="other/package.json"),
             ]
         )
-        baseline = {("L2-POST-001", "evil-pkg", "")}
+        baseline = {("L2-POST-001", "npm", "evil-pkg", "")}
         br = apply_baseline(result, baseline)
         assert br.suppressed_count == 2
         assert br.new_count == 1
@@ -191,7 +193,7 @@ class TestApplyBaseline:
                 _finding(rule_id="L2-POST-001", package="evil-pkg"),
             ]
         )
-        baseline = {("L2-POST-001", "evil-pkg", "")}
+        baseline = {("L2-POST-001", "npm", "evil-pkg", "")}
         br = apply_baseline(result, baseline)
         assert br.suppressed_count == 1
         assert br.new_count == 0
@@ -200,7 +202,7 @@ class TestApplyBaseline:
     def test_no_findings_no_suppression(self):
         """Clean project with clean baseline = no findings."""
         result = _scan_result([])
-        baseline = {("L2-POST-001", "evil-pkg", "")}
+        baseline = {("L2-POST-001", "npm", "evil-pkg", "")}
         br = apply_baseline(result, baseline)
         assert br.original_count == 0
         assert br.suppressed_count == 0
@@ -311,7 +313,7 @@ class TestFindingFingerprint:
     def test_fingerprint_deterministic(self):
         """Same finding always produces same fingerprint."""
         f = _finding(rule_id="L2-POST-001", package="evil-pkg", file="evil/package.json")
-        assert f.fingerprint() == ("L2-POST-001", "evil-pkg", "evil/package.json")
+        assert f.fingerprint() == ("L2-POST-001", "npm", "evil-pkg", "evil/package.json")
         assert f.fingerprint() == f.fingerprint()
 
     def test_different_findings_different_fingerprints(self):
@@ -320,7 +322,10 @@ class TestFindingFingerprint:
         f2 = _finding(rule_id="L2-POST-001", package="pkg-b")
         assert f1.fingerprint() != f2.fingerprint()
 
-    def test_fingerprint_uses_triple(self):
-        """Fingerprint is (rule_id, package, file) triple."""
+    def test_fingerprint_uses_quadruple(self):
+        """Fingerprint is (rule_id, ecosystem, package, file) quadruple."""
         f = _finding(rule_id="L2-TYPO-001", package="reqct", file="project/package.json")
-        assert f.fingerprint() == ("L2-TYPO-001", "reqct", "project/package.json")
+        assert f.fingerprint() == ("L2-TYPO-001", "npm", "reqct", "project/package.json")
+        # Different ecosystems produce different fingerprints
+        f2 = _finding(rule_id="L2-TYPO-001", package="reqct", file="project/package.json", ecosystem="pypi")
+        assert f.fingerprint() != f2.fingerprint()

@@ -187,6 +187,9 @@ kbd{padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:
       <div class="nav-item" data-panel="sandbox" onclick="switchPanel('sandbox')" title="Sandbox (6)">
         <span>&#x1F4E6;</span> <span>Sandbox</span>
       </div>
+      <div class="nav-item" data-panel="chains" onclick="switchPanel('chains')" title="Kill Chains">
+        <span>&#x26D3;</span> <span>Kill Chains</span>
+      </div>
       <div class="nav-section">Platform</div>
       <div class="nav-item" data-panel="orgs" onclick="switchPanel('orgs')" title="Organizations (7)">
         <span>&#x1F3E2;</span> <span>Organizations</span>
@@ -376,6 +379,57 @@ kbd{padding:2px 6px;border-radius:4px;border:1px solid var(--border);background:
       </div>
     </div>
 
+    <!-- ===== Kill Chains ===== -->
+    <div class="panel" id="panel-chains">
+      <div class="topbar">
+        <h2>Kill Chains</h2>
+        <div class="topbar-actions">
+          <button class="btn btn-primary" onclick="persistChains()">Persist to DB</button>
+          <button class="btn" onclick="loadChains()">&#x21BB; Refresh</button>
+        </div>
+      </div>
+      <!-- Metric Cards -->
+      <div class="grid grid-4 mb-16" id="chainsMetricCards">
+        <div class="card metric-card">
+          <div class="metric-label">Total Chains</div>
+          <div class="metric-value" id="cm-total">&#x2014;</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Critical</div>
+          <div class="metric-value text-err" id="cm-critical">&#x2014;</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">High</div>
+          <div class="metric-value text-warn" id="cm-high">&#x2014;</div>
+        </div>
+        <div class="card metric-card">
+          <div class="metric-label">Active Layers</div>
+          <div class="metric-value text-accent" id="cm-layers">&#x2014;</div>
+        </div>
+      </div>
+      <!-- Phase Distribution Chart -->
+      <div class="card mb-16">
+        <div class="card-header"><span class="card-title">Phase Distribution</span></div>
+        <div id="chainsPhaseChart"><div class="text-muted">Loading&#x2026;</div></div>
+      </div>
+      <!-- Chains Table -->
+      <div class="card">
+        <div class="card-header"><span class="card-title">Top Chains</span></div>
+        <div class="table-wrap" id="chainsTable"><div class="text-muted">Loading&#x2026;</div></div>
+      </div>
+    </div>
+
+    <!-- ===== Chain Detail Modal ===== -->
+    <div class="modal-overlay" id="chainDetailModal" onclick="if(event.target===this)closeChainDetail()">
+      <div class="modal" style="width:640px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+          <h3 style="margin:0">Chain Detail: <span id="chainDetailId" class="mono" style="font-size:14px"></span></h3>
+          <button class="btn btn-sm" onclick="closeChainDetail()">&times;</button>
+        </div>
+        <div id="chainDetailContent"><div class="text-muted">Loading&#x2026;</div></div>
+      </div>
+    </div>
+
     <!-- ===== Organizations ===== -->
     <div class="panel" id="panel-orgs">
       <div class="topbar"><h2>Organizations</h2></div>
@@ -461,7 +515,7 @@ let token = localStorage.getItem('picoshogun_token') || localStorage.getItem('sh
 let ws = null;
 let wsRetries = 0;
 const MAX_WS_RETRIES = 10;
-const PANELS = ['overview','projects','intel','alerts','scans','sandbox','orgs','scheduler','logs'];
+const PANELS = ['overview','projects','intel','alerts','scans','sandbox','chains','orgs','scheduler','logs'];
 let threatHistory = [];
 let successHistory = [];
 
@@ -528,6 +582,7 @@ function switchPanel(id) {
   if (id === 'projects') loadProjects();
   else if (id === 'intel') loadIntel();
   else if (id === 'alerts') loadAlerts();
+  else if (id === 'chains') loadChains();
   else if (id === 'orgs') loadOrgs();
   else if (id === 'scheduler') loadScheduler();
   else if (id === 'logs') loadLogs();
@@ -935,6 +990,128 @@ async function loadLogs() {
     const lines = Array.isArray(data) ? data : (data.lines || []);
     document.getElementById('logsContent').textContent = lines.map(function(l) { return typeof l === 'string' ? l : JSON.stringify(l); }).join('\n');
   } catch(e) { document.getElementById('logsContent').textContent = 'Failed to load logs'; }
+}
+
+// ── Kill Chains ──────────────────────────────────────────────────────
+async function loadChains() {
+  // Load summary
+  try {
+    const res = await apiFetch('/chains/summary');
+    const data = await res.json();
+    document.getElementById('cm-total').textContent = data.total_chains || 0;
+    document.getElementById('cm-critical').textContent = data.critical_count || 0;
+    document.getElementById('cm-high').textContent = data.high_count || 0;
+    document.getElementById('cm-layers').textContent = data.layers_active || 0;
+    // Phase distribution chart
+    const phases = data.phase_distribution || {};
+    const labels = ['Recon','Delivery','Execution','Persistence','C2','Exfiltration','Impact'];
+    const keys = Object.keys(phases);
+    const el = document.getElementById('chainsPhaseChart');
+    if (keys.length) {
+      el.innerHTML = '<div class="sparkline" style="height:auto;flex-wrap:wrap;gap:8px">' +
+        labels.map(function(p) {
+          var count = phases[p] || 0;
+          var max = Math.max.apply(null, Object.values(phases)) || 1;
+          var barH = Math.max((count / max) * 100, 4);
+          var color = count >= max * 0.7 ? 'var(--err)' : count >= max * 0.3 ? 'var(--warn)' : 'var(--accent)';
+          return '<div style="flex:1;min-width:60px;text-align:center"><div style="height:100px;display:flex;align-items:flex-end;justify-content:center;margin-bottom:4px"><div class="bar" style="height:' + barH + 'px;width:32px;background:' + color + ';border-radius:4px 4px 0 0"></div></div><div style="font-size:10px;color:var(--muted)">' + p + '</div><div style="font-size:12px;font-weight:600">' + count + '</div></div>';
+        }).join('') + '</div>';
+    } else {
+      el.innerHTML = '<div class="text-muted">No phase data</div>';
+    }
+  } catch(e) { console.error('loadChains summary:', e); }
+  // Load chains list
+  try {
+    const res = await apiFetch('/chains?limit=50');
+    const data = await res.json();
+    var chains = data.chains || data || [];
+    document.getElementById('chainsTable').innerHTML = '<table><thead><tr><th>Artifact ID</th><th>Score</th><th>Severity</th><th>Phases</th><th>Events</th><th>Layers</th></tr></thead><tbody>' +
+      chains.map(function(c) {
+        var sev = (c.severity || 'low').toLowerCase();
+        var phases = c.phases || {};
+        var phaseCount = c.phase_count || Object.keys(phases).length || 0;
+        var layers = c.layers_observed || '-';
+        // Phase dots
+        var phaseDots = '<span style="font-size:14px;letter-spacing:2px;cursor:pointer" onclick="showChainDetail(\'' + escHtml(c.artifact_id || '') + '\')" title="Click for detail">' +
+          ['Recon','Delivery','Execution','Persistence','C2','Exfiltration','Impact'].map(function(p) { return phases[p] ? '●' : '○'; }).join('') +
+          '</span>';
+        return '<tr onclick="showChainDetail(\'' + escHtml(c.artifact_id || '') + '\')" style="cursor:pointer"><td class="mono">' + escHtml(c.artifact_id || '') + '</td><td style="font-weight:600;color:' + (parseFloat(c.chain_score) >= 0.8 ? 'var(--err)' : parseFloat(c.chain_score) >= 0.5 ? '#f97316' : parseFloat(c.chain_score) >= 0.3 ? 'var(--warn)' : 'var(--ok)') + '">' + (c.chain_score != null ? parseFloat(c.chain_score).toFixed(2) : '-') + '</td><td class="sev-' + sev + '">' + sev.toUpperCase() + '</td><td>' + phaseDots + '</td><td>' + (c.event_count || 0) + '</td><td>' + layers + '</td></tr>';
+      }).join('') +
+      '</tbody></table>';
+  } catch(e) {
+    document.getElementById('chainsTable').innerHTML = '<div class="text-muted">Failed to load chains</div>';
+    console.error('loadChains:', e);
+  }
+}
+
+async function showChainDetail(artifactId) {
+  document.getElementById('chainDetailId').textContent = artifactId;
+  document.getElementById('chainDetailContent').innerHTML = '<div class="text-muted">Loading\&#x2026;</div>';
+  document.getElementById('chainDetailModal').classList.add('show');
+  try {
+    const res = await apiFetch('/chains/' + encodeURIComponent(artifactId));
+    const chain = await res.json();
+    // Narrative
+    var narrativeHtml = '';
+    try {
+      var nres = await apiFetch('/chains/' + encodeURIComponent(artifactId) + '/narrative');
+      var ndata = await nres.json();
+      narrativeHtml = '<div class="card" style="margin-top:12px"><div class="card-header"><span class="card-title">Narrative</span></div><p style="font-size:13px;line-height:1.6;color:var(--text2)">' + escHtml(ndata.narrative || 'No narrative available') + '</p></div>';
+    } catch(e) {}
+    var score = chain.chain_score != null ? parseFloat(chain.chain_score) : 0;
+    var scoreColor = score >= 0.8 ? 'var(--err)' : score >= 0.5 ? '#f97316' : score >= 0.3 ? 'var(--warn)' : 'var(--ok)';
+    var phases = chain.phases || {};
+    var phaseLabels = ['Recon','Delivery','Execution','Persistence','C2','Exfiltration','Impact'];
+    var timelineHtml = '<div style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;overflow-x:auto">' +
+      phaseLabels.map(function(p, i) {
+        var hasEvents = phases[p] && (Array.isArray(phases[p]) ? phases[p].length > 0 : true);
+        var dot = hasEvents ? '●' : '○';
+        var color = hasEvents ? 'var(--accent)' : 'var(--muted)';
+        return '<div style="text-align:center;min-width:70px"><div style="font-size:24px;color:' + color + '">' + dot + '</div><div style="font-size:10px;color:var(--muted);margin-top:4px">' + p + '</div></div>';
+      }).join('') +
+      '</div>';
+    var eventsHtml = '<div style="margin-top:12px"><h4 style="font-size:13px;color:var(--text2);margin-bottom:8px">Events by Phase</h4>';
+    phaseLabels.forEach(function(p) {
+      var phaseEvents = phases[p];
+      if (!phaseEvents || (Array.isArray(phaseEvents) && phaseEvents.length === 0)) { eventsHtml += '<div style="margin-bottom:8px;padding:8px;background:var(--bg);border-radius:6px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-bottom:4px">' + p + '</div><div class="text-muted" style="font-size:12px">No events</div></div>'; return; }
+      var evts = Array.isArray(phaseEvents) ? phaseEvents : [phaseEvents];
+      eventsHtml += '<div style="margin-bottom:8px;padding:8px;background:var(--bg);border-radius:6px"><div style="font-size:11px;font-weight:600;color:var(--muted);text-transform:uppercase;margin-bottom:4px">' + p + ' (' + evts.length + ')</div>';
+      evts.forEach(function(e) {
+        var eObj = typeof e === 'object' && e !== null ? e : {event: e};
+        eventsHtml += '<div style="display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--border);font-size:12px"><span class="mono" style="color:var(--muted);min-width:70px">' + formatTime(eObj.timestamp || eObj.time || '') + '</span><span style="color:var(--text2)">' + escHtml(eObj.event || eObj.message || eObj.description || JSON.stringify(e)) + '</span></div>';
+      });
+      eventsHtml += '</div>';
+    });
+    eventsHtml += '</div>';
+    document.getElementById('chainDetailContent').innerHTML =
+      '<div style="display:flex;gap:16px;margin-bottom:12px"><div class="card" style="flex:1;text-align:center"><div class="metric-label">Score</div><div style="font-size:28px;font-weight:700;color:' + scoreColor + '">' + score.toFixed(2) + '</div></div>' +
+      '<div class="card" style="flex:1;text-align:center"><div class="metric-label">Severity</div><div class="sev-' + (chain.severity||'low').toLowerCase() + '" style="font-size:18px;font-weight:700">' + (chain.severity||'low').toUpperCase() + '</div></div>' +
+      '<div class="card" style="flex:1;text-align:center"><div class="metric-label">Total Events</div><div style="font-size:28px;font-weight:700">' + (chain.event_count || 0) + '</div></div></div>' +
+      timelineHtml + narrativeHtml + eventsHtml;
+  } catch(e) {
+    document.getElementById('chainDetailContent').innerHTML = '<div class="text-err">Failed to load chain detail: ' + escHtml(e.message) + '</div>';
+  }
+}
+
+function closeChainDetail() {
+  document.getElementById('chainDetailModal').classList.remove('show');
+}
+
+async function persistChains() {
+  var btn = document.querySelector('#panel-chains .btn-primary');
+  btn.textContent = 'Persisting\&#x2026;';
+  btn.disabled = true;
+  try {
+    var res = await apiFetch('/chains/persist', {method: 'POST'});
+    var data = await res.json();
+    alert('Persisted: ' + (data.events_persisted || 0) + ' events, ' + (data.chains_persisted || 0) + ' chains');
+    loadChains();
+  } catch(e) {
+    alert('Persist failed: ' + e.message);
+  } finally {
+    btn.textContent = 'Persist to DB';
+    btn.disabled = false;
+  }
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────

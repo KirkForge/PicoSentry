@@ -12,7 +12,7 @@ PicoSentry combines 4 tools formerly distributed separately into one unified pac
 
 | Component | Layer | What it does | Formerly |
 |---|---|---|---|
-| `scan` | L2 | Supply-chain scanner for npm/pnpm — SBOM, CVEs, typosquatting, dependency confusion, obfuscation | PicoSentry |
+| `scan` | L2 | Supply-chain scanner for **7 ecosystems** (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet) — SBOM, CVEs, typosquatting, dependency confusion, obfuscation | PicoSentry |
 | `sandbox` | L3/L4 | Runtime sandbox (seccomp-bpf) + behavioral analysis — exfiltration, crypto mining, container escapes | PicoDome |
 | `watch` | L5-L7 | LLM defender — prompt injection detection, output validation, telemetry | PicoWatch |
 | `serve` | — | API server, dashboard, firewall, and orchestration | PicoShogun |

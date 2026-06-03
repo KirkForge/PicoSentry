@@ -73,6 +73,7 @@ def format_sarif(result: ScanResult) -> str:
             "properties": {
                 "package": finding.package,
                 "confidence": finding.confidence.value,
+                "ecosystem": finding.ecosystem,
                 "evidence": finding.evidence,
                 "remediation": finding.remediation,
             },

@@ -53,9 +53,9 @@
     "cron_schedule": "*/5 * * * *",
     "estimated_duration": 10,
     "status": "active",
-    "version": "1.0.1",
-    "description": "Command centre, firewall, and monitoring for the Pico Security Series",
-    "package": "picoshogun",
+    "version": "2.0.0",
+    "description": "Unified PicoSentry orchestration, firewall, and monitoring",
+    "package": "picosentry",
     "intelligence_outputs": ["correlated_alert", "aggregate_threat_score"],
     "intelligence_inputs": ["picosentry_report", "picodome_report", "picowatch_report"]
   }

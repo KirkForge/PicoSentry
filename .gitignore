@@ -29,6 +29,14 @@ env/
 
 # Claude
 .claude/
+CLAUDE.md
+AGENTS.md
+
+# GitNexus
+.gitnexus/
+
+# Graphify output
+graphify-out/
 
 # Coverage
 htmlcov/
@@ -46,6 +54,11 @@ Thumbs.db
 
 # Temp
 tmp/
+*.tmp
 *.tmppicowatch_audit.db
 .pytest_cache/
 *.db
+
+# Generated / runtime artifacts
+*.tar.gz
+*.log

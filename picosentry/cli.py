@@ -35,7 +35,7 @@ def main(argv: list[str] | None = None) -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
-    parser.add_argument("--version", action="store_true", help="Show version and exit")
+    parser.add_argument("-V", "--version", action="store_true", help="Show version and exit")
     parser.add_argument("-v", "--verbose", action="store_true", help="Verbose output")
 
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")

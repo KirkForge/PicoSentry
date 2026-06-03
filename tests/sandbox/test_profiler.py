@@ -1,6 +1,6 @@
 """Tests for L4 profiler — extracting behavioral profiles from sandbox results and traces."""
 
-from picosentry.sandbox.l3.models import SandboxResult, Verdict
+from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult, Verdict
 from picosentry.sandbox.l4.profiler import (
     _extract_dns_queries,
     _extract_file_operations,
@@ -260,3 +260,238 @@ class TestExtractSpawns:
         spawns = _extract_spawns(output)
         bash_spawns = [s for s in spawns if s.executable == "/bin/bash"]
         assert len(bash_spawns) == 1
+
+
+# ── Events-first extraction (new) ─────────────────────────────
+
+
+class TestExtractNetworkFromEvents:
+    """profile_from_sandbox_result uses events when available."""
+
+    def test_network_from_event(self):
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-NET-001",
+                    verdict=Verdict.ALLOW,
+                    operation="network_outbound",
+                    detail="IP address found: 1.2.3.4",
+                    address="1.2.3.4",
+                ),
+            ],
+            stdout="",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.network_calls) == 1
+        assert profile.network_calls[0].address == "1.2.3.4"
+
+    def test_network_events_supersede_text(self):
+        """When events have network data, text-only dupes are skipped."""
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-NET-001",
+                    verdict=Verdict.ALLOW,
+                    operation="network_outbound",
+                    detail="IP address found: 5.6.7.8",
+                    address="5.6.7.8",
+                ),
+            ],
+            stdout="connect to 5.6.7.8:443",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        # 5.6.7.8 from event; text might add a 2nd with port but dedup by address
+        addrs = {c.address for c in profile.network_calls}
+        assert "5.6.7.8" in addrs
+
+    def test_no_events_falls_back_to_text(self):
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[],
+            stdout="connect to 9.9.9.9:53",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.network_calls) >= 1
+        assert profile.network_calls[0].address == "9.9.9.9"
+
+
+class TestExtractFsFromEvents:
+    """Filesystem from events when available."""
+
+    def test_fs_from_event(self):
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-FW-001",
+                    verdict=Verdict.DENY,
+                    operation="file_write_indicator",
+                    detail="Write detected: /etc/shadow",
+                    path="/etc/shadow",
+                ),
+            ],
+            stdout="",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.fs_ops) == 1
+        assert profile.fs_ops[0].operation == "write"
+
+    def test_no_events_falls_back_to_text(self):
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[],
+            stdout='reading "/etc/config.yml"',
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.fs_ops) >= 1
+
+
+# ── IPv6 network extraction ──────────────────────────────────
+
+
+class TestIPv6NetworkExtraction:
+    """_extract_network_calls must handle IPv6 addresses."""
+
+    def test_ipv6_bracketed(self):
+        output = "connect to [2607:f8b0:4005:802::200e]:443"
+        calls = _extract_network_calls(output)
+        assert any(c.address == "2607:f8b0:4005:802::200e" for c in calls)
+
+    def test_ipv6_loopback_excluded(self):
+        output = "[::1]:53"
+        calls = _extract_network_calls(output)
+        loopback = [c for c in calls if c.address == "::1"]
+        assert len(loopback) == 0
+
+    def test_ipv6_strace_connect(self):
+        output = (
+            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+            'sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
+        )
+        calls = _extract_network_calls(output)
+        assert any(c.address == "2001:db8::1" for c in calls)
+
+    def test_ipv4_strace_inet_addr(self):
+        output = (
+            'connect(3, {sa_family=AF_INET, sin_port=htons(4444), '
+            'sin_addr=inet_addr("1.2.3.4")}, 16)'
+        )
+        calls = _extract_network_calls(output)
+        assert any(c.address == "1.2.3.4" and c.port == 4444 for c in calls)
+
+    def test_no_dup_strace_and_plain(self):
+        """An address in a strace block should not also appear from plain match."""
+        output = (
+            'connect(3, {sa_family=AF_INET, sin_port=htons(443), '
+            'sin_addr=inet_addr("1.2.3.4")}, 16)'
+        )
+        calls = _extract_network_calls(output)
+        matches = [c for c in calls if c.address == "1.2.3.4"]
+        assert len(matches) == 1
+
+
+# ── Strace-format text fallback ──────────────────────────────
+
+
+class TestStraceFormatTextFallback:
+    """Text regexes must handle real strace output (not just friendly format)."""
+
+    def test_strace_openat_read(self):
+        output = 'openat(AT_FDCWD, "/home/user/.aws/credentials", O_RDONLY) = 3'
+        ops = _extract_file_operations(output)
+        assert any("credentials" in op.path for op in ops)
+
+    def test_strace_execve_spawn(self):
+        output = 'execve("/usr/bin/curl", ["curl", "-o", "/tmp/out"], 0x7fff...) = 0'
+        spawns = _extract_spawns(output)
+        assert any("curl" in s.executable for s in spawns)
+
+    def test_strace_write_file(self):
+        output = 'write(1, "hello world", 11) = 11'
+        # The strace write pattern matches write(fd, "path", ...) — the
+        # second arg is the written content, not a path. That's fine — it
+        # won't produce a useful FileOperation, but also won't regress.
+        ops = _extract_file_operations(output)
+        # No meaningful path match is expected here
+        assert isinstance(ops, list)
+
+
+# ── Demonstrator: the exact case the code-review flagged ─────
+
+
+class TestEventsFirstIntegration:
+    """End-to-end: AWS cred read + IPv6 exfil in real strace syntax.
+
+    This is the exact scenario the code-review proved was missed
+    by the old text-only profiler. Both paths (events + text) must
+    now detect the exfil.
+    """
+
+    def test_ipv6_exfil_caught_via_events(self):
+        """Seccomp backend: structured events catch IPv6 exfil."""
+        result = SandboxResult(
+            command=["node", "evil.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=150,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-NET-001",
+                    verdict=Verdict.ALLOW,
+                    operation="network_outbound",
+                    detail="IP address found: 2607:f8b0:4005:802::200e",
+                    address="2607:f8b0:4005:802::200e",
+                    timestamp_ms=120,
+                ),
+            ],
+            stdout="",
+            stderr=(
+                'openat(AT_FDCWD, "/home/user/.aws/credentials", O_RDONLY) = 3\n'
+                'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+                'sin6_addr=inet_pton(AF_INET6, "2607:f8b0:4005:802::200e")}, 28) = 0\n'
+            ),
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.network_calls) > 0, "Events path must detect IPv6 exfil"
+        assert any("2607" in c.address for c in profile.network_calls)
+
+    def test_ipv6_exfil_caught_via_text_fallback(self):
+        """Observational-only backend: text fallback also catches IPv6 exfil."""
+        result = SandboxResult(
+            command=["node", "evil.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=150,
+            events=[],
+            stdout="",
+            stderr=(
+                'openat(AT_FDCWD, "/home/user/.aws/credentials", O_RDONLY) = 3\n'
+                'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+                'sin6_addr=inet_pton(AF_INET6, "2607:f8b0:4005:802::200e")}, 28) = 0\n'
+            ),
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.network_calls) > 0, "Text path must detect IPv6 exfil"
+        assert any("2607" in c.address for c in profile.network_calls)

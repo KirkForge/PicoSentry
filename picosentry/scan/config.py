@@ -158,7 +158,7 @@ class PicoSentryConfig:
     def assert_secure(self) -> None:
         """Enforce secure configuration in production.
 
-        Delegates to pico_core.config.assert_secure with PicoSentry-specific
+        Delegates to picosentry._core.config.assert_secure with PicoSentry-specific
         custom checks (corpus signature enforcement).
         Override with PICOSENTRY_SKIP_SECURE_ASSERT=1 (NOT recommended).
         """

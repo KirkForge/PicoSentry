@@ -65,24 +65,27 @@ class TestEcosystemFiltering:
 
     def test_pypi_project_ignores_npm_rules(self, tmp_path):
         """A PyPI project should trigger PyPI rules, not npm-specific ones."""
-        (tmp_path / "requirements.txt").write_text("requests==2.31.0\n")
+        (tmp_path / "pyproject.toml").write_text(
+            '[project]\nname = "test"\nversion = "0.1.0"\n'
+            'dependencies = ["company-internal-lib>=1.0"]\n'
+        )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
-        # Should have PyPI rules in the timings
-        assert any(k.startswith("L2-PYPI-") for k in result.stats.rule_timings_ms), \
-            "Expected PyPI rules to run for a Python project"
+        pypi_findings = [f for f in result.findings if f.ecosystem == "pypi"]
+        assert len(pypi_findings) >= 1, f"Expected PyPI findings, got: {result.findings}"
 
     def test_pypi_rules_registered(self):
         """All PyPI rule IDs should be registered by default."""
         engine = create_default_engine()
         rules = engine.list_rules()
+        shared_rules = [r for r in rules if r in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
         pypi_rules = [r for r in rules if r.startswith("L2-PYPI-")]
-        assert len(pypi_rules) == 11, f"Expected 11 PyPI rules, got {len(pypi_rules)}"
-        assert "L2-PYPI-TYPO-001" in pypi_rules
-        assert "L2-PYPI-DEPC-001" in pypi_rules
+        assert len(shared_rules) == 3, f"Expected 3 shared rules, got {len(shared_rules)}"
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
         assert "L2-PYPI-POST-001" in pypi_rules
         assert "L2-PYPI-OBFS-001" in pypi_rules
-        assert "L2-PYPI-ADV-001" in pypi_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── Typosquat tests ────────────────────────────────────────────────────
@@ -93,7 +96,7 @@ class TestPyPITyposquat:
 
     def test_detects_typosquat_in_requirements(self):
         """requirements.txt with 'requsts' should trigger typosquat."""
-        from picosentry.scan.rules.pypi_typosquat import detect_pypi_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
         target = _pypi_malicious()
         findings = detect_pypi_typosquat(target, Path(""))
         typos = [f for f in findings if "requsts" in f.package]
@@ -103,7 +106,7 @@ class TestPyPITyposquat:
 
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
-        from picosentry.scan.rules.pypi_typosquat import detect_pypi_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
         target = _pypi_clean()
         findings = detect_pypi_typosquat(target, Path(""))
         pyproject_typos = [f for f in findings if "numpyy" in f.package or "requsts" in f.package]
@@ -118,7 +121,7 @@ class TestPyPIDependencyConfusion:
 
     def test_detects_internal_dep_without_private_index(self):
         """internal-secrets without private index should be flagged."""
-        from picosentry.scan.rules.pypi_dep_confusion import detect_pypi_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
         target = _pypi_malicious()
         findings = detect_pypi_dep_confusion(target, Path(""))
         internal = [f for f in findings if "internal-" in f.package]
@@ -127,14 +130,14 @@ class TestPyPIDependencyConfusion:
 
     def test_clean_project_no_confusion(self):
         """Clean project without internal deps should have no confusion findings."""
-        from picosentry.scan.rules.pypi_dep_confusion import detect_pypi_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
         target = _pypi_clean()
         findings = detect_pypi_dep_confusion(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_private_index_skips_flags(self, tmp_path):
         """When a private index is configured, internal deps are safe."""
-        from picosentry.scan.rules.pypi_dep_confusion import detect_pypi_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
         # Create a project with a pip.conf pointing to a private registry
         (tmp_path / "pip.conf").write_text("[global]\nindex-url = https://private-pypi.example.com/simple/\n")
         (tmp_path / "requirements.txt").write_text("internal-secrets==0.1.0\n")

@@ -1,28 +1,39 @@
 """
-L2-ADV-001: Advisory database vulnerability detection.
+Shared advisory database vulnerability detection engine.
 
-Checks installed packages against a local OSV-format advisory database.
-Flags packages with known CVEs, GHSA advisories, or npm security advisories.
+Consolidated from 7 per-ecosystem files into one shared algorithm.
+Each ecosystem provides a package collector function and metadata.
 
-Pure function: (target_path, corpus_dir) → List[Finding]
-
-Requires: advisory database directory (set via --advisory-db or $PICOADVISORY_DIR).
-Without an advisory DB, this rule produces no findings.
+Pure function: (target_path, corpus_dir, advisory_db_path) -> List[Finding]
 """
-
 from __future__ import annotations
 
 import contextlib
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Callable
 
 from ..advisory import AdvisoryDB, default_advisory_dir
 from ..models import Confidence, Finding, Severity
+from .cargo_utils import detect_cargo_project, parse_cargo_lock, parse_cargo_toml
+from .go_utils import detect_go_project, parse_go_mod, parse_go_sum
+from .maven_utils import detect_maven_project, parse_pom_xml, parse_gradle_build
+from .nuget_utils import collect_nuget_deps, detect_nuget_project
+from .pypi_lock_parser import parse_poetry_lock, parse_requirements_txt, parse_uv_lock
+from .pypi_utils import detect_pypi_project, iter_site_packages, load_pyproject_toml
+from .rubygems_utils import detect_rubygems_project, parse_gemfile, parse_gemfile_lock
 from .utils import iter_node_modules, load_package_json
 
 logger = logging.getLogger("picosentry.advisory_check")
 
-__all__ = ["detect_advisory_vulnerabilities"]
+__all__ = ["detect_all_advisory_vulnerabilities"]
+
+# Module-level advisory DB cache — shared by all ecosystems
+_advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
+
+
+# ── Shared advisory DB loader (replaces 7 copies) ──────────────────────────
 
 
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
@@ -33,11 +44,11 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         2. corpus_dir/advisories/ — if it exists and has content
         3. $PICOADVISORY_DIR env var (via default_advisory_dir())
     """
-    # Cache key: (advisory_db_path or "", corpus_dir)
+    import time
     cache_key = (advisory_db_path or "", str(corpus_dir))
     if cache_key in _advisory_db_cache:
-        db = _advisory_db_cache[cache_key]
-        if db.is_stale:
+        db, load_time = _advisory_db_cache[cache_key]
+        if time.time() - load_time > 86400:
             logger.warning("Advisory DB is stale (loaded > 24h ago). Run 'picosentry advisories fetch' to refresh.")
         return db
 
@@ -47,7 +58,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(path)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from %s: %d advisories", advisory_db_path, db.advisory_count)
-            _advisory_db_cache[cache_key] = db
+            _advisory_db_cache[cache_key] = (db, time.time())
             return db
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
@@ -58,7 +69,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(candidate)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from corpus: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = db
+            _advisory_db_cache[cache_key] = (db, time.time())
             return db
 
     # 3. Default location ($PICOADVISORY_DIR / ~/.local/share/picosentry/advisories)
@@ -67,55 +78,262 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(default_dir)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from default: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = db
+            _advisory_db_cache[cache_key] = (db, time.time())
             return db
 
     return None
 
 
-def _check_package_against_advisories(
-    pkg_name: str,
-    pkg_version: str,
-    pkg_label: str,
-    pkg_json: Path,
+# ── Ecosystem configuration ────────────────────────────────────────────────
+
+
+@dataclass(frozen=True)
+class AdvisoryConfig:
+    """Configuration for one ecosystem's advisory check."""
+
+    ecosystem: str
+    rule_id: str
+    detect_project: Callable[[Path], bool]
+    collect_packages: Callable[[Path], list[tuple[str, str, str, Path]]]
+
+    def __hash__(self):
+        return hash(self.ecosystem)
+
+
+# ── Per-ecosystem package collection ──────────────────────────────────────
+
+
+def _collect_npm_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    """Collect (name, version, label, source_path) for npm packages."""
+    packages: list[tuple[str, str, str, Path]] = []
+
+    root_pkg = target / "package.json"
+    if root_pkg.is_file():
+        pkg = load_package_json(root_pkg)
+        if pkg:
+            pkg_name = pkg.get("name", "root")
+            pkg_version = pkg.get("version", "unknown")
+            packages.append((pkg_name, pkg_version, f"{pkg_name}@{pkg_version}", root_pkg))
+
+    for pkg_json, pkg in iter_node_modules(target):
+        pkg_name = pkg.get("name", pkg_json.parent.name)
+        pkg_version = pkg.get("version", "unknown")
+        packages.append((pkg_name, pkg_version, f"{pkg_name}@{pkg_version}", pkg_json))
+
+    return packages
+
+
+def _collect_go_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    go_mod_data = parse_go_mod(target)
+    if go_mod_data:
+        for mod_path, version in go_mod_data.get("require", []):
+            if mod_path and version and (mod_path, version) not in seen:
+                seen.add((mod_path, version))
+                packages.append((mod_path, version, f"{mod_path}@{version}", target / "go.mod"))
+        for mod_path, version in go_mod_data.get("indirect", []):
+            if mod_path and version and (mod_path, version) not in seen:
+                seen.add((mod_path, version))
+                packages.append((mod_path, version, f"{mod_path}@{version}", target / "go.mod"))
+
+    go_sum_entries = parse_go_sum(target)
+    for mod_path, version, _hash_val in go_sum_entries:
+        if mod_path and version and (mod_path, version) not in seen:
+            seen.add((mod_path, version))
+            packages.append((mod_path, version, f"{mod_path}@{version}", target / "go.sum"))
+
+    return packages
+
+
+def _collect_cargo_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    cargo_data = parse_cargo_toml(target)
+    if cargo_data:
+        for section_name in ("dependencies", "dev_dependencies", "build_dependencies"):
+            deps = cargo_data.get(section_name, {})
+            for crate_name, version in deps.items():
+                if crate_name and version and (crate_name, str(version)) not in seen:
+                    seen.add((crate_name, str(version)))
+                    packages.append((crate_name, str(version), f"{crate_name}@{version}", target / "Cargo.toml"))
+
+    cargo_lock_pkgs = parse_cargo_lock(target)
+    if cargo_lock_pkgs:
+        for pkg in cargo_lock_pkgs:
+            name = pkg.get("name", "")
+            version = pkg.get("version", "")
+            if name and version and (name, version) not in seen:
+                seen.add((name, version))
+                packages.append((name, version, f"{name}@{version}", target / "Cargo.lock"))
+
+    return packages
+
+
+def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for meta_path, metadata in iter_site_packages(target):
+        name = metadata.get("name", "")
+        version = metadata.get("version", "")
+        if name and version and (name, version) not in seen:
+            seen.add((name, version))
+            packages.append((name, version, f"{name}@{version}", meta_path))
+
+    project_data = load_pyproject_toml(target)
+    if project_data:
+        project_section = project_data.get("project", project_data)
+        deps = project_section.get("dependencies", [])
+        if isinstance(deps, list):
+            for dep in deps:
+                # Parse "name>=1.0" style strings
+                if isinstance(dep, str) and dep:
+                    name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
+                    if name and (name, "unknown") not in seen:
+                        seen.add((name, "unknown"))
+                        packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))
+
+    # Lock files
+    for lock_parser, lock_file in [(parse_poetry_lock, "poetry.lock"), (parse_requirements_txt, "requirements.txt"), (parse_uv_lock, "uv.lock")]:
+        lock_path = target / lock_file
+        if lock_path.exists():
+            try:
+                for name, version, _extras in lock_parser(lock_path):
+                    if name and version and (name, version) not in seen:
+                        seen.add((name, version))
+                        packages.append((name, version, f"{name}@{version}", lock_path))
+            except Exception:
+                continue
+
+    return packages
+
+
+def _collect_maven_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    pom_data = parse_pom_xml(target)
+    if pom_data:
+        for dep in pom_data.get("dependencies", []):
+            group_id, artifact_id, version, _scope = dep if len(dep) == 4 else (dep[0], dep[1], dep[2], "")
+            pkg_key = f"{group_id}:{artifact_id}"
+            if pkg_key and version and (pkg_key, version) not in seen:
+                seen.add((pkg_key, version))
+                packages.append((pkg_key, version, f"{pkg_key}@{version}", target / "pom.xml"))
+
+    gradle_data = parse_gradle_build(target)
+    if gradle_data:
+        for dep in gradle_data.get("dependencies", []):
+            group, artifact, version = dep if len(dep) >= 3 else (dep[0], dep[1], "")
+            pkg_key = f"{group}:{artifact}"
+            if pkg_key and version and (pkg_key, version) not in seen:
+                seen.add((pkg_key, version))
+                packages.append((pkg_key, version, f"{pkg_key}@{version}", target / "build.gradle"))
+
+    return packages
+
+
+def _collect_nuget_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    for pkg_id, version, source in collect_nuget_deps(target):
+        if pkg_id and version and (pkg_id, version) not in seen:
+            seen.add((pkg_id, version))
+            src = Path(source) if source else target
+            packages.append((pkg_id, version, f"{pkg_id}@{version}", src))
+
+    return packages
+
+
+def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]:
+    packages: list[tuple[str, str, str, Path]] = []
+    seen: set[tuple[str, str]] = set()
+
+    gemfile_data = parse_gemfile(target)
+    if gemfile_data:
+        for gem_name, version in gemfile_data.get("dependencies", {}).items():
+            if gem_name and version and (gem_name, str(version)) not in seen:
+                seen.add((gem_name, str(version)))
+                packages.append((gem_name, str(version), f"{gem_name}@{version}", target / "Gemfile"))
+
+    lock_data = parse_gemfile_lock(target)
+    if lock_data:
+        for entry in lock_data:
+            name = entry.get("name", "")
+            version = entry.get("version", "")
+            if name and version and (name, version) not in seen:
+                seen.add((name, version))
+                packages.append((name, version, f"{name}@{version}", target / "Gemfile.lock"))
+
+    return packages
+
+
+# ── Main detection engine ──────────────────────────────────────────────────
+
+
+def _check_packages(
+    packages: list[tuple[str, str, str, Path]],
     db: AdvisoryDB,
+    config: AdvisoryConfig,
 ) -> list[Finding]:
-    """Check a single package against the advisory database."""
+    """Check a list of (name, version, label, source_path) against advisory DB.
+
+    Shared finding construction for all ecosystems.
+    """
     findings: list[Finding] = []
 
-    advisories = db.check(pkg_name, pkg_version)
-    if not advisories:
-        return findings
+    for pkg_name, pkg_version, pkg_label, source_path in packages:
+        advisories = db.check(pkg_name, pkg_version)
+        if not advisories:
+            continue
 
-    for adv in advisories:
-        severity = Severity.HIGH
-        with contextlib.suppress(ValueError):
-            severity = Severity(adv.severity)
+        for adv in advisories:
+            severity = Severity.HIGH
+            with contextlib.suppress(ValueError):
+                severity = Severity(adv.severity)
 
-        fixed_hint = f" Upgrade to >= {adv.fixed_version}." if adv.fixed_version else ""
+            fixed_hint = f" Upgrade to >= {adv.fixed_version}." if adv.fixed_version else ""
 
-        findings.append(
-            Finding(
-                rule_id="L2-ADV-001",
-                severity=severity,
-                confidence=Confidence.HIGH,
-                package=pkg_label,
-                file=str(pkg_json),
-                message=f"{adv.id}: {adv.summary}",
-                evidence=f"advisory={adv.id}, severity={adv.severity}, fixed={adv.fixed_version or 'N/A'}",
-                remediation=f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} See {adv.references[0] if adv.references else 'advisory database'} for details.",
-                references=adv.references[:5] if adv.references else [],
+            findings.append(
+                Finding(
+                    rule_id=config.rule_id,
+                    severity=severity,
+                    confidence=Confidence.HIGH,
+                    package=pkg_label,
+                    file=str(source_path),
+                    message=f"{adv.id}: {adv.summary}",
+                    evidence=f"advisory={adv.id}, severity={adv.severity}, fixed={adv.fixed_version or 'N/A'}",
+                    remediation=f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} See {adv.references[0] if adv.references else 'advisory database'} for details.",
+                    references=adv.references[:5] if adv.references else [],
+                    ecosystem=config.ecosystem,
+                )
             )
-        )
 
     return findings
 
 
-def detect_advisory_vulnerabilities(
+# ── Ecosystem configs ──────────────────────────────────────────────────────
+
+_ECOSYSTEMS: list[AdvisoryConfig] = [
+    AdvisoryConfig(ecosystem="npm", rule_id="L2-ADV-001", detect_project=lambda p: (p / "package.json").exists(), collect_packages=_collect_npm_packages),
+    AdvisoryConfig(ecosystem="go", rule_id="L2-GO-ADV-001", detect_project=detect_go_project, collect_packages=_collect_go_packages),
+    AdvisoryConfig(ecosystem="cargo", rule_id="L2-CARGO-ADV-001", detect_project=detect_cargo_project, collect_packages=_collect_cargo_packages),
+    AdvisoryConfig(ecosystem="pypi", rule_id="L2-PYPI-ADV-001", detect_project=detect_pypi_project, collect_packages=_collect_pypi_packages),
+    AdvisoryConfig(ecosystem="maven", rule_id="L2-MAVEN-ADV-001", detect_project=detect_maven_project, collect_packages=_collect_maven_packages),
+    AdvisoryConfig(ecosystem="nuget", rule_id="L2-NUGET-ADV-001", detect_project=detect_nuget_project, collect_packages=_collect_nuget_packages),
+    AdvisoryConfig(ecosystem="rubygems", rule_id="L2-RUBYGEMS-ADV-001", detect_project=detect_rubygems_project, collect_packages=_collect_rubygems_packages),
+]
+
+
+def detect_all_advisory_vulnerabilities(
     target: Path, corpus_dir: Path, advisory_db_path: str | None = None
 ) -> list[Finding]:
     """
-    Detect packages with known security advisories.
+    Detect packages with known security advisories for all 7 ecosystems.
 
     Loads advisory database from local files. No network calls.
     Without an advisory DB, returns empty list.
@@ -127,27 +345,11 @@ def detect_advisory_vulnerabilities(
         logger.debug("No advisory DB loaded — skipping advisory check")
         return findings
 
-    # Check root package.json
-    root_pkg = target / "package.json"
-    if root_pkg.is_file():
-        pkg = load_package_json(root_pkg)
-        if pkg:
-            pkg_name = pkg.get("name", "root")
-            pkg_version = pkg.get("version", "unknown")
-            pkg_label = f"{pkg_name}@{pkg_version}"
-            findings.extend(_check_package_against_advisories(pkg_name, pkg_version, pkg_label, root_pkg, db))
-
-    # Check all node_modules packages
-    for pkg_json, pkg in iter_node_modules(target):
-        pkg_name = pkg.get("name", pkg_json.parent.name)
-        pkg_version = pkg.get("version", "unknown")
-        pkg_label = f"{pkg_name}@{pkg_version}"
-
-        findings.extend(_check_package_against_advisories(pkg_name, pkg_version, pkg_label, pkg_json, db))
+    for config in _ECOSYSTEMS:
+        if not config.detect_project(target):
+            continue
+        packages = config.collect_packages(target)
+        if packages:
+            findings.extend(_check_packages(packages, db, config))
 
     return findings
-
-
-# Module-level advisory DB cache to avoid re-reading all advisory JSON
-# files from disk on every call to detect_advisory_vulnerabilities.
-_advisory_db_cache: dict[tuple[str, str], AdvisoryDB] = {}

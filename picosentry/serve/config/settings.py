@@ -58,8 +58,8 @@ class DatabaseConfig:
 
 @dataclass
 class APIConfig:
-    host: str = "127.0.0.1"
-    port: int = 8765
+    host: str = field(default_factory=lambda: _env("API_HOST", "127.0.0.1"))
+    port: int = field(default_factory=lambda: int(_env("API_PORT", "8765")))
     workers: int = field(default_factory=lambda: int(_env("API_WORKERS", "1")))
     reload: bool = False
     cors_origins: list[str] = field(default_factory=_parse_cors_origins)
@@ -82,7 +82,8 @@ class SecurityConfig:
     password_hash_rounds: int = 12
     allowed_hosts: list[str] = field(default_factory=lambda: ["localhost", "127.0.0.1"])
     rate_limit: str = "100/minute"
-    ddos_shield_enabled: bool = field(default_factory=lambda: _env_bool("DDOS_SHIELD", "false"))
+    ddos_shield_enabled: bool = field(default_factory=lambda: _env_bool("DDOS_SHIELD", "true"))
+    allow_registration: bool = field(default_factory=lambda: _env_bool("ALLOW_REGISTRATION", "false"))
     ssl_cert_path: Path | None = None
     ssl_key_path: Path | None = None
 
@@ -213,7 +214,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     def assert_secure(self) -> None:
         """Enforce secure configuration in production.
 
-        Delegates to pico_core.config.assert_secure with PicoShogun-specific
+        Delegates to picosentry._core.config.assert_secure with PicoShogun-specific
         custom checks (SSL cert, wildcard hosts/CORS).
         Override with PICOSHOGUN_SKIP_SECURE_ASSERT=1 (not recommended).
         """

@@ -1,7 +1,12 @@
-"""DDoS Shield middleware — placeholder until picodome is installed.
+"""DDoS Shield middleware — **EXPERIMENTAL**.
 
-The L1 Perimeter DDoS shield was part of the vendored pico_dome package.
-Install picodome to restore this middleware: pip install picodome
+Provides basic path-based token bucket rate limiting. Not adaptive.
+The full L1 Perimeter DDoS shield was part of the vendored pico_dome
+package and is not yet available in the unified codebase.
+
+⚠️ This is a basic rate limiter, not production DDoS protection.
+   It uses in-memory state (lost on restart) and does not support
+   distributed rate limiting. Expect improvements in future releases.
 """
 import logging
 

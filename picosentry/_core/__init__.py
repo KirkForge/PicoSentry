@@ -1,8 +1,14 @@
 """pico-core — shared primitives for the Pico Security Series.
 
-Re-exports from the external pico-core package.
-Kept as a thin shim for backward compatibility during the transition.
-New code should import directly from pico_core.
+Vendored directly into picosentry to eliminate the external pico-core
+dependency. Provides shared types used across scan, sandbox, watch, and serve.
+
+Modules:
+    guards   — DeterministicGuard, DeterminismViolation, verify_determinism, deterministic_hash, diff_results
+    policy   — PolicyBase, policy versioning, content hashing
+    config   — from_env helper, assert_secure startup gate
+    audit    — AuditSink base, AuditEvent, hash-chained audit log, HMAC signing
+    models   — Shared enums (Verdict, Severity), ScanStats base dataclass, FindingProtocol
 """
 
-__version__ = "2.0.0"
+__version__ = "0.1.0"

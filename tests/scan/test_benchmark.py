@@ -80,7 +80,7 @@ def test_bench_cold_start():
     e = create_default_engine()
     elapsed_ms = (time.monotonic() - start) * 1000
 
-    assert len(e.list_rules()) == 49
+    assert len(e.list_rules()) == 31
     assert e._corpus_version
 
     if elapsed_ms > TARGETS["cold_start_ms"]:
@@ -94,7 +94,7 @@ def test_bench_cold_start():
 def test_bench_rule_registration(engine):
     """All rules register quickly."""
     rules = engine.list_rules()
-    assert len(rules) == 49
+    assert len(rules) == 31
     valid_prefixes = {
         "L2-POST",
         "L2-OBFS",

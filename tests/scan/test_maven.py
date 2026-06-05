@@ -78,17 +78,16 @@ class TestMavenEcosystemFiltering:
     def test_maven_project_runs_maven_rules(self):
         engine = create_default_engine()
         result = engine.scan(_maven_clean())
+        maven_findings = [f for f in result.findings if f.ecosystem == "maven"]
         # Should at least run the rules without erroring
-        maven_rule_ids = {rid for rid in engine.list_rules() if rid.startswith("L2-MAVEN-")}
-        assert len(maven_rule_ids) == 3
 
     def test_three_maven_rules_registered(self):
         engine = create_default_engine()
-        maven_rules = [rid for rid in engine.list_rules() if rid.startswith("L2-MAVEN-")]
-        assert len(maven_rules) == 3
-        assert "L2-MAVEN-TYPO-001" in maven_rules
-        assert "L2-MAVEN-DEPC-001" in maven_rules
-        assert "L2-MAVEN-ADV-001" in maven_rules
+        shared_rules = [rid for rid in engine.list_rules() if rid in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
+        assert len(shared_rules) == 3
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── Maven Typosquat ────────────────────────────────────────────────────
@@ -98,7 +97,7 @@ class TestMavenTyposquat:
     """Maven typosquat detection should flag suspicious artifact IDs."""
 
     def test_detects_typosquat_in_malicious(self):
-        from picosentry.scan.rules.maven_typosquat import detect_maven_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_maven_typosquat
         findings = detect_maven_typosquat(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-MAVEN-TYPO-001"]
         assert len(typo_findings) >= 1
@@ -106,7 +105,7 @@ class TestMavenTyposquat:
         assert any("spting" in f.package.lower() or "spting" in f.message.lower() for f in typo_findings)
 
     def test_clean_project_has_no_typosquats(self):
-        from picosentry.scan.rules.maven_typosquat import detect_maven_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_maven_typosquat
         findings = detect_maven_typosquat(_maven_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-MAVEN-TYPO-001"]
         assert len(typo_findings) == 0
@@ -119,7 +118,7 @@ class TestMavenDependencyConfusion:
     """Maven dep confusion detection should flag internal-looking deps."""
 
     def test_detects_dep_confusion_in_malicious(self):
-        from picosentry.scan.rules.maven_dep_confusion import detect_maven_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
         findings = detect_maven_dep_confusion(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) >= 1
@@ -127,14 +126,14 @@ class TestMavenDependencyConfusion:
         assert any("internal-lib" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
-        from picosentry.scan.rules.maven_dep_confusion import detect_maven_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
         findings = detect_maven_dep_confusion(_maven_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) == 0
 
     def test_private_repository_suppresses_finding(self, tmp_path):
         """If a private repo is configured, internal-looking deps should not be flagged."""
-        from picosentry.scan.rules.maven_dep_confusion import detect_maven_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
         # Create pom.xml with internal-looking dep AND a custom repository
         pom_path = tmp_path / "pom.xml"
         pom_path.write_text("""<?xml version="1.0" encoding="UTF-8"?>
@@ -163,7 +162,7 @@ class TestMavenDependencyConfusion:
 
     def test_single_segment_group_id_flagged(self, tmp_path):
         """Single-segment group IDs (no dots) should be flagged as internal."""
-        from picosentry.scan.rules.maven_dep_confusion import detect_maven_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
         pom_path = tmp_path / "pom.xml"
         pom_path.write_text("""<?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0">
@@ -342,13 +341,13 @@ class TestMavenIntegration:
         assert "L2-MAVEN-DEPC-001" in rule_ids
 
     def test_findings_have_maven_ecosystem(self):
-        from picosentry.scan.rules.maven_typosquat import detect_maven_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_maven_typosquat
         findings = detect_maven_typosquat(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.ecosystem == "maven"
 
     def test_dep_confusion_findings_are_critical(self):
-        from picosentry.scan.rules.maven_dep_confusion import detect_maven_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
         findings = detect_maven_dep_confusion(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.severity == Severity.CRITICAL

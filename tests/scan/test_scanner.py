@@ -303,7 +303,7 @@ class TestEngine:
         assert "L2-MAINT-001" in rules
         assert "L2-PNPM-001" in rules
         assert "L2-ENGIN-001" in rules
-        assert len(rules) == 49  # 23 npm + 11 PyPI + 3 Go + 3 Cargo + 3 Maven + 3 RubyGems + 3 NuGet
+        assert len(rules) == 31  # 23 npm + 8 PyPI + 3 shared (depc, typo, adv)
 
     def test_rule_info_has_all_rules(self):
         """Every registered rule should have metadata in RULE_INFO."""
@@ -1262,9 +1262,8 @@ class TestVerboseAndTiming:
         for rule_id in result.stats.rule_timings_ms:
             assert rule_id in engine.list_rules(), f"Unexpected timing for {rule_id}"
         for rule_id in engine.list_rules():
-            # Ecosystem-specific rules (PyPI, Go) are skipped when
-            # the target doesn't have ecosystem indicators
-            if rule_id.startswith("L2-PYPI-") or rule_id.startswith("L2-GO-") or rule_id.startswith("L2-CARGO-") or rule_id.startswith("L2-MAVEN-") or rule_id.startswith("L2-RUBYGEMS-") or rule_id.startswith("L2-NUGET-"):
+            # Per-ecosystem prefix rules have been consolidated into shared engines
+            if rule_id.startswith("L2-PYPI-"):
                 continue
             assert rule_id in result.stats.rule_timings_ms, f"Missing timing for {rule_id}"
             assert isinstance(result.stats.rule_timings_ms[rule_id], int)

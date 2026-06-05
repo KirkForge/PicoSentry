@@ -32,9 +32,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install dev deps
         run: pip install --no-cache-dir -e ".[dev]"
       - name: Run mypy
@@ -50,9 +47,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e ".[dev]"
       - name: Run core tests
@@ -65,9 +59,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package with scan deps
         run: pip install --no-cache-dir -e ".[dev,scan]"
       - name: Run scan tests
@@ -80,9 +71,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e ".[dev]"
       - name: Run watch tests
@@ -95,9 +83,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package with serve deps
         run: pip install --no-cache-dir -e ".[dev,serve]"
       - name: Run serve tests
@@ -110,9 +95,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e ".[dev]"
       - name: Run sandbox tests (standard)
@@ -133,9 +115,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e ".[dev]"
       - name: Run full test suite
@@ -148,9 +127,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e .
       - name: Verify CLI
@@ -169,9 +145,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install pico-core
-        run: |
-          pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
       - name: Install package
         run: pip install --no-cache-dir -e .
       - name: Verify shared enums are consistent

@@ -78,16 +78,15 @@ class TestRubyGemsEcosystemFiltering:
     def test_gem_project_runs_gem_rules(self):
         engine = create_default_engine()
         result = engine.scan(_gem_clean())
-        gem_rule_ids = {rid for rid in engine.list_rules() if rid.startswith("L2-RUBYGEMS-")}
-        assert len(gem_rule_ids) == 3
+        gem_findings = [f for f in result.findings if f.ecosystem == "rubygems"]
 
     def test_three_rubygems_rules_registered(self):
         engine = create_default_engine()
-        gem_rules = [rid for rid in engine.list_rules() if rid.startswith("L2-RUBYGEMS-")]
-        assert len(gem_rules) == 3
-        assert "L2-RUBYGEMS-TYPO-001" in gem_rules
-        assert "L2-RUBYGEMS-DEPC-001" in gem_rules
-        assert "L2-RUBYGEMS-ADV-001" in gem_rules
+        shared_rules = [rid for rid in engine.list_rules() if rid in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
+        assert len(shared_rules) == 3
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── RubyGems Typosquat ─────────────────────────────────────────────────
@@ -97,7 +96,7 @@ class TestRubyGemsTyposquat:
     """RubyGems typosquat detection should flag suspicious gem names."""
 
     def test_detects_typosquat_in_malicious(self):
-        from picosentry.scan.rules.rubygems_typosquat import detect_rubygems_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
         findings = detect_rubygems_typosquat(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-TYPO-001"]
         assert len(typo_findings) >= 1
@@ -105,7 +104,7 @@ class TestRubyGemsTyposquat:
         assert any("raisl" in f.package.lower() or "raisl" in f.message.lower() for f in typo_findings)
 
     def test_clean_project_has_no_typosquats(self):
-        from picosentry.scan.rules.rubygems_typosquat import detect_rubygems_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
         findings = detect_rubygems_typosquat(_gem_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-TYPO-001"]
         assert len(typo_findings) == 0
@@ -118,21 +117,21 @@ class TestRubyGemsDependencyConfusion:
     """RubyGems dep confusion detection should flag internal-looking deps."""
 
     def test_detects_dep_confusion_in_malicious(self):
-        from picosentry.scan.rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
         findings = detect_rubygems_dep_confusion(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) >= 1
         assert any("company-internal" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
-        from picosentry.scan.rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
         findings = detect_rubygems_dep_confusion(_gem_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) == 0
 
     def test_private_source_suppresses_finding(self, tmp_path):
         """If a private source is configured, internal-looking gems should not be flagged."""
-        from picosentry.scan.rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text("""source "https://gems.internal.example.com"
 
@@ -144,7 +143,7 @@ gem "company-internal", "~> 1.0"
 
     def test_git_dep_not_flagged(self, tmp_path):
         """A gem with a git source should not be flagged as dep confusion."""
-        from picosentry.scan.rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text("""source "https://rubygems.org"
 
@@ -279,13 +278,13 @@ class TestRubyGemsIntegration:
         assert "L2-RUBYGEMS-DEPC-001" in rule_ids
 
     def test_findings_have_rubygems_ecosystem(self):
-        from picosentry.scan.rules.rubygems_typosquat import detect_rubygems_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
         findings = detect_rubygems_typosquat(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.ecosystem == "rubygems"
 
     def test_dep_confusion_findings_are_critical(self):
-        from picosentry.scan.rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
         findings = detect_rubygems_dep_confusion(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.severity == Severity.CRITICAL

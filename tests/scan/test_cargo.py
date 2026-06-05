@@ -61,22 +61,25 @@ class TestCargoEcosystemFiltering:
             assert not f.rule_id.startswith("L2-CARGO-"), f"Unexpected Cargo rule: {f.rule_id}"
 
     def test_cargo_project_runs_cargo_rules(self, tmp_path):
-        """A Cargo project should run Cargo rules."""
-        (tmp_path / "Cargo.toml").write_text('[package]\nname = "test"\nversion = "0.1.0"\n')
+        """A Cargo project with internal-looking deps should produce findings."""
+        (tmp_path / "Cargo.toml").write_text(
+            '[package]\nname = "test"\nversion = "0.1.0"\n'
+            '[dependencies]\ncompany-internal-lib = "0.1"\n'
+        )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
-        assert any(k.startswith("L2-CARGO-") for k in result.stats.rule_timings_ms), \
-            "Expected Cargo rules to run for a Cargo project"
+        cargo_findings = [f for f in result.findings if f.ecosystem == "cargo"]
+        assert len(cargo_findings) >= 1, f"Expected Cargo findings, got: {result.findings}"
 
     def test_cargo_rules_registered(self):
         """All Cargo rule IDs should be registered by default."""
         engine = create_default_engine()
         rules = engine.list_rules()
-        cargo_rules = [r for r in rules if r.startswith("L2-CARGO-")]
-        assert len(cargo_rules) == 3, f"Expected 3 Cargo rules, got {len(cargo_rules)}"
-        assert "L2-CARGO-TYPO-001" in cargo_rules
-        assert "L2-CARGO-DEPC-001" in cargo_rules
-        assert "L2-CARGO-ADV-001" in cargo_rules
+        shared_rules = [r for r in rules if r in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
+        assert len(shared_rules) == 3, f"Expected shared rules, got {len(shared_rules)}"
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── Typosquat tests ────────────────────────────────────────────────────
@@ -87,7 +90,7 @@ class TestCargoTyposquat:
 
     def test_detects_typosquat_in_malicious(self):
         """Cargo.toml with 'srede' (typo for 'serde') should trigger typosquat."""
-        from picosentry.scan.rules.cargo_typosquat import detect_cargo_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
         target = _cargo_malicious()
         findings = detect_cargo_typosquat(target, Path(""))
         typos = [f for f in findings if f.rule_id == "L2-CARGO-TYPO-001"]
@@ -98,7 +101,7 @@ class TestCargoTyposquat:
 
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
-        from picosentry.scan.rules.cargo_typosquat import detect_cargo_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
         target = _cargo_clean()
         findings = detect_cargo_typosquat(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no typos: {findings}"
@@ -112,7 +115,7 @@ class TestCargoDependencyConfusion:
 
     def test_detects_internal_dep_without_private_config(self):
         """internal-auth without private registry should be flagged."""
-        from picosentry.scan.rules.cargo_dep_confusion import detect_cargo_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_malicious()
         findings = detect_cargo_dep_confusion(target, Path(""))
         internal = [f for f in findings if "internal" in f.package]
@@ -121,7 +124,7 @@ class TestCargoDependencyConfusion:
 
     def test_detects_my_corp_lib_confusion(self):
         """my-corp-lib without private registry should be flagged."""
-        from picosentry.scan.rules.cargo_dep_confusion import detect_cargo_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_malicious()
         findings = detect_cargo_dep_confusion(target, Path(""))
         corp = [f for f in findings if "my-corp" in f.package]
@@ -130,14 +133,14 @@ class TestCargoDependencyConfusion:
 
     def test_clean_project_no_confusion(self):
         """Clean project with only public crates should have no confusion findings."""
-        from picosentry.scan.rules.cargo_dep_confusion import detect_cargo_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_clean()
         findings = detect_cargo_dep_confusion(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_private_registry_config_skips_flags(self, tmp_path):
         """When private registry is configured, internal deps are safe."""
-        from picosentry.scan.rules.cargo_dep_confusion import detect_cargo_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         (tmp_path / "Cargo.toml").write_text(
             '[package]\nname = "test"\nversion = "0.1.0"\n\n[dependencies]\ninternal-auth = "0.1.0"\n'
         )

@@ -9,22 +9,35 @@ Pure function: (target_path, corpus_dir) -> List[Finding]
 """
 from __future__ import annotations
 
-import configparser
 import logging
 import re
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from ..models import Confidence, Finding, Severity
 
 # Ecosystem utility imports
 from .cargo_utils import detect_cargo_project, detect_private_cargo_registry, get_cargo_dep_names, parse_cargo_toml
 from .go_utils import detect_go_project, detect_goproxy_private, get_go_dep_names, parse_go_mod
-from .maven_utils import detect_maven_project, detect_private_maven_repository, get_maven_dep_identifiers, parse_pom_xml, parse_gradle_build
-from .nuget_utils import collect_nuget_deps, detect_nuget_project, detect_private_nuget_source, parse_csproj_file, parse_packages_config
+from .maven_utils import (
+    detect_maven_project,
+    detect_private_maven_repository,
+    parse_gradle_build,
+    parse_pom_xml,
+)
+from .nuget_utils import (
+    collect_nuget_deps,
+    detect_nuget_project,
+    detect_private_nuget_source,
+)
 from .pypi_utils import detect_pypi_project, get_python_dep_names, load_pyproject_toml, parse_requirements_file
-from .rubygems_utils import detect_rubygems_project, detect_private_rubygems_source, get_rubygems_dep_names, parse_gemfile
+from .rubygems_utils import (
+    detect_private_rubygems_source,
+    detect_rubygems_project,
+    get_rubygems_dep_names,
+    parse_gemfile,
+)
 from .utils import load_package_json
 
 logger = logging.getLogger("picosentry.dep_confusion")
@@ -548,7 +561,7 @@ _NUGET_CONFIG = DepConfusionConfig(
         "MongoDB.", "Elastic.", "CsvHelper.", "ClosedXML.", "EPPlus.",
         "SixLabors.", "SkiaSharp.", "MailKit.", "MimeKit.", "Quartz.",
         "MassTransit.", "RabbitMQ.", "Confluent.", "Npgsql.",
-        "MySql.", "EntityFramework.",
+        "MySql.",
     },
     known_safe_names={
         "NETCore.App", "AspNetCore.App", "Runtime", "Collections",

@@ -38,7 +38,7 @@ import threading
 import time
 from collections import OrderedDict
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger("picosentry.auth")
 
@@ -96,7 +96,9 @@ class Scope:
     )
 
     # Scope implied permissions: admin > write > read
-    _IMPLIES = {
+    # NOTE: `Scope` is a plain class with string-typed class attributes (not an
+    # Enum), so the dict type is `dict[str, set[str]]`, not `dict[Scope, ...]`.
+    _IMPLIES: ClassVar[dict[str, set[str]]] = {
         ADMIN: {
             READ,
             WRITE,
@@ -411,7 +413,7 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
                 import urllib.request
 
                 jwks_req = urllib.request.Request(config.oidc_jwks_url, headers={"Accept": "application/json"})
-                resp, jwks_data = safe_urlopen(jwks_req, timeout=10)
+                _resp, jwks_data = safe_urlopen(jwks_req, timeout=10)
                 jwks_json = json.loads(jwks_data)
 
                 from jwt import PyJWKSet

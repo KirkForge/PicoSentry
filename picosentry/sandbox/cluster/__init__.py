@@ -22,10 +22,10 @@ from picosentry.sandbox.cluster.manager import (
 )
 
 __all__ = [
+    "ClusterManager",
     "ClusterNode",
     "ClusterState",
-    "ClusterManager",
     "MemoryStateBackend",
-    "SQLiteStateBackend",
     "NodeStatus",
+    "SQLiteStateBackend",
 ]

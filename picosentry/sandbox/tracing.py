@@ -45,7 +45,7 @@ try:
     _TRACING_AVAILABLE = True
     _Tracer = trace.Tracer
 except ImportError:
-    trace = None
+    trace = None  # type: ignore[assignment]
 
 
 # ─── No-op tracer ───────────────────────────────────────────────────────────

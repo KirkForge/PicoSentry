@@ -10,6 +10,12 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 os.environ["PICOSHOGUN_ENV"] = "test"
 os.environ["PICOSHOGUN_SECRET_KEY"] = "test-key-for-pytest-at-least-32-bytes!"
+# Registration defaults to OFF in production (see
+# picosentry/serve/config/settings.py SecurityConfig.allow_registration).
+# The /auth/register endpoint returns 403 unless we explicitly enable it for
+# the test environment — these tests are end-to-end auth flows and need to be
+# able to provision fresh users per test.
+os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
 
 
 def _find_and_clear_rate_limiter(app):

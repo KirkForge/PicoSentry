@@ -163,7 +163,7 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     else:
         license_value = str(license_field)
 
-    is_copyleft, is_permissive, is_unlicensed, is_unknown = _check_license_value(license_value)
+    is_copyleft, _is_permissive, is_unlicensed, is_unknown = _check_license_value(license_value)
 
     if is_unlicensed:
         findings.append(

@@ -450,6 +450,9 @@ class ScanCache:
 # HMAC key for cache integrity. Set PICOSENTRY_CACHE_HMAC_KEY for
 # persistent keys across process restarts. Falls back to per-process
 # random key with a warning (cache entries invalidated on restart).
+# When PICOSENTRY_QUIET=1 is set in the environment (e.g. when the scan
+# CLI was invoked with --quiet or --summary), the advisory is demoted to
+# DEBUG to avoid noise on first runs and CI logs.
 _cache_env_key = os.environ.get("PICOSENTRY_CACHE_HMAC_KEY", "")
 if _cache_env_key:
     if len(_cache_env_key) < 32:
@@ -459,4 +462,7 @@ if _cache_env_key:
         _CACHE_HMAC_KEY = _cache_env_key.encode("utf-8")
 else:
     _CACHE_HMAC_KEY = os.urandom(32)
-    logger.warning("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+    if os.environ.get("PICOSENTRY_QUIET") == "1":
+        logger.debug("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+    else:
+        logger.warning("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")

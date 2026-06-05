@@ -79,7 +79,7 @@ def iter_node_modules(target: Path):
                         pkg = load_package_json(scoped_pkg)
                         if pkg:
                             yield scoped_pkg, pkg
-                        elif pkg is None:
+                        else:
                             # package.json missing or unparseable — synthesize name from directory
                             synth_name = f"{child.name}/{scoped_child.name}"
                             yield scoped_pkg, {"name": synth_name, "version": "0.0.0"}

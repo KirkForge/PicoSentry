@@ -5,8 +5,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import get_type_hints
 
-from picosentry._core.config import ConfigProtocol, SecureBootCheck, SecurityViolation, assert_secure as _core_assert_secure
-from picosentry.serve.config.protocols import DashboardService, FirewallService, SandboxService, ScannerService
+from picosentry._core.config import SecureBootCheck, SecurityViolation
+from picosentry._core.config import assert_secure as _core_assert_secure
 
 BASE_DIR = Path(__file__).parent.parent
 
@@ -218,7 +218,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         custom checks (SSL cert, wildcard hosts/CORS).
         Override with PICOSHOGUN_SKIP_SECURE_ASSERT=1 (not recommended).
         """
-        import os as _os
 
         if _env("SKIP_SECURE_ASSERT", "") == "1":
             __import__("logging").getLogger("picoshogun.config").warning(

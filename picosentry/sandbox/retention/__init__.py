@@ -13,4 +13,4 @@ from picosentry.sandbox.retention.manager import (
     get_retention_manager,
 )
 
-__all__ = ["RetentionManager", "RetentionConfig", "RetentionPolicy", "get_retention_manager"]
+__all__ = ["RetentionConfig", "RetentionManager", "RetentionPolicy", "get_retention_manager"]

@@ -25,6 +25,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from picosentry.scan.audit import audit
 from picosentry.scan.crypto import (
@@ -329,7 +330,7 @@ def import_corpus_pack(
             PACK_VERSION,
         )
 
-    stats = {
+    stats: dict[str, Any] = {
         "pack_name": pack.name,
         "pack_id": pack.pack_id,
         "total": len(pack.iocs),
@@ -369,7 +370,7 @@ def validate_corpus_pack(path: Path) -> dict:
 
     Returns a dict with validation results.
     """
-    result = {
+    result: dict[str, Any] = {
         "valid": True,
         "errors": [],
         "warnings": [],

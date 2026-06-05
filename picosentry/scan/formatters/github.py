@@ -90,8 +90,8 @@ def format_github(result: ScanResult, sarif_path: str = "sarif.json") -> str:
     gh_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_summary:
         try:
-            with open(gh_summary, "a", encoding="utf-8") as f:
-                f.write(summary + "\n")
+            with open(gh_summary, "a", encoding="utf-8") as gh_file:
+                gh_file.write(summary + "\n")
         except OSError:
             pass  # Non-fatal — summary still goes to stdout
 

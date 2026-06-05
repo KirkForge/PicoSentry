@@ -41,9 +41,9 @@ def is_grpc_available() -> bool:
 
 
 __all__ = [
-    "is_grpc_available",
-    "PicoDomeGRPCServer",
     "PicoDomeGRPCClient",
+    "PicoDomeGRPCServer",
+    "is_grpc_available",
 ]
 
 # Lazy imports — only resolve when accessed

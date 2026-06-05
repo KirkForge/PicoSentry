@@ -50,10 +50,7 @@ def detect_go_project(target: Path) -> bool:
 
     if (target / "go.mod").is_file():
         return True
-    if (target / "go.sum").is_file():
-        return True
-
-    return False
+    return bool((target / "go.sum").is_file())
 
 
 # ── go.mod parsing ──────────────────────────────────────────────────────
@@ -91,7 +88,6 @@ def parse_go_mod(target: Path) -> dict | None:
     }
 
     in_require_block = False
-    require_indirect = False
 
     for line in lines:
         stripped = line.strip()
@@ -107,7 +103,6 @@ def parse_go_mod(target: Path) -> dict | None:
         # Track require block state
         elif stripped == "require (":
             in_require_block = True
-            require_indirect = False
             continue
         elif stripped == ")":
             if in_require_block:

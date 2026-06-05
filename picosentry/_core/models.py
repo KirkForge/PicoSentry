@@ -100,10 +100,10 @@ class FindingProtocol(Protocol):
 
 
 __all__ = [
-    "Severity",
     "SEVERITY_ORDER",
-    "Verdict",
     "Confidence",
-    "ScanStats",
     "FindingProtocol",
+    "ScanStats",
+    "Severity",
+    "Verdict",
 ]

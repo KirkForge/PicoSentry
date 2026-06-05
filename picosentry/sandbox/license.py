@@ -12,7 +12,7 @@ from enum import Enum
 
 logger = logging.getLogger("picodome.license")
 
-__all__ = ["LicenseTier", "LicenseInfo", "check_license", "get_license_info"]
+__all__ = ["LicenseInfo", "LicenseTier", "check_license", "get_license_info"]
 
 
 class LicenseTier(str, Enum):

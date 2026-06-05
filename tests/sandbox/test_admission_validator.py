@@ -292,5 +292,5 @@ class TestCallable:
                 {"name": "app", "image": "nginx", "securityContext": {"privileged": True}},
             ],
         }
-        allowed, reason = validator(_make_pod_request(spec))
+        allowed, _reason = validator(_make_pod_request(spec))
         assert not allowed

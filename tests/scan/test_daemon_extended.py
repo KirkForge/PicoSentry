@@ -940,17 +940,17 @@ class TestHTTPServerIntegration(unittest.TestCase):
             return resp.status, json.loads(body), dict(resp.headers)
 
     def test_health_via_http(self):
-        status, body, headers = self._get("/health")
+        status, body, _headers = self._get("/health")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "healthy")
 
     def test_healthz_via_http(self):
-        status, body, headers = self._get("/healthz")
+        status, body, _headers = self._get("/healthz")
         self.assertEqual(status, 200)
         self.assertEqual(body["status"], "healthy")
 
     def test_root_via_http(self):
-        status, body, headers = self._get("/")
+        status, body, _headers = self._get("/")
         self.assertEqual(status, 200)
         self.assertEqual(body["service"], "picosentry")
 

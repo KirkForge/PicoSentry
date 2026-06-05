@@ -31,9 +31,9 @@ from picosentry.sandbox.policy_versioned.store import (
 
 __all__ = [
     "PolicySignature",
+    "PolicyVersion",
     "VerifyResult",
     "VersionedPolicyStore",
-    "PolicyVersion",
     "generate_key",
     "get_policy_store",
     "key_to_hex",

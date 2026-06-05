@@ -3,14 +3,13 @@ Comprehensive tests for picosentry.ioc_registry — IoCRecord, register, remove,
 list, resolve paths, load_all, and edge cases.
 """
 
+import contextlib
 import json
 import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-import contextlib
 
 from picosentry.scan.ioc_registry import (
     IoCRecord,

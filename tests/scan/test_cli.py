@@ -5,8 +5,8 @@ Tests the command-line interface and SARIF output format.
 """
 
 import json
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest

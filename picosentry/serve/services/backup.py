@@ -21,7 +21,7 @@ class BackupManager:
         self.db_path = Path(settings.database.path)
         self.retention_days = getattr(settings.database, "backup_retention_days", 30)
 
-    def create_backup(self, name: str = None, include_logs: bool = True) -> dict | None:
+    def create_backup(self, name: str | None = None, include_logs: bool = True) -> dict | None:
         """Create a full backup of database and optionally logs."""
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         name = name or f"picoshogun_{timestamp}"

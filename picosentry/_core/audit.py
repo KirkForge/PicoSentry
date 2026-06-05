@@ -114,12 +114,15 @@ class AuditSinkBase(ABC):
             "last_error": None,
         }
 
+    @abstractmethod
     def start(self) -> None:
         """Open connections, create files, etc. Override if needed."""
 
+    @abstractmethod
     def stop(self) -> None:
         """Clean up resources. Override if needed."""
 
+    @abstractmethod
     def flush(self) -> None:
         """Flush any buffered events. Override if needed."""
 
@@ -226,11 +229,11 @@ def verify_event_signature(event_json: str, signature: str, secret_key: str) -> 
 
 
 __all__ = [
-    "AuditEventType",
     "AuditEvent",
+    "AuditEventType",
     "AuditSinkBase",
-    "NullSink",
     "HashChainedMixin",
+    "NullSink",
     "sign_event",
     "verify_event_signature",
 ]

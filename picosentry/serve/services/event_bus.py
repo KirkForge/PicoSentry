@@ -31,7 +31,7 @@ class EventBus:
         self._running = True
 
     def subscribe(self, event_type: str, callback: Callable,
-                  persistent: bool = False, subscriber_id: str = None) -> str:
+                  persistent: bool = False, subscriber_id: str | None = None) -> str:
         """Subscribe to events of a specific type."""
         sub_id = subscriber_id or str(uuid.uuid4())
 
@@ -86,7 +86,7 @@ class EventBus:
         logger.debug("Event published: %s (%s)", event_type, event.id)
         return event
 
-    def get_history(self, event_type: str = None, limit: int = 100) -> list[Event]:
+    def get_history(self, event_type: str | None = None, limit: int = 100) -> list[Event]:
         """Get recent event history."""
         with self._lock:
             events = self.event_history

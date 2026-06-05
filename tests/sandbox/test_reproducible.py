@@ -164,7 +164,7 @@ class TestPinDependencies:
     def test_extracts_hashes(self, sample_requirements):
         """Should extract --hash=algo:hash pairs."""
         result = pin_dependencies(sample_requirements)
-        wheel_pkg = [p for p in result["packages"] if p["name"] == "wheel"][0]
+        wheel_pkg = next(p for p in result["packages"] if p["name"] == "wheel")
         assert len(wheel_pkg["hashes"]) == 1
         assert wheel_pkg["hashes"][0]["algorithm"] == "sha256"
         assert wheel_pkg["hashes"][0]["hash"] == "abc123def456"

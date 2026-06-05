@@ -483,13 +483,13 @@ class Policy:
         violations: list[PolicyViolation] = []
 
         # Check findings against severity + rule policies
-        from picosentry.scan.models import SEVERITY_ORDER  # noqa: N811
+        from picosentry.scan.models import SEVERITY_ORDER
         fail_level = SEVERITY_ORDER.get(self.fail_on_severity.lower(), 1)
 
         waived_count = 0
         for f in scan_result.findings:
             # Check if waived
-            is_waived, waiver = self.is_finding_waived(f.rule_id, f.package)
+            is_waived, _waiver = self.is_finding_waived(f.rule_id, f.package)
             if is_waived:
                 waived_count += 1
                 continue

@@ -1,4 +1,6 @@
 """Docs restriction middleware — disables OpenAPI docs in production."""
+from typing import ClassVar
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -11,7 +13,7 @@ class DocsRestrictionMiddleware(BaseHTTPMiddleware):
     Always allows /openapi.json for programmatic access if authenticated.
     """
 
-    DOCS_PATHS = {"/docs", "/docs/", "/redoc", "/redoc/"}
+    DOCS_PATHS: ClassVar[set[str]] = {"/docs", "/docs/", "/redoc", "/redoc/"}
 
     def __init__(self, app, enabled: bool = False):
         super().__init__(app)

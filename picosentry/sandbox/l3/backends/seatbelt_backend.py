@@ -92,7 +92,7 @@ class SeatbeltBackend(SandboxBackend):
 
             try:
                 # Execute under sandbox-exec
-                sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--"] + command
+                sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
                 run_env = os.environ.copy()
                 if env:
@@ -235,7 +235,7 @@ class SeatbeltBackend(SandboxBackend):
                     parts.append("file-write*")
                 return f"({' '.join(parts)})" if len(parts) > 1 else None
 
-            _op = "file-read*" if rule.target == RuleTarget.FILE_READ else "file-write*"  # noqa: F841
+            _op = "file-read*" if rule.target == RuleTarget.FILE_READ else "file-write*"
             # Always include file-read-data, file-read-metadata
             if rule.target == RuleTarget.FILE_READ:
                 parts.append("file-read-data")

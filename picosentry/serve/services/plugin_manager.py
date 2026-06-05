@@ -24,7 +24,7 @@ from typing import Any
 # Ed25519 signature support — lazy-imported to avoid hard dependency
 HAS_NACL = False
 try:
-    import nacl.exceptions  # noqa: F401
+    import nacl.exceptions
     import nacl.signing  # noqa: F401
     HAS_NACL = True
 except ImportError:

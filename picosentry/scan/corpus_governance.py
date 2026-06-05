@@ -25,7 +25,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from picosentry.scan.audit import audit
 
@@ -53,7 +53,7 @@ class CorpusTrustLevel:
 
     ALL_LEVELS = (FIRST_PARTY, COMMERCIAL, COMMUNITY, INTERNAL, QUARANTINED)
 
-    _ORDER = {
+    _ORDER: ClassVar[dict[str, int]] = {
         FIRST_PARTY: 4,
         COMMERCIAL: 3,
         INTERNAL: 2,

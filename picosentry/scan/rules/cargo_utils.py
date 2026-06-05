@@ -62,10 +62,7 @@ def detect_cargo_project(target: Path) -> bool:
 
     if (target / "Cargo.toml").is_file():
         return True
-    if (target / "Cargo.lock").is_file():
-        return True
-
-    return False
+    return bool((target / "Cargo.lock").is_file())
 
 
 # ── Cargo.toml parsing ───────────────────────────────────────────────────
@@ -106,7 +103,6 @@ def parse_cargo_toml(target: Path) -> dict | None:
 
     current_section = ""
     in_patch_target = False
-    patch_target_name = ""
 
     for line in lines:
         stripped = line.strip()
@@ -120,7 +116,6 @@ def parse_cargo_toml(target: Path) -> dict | None:
         if section_match:
             current_section = section_match.group(1)
             in_patch_target = False
-            patch_target_name = ""
             continue
 
         # [package] fields

@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from typing import Any
+from typing import Any, ClassVar
 
 # Module-level version for log output
 try:
@@ -83,7 +83,7 @@ class PicoDomeTextFormatter(logging.Formatter):
     """
 
     # ANSI color codes
-    COLORS = {
+    COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[36m",  # Cyan
         "INFO": "\033[32m",  # Green
         "WARNING": "\033[33m",  # Yellow

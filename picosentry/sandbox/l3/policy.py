@@ -288,7 +288,7 @@ def load_policy(
     if name is not None and name in NAMED_POLICIES:
         logger.info("Loading named policy: %s", name)
         rules_data = NAMED_POLICIES[name]
-        default_action = SyscallAction.DENY if name == "strict" else SyscallAction.DENY
+        default_action = SyscallAction.DENY
         return Policy(
             name=f"picodome-{name}",
             version="1.0",

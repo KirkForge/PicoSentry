@@ -536,7 +536,7 @@ class TestPolicyWaivers(unittest.TestCase):
                 ),
             ]
         )
-        waived, w = p.is_finding_waived("L2-POST-001", "bad-pkg")
+        waived, _w = p.is_finding_waived("L2-POST-001", "bad-pkg")
         self.assertFalse(waived)
 
 

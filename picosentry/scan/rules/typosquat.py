@@ -10,16 +10,22 @@ Pure function: (target_path, corpus_dir) -> List[Finding]
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Callable
 
 from ..models import Finding
 from .cargo_utils import detect_cargo_project, get_cargo_dep_names, parse_cargo_toml
-from .go_utils import detect_go_project, get_go_dep_names, get_module_short_name, parse_go_mod
-from .maven_utils import detect_maven_project, get_maven_dep_identifiers, parse_pom_xml, parse_gradle_build
+from .go_utils import detect_go_project, get_module_short_name, parse_go_mod
+from .maven_utils import detect_maven_project, get_maven_dep_identifiers, parse_gradle_build, parse_pom_xml
 from .nuget_utils import detect_nuget_project, get_nuget_dep_names, parse_csproj_file, parse_packages_config
-from .pypi_utils import detect_pypi_project, get_python_dep_names, iter_site_packages, load_pyproject_toml, parse_requirements_file
+from .pypi_utils import (
+    detect_pypi_project,
+    get_python_dep_names,
+    iter_site_packages,
+    load_pyproject_toml,
+    parse_requirements_file,
+)
 from .rubygems_utils import detect_rubygems_project, get_rubygems_dep_names, parse_gemfile
 from .typosquat_utils import (
     BUILTIN_CARGO_TOP_100,

@@ -67,10 +67,7 @@ def detect_maven_project(target: Path) -> bool:
         return True
     if (target / "mvnw").is_file() or (target / "gradlew").is_file():
         return True
-    if (target / "settings.gradle").is_file() or (target / "settings.gradle.kts").is_file():
-        return True
-
-    return False
+    return bool((target / "settings.gradle").is_file() or (target / "settings.gradle.kts").is_file())
 
 
 # ── pom.xml parsing ────────────────────────────────────────────────────────
@@ -156,7 +153,7 @@ def parse_pom_xml(target: Path) -> dict | None:
         result["parent"] = {
             "group_id": pg.text if pg is not None else "",
             "artifact_id": pa.text if pa is not None else "",
-            "version": pa.text if pv is not None else "",
+            "version": pv.text if pv is not None else "",
         }
 
     # Extract project coordinates
@@ -366,10 +363,7 @@ def _is_public_repo_url(url: str) -> bool:
         "jitpack.io",
     ]
     url_lower = url.lower().rstrip("/")
-    for public in public_repos:
-        if public in url_lower:
-            return True
-    return False
+    return any(public in url_lower for public in public_repos)
 
 
 def detect_private_maven_repository(target: Path) -> bool:
@@ -398,7 +392,7 @@ def detect_private_maven_repository(target: Path) -> bool:
                 tree = ET.parse(pom_path)
                 root = tree.getroot()
                 # distributionManagement without namespace fallback
-                dm = root.find(f"mvn:distributionManagement", _NS)
+                dm = root.find("mvn:distributionManagement", _NS)
                 if dm is None:
                     dm = root.find("distributionManagement")
                 if dm is not None:

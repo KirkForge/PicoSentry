@@ -759,7 +759,7 @@ class TestL4DependencyConfusion:
         findings = detect_dependency_confusion(profile)
         assert any(f.rule_id == "L4-DEP-006" for f in findings)
         # Write should be HIGH severity
-        npmrc_finding = [f for f in findings if f.rule_id == "L4-DEP-006"][0]
+        npmrc_finding = next(f for f in findings if f.rule_id == "L4-DEP-006")
         assert npmrc_finding.severity.value == "HIGH"
 
     def test_clean_profile_no_findings(self):

@@ -50,7 +50,7 @@ class RateLimitConfig:
 class _TokenBucket:
     """Single token bucket for one actor."""
 
-    __slots__ = ("tokens", "last_refill", "rate", "burst")
+    __slots__ = ("burst", "last_refill", "rate", "tokens")
 
     def __init__(self, rate: float, burst: int) -> None:
         self.tokens: float = float(burst)

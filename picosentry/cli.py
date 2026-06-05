@@ -24,11 +24,187 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from collections.abc import Callable
 from pathlib import Path
+
+# Maturity labels for each top-level subcommand. Source of truth: see
+# picosentry/experimental.py. Keep this map in sync with the Feature maturity
+# table in README.md and the matrix in experimental.py.
+_COMMAND_MATURITY: dict[str, tuple[str, str]] = {
+    # command: (badge, summary)
+    "scan": ("STABLE", "Core supply-chain scanner (7 ecosystems)."),
+    "sandbox": (
+        "BETA",
+        "Runtime sandbox + behavioral analysis. Works but may have rough edges; "
+        "seccomp-bpf backend is Linux-only.",
+    ),
+    "watch": (
+        "BETA",
+        "LLM prompt-injection detection. CLI works; HTTP server is also beta.",
+    ),
+    "serve": (
+        "EXPERIMENTAL",
+        "API server, dashboard, and orchestration are in active development. "
+        "Do not expose to untrusted networks without additional review.",
+    ),
+}
+
+
+def _emit_maturity_warning(command: str, quiet: bool = False) -> None:
+    """Print a one-line maturity warning for non-stable subcommands.
+
+    Suppressed when:
+      * the command is stable (``scan``), or
+      * the user has acknowledged with ``PICOSENTRY_MATURITY_ACK=1``, or
+      * the parent parser passed ``--quiet`` and the command is BETA
+        (``sandbox`` already supports --quiet; the watch/serve HTTP paths
+        do not, so they always warn).
+    """
+    if command not in _COMMAND_MATURITY:
+        return
+    badge, summary = _COMMAND_MATURITY[command]
+    if badge == "STABLE":
+        return
+    if os.environ.get("PICOSENTRY_MATURITY_ACK") == "1":
+        return
+    if quiet and badge == "BETA":
+        return
+    icon = "⚠️" if badge == "BETA" else "🔬"
+    print(
+        f"{icon}  picosentry {command} is {badge}. {summary}",
+        file=sys.stderr,
+    )
+    print(
+        "    Set PICOSENTRY_MATURITY_ACK=1 to suppress this warning.",
+        file=sys.stderr,
+    )
+
+
+# Modules that require an optional extra to be installed. Maps the module
+# name (as it would appear in the ImportError) to the pip extra that provides
+# it. Keep in sync with ``[project.optional-dependencies]`` in pyproject.toml.
+_EXTRA_HINTS: dict[str, str] = {
+    "fastapi": "serve",
+    "uvicorn": "watch-server",
+    "pydantic": "serve",
+    "jwt": "serve",  # PyJWT
+    "passlib": "serve",
+    "python_multipart": "serve",
+    "multipart": "serve",
+    "croniter": "serve",
+    "requests": "scan",
+    "opentelemetry": "otel",
+    "sigstore": "sigstore",
+}
+
+
+def _extra_for_missing_module(modname: str) -> str | None:
+    """Return the pip extra name a missing module belongs to, if any.
+
+    Strips common package-name mangling (e.g. ``PIL._tkinter_finder`` -> ``pil``,
+    hyphenated vs underscored names). Returns ``None`` if the module is not
+    associated with a known extra (likely a core dep or a true bug).
+    """
+    root = modname.split(".", 1)[0].lower().replace("-", "_")
+    return _EXTRA_HINTS.get(root)
+
+
+def _require_extra(extra: str, what: str) -> Callable[[], None]:
+    """Return a callable that raises ``SystemExit(2)`` with a clear
+    install-picosentry[extra] message if the named extra isn't importable.
+
+    ``what`` is a short description printed in the error, e.g.
+    "the 'serve' subcommand" or "online corpus update".
+    """
+    def _fail() -> None:
+        print(
+            f"picosentry: {what} requires the optional '{extra}' extra.\n"
+            f"  Install it with:  pip install 'picosentry[{extra}]'\n"
+            f"  Or install everything:  pip install 'picosentry[all]'",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return _fail
+
+
+def _import_or_warn(import_fn: Callable[[], object], extra: str, what: str):
+    """Run a zero-arg import callable. On ``ImportError`` for a module that
+    belongs to a known optional extra, print a helpful install hint and
+    exit 2.
+
+    ``extra`` is the *expected* extra (the one we declared the handler needs);
+    if the missing module belongs to a different extra, we still print a
+    hint, but use the detected extra as the recommendation since it is the
+    one that actually fixes the missing import.
+
+    On any other exception, re-raise so real bugs aren't swallowed.
+    """
+    try:
+        return import_fn()
+    except ImportError as e:
+        # ``ModuleNotFoundError`` raised from `__import__` in a lambda may
+        # not populate ``e.name`` reliably, so fall back to parsing the
+        # message: "No module named 'foo'".
+        missing = getattr(e, "name", None)
+        if not missing:
+            msg = str(e)
+            for sep in ("No module named '", "No module named "):
+                if sep in msg:
+                    tail = msg.split(sep, 1)[1]
+                    missing = tail.split("'", 1)[0].split()[0]
+                    break
+        detected = _extra_for_missing_module(missing) if missing else None
+        if detected is not None:
+            # Prefer the detected extra (it's what actually fixes the import);
+            # fall back to the expected extra if detector failed.
+            _require_extra(detected or extra, what)()
+        raise
 
 
 def main(argv: list[str] | None = None) -> None:
+    # Fall back to sys.argv[1:] when the console_script shim calls main()
+    # without passing argv through. argparse does the same fallback, so this
+    # is purely so the pre-parse routing below can peek at the raw tokens.
+    if argv is None:
+        argv = sys.argv[1:]
+
+    # ── Pre-parse routing for the sandbox sub-subcommands ───────────────
+    # The unified CLI's `sandbox` subparser defines both a positional
+    # `command` (nargs="*", for the legacy "sandbox <cmd>" form) and a
+    # subparser with `analyze`/`pipeline`/`rules`/`init`. Argparse greedily
+    # fills the positional first, so the subparser never fires for those
+    # names and argparse then errors out with "invalid choice: <arg>".
+    # Detect the sub-subcommand form up front and dispatch directly.
+    if len(argv) >= 2 and argv[0] == "sandbox" and argv[1] in {
+        "analyze",
+        "pipeline",
+        "rules",
+        "init",
+    }:
+        _emit_maturity_warning("sandbox")
+        sub_cmd = argv[1]
+        if sub_cmd == "analyze":
+            _handle_sandbox_subcommand(
+                argparse.Namespace(
+                    sandbox_command="analyze",
+                    input=argv[2] if len(argv) > 2 else None,
+                )
+            )
+        elif sub_cmd == "pipeline":
+            _handle_sandbox_subcommand(
+                argparse.Namespace(
+                    sandbox_command="pipeline",
+                    command=argv[2:],
+                )
+            )
+        elif sub_cmd == "rules":
+            _handle_sandbox_subcommand(argparse.Namespace(sandbox_command="rules"))
+        elif sub_cmd == "init":
+            _handle_sandbox_subcommand(argparse.Namespace(sandbox_command="init"))
+        return
+
     parser = argparse.ArgumentParser(
         prog="picosentry",
         description="Unified Pico Security Series — scan, sandbox, watch, orchestrate.",
@@ -100,7 +276,7 @@ def main(argv: list[str] | None = None) -> None:
     validate_p.add_argument("--output", "-o", type=str, required=True, help="Output file to validate")
 
     _ = watch_sub.add_parser("rules", help="List available watch rules")
-    health_p = watch_sub.add_parser("health", help="Check watch health")
+    watch_sub.add_parser("health", help="Check watch health")
     serve_watch_p = watch_sub.add_parser("serve", help="Start PicoWatch HTTP daemon")
     serve_watch_p.add_argument("--host", type=str, default="127.0.0.1")
     serve_watch_p.add_argument("--port", "-p", type=int, default=8766)
@@ -128,6 +304,14 @@ def main(argv: list[str] | None = None) -> None:
 
     args = parser.parse_args(argv)
 
+    # Propagate --quiet / --summary into the environment BEFORE the scan
+    # module is imported, so the cache layer can suppress its HMAC-key
+    # advisory (which is informational noise for CI/first-run use).
+    if getattr(args, "command", None) == "scan" and (
+        getattr(args, "quiet", False) or getattr(args, "summary", False)
+    ):
+        os.environ.setdefault("PICOSENTRY_QUIET", "1")
+
     # --version flag
     if args.version or (hasattr(args, "command") and args.command == "version"):
         _show_version()
@@ -143,10 +327,13 @@ def main(argv: list[str] | None = None) -> None:
     if args.command == "scan":
         exit_code = _handle_scan(args)
     elif args.command == "sandbox":
+        _emit_maturity_warning("sandbox", quiet=getattr(args, "quiet", False))
         _handle_sandbox(args)
     elif args.command == "watch":
+        _emit_maturity_warning("watch")
         _handle_watch(args)
     elif args.command == "serve":
+        _emit_maturity_warning("serve")
         _handle_serve(args)
     elif args.command == "health":
         exit_code = _handle_health()
@@ -226,7 +413,7 @@ def _forward_flag(argv: list[str], args: argparse.Namespace, *flags: str, boolea
         if val is True:
             argv.append(name)
     elif isinstance(val, list):
-        argv.extend([name] + list(val))
+        argv.extend([name, *list(val)])
     else:
         argv.extend([name, str(val)])
 
@@ -278,8 +465,12 @@ def _handle_rules(args: argparse.Namespace) -> int:
 
 
 def _handle_update() -> int:
-    """Update the npm corpus."""
-    from picosentry.scan.cli import main as scan_main
+    """Update the npm corpus (requires the 'scan' extra for requests)."""
+    scan_main = _import_or_warn(
+        lambda: __import__("picosentry.scan.cli", fromlist=["main"]).main,
+        extra="scan",
+        what="'picosentry update' (online corpus download)",
+    )
     return scan_main(argv=["update"])
 
 
@@ -346,16 +537,18 @@ def _handle_sandbox(args: argparse.Namespace) -> None:
 
 
 def _handle_sandbox_subcommand(args: argparse.Namespace) -> None:
-    """Handle sandbox sub-subcommands: analyze, pipeline, rules, init."""
+    """Handle sandbox sub-subcommands: analyze, pipeline, rules, init.
+
+    Translates the picosentry-side CLI shape into the picodome-side argv:
+    - ``analyze`` takes ``--input PATH`` (picosentry uses a positional).
+    - ``pipeline`` takes the command as a positional ``command`` (REMAINDER).
+    """
     from picosentry.sandbox.cli import main as sandbox_main
 
-    if args.sandbox_command in ("analyze", "pipeline"):
-        cmd: list[str] = []
-        if args.sandbox_command == "analyze":
-            cmd.append(args.input)
-        elif args.sandbox_command == "pipeline":
-            cmd.extend(args.command)
-        sandbox_main(argv=cmd if cmd else None)
+    if args.sandbox_command == "analyze":
+        sandbox_main(argv=["analyze", "--input", args.input])
+    elif args.sandbox_command == "pipeline":
+        sandbox_main(argv=["pipeline", *args.command])
     elif args.sandbox_command == "rules":
         sandbox_main(argv=["rules"])
     elif args.sandbox_command == "init":
@@ -364,7 +557,22 @@ def _handle_sandbox_subcommand(args: argparse.Namespace) -> None:
 
 def _handle_watch(args: argparse.Namespace) -> None:
     """Delegate to the watch (PicoWatch) CLI."""
-    from picosentry.watch.cli import main as watch_main
+    # Most watch subcommands work on the core install. The `watch serve`
+    # subcommand needs fastapi+uvicorn from the watch-server extra.
+    wants_http = getattr(args, "watch_command", None) == "serve"
+    what = (
+        "the 'watch serve' subcommand (HTTP daemon)"
+        if wants_http
+        else "the 'watch' subcommand"
+    )
+    if wants_http:
+        watch_main = _import_or_warn(
+            lambda: __import__("picosentry.watch.cli", fromlist=["main"]).main,
+            extra="watch-server",
+            what=what,
+        )
+    else:
+        from picosentry.watch.cli import main as watch_main
 
     watch_argv: list[str] = []
     if hasattr(args, "watch_command") and args.watch_command:
@@ -403,7 +611,11 @@ def _handle_serve(args: argparse.Namespace) -> None:
     if args.workers:
         os.environ["PICOSHOGUN_API_WORKERS"] = str(args.workers)
 
-    from picosentry.serve.api.server import main as serve_main
+    serve_main = _import_or_warn(
+        lambda: __import__("picosentry.serve.api.server", fromlist=["main"]).main,
+        extra="serve",
+        what="the 'serve' subcommand (API server + dashboard)",
+    )
     serve_main()
 
 
@@ -416,7 +628,8 @@ def _handle_health() -> int:
 
     # Check scan module
     try:
-        from picosentry.scan.engine import create_default_engine
+        from picosentry.scan.engine import ScanEngine  # noqa: F401
+
         checks.append(("scan", "ok", "engine importable"))
     except ImportError as e:
         checks.append(("scan", "FAIL", str(e)))

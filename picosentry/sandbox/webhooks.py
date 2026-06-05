@@ -25,7 +25,7 @@ import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 logger = logging.getLogger("picodome.webhooks")
 
@@ -105,7 +105,7 @@ class WebhookDispatcher:
         )
     """
 
-    SEVERITY_ORDER = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
+    SEVERITY_ORDER: ClassVar[dict[str, int]] = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
     # F13: Blocked URL patterns for SSRF protection
     BLOCKED_URL_PATTERNS = (

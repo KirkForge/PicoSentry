@@ -12,12 +12,12 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.types import PromptScanResult, ValidationResult
 
 
-def _make_config(**overrides) -> "PicoWatchConfig":
+def _make_config(**overrides) -> PicoWatchConfig:
     """Create a PicoWatchConfig with property-based overrides."""
-    from picosentry.watch.config import PicoWatchConfig
 
     config = PicoWatchConfig()
     for k, v in overrides.items():
@@ -352,7 +352,6 @@ class TestServerOtelIntegration:
         """POST /v1/scan/prompt calls trace_prompt_scan after recording."""
         from fastapi.testclient import TestClient
 
-        from picosentry.watch.config import PicoWatchConfig
         from picosentry.watch.server import create_app
 
         config = _make_config(api_key=None)
@@ -372,7 +371,6 @@ class TestServerOtelIntegration:
         """POST /v1/scan/output calls trace_output_validation after recording."""
         from fastapi.testclient import TestClient
 
-        from picosentry.watch.config import PicoWatchConfig
         from picosentry.watch.server import create_app
 
         config = _make_config(api_key=None)

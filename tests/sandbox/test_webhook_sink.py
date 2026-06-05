@@ -18,7 +18,7 @@ from __future__ import annotations
 import json
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 
@@ -47,9 +47,9 @@ def _make_event(actor: str = "test", **kwargs) -> AuditEvent:
 class _MockHandler(BaseHTTPRequestHandler):
     """Minimal HTTP handler that can return 200, 500, or record requests."""
 
-    response_code: int = 200
-    received: list[dict[str, Any]] = []
-    received_headers: list[dict[str, str]] = []
+    response_code: ClassVar[int] = 200
+    received: ClassVar[list[dict[str, Any]]] = []
+    received_headers: ClassVar[list[dict[str, str]]] = []
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))

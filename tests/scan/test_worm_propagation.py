@@ -5,7 +5,6 @@ import tempfile
 import unittest
 from pathlib import Path
 
-
 from picosentry.scan.rules.worm_propagation import detect_worm_propagation
 
 

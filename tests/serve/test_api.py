@@ -464,12 +464,12 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_localhost(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        is_safe, reason = _is_safe_webhook_url("http://127.0.0.1/hook")
+        is_safe, _reason = _is_safe_webhook_url("http://127.0.0.1/hook")
         assert not is_safe
 
     def test_blocks_private_ip(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        is_safe, reason = _is_safe_webhook_url("http://10.0.0.1/hook")
+        is_safe, _reason = _is_safe_webhook_url("http://10.0.0.1/hook")
         assert not is_safe
 
     def test_allows_public_url(self):
@@ -482,7 +482,7 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_file_scheme(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        is_safe, reason = _is_safe_webhook_url("file:///etc/passwd")
+        is_safe, _reason = _is_safe_webhook_url("file:///etc/passwd")
         assert not is_safe
 
 

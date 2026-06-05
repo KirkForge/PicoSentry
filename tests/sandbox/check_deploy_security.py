@@ -108,8 +108,8 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
             # Check if "1" is on the same line
             if (
                 re.search(r"PICODOME_DEV_MODE.*1", line)
-                or i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i])
+                or (i < len(lines)
+                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
             ):
                 findings.append(
                     Finding(
@@ -125,8 +125,8 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
         if "PICODOME_TLS_DEV" in line:
             if (
                 re.search(r"PICODOME_TLS_DEV.*1", line)
-                or i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i])
+                or (i < len(lines)
+                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
             ):
                 findings.append(
                     Finding(
@@ -355,8 +355,8 @@ def check_helm_templates(findings: list[Finding]) -> None:
             if "PICODOME_DEV_MODE" in line and "comment" not in line.lower():
                 if (
                     re.search(r"PICODOME_DEV_MODE.*1", line)
-                    or i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i])
+                    or (i < len(lines)
+                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
                 ):
                     findings.append(
                         Finding(
@@ -372,8 +372,8 @@ def check_helm_templates(findings: list[Finding]) -> None:
             if "PICODOME_TLS_DEV" in line and "comment" not in line.lower():
                 if (
                     re.search(r"PICODOME_TLS_DEV.*1", line)
-                    or i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i])
+                    or (i < len(lines)
+                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
                 ):
                     findings.append(
                         Finding(

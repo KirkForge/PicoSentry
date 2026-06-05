@@ -387,7 +387,7 @@ class TestDiffScans:
         """Missing file should return exit 2."""
         scan_a = tmp_path / "a.json"
         scan_a.write_text('{"test": true}')
-        exit_code, output = diff_scans(scan_a, Path("/nonexistent/file.json"))
+        exit_code, _output = diff_scans(scan_a, Path("/nonexistent/file.json"))
         assert exit_code == 2
 
     def test_verbose_diff(self, tmp_path):

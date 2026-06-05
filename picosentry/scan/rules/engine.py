@@ -26,8 +26,6 @@ OVERLY_PERMISSIVE = ("*", "", ">=0.0.0", "x", "any", "latest", "*.*.*")
 
 def _is_overly_permissive(version_str: str) -> bool:
     """Check if an engine version range is overly permissive."""
-    if not isinstance(version_str, str):
-        return False
     stripped = version_str.strip()
     if stripped in OVERLY_PERMISSIVE:
         return True
@@ -42,8 +40,6 @@ def _is_overly_permissive(version_str: str) -> bool:
 
 def _is_exact_version(version_str: str) -> bool:
     """Check if an engine version is pinned to an exact version (no ranges)."""
-    if not isinstance(version_str, str):
-        return False
     stripped = version_str.strip()
     # Exact version: starts with digit, no range operators
     return bool(

@@ -73,10 +73,7 @@ def detect_rubygems_project(target: Path) -> bool:
         return True
     if (target / "Gemfile.lock").is_file():
         return True
-    if list(target.glob("*.gemspec")):
-        return True
-
-    return False
+    return bool(list(target.glob("*.gemspec")))
 
 
 # ── Gemfile parsing ────────────────────────────────────────────────────────

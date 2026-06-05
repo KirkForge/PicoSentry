@@ -7,6 +7,7 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from typing import ClassVar
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
@@ -34,7 +35,7 @@ class ScheduledJob:
 class JobScheduler:
     """Job scheduler with cron expressions."""
 
-    ALLOWED_COMMANDS = {"batch", "run", "report", "backup", "cleanup", "health_check"}
+    ALLOWED_COMMANDS: ClassVar[set[str]] = {"batch", "run", "report", "backup", "cleanup", "health_check"}
 
     def __init__(self):
         self.scheduler = sched.scheduler(time.time, time.sleep)
@@ -62,7 +63,7 @@ class JobScheduler:
             self.jobs[job.id] = job
 
     def add_job(self, name: str, cron: str, command: str,
-                params: dict = None, enabled: bool = True) -> int:
+                params: dict | None = None, enabled: bool = True) -> int:
         """Add a new scheduled job."""
         if command not in self.ALLOWED_COMMANDS:
             raise ValueError(f"Invalid command: {command!r}. Must be one of {sorted(self.ALLOWED_COMMANDS)}")
@@ -189,10 +190,12 @@ class JobScheduler:
 
             elif job.command == "run":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
-                run_result = _orch.run_project(job.params.get("project_id"),
-                                         job.params.get("timeout", 300))
+                run_result = _orch.run_project(
+                    str(job.params.get("project_id") or ""),
+                    int(job.params.get("timeout", 300)),
+                )
                 status = "completed" if run_result.get("success") else "failed"
-                _output = str(backup_result)
+                _output = str(run_result)
 
             elif job.command == "report":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch

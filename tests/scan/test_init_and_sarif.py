@@ -3,8 +3,8 @@ test_init_and_sarif.py — Tests for `picosentry init` command and SARIF helpUri
 """
 
 import json
-import sys
 import subprocess
+import sys
 
 from picosentry.scan.formatters import format_sarif
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity

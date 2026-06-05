@@ -128,7 +128,7 @@ class WebhookManager:
             )
             self.webhooks[row["name"]] = webhook
 
-    def create(self, name: str, url: str, events: list[str], secret: str = None) -> int:
+    def create(self, name: str, url: str, events: list[str], secret: str | None = None) -> int:
         """Create a new webhook endpoint."""
         # SSRF protection: validate URL
         is_safe, reason = _is_safe_webhook_url(url, dns_resolver=self.dns_resolver)

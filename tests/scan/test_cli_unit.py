@@ -7,7 +7,6 @@ and checks return codes / stdout / stderr.
 """
 
 import json
-import sys
 import os
 import tempfile
 from pathlib import Path

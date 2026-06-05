@@ -24,7 +24,7 @@ class MetricsCollector:
         self._lock = threading.Lock()
         self._start_time = time.time()
 
-    def gauge(self, name: str, value: float, labels: dict[str, str] = None):
+    def gauge(self, name: str, value: float, labels: dict[str, str] | None = None):
         """Record a gauge metric."""
         with self._lock:
             self.metrics[name].append(Metric(
@@ -38,7 +38,7 @@ class MetricsCollector:
             if len(self.metrics[name]) > 1000:
                 self.metrics[name] = self.metrics[name][-1000:]
 
-    def counter(self, name: str, increment: float = 1.0, labels: dict[str, str] = None):
+    def counter(self, name: str, increment: float = 1.0, labels: dict[str, str] | None = None):
         """Increment a counter."""
         with self._lock:
             key = f"{name}:{json.dumps(labels or {}, sort_keys=True)}"
@@ -51,7 +51,7 @@ class MetricsCollector:
                 metric_type="counter"
             ))
 
-    def histogram(self, name: str, value: float, labels: dict[str, str] = None):
+    def histogram(self, name: str, value: float, labels: dict[str, str] | None = None):
         """Record a histogram observation."""
         with self._lock:
             self.metrics[name].append(Metric(

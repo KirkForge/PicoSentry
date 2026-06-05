@@ -297,7 +297,7 @@ class AdvisoryDB:
                         parts.append(int(ident))
                     except ValueError:
                         parts.append(ident)
-                pre_tuple = (0,) + tuple(parts)
+                pre_tuple = (0, *tuple(parts))
             else:
                 pre_tuple = (1,)  # release sorts higher than any pre-release
             return (int(m.group(1)), int(m.group(2)), int(m.group(3)), pre_tuple)

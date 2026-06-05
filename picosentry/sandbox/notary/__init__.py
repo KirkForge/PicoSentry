@@ -31,12 +31,12 @@ from picosentry.sandbox.notary.rekor import (
 
 __all__ = [
     "AuditNotary",
-    "NullNotary",
-    "RekorNotary",
+    "NotaryConnectionError",
     "NotaryError",
     "NotaryTimeoutError",
-    "NotaryConnectionError",
     "NotaryVerificationError",
+    "NullNotary",
+    "RekorNotary",
     "get_default_notary",
     "set_default_notary",
     "sign_entry",

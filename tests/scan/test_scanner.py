@@ -9,8 +9,8 @@ If this test fails, nothing else matters. This is the entire product thesis.
 
 import hashlib
 import json
-import sys
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -860,7 +860,7 @@ class TestPackageNameTyposquat:
     def test_corpus_loaded_from_file(self, tmp_path):
         """Typosquat rule should load corpus from file, not just builtin."""
         from picosentry.scan.engine import ScanEngine
-        from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem, BUILTIN_TOP_100
+        from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100, load_corpus_for_ecosystem
 
         # Load from package's corpus directory (works regardless of layout)
         engine = ScanEngine()

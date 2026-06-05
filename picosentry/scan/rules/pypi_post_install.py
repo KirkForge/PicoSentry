@@ -11,7 +11,6 @@ Pure function: (target_path, corpus_dir) -> List[Finding]
 from __future__ import annotations
 
 import logging
-import re
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
@@ -221,7 +220,7 @@ def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
 
     # Scan installed site-packages for malicious setup files
     for meta_path, metadata in iter_site_packages(target):
-        pkg_name = metadata.get("name", "") if metadata else meta_path.parent.name
+        metadata.get("name", "") if metadata else meta_path.parent.name
         pkg_dir = meta_path.parent
 
         # Check for setup.py in editable installs (egg-link)

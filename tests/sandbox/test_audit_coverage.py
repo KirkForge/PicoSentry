@@ -23,6 +23,7 @@ import io
 import json
 import os
 import threading
+from typing import ClassVar
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -78,7 +79,7 @@ class TestAuditEventTypeCoverage:
 
     # Map each AuditEventType to the module/function that should emit it.
     # This serves as living documentation of where each event is produced.
-    EMIT_LOCATIONS = {
+    EMIT_LOCATIONS: ClassVar[dict[AuditEventType, str]] = {
         AuditEventType.SCAN_START: "picosentry.sandbox.daemon.server._handle_submit_scan",
         AuditEventType.SCAN_COMPLETE: "picosentry.sandbox.daemon.server._handle_submit_scan",
         AuditEventType.SCAN_ALERT: "picosentry.sandbox.cluster.manager (scan alert)",

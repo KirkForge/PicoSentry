@@ -7,7 +7,6 @@ _run_scan internals, baseline, config merging, and enterprise mode paths.
 
 import contextlib
 import json
-import sys
 import os
 from unittest.mock import MagicMock, patch
 

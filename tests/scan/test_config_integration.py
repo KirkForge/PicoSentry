@@ -5,8 +5,8 @@ Tests that .picosentry.yml is loaded and merged with CLI args during scan.
 """
 
 import json
-import sys
 import subprocess
+import sys
 
 from picosentry.scan.models import Severity
 

@@ -10,15 +10,15 @@ from __future__ import annotations
 
 import contextlib
 import logging
-from dataclasses import dataclass, field
+from collections.abc import Callable
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 
 from ..advisory import AdvisoryDB, default_advisory_dir
 from ..models import Confidence, Finding, Severity
 from .cargo_utils import detect_cargo_project, parse_cargo_lock, parse_cargo_toml
 from .go_utils import detect_go_project, parse_go_mod, parse_go_sum
-from .maven_utils import detect_maven_project, parse_pom_xml, parse_gradle_build
+from .maven_utils import detect_maven_project, parse_gradle_build, parse_pom_xml
 from .nuget_utils import collect_nuget_deps, detect_nuget_project
 from .pypi_lock_parser import parse_poetry_lock, parse_requirements_txt, parse_uv_lock
 from .pypi_utils import detect_pypi_project, iter_site_packages, load_pyproject_toml

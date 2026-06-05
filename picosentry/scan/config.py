@@ -15,7 +15,8 @@ import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from picosentry._core.config import SecureBootCheck, SecurityViolation, assert_secure as _core_assert_secure
+from picosentry._core.config import SecureBootCheck, SecurityViolation
+from picosentry._core.config import assert_secure as _core_assert_secure
 
 if TYPE_CHECKING:
     from picosentry.scan.policy import Policy
@@ -424,24 +425,6 @@ class _CorpusSignatureCheck:
         return None
 
 
-class _CorpusSignatureCheck:
-    """PicoSentry-specific: unsigned corpus packs in production are risky."""
-
-    def __init__(self, config: PicoSentryConfig) -> None:
-        self._config = config
-
-    def check(self) -> SecurityViolation | None:
-        import os as _os
-        env = _os.environ.get("PICOSENTRY_ENV", "development")
-        if env in ("production", "staging") and not self._config.corpus_require_signature:
-            return SecurityViolation(
-                check="corpus_signature",
-                message="Corpus signature verification disabled in production — set PICOSENTRY_CORPUS_REQUIRE_SIGNATURE=true",
-                severity="WARN",
-            )
-        return None
-
-
 def load_config(target_dir: Path) -> PicoSentryConfig:
     """Load configuration from target directory.
 
@@ -569,7 +552,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
     # Load policy file if specified or found
     policy_path = None
-    if "policy" in data and data["policy"]:
+    if data.get("policy"):
         policy_path = Path(data["policy"])
         if not policy_path.is_absolute():
             policy_path = config_path.parent / policy_path

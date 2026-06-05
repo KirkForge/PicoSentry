@@ -66,8 +66,8 @@ class DashboardService(Protocol):
 
 
 __all__ = [
-    "ScannerService",
-    "SandboxService",
-    "FirewallService",
     "DashboardService",
+    "FirewallService",
+    "SandboxService",
+    "ScannerService",
 ]

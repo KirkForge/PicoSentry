@@ -17,7 +17,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     - X-Request-ID: propagated from incoming or generated
     """
 
-    def __init__(self, app, hsts_max_age: int = 31536000, csp: str = None):
+    def __init__(self, app, hsts_max_age: int = 31536000, csp: str | None = None):
         super().__init__(app)
         self.hsts_max_age = hsts_max_age
         self.csp = csp or "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self' ws: wss:"

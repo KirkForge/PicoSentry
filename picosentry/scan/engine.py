@@ -39,12 +39,12 @@ def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any
         from picosentry.scan.policy_lifecycle import InheritedPolicy, PolicyStack
         stack = PolicyStack()
         if policy_path and Path(policy_path).exists():
-            policy = Policy.from_file(policy_path)
+            policy = Policy.from_file(Path(policy_path))
             stack.add(InheritedPolicy(policy=policy, layer="repo", source=str(policy_path)))
         if config and hasattr(config, "policy_file") and config.policy_file:
-            p = Policy.from_file(config.policy_file)
+            p = Policy.from_file(Path(config.policy_file))
             stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
-        if stack.layers:
+        if stack.layers():
             return stack.effective_policy()
     except Exception:
         pass
@@ -303,7 +303,10 @@ class ScanEngine:
             rule_start = _now_ms()
             try:
                 if rule_fn.__name__ == "detect_all_advisory_vulnerabilities":
-                    findings = rule_fn(
+                    # detect_all_advisory_vulnerabilities takes an extra
+                    # advisory_db_path kwarg that the base DetectorRule
+                    # signature doesn't include.
+                    findings = rule_fn(  # type: ignore[call-arg]
                         target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
                     )
                 else:
@@ -333,8 +336,7 @@ class ScanEngine:
                             status="failed",
                             duration_ms=elapsed,
                             findings_count=0,
-                            error_type=type(exc).__name__,
-                            error_message=str(exc),
+                            error=f"{type(exc).__name__}: {exc}",
                         )
                     )
 
@@ -390,13 +392,13 @@ class ScanEngine:
         )
         if target_path.is_dir():
             files_scanned = 0
-            for f in target_path.rglob("*"):
-                if not f.is_file() or f.is_symlink():
+            for file in target_path.rglob("*"):
+                if not file.is_file() or file.is_symlink():
                     continue
                 # Skip files in irrelevant directories
-                if any(part in _SKIP_DIRS for part in f.parts):
+                if any(part in _SKIP_DIRS for part in file.parts):
                     continue
-                if f.suffix in _RELEVANT_EXTENSIONS or f.name in {
+                if file.suffix in _RELEVANT_EXTENSIONS or file.name in {
                     "package.json",
                     "package-lock.json",
                     "pnpm-lock.yaml",

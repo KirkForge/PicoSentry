@@ -9,6 +9,7 @@ package and is not yet available in the unified codebase.
    distributed rate limiting. Expect improvements in future releases.
 """
 import logging
+from typing import ClassVar
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -25,7 +26,7 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
     """
 
     # Paths that are common DDoS targets — stricter limits
-    HIGH_RISK_PATHS = {"/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"}
+    HIGH_RISK_PATHS: ClassVar[set[str]] = {"/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"}
 
     def __init__(self, app, enabled: bool = True):
         super().__init__(app)

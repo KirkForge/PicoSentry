@@ -10,9 +10,8 @@ Tests cover:
 
 from pathlib import Path
 
-from picosentry.scan.engine import ScanEngine, create_default_engine
+from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
-
 
 # ── Fixture helpers ────────────────────────────────────────────────────
 
@@ -78,7 +77,7 @@ class TestMavenEcosystemFiltering:
     def test_maven_project_runs_maven_rules(self):
         engine = create_default_engine()
         result = engine.scan(_maven_clean())
-        maven_findings = [f for f in result.findings if f.ecosystem == "maven"]
+        [f for f in result.findings if f.ecosystem == "maven"]
         # Should at least run the rules without erroring
 
     def test_three_maven_rules_registered(self):

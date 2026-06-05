@@ -65,3 +65,6 @@ tmp/
 *.db-shm
 *.db-wal
 picoshogun.db
+
+# PicoDome runtime sandbox state
+.picodome/

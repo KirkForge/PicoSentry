@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 
 from picosentry.serve.api.deps import get_current_user
 
+
 # Lazy import to avoid circular dependency — anomaly_detector is created in server.py
 def _get_anomaly_detector():
     from picosentry.serve.api.server import anomaly_detector

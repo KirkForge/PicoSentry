@@ -133,7 +133,7 @@ def parse_poetry_lock(path: Path) -> list[LockEntry]:
         import tomllib
     except ImportError:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib
         except ImportError:
             logger.warning("tomllib/tomli not available — cannot parse poetry.lock")
             return entries
@@ -187,7 +187,7 @@ def parse_uv_lock(path: Path) -> list[LockEntry]:
         import tomllib
     except ImportError:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib
         except ImportError:
             logger.warning("tomllib/tomli not available — cannot parse uv.lock")
             return entries

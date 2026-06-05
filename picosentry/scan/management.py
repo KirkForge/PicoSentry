@@ -119,7 +119,7 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
         urllib.error.URLError: If the URL is unreachable.
     """
     import urllib.error
-    import urllib.request  # noqa: F401 -- kept for Request construction
+    import urllib.request
 
     logger.info("Fetching policy from %s", url)
 
@@ -411,4 +411,3 @@ def make_authenticated_request(
         raise
     except (InsecureURLError, ResponseTooLargeError):
         raise
-    import urllib.request  # noqa: F401 — kept for Request construction

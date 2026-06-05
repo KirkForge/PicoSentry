@@ -33,14 +33,24 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        # OTLP exporters
+        # OTLP exporters — prefer gRPC, fall back to HTTP. Mypy only sees the
+        # gRPC branch as the canonical type, so the HTTP fallback needs an
+        # assignment-type suppression for the re-binding.
         try:
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+                OTLPMetricExporter,
+            )
+            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+                OTLPSpanExporter,
+            )
             use_grpc = True
         except ImportError:
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (  # type: ignore[assignment]
+                OTLPMetricExporter,
+            )
+            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # type: ignore[assignment]
+                OTLPSpanExporter,
+            )
             use_grpc = False
 
         resource = Resource.create({
@@ -168,7 +178,7 @@ def setup_fastapi_instrumentation(app):
 
 # ── Convenience decorators ────────────────────────────────────────────
 
-def trace_span(name: str, attributes: dict = None):
+def trace_span(name: str, attributes: dict | None = None):
     """Decorator to trace a function call as an OTEL span."""
     def decorator(func):
         def wrapper(*args, **kwargs):
@@ -190,7 +200,7 @@ def trace_span(name: str, attributes: dict = None):
     return decorator
 
 
-def trace_async_span(name: str, attributes: dict = None):
+def trace_async_span(name: str, attributes: dict | None = None):
     """Decorator to trace an async function call as an OTEL span."""
     def decorator(func):
         async def wrapper(*args, **kwargs):

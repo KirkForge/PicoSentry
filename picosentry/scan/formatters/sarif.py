@@ -8,6 +8,7 @@ Deterministic: same input = same output. No random UUIDs.
 """
 
 import json
+from typing import Any
 
 from picosentry.scan.models import ScanResult, Severity
 from picosentry.scan.rules import RULE_INFO
@@ -57,7 +58,16 @@ def format_sarif(result: ScanResult) -> str:
 
     # Second pass: build results with O(1) ruleIndex lookup
     for finding in sorted(result.findings, key=lambda f: f.sort_key()):
-        result_entry = {
+        properties: dict[str, Any] = {
+            "package": finding.package,
+            "confidence": finding.confidence.value,
+            "ecosystem": finding.ecosystem,
+            "evidence": finding.evidence,
+            "remediation": finding.remediation,
+        }
+        if finding.references:
+            properties["references"] = finding.references
+        result_entry: dict[str, Any] = {
             "ruleId": finding.rule_id,
             "ruleIndex": rule_index[finding.rule_id],
             "level": SEVERITY_MAP.get(finding.severity, "warning"),
@@ -70,17 +80,8 @@ def format_sarif(result: ScanResult) -> str:
                     }
                 }
             ],
-            "properties": {
-                "package": finding.package,
-                "confidence": finding.confidence.value,
-                "ecosystem": finding.ecosystem,
-                "evidence": finding.evidence,
-                "remediation": finding.remediation,
-            },
+            "properties": properties,
         }
-
-        if finding.references:
-            result_entry["properties"]["references"] = finding.references
 
         results.append(result_entry)
 

@@ -103,14 +103,14 @@ def keyboard_distance(a: str, b: str) -> float:
     if len(b) == 0:
         return float(len(a))
 
-    prev = list(range(len(b) + 1))
+    prev: list[float] = list(range(len(b) + 1))
     for i, ca in enumerate(a):
-        curr = [i + 1]
+        curr: list[float] = [i + 1]
         for j, cb in enumerate(b):
             insertion = prev[j + 1] + 1
             deletion = curr[j] + 1
             if ca == cb:
-                substitution = prev[j]
+                substitution: float = prev[j]
             elif _is_keyboard_adjacent(ca, cb):
                 substitution = prev[j] + 0.5
             else:

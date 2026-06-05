@@ -59,6 +59,6 @@ class Scorer:
         final_score = round(max(max_score, avg_score), 6)
 
         # Collect matched rule IDs in sorted order for determinism
-        matched_ids = sorted(set(rule.id for rule, _ in matches))
+        matched_ids = sorted({rule.id for rule, _ in matches})
 
         return final_score, matched_ids

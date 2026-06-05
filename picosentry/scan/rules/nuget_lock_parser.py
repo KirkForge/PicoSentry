@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .nuget_utils import parse_csproj_file, parse_packages_config, parse_nuget_lock
+from .nuget_utils import parse_csproj_file, parse_nuget_lock, parse_packages_config
 
 
 def parse_nuget_lockfile(path: Path) -> list[tuple[str, str, str]]:

@@ -243,7 +243,6 @@ def load_pyproject_toml(target: Path) -> dict | None:
     Reads the ``[project]`` section for name, version, dependencies.
     Returns None if the file doesn't exist or is unparseable.
     """
-    import json
 
     pyproject = target / "pyproject.toml"
     if not pyproject.is_file():
@@ -254,7 +253,7 @@ def load_pyproject_toml(target: Path) -> dict | None:
         import tomllib
     except ImportError:
         try:
-            import tomli as tomllib  # type: ignore[no-redef]
+            import tomli as tomllib
         except ImportError:
             logger.warning("tomllib/tomli not available — cannot parse pyproject.toml")
             return None
@@ -428,9 +427,8 @@ def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:
         # Get the version part (everything after name)
         version_spec = line[len(name) :].strip()
         # Strip extras from version spec if they were in the original
-        extras = ""
         if "[" in name and "]" in line:
-            extras = name[name.index("[") : line.index("]") + 1]
+            name[name.index("[") : line.index("]") + 1]
             name = name[: name.index("[")]
 
         results.append((name, version_spec))
@@ -474,7 +472,4 @@ def detect_pypi_project(target: Path) -> bool:
             return True
 
     # Check for .venv virtualenv
-    if (target / ".venv").is_dir():
-        return True
-
-    return False
+    return bool((target / ".venv").is_dir())

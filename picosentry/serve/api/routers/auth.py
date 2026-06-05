@@ -2,11 +2,11 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 
 from picosentry.serve.api.deps import auth_service, get_current_user
 from picosentry.serve.api.models import RegisterRequest
 from picosentry.serve.config.settings import settings
-from pydantic import BaseModel
 
 logger = logging.getLogger("picoshogun.auth")
 
@@ -41,7 +41,7 @@ async def login(username: str, password: str):
     token = auth_service.authenticate(username, password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    user_info = auth_service.validate_token(token)
+    user_info = auth_service.validate_token(token) or {}
     return {
         "access_token": token,
         "token_type": "bearer",

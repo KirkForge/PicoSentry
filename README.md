@@ -2,9 +2,9 @@
 
 **Deterministic supply-chain scanner for npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
 
-PicoSentry finds malicious packages before you install them — no network, no
-heuristics, no false positives from probabilistic models. Same inputs + same
-policy = same SHA-256 output. Every time.
+PicoSentry finds malicious packages before you install them — fully offline,
+deterministic rule-based detection, no probabilistic ML scoring. Same inputs +
+same policy = same SHA-256 output. Every time.
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/picosentry/)
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
@@ -28,31 +28,63 @@ picosentry scan examples/pypi-obfuscated-setup/
 
 Expected output:
 
+```text
+🦞 PicoSentry
+Target: examples/pypi-obfuscated-setup
+Engine: v2.0.0 | Corpus: vef6b3b3115bb
+Scan ID: 9952b1a9c6a07e7f
+
+Packages scanned: 0
+Files scanned:     2
+Duration:          7ms
+
+Rule Timings:
+  L2-PYPI-OBFS-001       0ms  (1 findings)
+  L2-PYPI-OBFS-002       0ms  (2 findings)
+  L2-PYPI-OBFS-007       0ms  (1 findings)
+  L2-PYPI-POST-001       0ms  (1 findings)
+  …
+
+Pinches by Severity:
+  HARD PINCH  : 3
+  HARD PINCH  : 2
+
+Pinches:
+
+  [HARD PINCH] L2-PYPI-OBFS-001 unknown
+    File: setup.py:10
+    Dynamic code execution via exec
+    Evidence: exec(
+    Confidence: HIGH
+
+  [HARD PINCH] L2-PYPI-OBFS-002 unknown
+    File: setup.py:7
+    Base64-decoded string detected
+    Evidence: base64.b64decode(encoded)
+    Confidence: HIGH
+
+  [HARD PINCH] L2-PYPI-OBFS-002 unknown
+    File: setup.py:15
+    Base64-decoded string detected
+    Evidence: base64.b64decode("ZXZpbC1zZXJ2ZXIuZXhhbXBsZS5jb20=")
+    Confidence: HIGH
+
+  [HARD PINCH] L2-PYPI-OBFS-007 unknown
+    File: setup.py:7
+    Base64 decode followed by exec/eval
+    Evidence: b64decode(encoded).decode("utf-8")
+    Confidence: HIGH
+
+  [HARD PINCH] L2-PYPI-POST-001 pypi-obfuscated-setup
+    File: setup.py
+    setup.py contains code execution during installation
+    Evidence: line 10: exec(decoded); line 13: if "CI" not in os.environ:; …
+    Confidence: EXACT
 ```
-╔══════════════════════════════════════════════════════╗
-║  PicoSentry v2.0.0 — deterministic scan             ║
-╚══════════════════════════════════════════════════════╝
-Scanning 1 package, 2 files...
 
-✗ HIGH  L2-OBF-001  Base64-encoded strings in setup files
-  File: examples/pypi-obfuscated-setup/setup.py
-  Evidence: base64.b64decode(...) used with exec()
-
-✗ HIGH  L2-EVAL-001  Dynamic execution in setup.py
-  File: examples/pypi-obfuscated-setup/setup.py
-  Evidence: exec() called with decoded string
-
-✗ HIGH  L2-TYPO-001  Typosquatted dependency
-  Package: reauests (typo of "requests")
-  File: examples/pypi-obfuscated-setup/setup.py
-
-✗ HIGH  L2-CONF-001  Dependency confusion risk
-  Package: internal-private-pkg (not on public registry)
-  File: examples/pypi-obfuscated-setup/setup.py
-
-Results: 4 findings · 0 critical 4 high 0 medium 0 low 0 info
-Deterministic: 0254ea8ce6ff (verified)
-```
+> Note: rule IDs and counts above are taken from the current CLI run on
+> `examples/pypi-obfuscated-setup`. Re-run `picosentry scan examples/pypi-obfuscated-setup`
+> to reproduce; the `Scan ID` and `Corpus` digest will match exactly.
 
 ---
 
@@ -61,11 +93,13 @@ Deterministic: 0254ea8ce6ff (verified)
 | Rule | What it catches | Example |
 |------|----------------|---------|
 | L2-TYPO-001 | Typosquatted package names | `reqursts` instead of `requests` |
-| L2-CONF-001 | Dependency confusion (private → public) | `internal-pkg` not on registry |
-| L2-OBF-001 | Obfuscated code in setup/install scripts | Base64 + eval in setup.py |
-| L2-EVAL-001 | Dynamic execution during install | `exec()`, `__import__()` in setup |
-| L2-POST-001 | Postinstall script execution | `postinstall` in package.json |
-| L2-EXFIL-003 | Network calls during install | `curl`, `wget`, `http.request` |
+| L2-DEPC-001 | Dependency confusion (private → public) | `internal-pkg` not on registry |
+| L2-PYPI-OBFS-001 | Dynamic execution in setup.py | `exec()` / `eval()` in install scripts |
+| L2-PYPI-OBFS-002 | Base64-decoded payloads in source | `base64.b64decode(...)` + dynamic use |
+| L2-PYPI-OBFS-007 | Base64 decode + exec/eval combo | Decode-then-execute obfuscation chain |
+| L2-PYPI-POST-001 | Postinstall code execution | `setup.py` runs code at install time |
+| L2-NETEX-001 | Network calls during install | `urllib.request`, `curl`, `wget` at install |
+| L2-IOC-001 | Known IOC behavior patterns | Hardcoded C2 host, exfil URL patterns |
 | L2-CVE-001 | Known CVEs in dependency tree | OSV-matched vulnerabilities |
 | L2-DEP-001 | Deprecated/insecure dependency | End-of-life library versions |
 | L2-SBOM-001 | SBOM generation | CycloneDX-compatible output |
@@ -108,10 +142,13 @@ See [install options](#install-options) below for details.
 
 ```bash
 picosentry scan ./my-project
-picosentry scan ./package.json           # single file
-picosentry scan --json ./project         # JSON output
-picosentry scan --sarif ./project        # SARIF output
-picosentry scan --diff a.json b.json     # compare two scans
+picosentry scan ./package.json                  # single file
+picosentry scan --format json ./project        # JSON output
+picosentry scan --format sarif ./project        # SARIF output
+picosentry scan --format cyclonedx ./project    # CycloneDX SBOM
+picosentry scan --verify-determinism ./project  # assert SHA-256 stability
+picosentry scan --diff scan-a.json scan-b.json  # compare two scans
+picosentry scan --fail-on high ./project        # exit non-zero on HIGH+
 ```
 
 ### Verify determinism

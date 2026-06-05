@@ -1,7 +1,6 @@
 """Comprehensive tests for picosentry.corpus_share — target 80%+ coverage."""
 
 import json
-import sys
 import tempfile
 import unittest
 from pathlib import Path

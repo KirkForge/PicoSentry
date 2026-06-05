@@ -15,6 +15,10 @@ ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 os.environ["PICOSHOGUN_ENV"] = "test"
 os.environ["PICOSHOGUN_SECRET_KEY"] = "test-key-for-pytest-integration-32b!"
+# Registration defaults to OFF in production; the shared conftest.py also sets
+# this, but the integration test file imports picosentry modules at module
+# load time, so we set the env var here too before any SecurityConfig is built.
+os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
 
 
 # ── Fixtures ─────────────────────────────────────────────────────────────
@@ -690,22 +694,22 @@ class TestWebhookService:
 
     def test_ssrf_blocks_localhost(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        safe, reason = _is_safe_webhook_url("http://localhost/admin")
+        safe, _reason = _is_safe_webhook_url("http://localhost/admin")
         assert not safe
 
     def test_ssrf_blocks_aws_metadata(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        safe, reason = _is_safe_webhook_url("http://169.254.169.254/latest/meta-data/")
+        safe, _reason = _is_safe_webhook_url("http://169.254.169.254/latest/meta-data/")
         assert not safe
 
     def test_ssrf_blocks_ipv6_loopback(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        safe, reason = _is_safe_webhook_url("http://[::1]/admin")
+        safe, _reason = _is_safe_webhook_url("http://[::1]/admin")
         assert not safe
 
     def test_ssrf_blocks_ftp_scheme(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
-        safe, reason = _is_safe_webhook_url("ftp://evil.com/payload")
+        safe, _reason = _is_safe_webhook_url("ftp://evil.com/payload")
         assert not safe
 
 
@@ -936,7 +940,6 @@ class TestConfiguration:
         assert not settings.is_production()
 
     def test_version_is_consistent(self):
-        from picosentry.serve.config.version import __version__
         # version is validated by config.version module
         from picosentry.serve.api.server import app
         from picosentry.serve.config.version import __version__ as _v
@@ -1055,7 +1058,7 @@ class TestTenantDataIsolation:
         tag = int(time.time() * 1000)
 
         # Create user A and org A
-        token_a, user_a = _register_and_login(client, suffix=tag)
+        token_a, _user_a = _register_and_login(client, suffix=tag)
         slug_a = f"tenant-proj-a-{tag}"
         resp = client.post("/orgs", json={"name": "Tenant Org A", "slug": slug_a}, headers=_auth_headers(token_a))
         assert resp.status_code == 200

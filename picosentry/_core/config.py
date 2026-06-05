@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger("picosentry._core.config")
@@ -204,12 +204,12 @@ class ConfigProtocol(Protocol):
 
 
 __all__ = [
-    "from_env",
-    "from_env_int",
-    "from_env_bool",
-    "assert_secure",
-    "SecurityViolation",
-    "SecureBootCheck",
     "SECURITY_EXIT_CODE",
     "ConfigProtocol",
+    "SecureBootCheck",
+    "SecurityViolation",
+    "assert_secure",
+    "from_env",
+    "from_env_bool",
+    "from_env_int",
 ]

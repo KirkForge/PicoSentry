@@ -60,7 +60,7 @@ class RedisScanJobStore:
     ) -> None:
         self._redis_url = redis_url or os.environ.get("PICODOME_REDIS_URL", _DEFAULT_REDIS_URL)
         self._max_jobs = max_jobs
-        self._client = None
+        self._client: Any = None
         self._available = False
 
     def _get_client(self):
@@ -99,11 +99,11 @@ class RedisScanJobStore:
             return False
         try:
             self._client.ping()
-            self._available = True
-            return True
         except Exception:
             self._available = False
             return False
+        self._available = True
+        return True
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
         """Add a new job to Redis.
@@ -232,7 +232,7 @@ class RedisScanJobStore:
 
     def _deserialize_job(self, data: dict[str, str]) -> dict[str, Any]:
         """Deserialize a job from Redis hash to dict."""
-        job = dict(data)
+        job: dict[str, Any] = dict(data)
         # Parse JSON fields
         if "command" in job and isinstance(job["command"], str):
             try:

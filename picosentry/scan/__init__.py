@@ -32,16 +32,16 @@ from .models import (
 
 __version__ = "2.0.0"
 __all__ = [
-    "ScanEngine",
-    "create_default_engine",
-    "user_corpus_dir",
+    "BaselineResult",
+    "Confidence",
     "Finding",
+    "RuleExecution",
+    "ScanEngine",
     "ScanResult",
     "ScanStats",
     "Severity",
-    "Confidence",
-    "BaselineResult",
-    "RuleExecution",
-    "load_baseline",
     "apply_baseline",
+    "create_default_engine",
+    "load_baseline",
+    "user_corpus_dir",
 ]

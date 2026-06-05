@@ -10,9 +10,7 @@ Tests cover:
 
 from pathlib import Path
 
-from picosentry.scan.engine import ScanEngine, create_default_engine
-from picosentry.scan.models import Severity
-
+from picosentry.scan.engine import create_default_engine
 
 # ── Fixture helpers ────────────────────────────────────────────────────
 

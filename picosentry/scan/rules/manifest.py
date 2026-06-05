@@ -35,8 +35,6 @@ def _get_dep_sections(pkg: dict) -> dict[str, dict]:
 
 def _is_dangerous_range(version_str: str) -> bool:
     """Check if a version range is overly permissive."""
-    if not isinstance(version_str, str):
-        return False
     stripped = version_str.strip()
     # Exact matches
     if stripped in DANGEROUS_RANGES:

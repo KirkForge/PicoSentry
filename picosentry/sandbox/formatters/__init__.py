@@ -17,11 +17,11 @@ from picosentry.sandbox.formatters.sarif import format_sarif
 from picosentry.sandbox.formatters.table import format_table
 
 __all__ = [
+    "format_cyclonedx",
+    "format_github",
     "format_json",
+    "format_ml_context",
     "format_pipeline_json",
     "format_sarif",
     "format_table",
-    "format_ml_context",
-    "format_github",
-    "format_cyclonedx",
 ]

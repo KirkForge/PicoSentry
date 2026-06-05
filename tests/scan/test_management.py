@@ -2,7 +2,6 @@
 
 import io
 import json
-import sys
 import os
 import tempfile
 import unittest

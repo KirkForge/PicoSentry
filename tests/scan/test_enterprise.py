@@ -1,7 +1,6 @@
 """Tests for enterprise mode enforcement."""
 
 import os
-import sys
 import unittest
 
 from picosentry.scan.enterprise import (

@@ -12,8 +12,8 @@ via subprocess and checking the same conditions the action script checks.
 """
 
 import json
-import sys
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest

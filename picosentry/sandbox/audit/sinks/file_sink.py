@@ -12,10 +12,10 @@ or external consumers that expect a simple JSONL feed).
 from __future__ import annotations
 
 import gzip
-import typing
 import logging
 import shutil
 import threading
+import typing
 from pathlib import Path
 
 from picosentry.sandbox.audit.logger import AuditEvent
@@ -115,7 +115,10 @@ class FileSink(AuditSink):
             self._rotate()
 
         if self._fh is None:
-            self._fh = open(self._file_path, "a", encoding="utf-8")
+            # Caching the file handle for performance — a context manager
+            # would close+reopen on every write, defeating the point of the
+            # cache. The handle is closed in stop().
+            self._fh = open(self._file_path, "a", encoding="utf-8")  # noqa: SIM115
         self._fh.write(line + "\n")
         self._fh.flush()
 

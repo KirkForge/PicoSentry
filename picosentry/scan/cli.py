@@ -24,10 +24,16 @@ import multiprocessing
 import sys
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from picosentry.scan import __version__
 from picosentry.scan.config import PicoSentryConfig, load_config
-from picosentry.scan.corpus_share import export_corpus_pack, import_corpus_pack, list_available_packs, validate_corpus_pack
+from picosentry.scan.corpus_share import (
+    export_corpus_pack,
+    import_corpus_pack,
+    list_available_packs,
+    validate_corpus_pack,
+)
 from picosentry.scan.engine import _resolve_effective_policy, create_default_engine
 from picosentry.scan.enterprise import is_enterprise_mode
 from picosentry.scan.formatters import format_cyclonedx, format_json, format_ml_context, format_sarif, format_table
@@ -882,8 +888,8 @@ def _cmd_corpus(args: argparse.Namespace) -> int:
             return 0
         else:
             print("Corpus pack is INVALID")
-            for e in result["errors"]:
-                print(f"  Error: {e}")
+            for err in result["errors"]:
+                print(f"  Error: {err}")
             return 1
 
     elif args.corpus_action == "sign":
@@ -1139,7 +1145,7 @@ def _cmd_workspace(args: argparse.Namespace) -> int:
         lines.append(header)
         lines.append("-" * 67)
         for proj_path in sorted(wr.results.keys()):
-            result = wr.results[proj_path]
+            result: Any = wr.results[proj_path]
             findings = len(result.get("findings", []))
             status = "OK" if findings == 0 else f"{findings} finding(s)"
             proj_name = str(Path(proj_path).name) if "/" in proj_path else proj_path
@@ -1167,7 +1173,8 @@ def _cmd_workspace(args: argparse.Namespace) -> int:
         min_level = severity_order[args.fail_on.lower()]
         all_findings: list[dict] = []
         for proj_result in wr.results.values():
-            all_findings.extend(proj_result.get("findings", []))
+            proj_result_typed: Any = proj_result
+            all_findings.extend(proj_result_typed.get("findings", []))
         has_fail_findings = any(
             severity_order.get(f.get("severity", "info").lower(), 4) <= min_level for f in all_findings
         )
@@ -1543,7 +1550,7 @@ def _run_scan(
         )
 
     # Severity filtering
-    from picosentry.scan.models import SEVERITY_ORDER  # noqa: N811
+    from picosentry.scan.models import SEVERITY_ORDER
     if config.severity_threshold:
         threshold = config.severity_threshold
         min_level = SEVERITY_ORDER.get(threshold.lower(), 0)
@@ -1603,7 +1610,7 @@ def _cmd_check(args: argparse.Namespace) -> int:
     failed_rules = [r for r in result.rule_executions if r.status == "failed"]
     if failed_rules:
         for r in failed_rules:
-            print(f"Rule {r.rule_id} FAILED: {r.error_type}: {r.error_message}", file=sys.stderr)
+            print(f"Rule {r.rule_id} FAILED: {r.error}", file=sys.stderr)
         return 4
 
     violations = [f for f in result.findings if severity_order.get(f.severity.value.lower(), 4) <= fail_level]
@@ -1725,7 +1732,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         failed_rules = [r for r in result.rule_executions if r.status == "failed"]
         if failed_rules:
             for r in failed_rules:
-                print(f"Rule {r.rule_id} FAILED: {r.error_type}: {r.error_message}", file=sys.stderr)
+                print(f"Rule {r.rule_id} FAILED: {r.error}", file=sys.stderr)
             print(f"Scan aborted: {len(failed_rules)} rule(s) failed. Exiting with code 4.", file=sys.stderr)
             return 4
 
@@ -1852,7 +1859,7 @@ def _cmd_scan(args: argparse.Namespace) -> int:
         print(f"Baseline updated: {baseline_path} ({len(pre_baseline_findings)} findings)", file=sys.stderr)
 
     # Exit code
-    from picosentry.scan.models import SEVERITY_ORDER  # noqa: N811
+    from picosentry.scan.models import SEVERITY_ORDER
     fail_on = config.fail_on
     use_exit_code = config.exit_code or fail_on is not None
     if use_exit_code:

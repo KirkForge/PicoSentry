@@ -7,6 +7,12 @@
 #   watch     LLM defender            →  picosentry watch scan-prompt --text "..."
 #   serve     API server              →  picosentry serve --host 0.0.0.0 --port 8765
 #
+# The image installs the [all] extra so every component's optional deps
+# (requests for online corpus mgmt, fastapi+uvicorn for the watch daemon,
+# opentelemetry, sigstore) are present. If you want a smaller image that
+# only ships the API server, build with a different target or override the
+# pip install line in a derived Dockerfile.
+#
 # Build:
 #   docker build -t picosentry:latest .
 #
@@ -60,9 +66,12 @@ RUN groupadd -r picosentry && \
 
 WORKDIR /home/picosentry
 
-# Copy and install wheel from builder (with serve extras for full functionality)
+# Copy and install wheel from builder. We install the [all] extra so every
+# component's optional dependencies (scan → requests, watch-server → fastapi/
+# uvicorn, serve → FastAPI+auth+croniter, otel, sigstore) are present in the
+# runtime image — matching the "all 4 components" claim in the header.
 COPY --from=builder /build/dist/*.whl /tmp/
-RUN pip install --no-cache-dir "/tmp/picosentry-2.0.0-py3-none-any.whl[serve]" && \
+RUN pip install --no-cache-dir "/tmp/picosentry-2.0.0-py3-none-any.whl[all]" && \
     rm -f /tmp/picosentry-2.0.0-py3-none-any.whl
 
 # Verify installation

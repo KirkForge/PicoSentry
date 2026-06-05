@@ -217,7 +217,6 @@ class TestBaselineCLI:
 
     def test_baseline_json_suppresses_known_findings(self, tmp_path):
         """--baseline with a previous scan JSON suppresses matching findings."""
-        import sys
 
         from picosentry.scan.cli import main
 
@@ -257,7 +256,6 @@ class TestBaselineCLI:
 
     def test_baseline_file_not_found(self, tmp_path):
         """--baseline with nonexistent file returns error code 2."""
-        import sys
 
         from picosentry.scan.cli import main
 
@@ -276,7 +274,6 @@ class TestBaselineCLI:
 
     def test_baseline_simple_ignore_format(self, tmp_path):
         """--baseline with simple ignore file format works."""
-        import sys
 
         from picosentry.scan.cli import main
 

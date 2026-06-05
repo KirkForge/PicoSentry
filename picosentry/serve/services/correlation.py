@@ -13,14 +13,14 @@ Phase 4: alerting + cross-layer auto-analysis.
 
 from __future__ import annotations
 
-import json
 import logging
 import threading
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any
+from typing import Any, ClassVar
 
 from picosentry._core.models import Confidence, Severity
 from picosentry.serve.database.manager import db
@@ -239,7 +239,7 @@ class CorrelationEngine:
         # Maximum events kept per artifact (FIFO eviction)
         self._max_events_per_artifact = 1000
         # Subscribers for chain escalation
-        self._escalation_callbacks: list[callable] = []
+        self._escalation_callbacks: list[Callable[[KillChainTimeline], None]] = []
 
     # ── Ingestion ──────────────────────────────────────────────────────
 
@@ -361,7 +361,7 @@ class CorrelationEngine:
 
     # ── Cross-layer auto-analysis (Phase 4) ───────────────────────────
 
-    _AUTO_ANALYSIS_MAP: dict[str, list[str]] = {
+    _AUTO_ANALYSIS_MAP: ClassVar[dict[str, list[str]]] = {
         "picosentry": ["picodome"],        # scan CRITICAL → sandbox
         "picodome": ["picowatch"],          # sandbox CRITICAL → watch
         "picowatch": [],                     # watch is terminal
@@ -429,7 +429,7 @@ class CorrelationEngine:
 
     # ── Escalation ──────────────────────────────────────────────────────
 
-    def on_chain_escalated(self, callback: callable) -> None:
+    def on_chain_escalated(self, callback: Callable[[KillChainTimeline], None]) -> None:
         """Register a callback for when a chain crosses the critical threshold.
 
         The callback receives the KillChainTimeline as its only argument.
@@ -597,7 +597,7 @@ class CorrelationEngine:
 
         # ── Multi-layer correlation ──
         if len(layers_observed) >= 2:
-            cross_layer_events = [
+            [
                 e for phase_name in active_phases
                 for e in phase_events[phase_name]
             ]

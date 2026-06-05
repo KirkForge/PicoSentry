@@ -73,8 +73,8 @@ class TestAuditLogger:
         assert len(lines) == 3
 
     def test_chain_integrity(self, audit):
-        _e1 = audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="cmd1")  # noqa: F841
-        _e2 = audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="ok")  # noqa: F841
+        _e1 = audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="cmd1")
+        _e2 = audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="ok")
         e3 = audit.record(event_type=AuditEventType.POLICY_UPDATE, actor="admin", detail="change")  # noqa: F841
 
         violations = audit.verify_chain()

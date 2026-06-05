@@ -11,7 +11,7 @@ class TestHealthCheck:
 
     def test_version_check_healthy(self):
         results = check_health()
-        version_check = [r for r in results if r.component == "version"][0]
+        version_check = next(r for r in results if r.component == "version")
         assert version_check.healthy is True
 
     def test_backend_check_exists(self):

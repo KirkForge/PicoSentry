@@ -298,7 +298,7 @@ class TestFindBestBaseline:
         baselines = load_all_baselines()
         result = find_best_baseline(clean_profile, baselines)
         assert result is not None
-        baseline, drift = result
+        baseline, _drift = result
         assert baseline.package == "python"
 
     def test_matches_npm_package(self):

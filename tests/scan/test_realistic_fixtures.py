@@ -59,7 +59,7 @@ class TestRealisticNpmProject:
     def test_deterministic_output_across_runs(self, fixture_path):
         """Two scans of realistic project must produce byte-identical JSON with --deterministic-output."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--format", "json", "--deterministic-output"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -68,7 +68,7 @@ class TestRealisticNpmProject:
         data = json.loads(result.stdout)
 
         result2 = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--format", "json", "--deterministic-output"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -81,7 +81,7 @@ class TestRealisticNpmProject:
     def test_json_output_sorted_keys(self, fixture_path):
         """JSON output must have sorted top-level keys."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--format", "json", "--deterministic-output"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -102,7 +102,7 @@ class TestRealisticNpmProject:
     def test_fail_on_high_exits_nonzero(self, fixture_path):
         """--fail-on high should exit nonzero on project with HIGH findings."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--fail-on", "high"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--fail-on", "high"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -114,7 +114,7 @@ class TestRealisticNpmProject:
     def test_fail_on_critical_exits_zero(self, fixture_path):
         """--fail-on critical should exit 0 if no CRITICAL findings."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--fail-on", "critical"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--fail-on", "critical"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -126,7 +126,7 @@ class TestRealisticNpmProject:
     def test_verify_determinism_passes(self, fixture_path):
         """--verify-determinism should pass on realistic project."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--verify-determinism"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--verify-determinism"],
             capture_output=True,
             text=True,
             timeout=60,
@@ -138,7 +138,7 @@ class TestRealisticNpmProject:
     def test_no_audit_in_deterministic_output(self, fixture_path):
         """--deterministic-output must not include audit timestamps."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--format", "json", "--deterministic-output"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -151,7 +151,7 @@ class TestRealisticNpmProject:
     def test_normal_output_includes_audit(self, fixture_path):
         """Normal JSON output must include audit timestamps."""
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture_path), "--format", "json"],
+            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json"],
             capture_output=True,
             text=True,
             timeout=30,
@@ -204,7 +204,7 @@ class TestExistingFixturesSmokeTest:
             pytest.skip(f"fixture {fixture_name} not available")
 
         result = subprocess.run(
-            PICOSENTRY + ["scan", str(fixture), "--format", "json"],
+            [*PICOSENTRY, "scan", str(fixture), "--format", "json"],
             capture_output=True,
             text=True,
             timeout=30,

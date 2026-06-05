@@ -135,9 +135,10 @@ class RedisTokenBucketLimiter:
         try:
             key = f"picodome:ratelimit:{actor}"
             now = time.time()
+            # _lua_script is set iff _available is True (see _get_client).
             lua_script = self._lua_script
             assert lua_script is not None
-            result = lua_script(
+            result = lua_script(  # type: ignore[unreachable]
                 keys=[key],
                 args=[
                     str(self._config.rate_per_second),

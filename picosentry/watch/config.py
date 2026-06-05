@@ -11,7 +11,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from picosentry._core.config import SecureBootCheck, SecurityViolation, assert_secure as _core_assert_secure
+from picosentry._core.config import SecureBootCheck, SecurityViolation
+from picosentry._core.config import assert_secure as _core_assert_secure
 
 DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 DEFAULT_THRESHOLD_BLOCK = 0.7

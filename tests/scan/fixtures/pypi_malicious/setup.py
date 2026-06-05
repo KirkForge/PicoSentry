@@ -1,7 +1,7 @@
 #!/usr/bin/env python
+import base64
 import os
 import subprocess
-import base64
 
 # Test that we detect this as suspicious
 encoded = base64.b64decode("cHJpbnQoImhlbGxvIik=")

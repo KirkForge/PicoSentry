@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import argparse
 import json
-import sys
 import os
+import sys
 from pathlib import Path
 
 from picosentry.sandbox import __version__
@@ -19,7 +19,12 @@ from picosentry.sandbox.formatters.json_fmt import format_json, format_pipeline_
 from picosentry.sandbox.formatters.ml_context import format_ml_context
 from picosentry.sandbox.formatters.sarif import format_sarif
 from picosentry.sandbox.formatters.table import format_table
-from picosentry.sandbox.guards import DeterministicGuard, diff_results, validate_findings_deterministic, verify_determinism
+from picosentry.sandbox.guards import (
+    DeterministicGuard,
+    diff_results,
+    validate_findings_deterministic,
+    verify_determinism,
+)
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l3.policy import load_policy
@@ -55,7 +60,7 @@ def main(argv: list[str] | None = None) -> int:
     sub = parser.add_subparsers(dest="subcommand", help="sub-commands")
 
     # ── version ─────────────────────────────────────────────────────
-    _version_parser = sub.add_parser("version", help="Print version and exit")  # noqa: F841
+    _version_parser = sub.add_parser("version", help="Print version and exit")
 
     # ── sandbox ──────────────────────────────────────────────────────
     sandbox_parser = sub.add_parser("sandbox", help="Run a command under L3 sandbox policy")
@@ -275,7 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     )
 
     # cluster leave
-    _cluster_leave = cluster_sub.add_parser("leave", help="Gracefully leave the cluster")  # noqa: F841
+    _cluster_leave = cluster_sub.add_parser("leave", help="Gracefully leave the cluster")
 
     # ── sign-policy ───────────────────────────────────────────────────
     sign_parser = sub.add_parser("sign-policy", help="Sign or verify a policy file")
@@ -1262,7 +1267,7 @@ def _compute_exit_code_sandbox(result: SandboxResult, args) -> int:
 
     # --fail-on: check severity levels
     if args.fail_on:
-        threshold = _SEVERITY_LEVELS.get(args.fail_on, 99)
+        _SEVERITY_LEVELS.get(args.fail_on, 99)
         # Sandbox events don't have severity, but DENY/KILL are bad
         if result.overall_verdict.value in ("DENY", "KILL"):
             return 1

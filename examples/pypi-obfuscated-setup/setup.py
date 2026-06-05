@@ -1,6 +1,5 @@
 import base64
 import os
-import sys
 
 # Obfuscated payload — PicoSentry detects base64 + eval pattern
 encoded = "cHJpbnQoIkhlbGxvIGZyb20gcGFja2FnZSIp"

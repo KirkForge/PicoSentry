@@ -30,13 +30,13 @@ register_sink("webhook", WebhookSink)
 register_sink("syslog", SyslogSink)
 
 __all__ = [
+    "SINK_REGISTRY",
     "AuditSink",
+    "FileSink",
     "NullSink",
     "SinkConfig",
-    "SINK_REGISTRY",
+    "SyslogSink",
+    "WebhookSink",
     "create_sink",
     "register_sink",
-    "FileSink",
-    "WebhookSink",
-    "SyslogSink",
 ]

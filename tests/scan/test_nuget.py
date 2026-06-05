@@ -10,9 +10,8 @@ Tests cover:
 
 from pathlib import Path
 
-from picosentry.scan.engine import ScanEngine, create_default_engine
+from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
-
 
 # ── Fixture helpers ────────────────────────────────────────────────────
 
@@ -78,7 +77,7 @@ class TestNuGetEcosystemFiltering:
     def test_nuget_project_runs_nuget_rules(self):
         engine = create_default_engine()
         result = engine.scan(_nuget_clean())
-        nuget_findings = [f for f in result.findings if f.ecosystem == "nuget"]
+        [f for f in result.findings if f.ecosystem == "nuget"]
 
     def test_three_nuget_rules_registered(self):
         engine = create_default_engine()

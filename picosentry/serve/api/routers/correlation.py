@@ -3,7 +3,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from picosentry.serve.api.deps import get_current_user, require_role
+from picosentry.serve.api.deps import require_role
 from picosentry.serve.services.correlation import correlation_engine
 
 logger = logging.getLogger("picoshogun.correlation")
@@ -72,7 +72,7 @@ def get_chain_narrative(
         "artifact_id": artifact_id,
         "narrative": chain.narrative,
         "chain_score": round(chain.chain_score, 3),
-        "phase_count": chain.phase_count,
+        "phase_count": len(chain.phases),
         "event_count": sum(len(events) for events in chain.phases.values()),
     }
 
@@ -98,13 +98,13 @@ def ingest_event(
     # Parse enums
     try:
         sev = Severity(severity.upper())
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid severity: {severity}")
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=f"Invalid severity: {severity}") from err
 
     try:
         conf = Confidence(confidence.upper())
-    except ValueError:
-        raise HTTPException(status_code=400, detail=f"Invalid confidence: {confidence}")
+    except ValueError as err:
+        raise HTTPException(status_code=400, detail=f"Invalid confidence: {confidence}") from err
 
     valid_layers = {"scan", "sandbox_l3", "sandbox_l4", "watch"}
     if layer not in valid_layers:

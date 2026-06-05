@@ -6,6 +6,7 @@ lifecycle, middleware, and static files only.
 import logging
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -14,7 +15,21 @@ from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from picosentry.serve.api.deps import auth_service
-from picosentry.serve.api.routers import admin, anomaly, auth, correlation, dashboard, health, metrics, orgs, plugins, projects, scans, webhooks, ws
+from picosentry.serve.api.routers import (
+    admin,
+    anomaly,
+    auth,
+    correlation,
+    dashboard,
+    health,
+    metrics,
+    orgs,
+    plugins,
+    projects,
+    scans,
+    webhooks,
+    ws,
+)
 from picosentry.serve.api.routers import scheduler as scheduler_router
 from picosentry.serve.config.logging_config import configure_logging
 from picosentry.serve.config.settings import settings
@@ -365,7 +380,7 @@ def main() -> None:
 
     # Uvicorn requires import string (not app object) when workers > 1 or reload is enabled
     # Build SSL kwargs if cert/key configured
-    ssl_kwargs = {}
+    ssl_kwargs: dict[str, Any] = {}
     if settings.security.ssl_cert_path and settings.security.ssl_key_path:
         ssl_kwargs["ssl_certfile"] = str(settings.security.ssl_cert_path)
         ssl_kwargs["ssl_keyfile"] = str(settings.security.ssl_key_path)

@@ -16,6 +16,7 @@ import json
 import os
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from typing import Any, ClassVar
 from unittest import mock
 
 import pytest
@@ -27,8 +28,8 @@ from picosentry.sandbox.admission.scanner import SEVERITY_LEVELS, ImageScanner
 class MockScanHandler(BaseHTTPRequestHandler):
     """Mock PicoDome daemon that returns scan results."""
 
-    verdict = "CLEAN"
-    findings = []
+    verdict: ClassVar[str] = "CLEAN"
+    findings: ClassVar[list[dict[str, Any]]] = []
 
     def do_POST(self):
         content_length = int(self.headers.get("Content-Length", 0))
@@ -158,7 +159,7 @@ class TestImageScannerMultipleContainers:
         MockScanHandler.do_POST = alternating_post
         scanner = ImageScanner(enabled=True, daemon_url=mock_daemon)
         req = _make_pod_request(["nginx:latest", "bad:latest"])
-        allowed, reason = scanner.scan_pod(req)
+        allowed, _reason = scanner.scan_pod(req)
         assert not allowed
 
 

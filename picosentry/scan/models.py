@@ -11,6 +11,7 @@ Shared enums (Severity, Confidence) and ScanStats are imported from picosentry._
 """
 
 from __future__ import annotations
+
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -22,21 +23,21 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from picosentry._core.models import Confidence, FindingProtocol, ScanStats as _ScanStats, Severity, SEVERITY_ORDER
+from picosentry._core.models import SEVERITY_ORDER, Confidence, FindingProtocol, Severity
 
 # Re-export for backward compatibility
 __all__ = [
-    "Severity",
     "SEVERITY_ORDER",
+    "BaselineResult",
     "Confidence",
     "Finding",
-    "BaselinateResult",
-    "load_baseline",
-    "apply_baseline",
-    "RuleExecution",
-    "ScanStats",
-    "ScanResult",
     "FindingProtocol",
+    "RuleExecution",
+    "ScanResult",
+    "ScanStats",
+    "Severity",
+    "apply_baseline",
+    "load_baseline",
 ]
 
 # PicoSentry ScanStats — structurally compatible with picosentry._core.models.ScanStats.

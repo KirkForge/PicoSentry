@@ -45,23 +45,26 @@ import json
 from pathlib import Path
 
 from picosentry._core.guards import (
-    DeterminismViolation,
-    DeterministicGuard as _CoreGuard,
     FORBIDDEN_IN_FINDINGS,
+    DeterminismViolation,
+)
+from picosentry._core.guards import (
+    DeterministicGuard as _CoreGuard,
+)
+from picosentry._core.guards import (
     verify_determinism as _core_verify_determinism,
 )
-
 from picosentry.scan.models import ScanResult
 
 # Re-export for backward compatibility
 __all__ = [
+    "DETERMINISTIC_FIELDS",
     "DeterminismViolation",
     "DeterministicGuard",
-    "DETERMINISTIC_FIELDS",
     "deterministic_hash",
+    "diff_scans",
     "fingerprint_scan",
     "verify_determinism",
-    "diff_scans",
 ]
 
 # Fields included in deterministic comparison.

@@ -112,6 +112,12 @@ picosentry = "picosentry.cli:main"
 [tool.setuptools.packages.find]
 include = ["picosentry*"]
 
+# Keep bytecode cache and editor cruft out of sdist/wheel artifacts.
+# setuptools>=77 already excludes most of this, but being explicit
+# protects against future toolchain changes and makes the policy visible.
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "*.py[cod]", "*.pyo", ".DS_Store"]
+
 [tool.setuptools.package-data]
 picosentry = ["py.typed"]
 "picosentry.scan" = [
@@ -158,6 +164,16 @@ ignore = [
     "B008",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Intentional / pre-existing typographic and stylistic choices:
+# - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
+# - E741 single-letter `l` for `layer` in correlation scoring
+# - RUF001/RUF002 en-dashes in docstrings ("0.0–1.0" range notation) and ℹ emoji icon
+"examples/pypi-obfuscated-setup/setup.py" = ["E402"]
+"picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
+"picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
+"tests/sandbox/check_deploy_security.py" = ["RUF001"]
+
 [tool.ruff.format]
 quote-style = "double"
 indent-style = "space"
@@ -171,3 +187,16 @@ warn_redundant_casts = true
 warn_unreachable = true
 ignore_missing_imports = true
 exclude = ["build/", "dist/", ".venv/"]
+
+# gRPC proto stubs are runtime-generated (grpcio-tools). The static
+# type-checker can't see them, so we silence the resulting attr-defined errors.
+[[tool.mypy.overrides]]
+module = "picosentry.sandbox.grpc_transport.*"
+ignore_errors = true
+
+# sigstore is an optional extra — not always installed. crypto.py gates the
+# imports behind `_check_sigstore()`, so we silence the type errors when the
+# package is absent.
+[[tool.mypy.overrides]]
+module = "picosentry.scan.crypto"
+ignore_errors = true

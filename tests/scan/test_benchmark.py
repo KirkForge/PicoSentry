@@ -113,8 +113,6 @@ def test_bench_rule_registration(engine):
         "L2-SIDELOAD",
         "L2-ADV",
         "L2-IOC",
-        "L2-TYPO",
-        "L2-POST",
         "L2-WORM",
         "L2-NETEX",
         "L2-PYPI",
@@ -152,7 +150,7 @@ def test_bench_small_scan(engine, small_project):
 def test_bench_typosquat():
     """Typosquat check against 327 top packages should be fast."""
     from picosentry.scan.engine import create_default_engine
-    from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem, BUILTIN_TOP_100
+    from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100, load_corpus_for_ecosystem
 
     engine = create_default_engine()
     start = time.monotonic()

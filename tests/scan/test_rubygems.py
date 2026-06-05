@@ -10,9 +10,8 @@ Tests cover:
 
 from pathlib import Path
 
-from picosentry.scan.engine import ScanEngine, create_default_engine
+from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
-
 
 # ── Fixture helpers ────────────────────────────────────────────────────
 
@@ -78,7 +77,7 @@ class TestRubyGemsEcosystemFiltering:
     def test_gem_project_runs_gem_rules(self):
         engine = create_default_engine()
         result = engine.scan(_gem_clean())
-        gem_findings = [f for f in result.findings if f.ecosystem == "rubygems"]
+        [f for f in result.findings if f.ecosystem == "rubygems"]
 
     def test_three_rubygems_rules_registered(self):
         engine = create_default_engine()

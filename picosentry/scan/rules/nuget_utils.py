@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
@@ -50,10 +49,7 @@ def detect_nuget_project(target: Path) -> bool:
         return True
     if list(target.glob("*.csproj")):
         return True
-    if list(target.glob("*.sln")):
-        return True
-
-    return False
+    return bool(list(target.glob("*.sln")))
 
 
 # ── .csproj parsing ────────────────────────────────────────────────────────
@@ -294,10 +290,7 @@ def _is_public_nuget_url(url: str) -> bool:
         "ms.microsoft.com",
         "go.microsoft.com",
     ]
-    for pattern in public_patterns:
-        if pattern in url_lower:
-            return True
-    return False
+    return any(pattern in url_lower for pattern in public_patterns)
 
 
 def detect_private_nuget_source(target: Path) -> bool:
@@ -335,7 +328,4 @@ def detect_private_nuget_source(target: Path) -> bool:
 
     # Check csproj for project references (local deps)
     csproj_data = parse_csproj_file(target)
-    if csproj_data and csproj_data.get("project_references"):
-        return True
-
-    return False
+    return bool(csproj_data and csproj_data.get("project_references"))

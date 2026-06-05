@@ -295,7 +295,7 @@ def scan_workspace(
                             if not config.should_ignore_package(f.package) and not config.should_ignore_path(f.file)
                         ]
                     )
-                from picosentry.scan.models import SEVERITY_ORDER  # noqa: N811
+                from picosentry.scan.models import SEVERITY_ORDER
                 if config.severity_threshold:
                     threshold = config.severity_threshold
                     min_level = SEVERITY_ORDER[threshold.lower()]

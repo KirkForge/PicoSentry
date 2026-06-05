@@ -3,7 +3,7 @@ import json
 import logging
 import re
 from collections import defaultdict
-from typing import Any
+from typing import Any, ClassVar
 
 from picosentry.serve.database.manager import db
 
@@ -13,7 +13,7 @@ class IntelligenceEngine:
     """Intelligence engine with pattern matching and correlation."""
 
     # Core pattern database — tightened to reduce false positives
-    PATTERNS = {
+    PATTERNS: ClassVar[dict[str, tuple[str, str]]] = {
         "threat_ip": (r"(?<![a-zA-Z0-9._-])(?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})(?![a-zA-Z0-9._-])", "low"),
         "suspicious_domain": (r"(?i)(?<!\w)[a-zA-Z0-9-]+\.(?:com|net|org|io|dev|app|cloud|xyz|tk|ml|cf|biz|info|top)(?!\w)", "medium"),
         "critical_vuln": (r"CRITICAL|RCE|remote\s*code\s*execution|shell", "critical"),
@@ -38,7 +38,7 @@ class IntelligenceEngine:
         r"(?<![a-zA-Z0-9._-])(?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})(?![a-zA-Z0-9._-])"
     )
 
-    SAFE_IPS = {"0.0.0.0", "127.0.0.1", "127.0.1.1", "255.255.255.255", "::1", "localhost"}
+    SAFE_IPS: ClassVar[set[str]] = {"0.0.0.0", "127.0.0.1", "127.0.1.1", "255.255.255.255", "::1", "localhost"}
 
     # Private/reserved IP ranges — not threat indicators
     PRIVATE_IP_PREFIXES = frozenset({
@@ -48,7 +48,7 @@ class IntelligenceEngine:
     })
 
     # Server banner patterns — IPs/domains inside these are informational, not threats
-    BANNER_PATTERNS = [
+    BANNER_PATTERNS: ClassVar[list[re.Pattern[str]]] = [
         re.compile(r"SSH-[\d.]+-", re.IGNORECASE),
         re.compile(r"(?:Apache|nginx|Postfix|Dovecot|ProFTPD|vsFTPd|OpenSSH|Dnsmasq)/[\d.]+", re.IGNORECASE),
         re.compile(r"^Server:\s", re.IGNORECASE),
@@ -62,14 +62,14 @@ class IntelligenceEngine:
         ".html", ".css", ".md", ".txt", ".cfg", ".ini", ".conf", ".log",
         ".sql", ".proto", ".tf", ".dockerfile",
     })
-    SAFE_DOMAINS = {
+    SAFE_DOMAINS: ClassVar[set[str]] = {
         "github.com", "gitlab.com", "bitbucket.org", "docker.com", "dockerhub.com",
         "pypi.org", "npmjs.com", "godotengine.org", "unity.com", "unrealengine.com",
         "python.org", "ubuntu.com", "debian.org", "archlinux.org", "fedoraproject.org",
         "stackoverflow.com", "github.io", "readthedocs.io", "readthedocs.org",
     }
     # Module names that often trigger domain false positives
-    MODULE_FALSE_POSITIVES = {
+    MODULE_FALSE_POSITIVES: ClassVar[set[str]] = {
         "socket", "http", "urllib", "requests", "paramiko", "logging", "config",
         "json", "pathlib", "datetime", "re", "os", "sys", "typing", "collections",
         "hashlib", "threading", "time", "sqlite3", "base64", "math", "random",

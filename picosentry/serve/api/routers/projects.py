@@ -6,7 +6,13 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query
 
 from picosentry.serve.api.deps import get_current_user, require_role
-from picosentry.serve.api.models import AlertResponse, BatchRunRequest, IntelligenceItem, ProjectRunRequest, ProjectStatus
+from picosentry.serve.api.models import (
+    AlertResponse,
+    BatchRunRequest,
+    IntelligenceItem,
+    ProjectRunRequest,
+    ProjectStatus,
+)
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.orchestrator import orchestrator
 

@@ -11,7 +11,7 @@ logger = logging.getLogger("picoshogun.LogManager")
 class LogManager:
     """Log rotation with compression and retention."""
 
-    def __init__(self, log_dir: str = None, max_size_mb: int = 100,
+    def __init__(self, log_dir: str | None = None, max_size_mb: int = 100,
                  max_files: int = 10, retention_days: int = 30):
         self.log_dir = Path(log_dir) if log_dir else Path(__file__).parent.parent / "logs"
         self.max_size = max_size_mb * 1024 * 1024
@@ -24,7 +24,7 @@ class LogManager:
         """Ensure log directory exists."""
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def rotate(self, log_file: str = None) -> str | None:
+    def rotate(self, log_file: str | None = None) -> str | None:
         """Rotate a log file if it exceeds max size."""
         if log_file:
             target = Path(log_file)

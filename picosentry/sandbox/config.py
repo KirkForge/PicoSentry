@@ -14,7 +14,8 @@ import os
 from pathlib import Path
 from typing import Any
 
-from picosentry._core.config import SecureBootCheck, SecurityViolation, assert_secure as _core_assert_secure
+from picosentry._core.config import SecureBootCheck, SecurityViolation
+from picosentry._core.config import assert_secure as _core_assert_secure
 
 logger = logging.getLogger("picodome.config")
 

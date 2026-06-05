@@ -1,5 +1,4 @@
 """Tests for the cross-layer kill-chain correlation engine (Phase 1)."""
-from datetime import datetime, timezone
 
 import pytest
 
@@ -15,7 +14,6 @@ from picosentry.serve.services.correlation import (
     _severity_index,
     build_event_from_intel,
 )
-
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Fixtures

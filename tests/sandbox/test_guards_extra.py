@@ -164,14 +164,14 @@ class TestDiffResults:
         path_a = tmp_path / "nonexistent.json"
         path_b = tmp_path / "b.json"
         path_b.write_text("{}")
-        exit_code, msg = diff_results(path_a, path_b)
+        exit_code, _msg = diff_results(path_a, path_b)
         assert exit_code == 2
 
     def test_missing_file_b(self, tmp_path):
         path_a = tmp_path / "a.json"
         path_b = tmp_path / "nonexistent.json"
         path_a.write_text("{}")
-        exit_code, msg = diff_results(path_a, path_b)
+        exit_code, _msg = diff_results(path_a, path_b)
         assert exit_code == 2
 
     def test_invalid_json(self, tmp_path):
@@ -179,7 +179,7 @@ class TestDiffResults:
         path_b = tmp_path / "b.json"
         path_a.write_text("not json at all")
         path_b.write_text("{}")
-        exit_code, msg = diff_results(path_a, path_b)
+        exit_code, _msg = diff_results(path_a, path_b)
         assert exit_code == 2
 
     def test_verbose_diff(self, tmp_path):
@@ -200,7 +200,7 @@ class TestDiffResults:
         path_b = tmp_path / "b.json"
         path_a.write_text(json.dumps(data_a, sort_keys=True))
         path_b.write_text(json.dumps(data_b, sort_keys=True))
-        exit_code, msg = diff_results(path_a, path_b)
+        exit_code, _msg = diff_results(path_a, path_b)
         assert exit_code == 0  # deterministic fields match
 
 

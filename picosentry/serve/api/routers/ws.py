@@ -27,8 +27,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             await websocket.close(code=4001, reason="Invalid authentication token")
             return
 
-    await ws_manager.connect(websocket, channels=["*"] if not token else ["*"])
-
+    await ws_manager.connect(websocket, channels=["*"])
     authenticated = user is not None
 
     try:

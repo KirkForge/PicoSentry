@@ -2,7 +2,7 @@
 import hashlib
 import secrets
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 from picosentry.serve.database.manager import db
 
@@ -16,7 +16,7 @@ class Organization:
     - Usage limits
     """
 
-    TIERS = {
+    TIERS: ClassVar[dict[str, dict[str, Any]]] = {
         "free": {"users": 1, "projects": 3, "runs_per_day": 50, "storage_mb": 100},
         "starter": {"users": 5, "projects": 25, "runs_per_day": 500, "storage_mb": 1000},
         "pro": {"users": 25, "projects": 100, "runs_per_day": 5000, "storage_mb": 10000},
@@ -78,16 +78,18 @@ class Organization:
         limits = Organization.TIERS.get(tier, Organization.TIERS["free"])
 
         # Count users
-        users = db.execute_one(
+        user_row = db.execute_one(
             "SELECT COUNT(*) as c FROM org_users WHERE org_id = ?",
             (org_id,)
-        )["c"] or 0
+        )
+        users = (user_row or {}).get("c") or 0
 
         # Count projects
-        projects = db.execute_one(
+        project_row = db.execute_one(
             "SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?",
             (org_id,)
-        )["c"] or 0
+        )
+        projects = (project_row or {}).get("c") or 0
 
         # Count today's runs
         runs_today_row = db.execute_one("""

@@ -34,7 +34,7 @@ import time
 import uuid
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from importlib import import_module
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
 if TYPE_CHECKING:
     from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
@@ -140,7 +140,7 @@ class PicoDomeHandler(BaseHTTPRequestHandler):
     # Commands that are always rejected regardless of policy.
     # Prevents privilege escalation via the daemon API.
     # F12: Enterprise allowlist — only these commands can be submitted
-    ALLOWED_COMMANDS: set[str] = {
+    ALLOWED_COMMANDS: ClassVar[set[str]] = {
         "echo",
         "printf",
         "cat",
@@ -171,7 +171,7 @@ class PicoDomeHandler(BaseHTTPRequestHandler):
     }
 
     # F12: Non-enterprise deny list (supplementary to allowlist)
-    DENIED_COMMANDS: set[str] = {
+    DENIED_COMMANDS: ClassVar[set[str]] = {
         "rm",
         "rmdir",
         "mkfs",

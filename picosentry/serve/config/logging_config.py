@@ -18,7 +18,7 @@ class JSONFormatter(logging.Formatter):
         super().__init__()
         self.structured = structured
 
-    def format(self, record: logging.LogRecord) -> str:  # type: ignore[override]
+    def format(self, record: logging.LogRecord) -> str:
         entry: dict[str, Any] = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
@@ -52,7 +52,7 @@ class JSONFormatter(logging.Formatter):
 
 def configure_logging(
     level: str = "INFO",
-    log_dir: Path = None,
+    log_dir: Path | None = None,
     structured: bool = True,
     max_bytes: int = 10_000_000,
     backup_count: int = 10,

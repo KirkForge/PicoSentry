@@ -131,9 +131,10 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         if threats and (threats["count"] or 0) > 10:
             health = "critical"
 
+        running_row = db.execute_one("SELECT COUNT(*) as c FROM project_runs WHERE status = 'running'")
         return {
             "projects_total": len(self.registry),
-            "projects_active": db.execute_one("SELECT COUNT(*) as c FROM project_runs WHERE status = 'running'")["c"] or 0,
+            "projects_active": (running_row or {}).get("c") or 0,
             "projects_failed": failed,
             "active_threats": (threats["count"] or 0) if threats else 0,
             "pending_alerts": (pending["count"] or 0) if pending else 0,
@@ -356,7 +357,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                                     alert={
                                         "project_id": project_id,
                                         "severity": "high",
-                                        "message": f"Project {project_id} failed with exception: {str(e)}"
+                                        "message": f"Project {project_id} failed with exception: {e!s}"
                                     })
 
             event_bus.publish(

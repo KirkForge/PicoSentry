@@ -41,20 +41,29 @@ Exit codes:
 
 from __future__ import annotations
 
-import hashlib
-import json
 from pathlib import Path
 
 from picosentry._core.guards import (
-    UUID_PATTERN as _UUID_PATTERN,
     ISO_TIMESTAMP_PATTERN as _ISO_TIMESTAMP_PATTERN,
+)
+from picosentry._core.guards import (
+    UUID_PATTERN as _UUID_PATTERN,
+)
+from picosentry._core.guards import (
     DeterminismViolation,
+)
+from picosentry._core.guards import (
     DeterministicGuard as _CoreGuard,
+)
+from picosentry._core.guards import (
     deterministic_hash as _core_deterministic_hash,
+)
+from picosentry._core.guards import (
     diff_results as _core_diff_results,
+)
+from picosentry._core.guards import (
     verify_determinism as _core_verify_determinism,
 )
-
 from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.models import AnalysisResult
 
@@ -62,12 +71,12 @@ from picosentry.sandbox.l4.models import AnalysisResult
 __all__ = [
     "DeterminismViolation",
     "DeterministicGuard",
-    "validate_findings_deterministic",
-    "validate_result_sorted",
-    "validate_no_randomness",
     "deterministic_hash",
-    "verify_determinism",
     "diff_results",
+    "validate_findings_deterministic",
+    "validate_no_randomness",
+    "validate_result_sorted",
+    "verify_determinism",
 ]
 
 
@@ -137,10 +146,15 @@ class DeterministicGuard(_CoreGuard):
             if hasattr(f, "timestamp") and f.timestamp:
                 violations.append(f"Finding {f.rule_id} has timestamp: {f.timestamp}")
 
-        # 3. Findings must be sorted by sort_key
-        sorted_findings = sorted(result.findings, key=lambda f: f.sort_key())
+        # 3. Findings must be sorted (by rule_id, file, line, finding_id — the
+        # canonical order for stable hash chain output). We don't use
+        # Finding.sort_key() because the L4 sandbox Finding dataclass doesn't
+        # define it; the L2 scanner's does.
+        def _sort_tuple(f):
+            return (f.rule_id, f.file, getattr(f, "line", 0), f.finding_id)
+        sorted_findings = sorted(result.findings, key=_sort_tuple)
         if result.findings != sorted_findings:
-            violations.append("findings not sorted by sort_key()")
+            violations.append("findings not sorted by (rule_id, file, line, finding_id)")
 
         # 4. Verify to_dict produces sorted keys
         d = result.to_dict(deterministic=True)

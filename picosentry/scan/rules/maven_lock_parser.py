@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .maven_utils import parse_pom_xml, parse_gradle_build
+from .maven_utils import parse_gradle_build, parse_pom_xml
 
 
 def parse_maven_lockfile(path: Path) -> list[tuple[str, str, str]]:

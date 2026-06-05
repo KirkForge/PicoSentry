@@ -1,6 +1,8 @@
 """Tests for v0.9.1 fixes: --version flag, baseline-update no-rescan, apply_baseline O(n)."""
 
 import json
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 
@@ -13,16 +15,20 @@ from picosentry.scan.models import (
     apply_baseline,
 )
 
+# Use the venv python (sys.executable) rather than the system `python3` so we
+# resolve the v2.0.0 project install, not any stale v1.x install on PATH.
+# tests/conftest.py also injects the project root into PYTHONPATH so that
+# `python -m picosentry` works even without `pip install -e .`.
+_PICOSENTRY = [sys.executable, "-m", "picosentry"]
+
 # -- --version flag test --
 
 
 class TestVersionFlag:
     def test_version_flag_works(self):
         """--version should print version and exit 0."""
-        import subprocess
-
         result = subprocess.run(
-            ["python3", "-m", "picosentry", "--version"],
+            [*_PICOSENTRY, "--version"],
             capture_output=True,
             text=True,
             cwd=str(Path(__file__).parent.parent),
@@ -32,10 +38,8 @@ class TestVersionFlag:
 
     def test_version_flag_short(self):
         """-V should also work."""
-        import subprocess
-
         result = subprocess.run(
-            ["python3", "-m", "picosentry", "-V"],
+            [*_PICOSENTRY, "-V"],
             capture_output=True,
             text=True,
             cwd=str(Path(__file__).parent.parent),
@@ -181,8 +185,6 @@ class TestApplyBaselinePerformance:
 class TestBaselineUpdateNoRescan:
     def test_baseline_update_uses_cached_findings(self):
         """--baseline-update should NOT re-scan. It should use pre-baseline findings."""
-        import subprocess
-
         fixtures = Path(__file__).parent / "fixtures"
 
         # First: scan to create baseline
@@ -193,9 +195,7 @@ class TestBaselineUpdateNoRescan:
             # Create baseline from a scan
             result = subprocess.run(
                 [
-                    "python3",
-                    "-m",
-                    "picosentry",
+                    *_PICOSENTRY,
                     "scan",
                     str(fixtures / "event_stream"),
                     "--format",
@@ -218,9 +218,7 @@ class TestBaselineUpdateNoRescan:
             # Now scan with baseline + baseline-update
             subprocess.run(
                 [
-                    "python3",
-                    "-m",
-                    "picosentry",
+                    *_PICOSENTRY,
                     "scan",
                     str(fixtures / "event_stream"),
                     "--format",

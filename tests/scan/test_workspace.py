@@ -1,6 +1,5 @@
 """Tests for workspace module — project discovery, scanning, aggregation."""
 
-import sys
 import tempfile
 import unittest
 from pathlib import Path

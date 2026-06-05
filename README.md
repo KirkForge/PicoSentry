@@ -123,7 +123,7 @@ See [docs/rules/](picosentry/scan/docs/rules/) for the full rule catalog.
 ## Install
 
 ```bash
-# Core scanner — works offline, no HTTP deps
+# Core scanner — works offline, no HTTP deps (only `pyyaml` installed)
 pip install picosentry
 
 # Extras
@@ -131,6 +131,11 @@ pip install picosentry[scan]      # + online corpus management
 pip install picosentry[serve]     # + API server + dashboard
 pip install picosentry[all]       # Everything
 ```
+
+The default `pip install picosentry` is deliberately lightweight — it pulls in
+only `pyyaml`, which is enough to run `picosentry scan` against any project.
+To use the API server, dashboard, or HTTP corpus refresh, install the matching
+extras (see [install options](#install-options) below).
 
 See [install options](#install-options) below for details.
 

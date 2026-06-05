@@ -1,21 +1,16 @@
 """
-Detection quality evidence -- precision, recall, and known limitations
-tracking for enterprise PicoSentry deployments.
+Detection quality evidence — **STUB**.
 
-Provides:
-- Versioned detection benchmark with precision/recall by rule family
-- Known limitations documentation per detector
-- False-positive rate tracking and suppression defaults
-- Regression test harness for FP/FN cases
+This framework is designed to track precision, recall, and known limitations
+by rule family for enterprise deployments. However, it currently has no real
+benchmark data — it's a scaffold awaiting community contributions.
 
-This module gives enterprise buyers evidence that detection quality
-is measured, tracked, and improved over time.
+⚠️ **EXPERIMENTAL STUB**: The classes and functions defined here are
+   placeholders. Real benchmark data has not been collected yet. Do not
+   rely on this module for production decisions.
 
-Usage:
-    from picosentry.scan.detection_quality import (
-        DetectionBenchmark, RuleQualityMetrics, KnownLimitations,
-        benchmark_scan, get_known_limitations,
-    )
+To contribute benchmark data:
+   See https://github.com/KirkForge/PicoSentry/blob/main/CONTRIBUTING.md
 """
 
 from __future__ import annotations

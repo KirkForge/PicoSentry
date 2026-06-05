@@ -1,10 +1,14 @@
 """Database connection pool implementations.
 
-SQLitePool — thread-local connection pool for SQLite (default).
-PostgresPool — stub for future psycopg/asyncpg migration.
+SQLitePool — thread-local connection pool for SQLite (default, stable).
+PostgresPool — **EXPERIMENTAL STUB** — not implemented.
 
 The pool interface is defined in database.manager.ConnectionPool.
 Switch backends via config: PICOSHOGUN_DATABASE_BACKEND=postgres.
+
+⚠️ PostgresPool raises NotImplementedError. Only SQLite works today.
+   See https://github.com/KirkForge/PicoSentry/issues for Postgres
+   migration tracking. Contributions welcome.
 """
 import logging
 import sqlite3

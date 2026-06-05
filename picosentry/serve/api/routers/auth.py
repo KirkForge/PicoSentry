@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from picosentry.serve.api.deps import auth_service, get_current_user
 from picosentry.serve.api.models import RegisterRequest
+from picosentry.serve.config.settings import settings
 from pydantic import BaseModel
 
 logger = logging.getLogger("picoshogun.auth")
@@ -14,7 +15,12 @@ router = APIRouter(prefix="/auth")
 
 @router.post("/register", tags=["Authentication"])
 async def register(request: RegisterRequest):
-    """Register a new user account."""
+    """Register a new user account.
+
+    Disabled by default in production — set PICOSHOGUN_ALLOW_REGISTRATION=true to enable.
+    """
+    if not settings.security.allow_registration:
+        raise HTTPException(status_code=403, detail="Registration is disabled")
     try:
         user_id = auth_service.create_user(
             username=request.username,

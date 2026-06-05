@@ -438,7 +438,161 @@ class TestStraceFormatTextFallback:
         assert isinstance(ops, list)
 
 
-# ── Demonstrator: the exact case the code-review flagged ─────
+# ── Regression guards for bugs found in code review ────────────
+
+
+class TestSpoofGuard:
+    """Events must be authoritative; text cannot inject phantom calls."""
+
+    def test_events_block_phantom_text_network(self):
+        """When events exist, empty network from events means NO network."""
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-FS-001",
+                    verdict=Verdict.ALLOW,
+                    operation="file_write_indicator",
+                    detail="Write detected: /tmp/foo",
+                    path="/tmp/foo",
+                ),
+            ],
+            stdout="connect to 8.8.8.8:443",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        # Events exist (filesystem), so network should not be scraped from text
+        assert len(profile.network_calls) == 0, (
+            "Text-derived phantom network injected despite events existing"
+        )
+
+    def test_events_block_phantom_text_fs(self):
+        """When events exist, empty fs_ops from events means NO text-derived fs."""
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-NET-001",
+                    verdict=Verdict.ALLOW,
+                    operation="network_outbound",
+                    detail="IP address found: 1.2.3.4",
+                    address="1.2.3.4",
+                ),
+            ],
+            stdout='writing to /etc/shadow',
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.fs_ops) == 0, (
+            "Text-derived /etc/shadow phantom injected despite events existing"
+        )
+
+    def test_events_block_phantom_text_spawn(self):
+        """When events exist, empty spawns from events means NO text-derived spawn."""
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-NET-001",
+                    verdict=Verdict.ALLOW,
+                    operation="network_outbound",
+                    detail="IP address found: 1.2.3.4",
+                    address="1.2.3.4",
+                ),
+            ],
+            stdout="executing: /bin/malware",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.spawns) == 0, (
+            "Text-derived /bin/malware phantom injected despite events existing"
+        )
+
+
+class TestStraceIPv6RealFormat:
+    """Real strace emits inet_pton(AF_INET6, ..., &sin6_addr) — not the synthetic sin6_addr=inet_pton."""
+
+    def test_real_strace_ipv6_connect(self):
+        """Real strace IPv6 format — inet_pton with IP as 2nd arg, &sin6_addr as 3rd."""
+        output = (
+            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+            'inet_pton(AF_INET6, "2606:4700::1", &sin6_addr)}, 28) = 0'
+        )
+        calls = _extract_network_calls(output)
+        assert any(c.address == "2606:4700::1" for c in calls), (
+            "Real strace IPv6 not parsed"
+        )
+
+    def test_synthetic_strace_ipv6_still_works(self):
+        """The synthetic format used in existing tests must still parse."""
+        output = (
+            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+            'sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
+        )
+        calls = _extract_network_calls(output)
+        assert any(c.address == "2001:db8::1" for c in calls), (
+            "Synthetic strace IPv6 broke"
+        )
+
+
+class TestExfilReadOnEventsPath:
+    """EXFIL-005 (credential-read-then-egress) must fire on the events path."""
+
+    def test_fs_read_preserved_from_event(self):
+        """file_read event produces FileOperation(operation='read')."""
+        result = SandboxResult(
+            command=["node", "evil.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-FR-001",
+                    verdict=Verdict.ALLOW,
+                    operation="file_read",
+                    detail="Read detected: /home/user/.aws/credentials",
+                    path="/home/user/.aws/credentials",
+                ),
+            ],
+            stdout="",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert len(profile.fs_ops) == 1
+        assert profile.fs_ops[0].operation == "read", (
+            "file_read event must produce 'read' op for EXFIL-005"
+        )
+
+    def test_file_write_still_write_on_events_path(self):
+        """file_write_* events still produce FileOperation(operation='write')."""
+        result = SandboxResult(
+            command=["node", "test.js"],
+            overall_verdict=Verdict.ALLOW,
+            exit_code=0,
+            duration_ms=100,
+            events=[
+                SandboxEvent(
+                    rule_id="L3-FW-001",
+                    verdict=Verdict.DENY,
+                    operation="file_write_indicator",
+                    detail="Write detected: /tmp/evil",
+                    path="/tmp/evil",
+                ),
+            ],
+            stdout="",
+            stderr="",
+        )
+        profile = profile_from_sandbox_result(result)
+        assert profile.fs_ops[0].operation == "write"
 
 
 class TestEventsFirstIntegration:

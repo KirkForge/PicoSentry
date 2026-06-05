@@ -216,7 +216,7 @@ class PicoDomeConfig:
     def assert_secure(self) -> None:
         """Enforce secure configuration in production.
 
-        Delegates to pico_core.config.assert_secure with PicoDome-specific
+        Delegates to picosentry._core.config.assert_secure with PicoDome-specific
         custom checks (mTLS cert presence in production).
         Override with PICODOME_SKIP_SECURE_ASSERT=1 (NOT recommended).
         """

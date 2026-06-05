@@ -62,21 +62,24 @@ class TestGoEcosystemFiltering:
 
     def test_go_project_skips_npm_rules(self, tmp_path):
         """A Go project should not show npm findings (no node_modules)."""
-        (tmp_path / "go.mod").write_text("module test\n\ngo 1.21\n")
+        (tmp_path / "go.mod").write_text(
+            "module example.com/test\n\ngo 1.21\n\n"
+            "require (\n\tcompany-internal-lib v0.1.0\n)\n"
+        )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
-        assert any(k.startswith("L2-GO-") for k in result.stats.rule_timings_ms), \
-            "Expected Go rules to run for a Go project"
+        go_findings = [f for f in result.findings if f.ecosystem == "go"]
+        assert len(go_findings) >= 1, f"Expected Go findings, got: {result.findings}"
 
     def test_go_rules_registered(self):
         """All Go rule IDs should be registered by default."""
         engine = create_default_engine()
         rules = engine.list_rules()
-        go_rules = [r for r in rules if r.startswith("L2-GO-")]
-        assert len(go_rules) == 3, f"Expected 3 Go rules, got {len(go_rules)}"
-        assert "L2-GO-TYPO-001" in go_rules
-        assert "L2-GO-DEPC-001" in go_rules
-        assert "L2-GO-ADV-001" in go_rules
+        shared_rules = [r for r in rules if r in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
+        assert len(shared_rules) == 3, f"Expected shared rules, got {len(shared_rules)}"
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── Typosquat tests ────────────────────────────────────────────────────
@@ -87,7 +90,7 @@ class TestGoTyposquat:
 
     def test_detects_typosquat_in_go_mod(self):
         """go.mod with 'jin' (typo for 'gin') should trigger typosquat."""
-        from picosentry.scan.rules.go_typosquat import detect_go_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_go_typosquat
         target = _go_malicious()
         findings = detect_go_typosquat(target, Path(""))
         typos = [f for f in findings if f.rule_id == "L2-GO-TYPO-001"]
@@ -96,7 +99,7 @@ class TestGoTyposquat:
 
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
-        from picosentry.scan.rules.go_typosquat import detect_go_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_go_typosquat
         target = _go_clean()
         findings = detect_go_typosquat(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no typos: {findings}"
@@ -110,7 +113,7 @@ class TestGoDependencyConfusion:
 
     def test_detects_internal_dep_without_private_config(self):
         """internal-secrets without GOPRIVATE should be flagged."""
-        from picosentry.scan.rules.go_dep_confusion import detect_go_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
         target = _go_malicious()
         findings = detect_go_dep_confusion(target, Path(""))
         internal = [f for f in findings if "internal" in f.package]
@@ -119,14 +122,14 @@ class TestGoDependencyConfusion:
 
     def test_clean_project_no_confusion(self):
         """Clean project with only public GitHub deps should have no confusion findings."""
-        from picosentry.scan.rules.go_dep_confusion import detect_go_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
         target = _go_clean()
         findings = detect_go_dep_confusion(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_go_env_private_skips_flags(self, tmp_path):
         """When GOPRIVATE is configured, internal deps are safe."""
-        from picosentry.scan.rules.go_dep_confusion import detect_go_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
         (tmp_path / "go.mod").write_text(
             "module test\n\ngo 1.21\n\nrequire (\n\tinternal-secrets v0.1.0\n)\n"
         )

@@ -302,7 +302,7 @@ class ScanEngine:
             primary_rule_id = rule_ids_for_fn[0]
             rule_start = _now_ms()
             try:
-                if rule_fn.__name__ in ("detect_advisory_vulnerabilities", "detect_pypi_advisory_vulnerabilities", "detect_go_advisory_vulnerabilities", "detect_cargo_advisory_vulnerabilities", "detect_maven_advisory_vulnerabilities", "detect_rubygems_advisory_vulnerabilities", "detect_nuget_advisory_vulnerabilities"):
+                if rule_fn.__name__ == "detect_all_advisory_vulnerabilities":
                     findings = rule_fn(
                         target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
                     )
@@ -497,10 +497,10 @@ def create_default_engine(
             If None, ecosystems are auto-detected from the target at scan time.
             Valid values: "npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget".
     """
-    from .rules.advisory_check import detect_advisory_vulnerabilities
+    from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
-    from .rules.dep_confusion import detect_dep_confusion
+    from .rules.dep_confusion import detect_all_dep_confusion
     from .rules.engine import detect_engine_issues
     from .rules.fork_drift import detect_fork_drift
     from .rules.ioc_detection import detect_custom_iocs
@@ -513,39 +513,24 @@ def create_default_engine(
     from .rules.pnpm_config import detect_pnpm_config
     from .rules.post_install import detect_post_install_scripts
     from .rules.provenance import detect_provenance_issues
-    from .rules.go_advisory_check import detect_go_advisory_vulnerabilities
-    from .rules.go_dep_confusion import detect_go_dep_confusion
-    from .rules.go_typosquat import detect_go_typosquat
-    from .rules.cargo_advisory_check import detect_cargo_advisory_vulnerabilities
-    from .rules.cargo_dep_confusion import detect_cargo_dep_confusion
-    from .rules.cargo_typosquat import detect_cargo_typosquat
-    from .rules.maven_advisory_check import detect_maven_advisory_vulnerabilities
-    from .rules.maven_dep_confusion import detect_maven_dep_confusion
-    from .rules.maven_typosquat import detect_maven_typosquat
-    from .rules.rubygems_advisory_check import detect_rubygems_advisory_vulnerabilities
-    from .rules.rubygems_dep_confusion import detect_rubygems_dep_confusion
-    from .rules.rubygems_typosquat import detect_rubygems_typosquat
-    from .rules.nuget_advisory_check import detect_nuget_advisory_vulnerabilities
-    from .rules.nuget_dep_confusion import detect_nuget_dep_confusion
-    from .rules.nuget_typosquat import detect_nuget_typosquat
-    from .rules.pypi_advisory_check import detect_pypi_advisory_vulnerabilities
-    from .rules.pypi_dep_confusion import detect_pypi_dep_confusion
     from .rules.pypi_obfuscation import detect_pypi_obfuscation
     from .rules.pypi_post_install import detect_pypi_post_install
-    from .rules.pypi_typosquat import detect_pypi_typosquat
     from .rules.sideloading import detect_sideloading
-    from .rules.typosquat import detect_typosquat
+    from .rules.typosquat import detect_all_typosquat
     from .rules.worm_propagation import detect_worm_propagation
 
     engine = ScanEngine(corpus_dir=corpus_dir, advisory_db_path=advisory_db_path)
+    # ── Cross-ecosystem rules (always registered) ─────────────────────────
+    engine.register("L2-DEPC-001", detect_all_dep_confusion)
+    engine.register("L2-TYPO-001", detect_all_typosquat)
+    engine.register("L2-ADV-001", detect_all_advisory_vulnerabilities)
+
     # ── npm rules (always registered, backward compatible) ─────────────────
     engine.register("L2-POST-001", detect_post_install_scripts)
     engine.register("L2-OBFS-001", detect_obfuscation)
     engine.register("L2-OBFS-002", detect_obfuscation)  # sub-rule: hex obfuscation
     engine.register("L2-OBFS-003", detect_obfuscation)  # sub-rule: base64+eval
     engine.register("L2-OBFS-004", detect_obfuscation)  # sub-rule: unicode escapes
-    engine.register("L2-DEPC-001", detect_dep_confusion)
-    engine.register("L2-TYPO-001", detect_typosquat)
     engine.register("L2-MANI-001", detect_manifest_issues)
     engine.register("L2-MANI-002", detect_manifest_issues)  # sub-rule: optional deps w/ scripts
     engine.register("L2-FORK-001", detect_fork_drift)
@@ -559,13 +544,10 @@ def create_default_engine(
     engine.register("L2-ENGIN-001", detect_engine_issues)
     engine.register("L2-SIDELOAD-001", detect_sideloading)
     engine.register("L2-IOC-001", detect_custom_iocs)
-    engine.register("L2-ADV-001", detect_advisory_vulnerabilities)
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
 
     # ── PyPI rules (always registered — scan() filters by ecosystem) ─────
-    engine.register("L2-PYPI-TYPO-001", detect_pypi_typosquat)
-    engine.register("L2-PYPI-DEPC-001", detect_pypi_dep_confusion)
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-002", detect_pypi_obfuscation)
@@ -574,32 +556,6 @@ def create_default_engine(
     engine.register("L2-PYPI-OBFS-005", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-006", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-007", detect_pypi_obfuscation)
-    engine.register("L2-PYPI-ADV-001", detect_pypi_advisory_vulnerabilities)
-
-    # ── Go rules (always registered — scan() filters by ecosystem) ─────────
-    engine.register("L2-GO-TYPO-001", detect_go_typosquat)
-    engine.register("L2-GO-DEPC-001", detect_go_dep_confusion)
-    engine.register("L2-GO-ADV-001", detect_go_advisory_vulnerabilities)
-
-    # ── Cargo rules (always registered — scan() filters by ecosystem) ──────
-    engine.register("L2-CARGO-TYPO-001", detect_cargo_typosquat)
-    engine.register("L2-CARGO-DEPC-001", detect_cargo_dep_confusion)
-    engine.register("L2-CARGO-ADV-001", detect_cargo_advisory_vulnerabilities)
-
-    # ── Maven rules (always registered — scan() filters by ecosystem) ───────
-    engine.register("L2-MAVEN-TYPO-001", detect_maven_typosquat)
-    engine.register("L2-MAVEN-DEPC-001", detect_maven_dep_confusion)
-    engine.register("L2-MAVEN-ADV-001", detect_maven_advisory_vulnerabilities)
-
-    # ── RubyGems rules (always registered — scan() filters by ecosystem) ─────
-    engine.register("L2-RUBYGEMS-TYPO-001", detect_rubygems_typosquat)
-    engine.register("L2-RUBYGEMS-DEPC-001", detect_rubygems_dep_confusion)
-    engine.register("L2-RUBYGEMS-ADV-001", detect_rubygems_advisory_vulnerabilities)
-
-    # ── NuGet rules (always registered — scan() filters by ecosystem) ────────
-    engine.register("L2-NUGET-TYPO-001", detect_nuget_typosquat)
-    engine.register("L2-NUGET-DEPC-001", detect_nuget_dep_confusion)
-    engine.register("L2-NUGET-ADV-001", detect_nuget_advisory_vulnerabilities)
 
     return engine
 

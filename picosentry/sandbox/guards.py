@@ -222,7 +222,7 @@ def validate_no_randomness(result_dict: dict) -> list[str]:
 def deterministic_hash(result: SandboxResult | AnalysisResult) -> str:
     """SHA-256 hash of deterministic fields only.
 
-    Uses the shared pico_core.guards.deterministic_hash on the serialized dict.
+    Uses the shared picosentry._core.guards.deterministic_hash on the serialized dict.
     """
     data = result.to_dict(deterministic=True)
     return _core_deterministic_hash(data)
@@ -258,7 +258,7 @@ def diff_results(
 ) -> tuple:
     """Compare two result JSON files.
 
-    Delegates to pico_core.guards.diff_results with PicoDome-specific field names.
+    Delegates to picosentry._core.guards.diff_results with PicoDome-specific field names.
     """
     return _core_diff_results(
         path_a,

@@ -4,6 +4,11 @@ Corpus marketplace — share and import custom IoC packs.
 Enterprise teams can export their IoC collections, share them
 across the organization, or import community packs.
 
+⚠️ **EXPERIMENTAL**: The CLI commands (corpus export/import/list/validate)
+   exist in the module but may not be wired to the CLI. The underlying
+   CorpusPack class and import/export logic are functional. See CLI help
+   for current command status.
+
 Format: Corpus Pack JSON — a versioned, signed collection of IoCs.
 
 Usage:

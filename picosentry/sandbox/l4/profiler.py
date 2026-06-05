@@ -3,10 +3,10 @@
 Strategy:
   1. Events-first — build network_calls, fs_ops, and spawns from the
      structured SandboxEvent list (trustworthy kernel-level data).
-  2. Per-dimension text fallback — if events yield nothing for a given
-     dimension, fall back to regex-scraping stdout/stderr text.
-  3. DNS + timing always from text — SandboxEvent doesn't carry these.
-  4. Text regexes handle real strace/dtruss syntax (openat, connect
+     Events are authoritative when present; text fallback only fires
+     when there are NO events at all (observational-only backends).
+  2. DNS + timing always from text — SandboxEvent doesn't carry these.
+  3. Text regexes handle real strace/dtruss syntax (openat, connect
      with AF_INET6) and IPv6 addresses, not just hand-friendly output.
 """
 
@@ -29,7 +29,7 @@ from picosentry.sandbox.l4.models import (
 
 # SandboxEvent.operation values that map to behavioural dimensions
 _NETWORK_OPS = frozenset({"network_outbound"})
-_FILE_OPS = frozenset({"file_write_indicator", "file_write_bytes", "file_save", "file_export"})
+_FILE_OPS = frozenset({"file_write_indicator", "file_write_bytes", "file_save", "file_export", "file_read"})
 _SPAWN_OPS = frozenset({"process_spawn"})
 
 
@@ -65,7 +65,13 @@ def _extract_network_from_events(events: list[SandboxEvent]) -> list[NetworkCall
 
 
 def _extract_fs_from_events(events: list[SandboxEvent]) -> list[FileOperation]:
-    """Extract filesystem operations from structured SandboxEvent list."""
+    """Extract filesystem operations from structured SandboxEvent list.
+
+    Preserves the actual operation: events with operation "file_read" produce
+    FileOperation(operation="read"), write-variant events produce "write".
+    This ensures EXFIL-005 (credential-read-then-egress) can fire on the events
+    path instead of being silently blind to reads.
+    """
     seen: set[str] = set()
     ops: list[FileOperation] = []
     for ev in events:
@@ -75,7 +81,8 @@ def _extract_fs_from_events(events: list[SandboxEvent]) -> list[FileOperation]:
         if path in seen or path.startswith("/dev/"):
             continue
         seen.add(path)
-        ops.append(FileOperation(path=path, operation="write"))
+        op_type = "read" if ev.operation == "file_read" else "write"
+        ops.append(FileOperation(path=path, operation=op_type))
     return ops
 
 
@@ -116,28 +123,22 @@ def profile_from_sandbox_result(result: SandboxResult) -> BehavioralProfile:
 
     has_events = bool(result.events)
 
-    # Network — try events first, fall back to text
+    # Network — try events first; text fallback only when NO events at all
     if has_events:
         network_calls = _extract_network_from_events(result.events)
     else:
         network_calls = _extract_network_calls(combined)
-    if not network_calls:
-        network_calls = _extract_network_calls(combined)
 
-    # Filesystem — try events first, fall back to text
+    # Filesystem — try events first; text fallback only when NO events at all
     if has_events:
         fs_ops = _extract_fs_from_events(result.events)
     else:
         fs_ops = _extract_file_operations(combined)
-    if not fs_ops:
-        fs_ops = _extract_file_operations(combined)
 
-    # Process spawns — try events first, fall back to text
+    # Process spawns — try events first; text fallback only when NO events at all
     if has_events:
         spawns = _extract_spawns_from_events(result.events)
     else:
-        spawns = _extract_spawns(combined)
-    if not spawns:
         spawns = _extract_spawns(combined)
 
     # DNS + timing — no event equivalent, always from text
@@ -223,8 +224,9 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
         block_text = output[block_start:block_end]
 
         # Extract port first — unambiguous in strace
+        # Real strace: sin_port=htons(N), sin6_port=htons(N) (no underscore after 'sin')
         port = 0
-        port_match = re.search(r"sin(?:_6|)_port\s*=\s*(?:htons\s*\()?(\d+)", block_text)
+        port_match = re.search(r"sin(?:6|_6|)_port\s*=\s*(?:htons\s*\()?(\d+)", block_text)
         if port_match:
             port = int(port_match.group(1))
 
@@ -255,10 +257,12 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
             if v4_inet:
                 addr = v4_inet.group(1)
 
-        # Format C: sin6_addr=inet_pton(AF_INET6, "::1", ...)
+        # Format C: inet_pton(AF_INET6, "::1", ...)
+        # Real strace: inet_pton(AF_INET6, "2606:4700::1", &sin6_addr)
+        # Synthetic test: sin6_addr=inet_pton(AF_INET6, "2001:db8::1")
         if addr is None:
             v6_pton = re.search(
-                r'sin6_addr\s*=\s*inet_pton\s*\([^,]+,\s*"([^"]+)"',
+                r'inet_pton\s*\([^,]+,\s*"([^"]+)"',
                 block_text,
             )
             if v6_pton:

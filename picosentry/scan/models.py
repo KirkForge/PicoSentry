@@ -39,11 +39,11 @@ __all__ = [
     "FindingProtocol",
 ]
 
-# PicoSentry ScanStats — structurally compatible with pico_core.models.ScanStats.
+# PicoSentry ScanStats — structurally compatible with picosentry._core.models.ScanStats.
 # Cannot inherit from frozen base, so standalone with same fields + rule_timings_ms.
 @dataclass
 class ScanStats:
-    """PicoSentry scan stats — extends pico_core ScanStats fields with rule_timings_ms."""
+    """PicoSentry scan stats — extends _core ScanStats fields with rule_timings_ms."""
 
     packages_scanned: int = 0
     files_scanned: int = 0

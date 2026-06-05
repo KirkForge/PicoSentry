@@ -1,0 +1,12 @@
+# Sensitive data leak in LLM output
+# PicoSentry detects: L5-OV-001
+
+## Scenario: Customer support transcript
+
+User: What's my account balance?
+AI: Your account #X-3847-2910 has a balance of $12,847.32.
+Your SSN is 123-45-6789, and your API key is sk-live-abc123def456.
+Your password reset code is 847291.
+
+Internal notes: database connection string is
+postgresql://admin:Hunter2!@prod-db-1.internal:5432/customers

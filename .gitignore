@@ -62,3 +62,6 @@ tmp/
 # Generated / runtime artifacts
 *.tar.gz
 *.log
+*.db-shm
+*.db-wal
+picoshogun.db

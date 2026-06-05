@@ -34,7 +34,7 @@ class ScheduledJob:
 class JobScheduler:
     """Job scheduler with cron expressions."""
 
-    ALLOWED_COMMANDS = {"batch", "run", "report", "backup", "cleanup"}
+    ALLOWED_COMMANDS = {"batch", "run", "report", "backup", "cleanup", "health_check"}
 
     def __init__(self):
         self.scheduler = sched.scheduler(time.time, time.sleep)

@@ -2,11 +2,17 @@
 
 Each rule is a pure function: (target_path, corpus_dir) → List[Finding]
 No HTTP. No global state. No randomness. Same input = same output.
+
+Consolidated from 21 per-ecosystem files into 3 shared engines:
+- detect_all_dep_confusion — dependency confusion for all 7 ecosystems
+- detect_all_typosquat — typosquatting detection for all 7 ecosystems
+- detect_all_advisory_vulnerabilities — advisory check for all 7 ecosystems
 """
 
+from .advisory_check import detect_all_advisory_vulnerabilities
 from .bundled_shadow import detect_bundled_shadows
 from .credential_read import detect_credential_reading
-from .dep_confusion import detect_dep_confusion
+from .dep_confusion import detect_all_dep_confusion
 from .engine import detect_engine_issues
 from .fork_drift import detect_fork_drift
 from .license import detect_license_issues
@@ -18,35 +24,18 @@ from .obfuscation import detect_obfuscation
 from .pnpm_config import detect_pnpm_config
 from .post_install import detect_post_install_scripts
 from .provenance import detect_provenance_issues
-from .go_advisory_check import detect_go_advisory_vulnerabilities
-from .go_dep_confusion import detect_go_dep_confusion
-from .go_typosquat import detect_go_typosquat
-from .cargo_advisory_check import detect_cargo_advisory_vulnerabilities
-from .cargo_dep_confusion import detect_cargo_dep_confusion
-from .cargo_typosquat import detect_cargo_typosquat
-from .pypi_advisory_check import detect_pypi_advisory_vulnerabilities
-from .pypi_dep_confusion import detect_pypi_dep_confusion
 from .pypi_obfuscation import detect_pypi_obfuscation
 from .pypi_post_install import detect_pypi_post_install
-from .pypi_typosquat import detect_pypi_typosquat
-from .maven_advisory_check import detect_maven_advisory_vulnerabilities
-from .maven_dep_confusion import detect_maven_dep_confusion
-from .maven_typosquat import detect_maven_typosquat
-from .rubygems_advisory_check import detect_rubygems_advisory_vulnerabilities
-from .rubygems_dep_confusion import detect_rubygems_dep_confusion
-from .rubygems_typosquat import detect_rubygems_typosquat
-from .nuget_advisory_check import detect_nuget_advisory_vulnerabilities
-from .nuget_dep_confusion import detect_nuget_dep_confusion
-from .nuget_typosquat import detect_nuget_typosquat
 from .sideloading import detect_sideloading
-from .typosquat import detect_typosquat
+from .typosquat import detect_all_typosquat
 from .worm_propagation import detect_worm_propagation
 
 __all__ = [
+    "detect_all_dep_confusion",
+    "detect_all_typosquat",
+    "detect_all_advisory_vulnerabilities",
     "detect_post_install_scripts",
     "detect_obfuscation",
-    "detect_dep_confusion",
-    "detect_typosquat",
     "detect_manifest_issues",
     "detect_fork_drift",
     "detect_credential_reading",
@@ -60,26 +49,8 @@ __all__ = [
     "detect_sideloading",
     "detect_worm_propagation",
     "detect_network_exfiltration",
-    "detect_go_typosquat",
-    "detect_go_dep_confusion",
-    "detect_go_advisory_vulnerabilities",
-    "detect_pypi_typosquat",
-    "detect_pypi_dep_confusion",
     "detect_pypi_post_install",
     "detect_pypi_obfuscation",
-    "detect_pypi_advisory_vulnerabilities",
-    "detect_cargo_typosquat",
-    "detect_cargo_dep_confusion",
-    "detect_cargo_advisory_vulnerabilities",
-    "detect_maven_typosquat",
-    "detect_maven_dep_confusion",
-    "detect_maven_advisory_vulnerabilities",
-    "detect_rubygems_typosquat",
-    "detect_rubygems_dep_confusion",
-    "detect_rubygems_advisory_vulnerabilities",
-    "detect_nuget_typosquat",
-    "detect_nuget_dep_confusion",
-    "detect_nuget_advisory_vulnerabilities",
 ]
 
 # Base documentation URL for PicoSentry rules

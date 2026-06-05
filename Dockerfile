@@ -60,9 +60,6 @@ RUN groupadd -r picosentry && \
 
 WORKDIR /home/picosentry
 
-# Install pico-core dependency (not on PyPI — install from GitHub)
-RUN pip install --no-cache-dir git+https://github.com/KirkForge/pico-core.git
-
 # Copy and install wheel from builder (with serve extras for full functionality)
 COPY --from=builder /build/dist/*.whl /tmp/
 RUN pip install --no-cache-dir "/tmp/picosentry-2.0.0-py3-none-any.whl[serve]" && \

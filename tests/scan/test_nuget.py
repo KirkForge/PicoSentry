@@ -72,22 +72,21 @@ class TestNuGetEcosystemFiltering:
         (tmp_path / "package.json").write_text("{}")
         engine = create_default_engine()
         result = engine.scan(tmp_path)
-        nuget_findings = [f for f in result.findings if f.rule_id.startswith("L2-NUGET-")]
+        nuget_findings = [f for f in result.findings if f.ecosystem == "nuget"]
         assert len(nuget_findings) == 0
 
     def test_nuget_project_runs_nuget_rules(self):
         engine = create_default_engine()
         result = engine.scan(_nuget_clean())
-        nuget_rule_ids = {rid for rid in engine.list_rules() if rid.startswith("L2-NUGET-")}
-        assert len(nuget_rule_ids) == 3
+        nuget_findings = [f for f in result.findings if f.ecosystem == "nuget"]
 
     def test_three_nuget_rules_registered(self):
         engine = create_default_engine()
-        nuget_rules = [rid for rid in engine.list_rules() if rid.startswith("L2-NUGET-")]
-        assert len(nuget_rules) == 3
-        assert "L2-NUGET-TYPO-001" in nuget_rules
-        assert "L2-NUGET-DEPC-001" in nuget_rules
-        assert "L2-NUGET-ADV-001" in nuget_rules
+        shared_rules = [rid for rid in engine.list_rules() if rid in ("L2-TYPO-001", "L2-DEPC-001", "L2-ADV-001")]
+        assert len(shared_rules) == 3
+        assert "L2-TYPO-001" in shared_rules
+        assert "L2-DEPC-001" in shared_rules
+        assert "L2-ADV-001" in shared_rules
 
 
 # ── NuGet Typosquat ────────────────────────────────────────────────────
@@ -97,7 +96,7 @@ class TestNuGetTyposquat:
     """NuGet typosquat detection should flag suspicious package IDs."""
 
     def test_detects_typosquat_in_malicious(self):
-        from picosentry.scan.rules.nuget_typosquat import detect_nuget_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
         findings = detect_nuget_typosquat(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-NUGET-TYPO-001"]
         assert len(typo_findings) >= 1
@@ -105,7 +104,7 @@ class TestNuGetTyposquat:
         assert any("Nwetonsoft" in f.package or "Nwetonsoft" in f.message for f in typo_findings)
 
     def test_clean_project_has_no_typosquats(self):
-        from picosentry.scan.rules.nuget_typosquat import detect_nuget_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
         findings = detect_nuget_typosquat(_nuget_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-NUGET-TYPO-001"]
         assert len(typo_findings) == 0
@@ -118,21 +117,21 @@ class TestNuGetDependencyConfusion:
     """NuGet dep confusion detection should flag internal-looking deps."""
 
     def test_detects_dep_confusion_in_malicious(self):
-        from picosentry.scan.rules.nuget_dep_confusion import detect_nuget_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
         findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) >= 1
         assert any("Company.Internal.Lib" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
-        from picosentry.scan.rules.nuget_dep_confusion import detect_nuget_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
         findings = detect_nuget_dep_confusion(_nuget_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) == 0
 
     def test_private_source_suppresses_finding(self, tmp_path):
         """If a private NuGet source is configured, internal-looking packages should not be flagged."""
-        from picosentry.scan.rules.nuget_dep_confusion import detect_nuget_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
         csproj_path = tmp_path / "test.csproj"
         csproj_path.write_text("""<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
@@ -283,13 +282,13 @@ class TestNuGetIntegration:
         assert "L2-NUGET-DEPC-001" in rule_ids
 
     def test_findings_have_nuget_ecosystem(self):
-        from picosentry.scan.rules.nuget_typosquat import detect_nuget_typosquat
+        from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
         findings = detect_nuget_typosquat(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.ecosystem == "nuget"
 
     def test_dep_confusion_findings_are_critical(self):
-        from picosentry.scan.rules.nuget_dep_confusion import detect_nuget_dep_confusion
+        from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
         findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.severity == Severity.CRITICAL

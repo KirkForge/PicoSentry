@@ -70,9 +70,9 @@ def main(argv: list[str] | None = None) -> int:
     sandbox_parser.add_argument(
         "--backend",
         "-b",
-        choices=["auto", "seccomp-bpf", "seatbelt", "subprocess"],
+        choices=["auto", "seccomp-bpf", "seccomp-trace", "seatbelt", "subprocess"],
         default="auto",
-        help="Sandbox backend: auto (default), seccomp-bpf, seatbelt, subprocess",
+        help="Sandbox backend: auto (default), seccomp-bpf, seccomp-trace, seatbelt, subprocess",
     )
     sandbox_parser.add_argument(
         "--allow-degraded",
@@ -118,9 +118,9 @@ def main(argv: list[str] | None = None) -> int:
     pipeline_parser.add_argument(
         "--backend",
         "-b",
-        choices=["auto", "seccomp-bpf", "seatbelt", "subprocess"],
+        choices=["auto", "seccomp-bpf", "seccomp-trace", "seatbelt", "subprocess"],
         default="auto",
-        help="Sandbox backend: auto (default), seccomp-bpf, seatbelt, subprocess",
+        help="Sandbox backend: auto (default), seccomp-bpf, seccomp-trace, seatbelt, subprocess",
     )
     pipeline_parser.add_argument(
         "--allow-degraded",

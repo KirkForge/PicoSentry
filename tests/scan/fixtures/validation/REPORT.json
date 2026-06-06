@@ -1,0 +1,86 @@
+{
+  "fixture_results": [
+    {
+      "details": [],
+      "fixture": "malicious_npm_postinstall",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_pypi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "shai_hulud_named_signature",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_cargo_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_go_module",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_app",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_lib",
+      "outcome": "PASS"
+    }
+  ],
+  "mean_precision": 1.0,
+  "mean_recall": 1.0,
+  "rule_metrics": [
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-SHAI-HULUD",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CRED-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-POST-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-007",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-POST-001",
+      "true_positives": 1
+    }
+  ],
+  "total_fixtures": 7,
+  "total_negative": 4,
+  "total_positive": 3
+}

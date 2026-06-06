@@ -92,6 +92,7 @@ def _detect_backend(
 
     # Detect what's available
     seccomp_available = False
+    seccomp_trace_available = False
     seatbelt_available = False
 
     if system == "Linux":
@@ -106,6 +107,21 @@ def _detect_backend(
             pass
         except Exception:
             logger.debug("Seccomp backend check failed", exc_info=True)
+
+        # Sibling trace backend: SCMP_ACT_LOG + /proc/<pid>/seccomp.
+        # Explicit-only in v2.1.0 — appended, not inserted at the front.
+        # See seccomp_trace_backend.py module docstring for the v2.1.0
+        # limitation (no syscall args) and v2.2.0 plan.
+        try:
+            from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
+
+            if SeccompTraceBackend().is_available():
+                seccomp_trace_available = True
+                available.append("seccomp-trace")
+        except ImportError:
+            pass
+        except Exception:
+            logger.debug("Seccomp trace backend check failed", exc_info=True)
 
     elif system == "Darwin":
         try:
@@ -136,6 +152,23 @@ def _detect_backend(
             raise BackendUnavailableError(
                 "seccomp-bpf",
                 "libseccomp not available on this system",
+                available_backends=available,
+            )
+
+        if requested == "seccomp-trace":
+            if seccomp_trace_available:
+                from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
+
+                logger.info("Using seccomp-trace backend (explicitly requested)")
+                return SeccompTraceBackend()
+            if allow_degraded:
+                logger.warning(
+                    "seccomp-trace requested but unavailable — degrading to subprocess (allow_degraded=True)"
+                )
+                return SubprocessBackend()
+            raise BackendUnavailableError(
+                "seccomp-trace",
+                "SCMP_ACT_LOG not available on this system (requires libseccomp + Linux 3.5+ with CONFIG_SECCOMP_LOG=y)",
                 available_backends=available,
             )
 

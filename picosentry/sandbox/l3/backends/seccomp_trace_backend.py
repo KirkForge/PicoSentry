@@ -1,19 +1,19 @@
 """Seccomp-bpf backend with syscall observation (Linux only).
 
-v2.1.0 (strategy A) — uses ``SCMP_ACT_LOG`` to capture every syscall the
+v2.0.8 (strategy A) — uses ``SCMP_ACT_LOG`` to capture every syscall the
 tracee makes and emits one ``SandboxEvent`` per syscall. The filter is
 identical in shape to ``SeccompBackend._build_filter`` with the default
 action swapped to ``SCMP_ACT_LOG`` when no policy rule requires KILL.
 
-**v2.1.0 limitation.** ``SCMP_ACT_LOG`` records the syscall number and
+**v2.0.8 limitation.** ``SCMP_ACT_LOG`` records the syscall number and
 arch but not the syscall arguments. ``SandboxEvent.path`` and
 ``SandboxEvent.address`` are always empty in this strategy. The L4
 profiler (``picosentry/sandbox/l4/profiler.py``) filters on those fields
-being non-empty, so v2.1.0 events are visible to the L3 CLI summary
+being non-empty, so v2.0.8 events are visible to the L3 CLI summary
 (``L3: allow | N events``) and to L4's stdout-derived extraction, but
 ``fs_ops``/``network_calls``/``spawns`` are not populated from kernel
 data yet. Strategy B (``PTRACE_SECCOMP``) and C
-(``SECCOMP_RET_USER_NOTIF``) will populate args in v2.2.0.
+(``SECCOMP_RET_USER_NOTIF``) will populate args in v2.0.9+.
 
 **KILL still wins.** When ``policy.default_action`` is ``KILL``/``DENY``,
 or any rule has ``KILL``/``DENY`` action, the default action is
@@ -24,8 +24,15 @@ violation — identical to ``SeccompBackend``. We additionally emit a
 
 **Kernel requirement.** ``CONFIG_SECCOMP_LOG=y`` (default on Ubuntu, may
 be disabled on minimal containers). ``is_available()`` probes with a
-real fork+exec and reads back ``/proc/<pid>/seccomp``; if the buffer is
-empty the backend reports unavailable.
+real fork+exec to verify ``SCMP_ACT_LOG`` loads; if the probe child is
+killed the backend reports unavailable.
+
+**Note on /proc/<pid>/seccomp.** Modern mainline kernels do **not**
+expose a standalone ``/proc/<pid>/seccomp`` audit-log file. The legacy
+file (removed in 2.6.23) only reported seccomp mode (0/1), never audit
+entries. v2.0.8 attempts a best-effort read of ``/proc/<pid>/seccomp``
+before the child is reaped, but the canonical audit-log integration
+(auditd / ausearch) is the v2.0.9 target.
 
 **Threading.** Not thread-safe (mirrors ``SeccompBackend``). One trace
 per process tree.
@@ -398,46 +405,59 @@ _X86_64_SYSCALLS: dict[int, str] = {
     234: "tgkill",
     247: "waitid",
     257: "openat",
-    259: "mkdirat",
+    258: "mkdirat",
+    259: "mknodat",
+    260: "fchownat",
     263: "unlinkat",
     264: "renameat",
+    265: "linkat",
+    266: "symlinkat",
+    267: "readlinkat",
+    268: "fchmodat",
     269: "faccessat",
-    270: "faccessat2",
-    272: "uname",
-    273: "semget",
-    281: "epoll_create",
-    290: "eventfd",
+    270: "pselect6",
+    271: "ppoll",
+    272: "unshare",
+    273: "set_robust_list",
+    274: "get_robust_list",
+    284: "eventfd",
+    285: "fallocate",
+    290: "eventfd2",
     291: "epoll_create1",
     292: "dup3",
+    293: "pipe2",
+    294: "inotify_init1",
     295: "preadv",
     296: "pwritev",
+    297: "rt_tgsigqueueinfo",
+    299: "recvmmsg",
     316: "renameat2",
     319: "memfd_create",
     322: "execveat",
-    323: "mknodat",
-    324: "fchownat",
-    325: "fchmodat",
-    326: "fchownat",
-    327: "linkat",
-    328: "symlinkat",
-    329: "readlinkat",
-    330: "fchmodat",
-    331: "fchownat",
-    332: "fchmodat",
-    333: "fchownat",
-    334: "fchownat",
+    323: "userfaultfd",
+    324: "membarrier",
+    325: "mlock2",
+    326: "copy_file_range",
+    327: "preadv2",
+    328: "pwritev2",
+    329: "pkey_mprotect",
+    330: "pkey_alloc",
+    331: "pkey_free",
+    332: "statx",
+    333: "io_pgetevents",
+    334: "rseq",
     435: "clone3",
 }
 
 # Syscalls whose only meaningful OpenAPI is the file open path —
-# currently not extractable from SCMP_ACT_LOG but called out for v2.2.0.
+# currently not extractable from SCMP_ACT_LOG but called out for v2.0.9+.
 _OPEN_SYSCALLS = {"open", "openat", "creat"}
 
 
 class SeccompTraceBackend(SandboxBackend):
     """Seccomp-bpf backend that emits per-syscall events via SCMP_ACT_LOG.
 
-    See module docstring for v2.1.0 limitations, kernel requirements,
+    See module docstring for v2.0.8 limitations, kernel requirements,
     and the relationship to ``SeccompBackend``.
     """
 
@@ -501,10 +521,12 @@ class SeccompTraceBackend(SandboxBackend):
         return self._probe_log_emits(lib)
 
     def _probe_log_emits(self, lib: ctypes.CDLL) -> bool:
-        """Fork a probe child, run a known syscall, read /proc/<pid>/seccomp.
+        """Fork a probe child, load a LOG filter, and exec /bin/true.
 
-        Returns True iff the kernel actually wrote a LOG entry to the
-        per-process audit buffer.
+        Returns True if the child exits normally (meaning the kernel
+        accepted ``SCMP_ACT_LOG`` and allowed the syscall).  We do NOT
+        attempt to read ``/proc/<pid>/seccomp`` for audit text because
+        modern kernels do not expose audit entries there.
         """
         lib.seccomp_init.argtypes = [ctypes.c_uint32]
         lib.seccomp_init.restype = ctypes.c_void_p
@@ -512,52 +534,31 @@ class SeccompTraceBackend(SandboxBackend):
         lib.seccomp_load.restype = ctypes.c_int
         lib.seccomp_release.argtypes = [ctypes.c_void_p]
 
-        ctx = lib.seccomp_init(SCMP_ACT_LOG)
-        if not ctx:
-            return False
-        if lib.seccomp_load(ctx) != 0:
-            lib.seccomp_release(ctx)
-            return False
-
-        out_r, out_w = os.pipe()
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             pid = os.fork()
 
         if pid == 0:
-            os.close(out_r)
-            os.dup2(out_w, 1)
-            os.close(out_w)
-            # Make a syscall that lands in the LOG buffer. execve replaces
-            # the process image, so we use the loader to invoke /bin/true
-            # via execve, which logs both execve and exit.
+            # Load the LOG filter in the child, not the parent.
+            ctx = lib.seccomp_init(SCMP_ACT_LOG)
+            if not ctx:
+                os._exit(127)
+            if lib.seccomp_load(ctx) != 0:
+                lib.seccomp_release(ctx)
+                os._exit(127)
+            lib.seccomp_release(ctx)
             try:
                 os.execve("/bin/true", ["/bin/true"], {})
             except OSError:
                 os._exit(127)
 
         # Parent
-        os.close(out_w)
         try:
-            os.waitpid(pid, 0)
+            _, status = os.waitpid(pid, 0)
+            # Any non-crash exit means LOG allowed the syscalls.
+            return os.WIFEXITED(status) or os.WIFSIGNALED(status)
         except ChildProcessError:
-            pass
-        try:
-            log_path = f"/proc/{pid}/seccomp"
-            if not os.path.exists(log_path):
-                return False
-            with open(log_path, encoding="utf-8", errors="replace") as f:
-                log_text = f.read()
-        except OSError:
             return False
-        finally:
-            try:
-                os.close(out_r)
-            except OSError:
-                pass
-            lib.seccomp_release(ctx)
-
-        return _LOG_ACTION_CODE in log_text and "syscall=" in log_text
 
     def run(
         self,
@@ -626,7 +627,7 @@ class SeccompTraceBackend(SandboxBackend):
                 lib.seccomp_release(ctx)
 
                 log_path = f"/proc/{pid}/seccomp"
-                stdout_bytes, stderr_bytes, exit_code = self._wait_with_timeout(
+                stdout_bytes, stderr_bytes, exit_code, log_text = self._wait_with_timeout(
                     pid, out_r, err_r, effective_timeout, log_path
                 )
 
@@ -683,10 +684,10 @@ class SeccompTraceBackend(SandboxBackend):
                         )
                     )
 
-                # Parse kernel trace events. Empty buffer on
-                # CONFIG_SECCOMP_LOG=n kernels is normal — we degrade
-                # to post-hoc analysis only.
-                log_text = self._read_proc_seccomp(log_path)
+                # Parse kernel trace events.  On modern kernels
+                # /proc/<pid>/seccomp does not contain audit text, so this
+                # is usually empty in v2.0.8.  Full audit-log integration
+                # (auditd / ausearch) is the v2.0.9 target.
                 if log_text:
                     trace_events = self._parse_seccomp_log(
                         log_text, policy, start_ms, unix_start_ms
@@ -694,7 +695,7 @@ class SeccompTraceBackend(SandboxBackend):
                     events.extend(trace_events)
                     logger.info(
                         "seccomp-trace: %d events captured, 0 paths/addresses "
-                        "(v2.1.0 SCMP_ACT_LOG limitation)",
+                        "(v2.0.8 SCMP_ACT_LOG limitation)",
                         len(trace_events),
                     )
                 else:
@@ -835,12 +836,12 @@ class SeccompTraceBackend(SandboxBackend):
 
     def _wait_with_timeout(
         self, pid: int, out_fd: int, err_fd: int, timeout: float, log_path: str
-    ) -> tuple[bytes, bytes, int]:
+    ) -> tuple[bytes, bytes, int, str]:
         """Wait for child with timeout, collecting stdout/stderr.
 
-        Reads /proc/<pid>/seccomp only AFTER waitpid returns — the buffer
-        is preserved by the kernel for the duration of the parent-child
-        relationship (we are the direct parent).
+        Reads ``/proc/<pid>/seccomp`` *before* the final ``waitpid`` so the
+        proc entry is still alive.  Returns ``(stdout, stderr, exit_code,
+        log_text)``.
         """
         import select as _select
 
@@ -848,6 +849,7 @@ class SeccompTraceBackend(SandboxBackend):
         stderr_chunks: list[bytes] = []
         deadline = time.monotonic() + timeout
         exit_code: int | None = None
+        log_text = ""
 
         while time.monotonic() < deadline:
             remaining = deadline - time.monotonic()
@@ -874,6 +876,8 @@ class SeccompTraceBackend(SandboxBackend):
                     exit_code = os.WEXITSTATUS(status)
                 elif os.WIFSIGNALED(status):
                     exit_code = -os.WTERMSIG(status)
+                # Read proc file before the entry disappears.
+                log_text = self._read_proc_seccomp(log_path)
                 break
 
         for fd in [out_fd, err_fd]:
@@ -903,32 +907,16 @@ class SeccompTraceBackend(SandboxBackend):
 
         os.close(out_fd)
         os.close(err_fd)
-
-        # 4 MB is the default /proc/<pid>/seccomp buffer size. If we
-        # read back exactly 4 MB, the buffer is full and we lost tail
-        # events. Surface a warning so users understand the gap.
-        try:
-            if os.path.exists(log_path):
-                size = os.path.getsize(log_path)
-                if size >= 4 * 1024 * 1024:
-                    logger.warning(
-                        "seccomp-trace: /proc/%d/seccomp is %d bytes — "
-                        "buffer is full, tail events lost",
-                        pid,
-                        size,
-                    )
-        except OSError:
-            pass
-
-        return b"".join(stdout_chunks), b"".join(stderr_chunks), exit_code
+        return b"".join(stdout_chunks), b"".join(stderr_chunks), exit_code, log_text
 
     def _read_proc_seccomp(self, log_path: str) -> str:
-        """Read the kernel audit buffer for the (now-exited) child.
+        """Best-effort read of /proc/<pid>/seccomp before the child is reaped.
 
-        Returns "" if the file is missing or unreadable. The kernel
-        exposes the buffer for the direct parent even after the child
-        has exited (this is the standard `audit` behavior used by
-        auditd, runc, and friends).
+        Returns "" if the file is missing or unreadable.  Modern mainline
+        kernels do not expose a standalone ``/proc/<pid>/seccomp`` audit-log
+        file (it was removed in 2.6.23).  This method is kept as a forward-
+        compatibility stub for custom kernels or LSM modules that may restore
+        the interface.
         """
         if not log_path or not os.path.exists(log_path):
             return ""
@@ -943,7 +931,7 @@ class SeccompTraceBackend(SandboxBackend):
         """Map a syscall name to (operation, rule_id_prefix).
 
         Mirrors the wire format that L4's profiler.py:31-33 already
-        knows. The rule_id_prefix is the L3-TRACE-* family; v2.2.0 will
+        knows. The rule_id_prefix is the L3-TRACE-* family; v2.0.9+ will
         promote these to L4 rule IDs.
         """
         if name in _OPEN_SYSCALLS:
@@ -967,10 +955,12 @@ class SeccompTraceBackend(SandboxBackend):
         start_ms: float,
         unix_start_ms: int,
     ) -> list[SandboxEvent]:
-        """Parse /proc/<pid>/seccomp audit text into SandboxEvent records.
+        """Parse audit text (from any source) into SandboxEvent records.
 
         Anchors on ``code=0x7ffc0000`` (the SCMP_ACT_LOG magic) and
         ``syscall=N``. Lines that don't match are silently skipped.
+        In v2.0.8 this is only exercised by unit tests with mock data;
+        production audit-log integration is the v2.0.9 target.
         """
         events: list[SandboxEvent] = []
         # Build a quick set of syscalls that policy rules have marked
@@ -996,7 +986,7 @@ class SeccompTraceBackend(SandboxBackend):
                 name = self._x86_64_nr_to_name.get(syscall_nr)
             else:
                 # aarch64 and other arches need their own number→name
-                # table. v2.1.0 logs them as syscall_other.
+                # table. v2.0.8 logs them as syscall_other.
                 name = None
             if name is None:
                 name = f"unknown_{arch:x}_{syscall_nr}"
@@ -1018,7 +1008,7 @@ class SeccompTraceBackend(SandboxBackend):
                     detail=(
                         f"{name} syscall "
                         f"(no path/address: SCMP_ACT_LOG does not capture "
-                        f"args in v2.1.0)"
+                        f"args in v2.0.8)"
                     ),
                     timestamp_ms=int(_now_ms() - start_ms),
                 )

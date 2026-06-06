@@ -234,7 +234,7 @@ class TestSeccompTraceBackendEventShapes:
         assert len(events) == 1
         assert events[0].operation == "file_open"
         assert events[0].verdict == Verdict.ALLOW
-        # v2.1.0 limitation: no path/address.
+        # v2.0.8 limitation: no path/address.
         assert events[0].path == ""
         assert events[0].address == ""
 
@@ -416,7 +416,7 @@ class TestSeccompTraceBackendDispatch:
             assert backend.name == "subprocess"
 
     def test_auto_detect_does_not_pick_seccomp_trace(self) -> None:
-        """Auto-detect never returns seccomp-trace — it's explicit-only in v2.1.0."""
+        """Auto-detect never returns seccomp-trace — it's explicit-only in v2.0.8."""
         with patch.object(SeccompTraceBackend, "is_available", return_value=True):
             with patch("picosentry.sandbox.l3.backends.seccomp_backend.SeccompBackend.is_available", return_value=False):
                 with patch("picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.is_available", return_value=True):
@@ -485,7 +485,7 @@ class TestSeccompTraceBackendProfilerRoundtrip:
         assert len(profile.spawns) == 1
 
     def test_events_with_empty_paths_dropped_by_profiler(self) -> None:
-        """v2.1.0 limitation: events without path/address don't populate profile fields."""
+        """v2.0.8 limitation: events without path/address don't populate profile fields."""
         result = SandboxResult(
             command=["/bin/ls"],
             overall_verdict=Verdict.ALLOW,

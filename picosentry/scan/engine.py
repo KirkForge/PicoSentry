@@ -154,11 +154,17 @@ class ScanEngine:
     Rules receive (target_path, corpus_dir) — no HTTP, no global state.
     """
 
-    def __init__(self, corpus_dir: Path | None = None, advisory_db_path: str | None = None) -> None:
+    def __init__(
+        self,
+        corpus_dir: Path | None = None,
+        advisory_db_path: str | Path | None = None,
+    ) -> None:
         self._rules: dict[str, DetectorRule] = {}
         self._corpus_dir = self._resolve_corpus_dir(corpus_dir)
         self._corpus_version = self._compute_corpus_version()
-        self._advisory_db_path = advisory_db_path
+        self._advisory_db_path = (
+            str(advisory_db_path) if advisory_db_path is not None else None
+        )
 
     @staticmethod
     def _resolve_corpus_dir(explicit: Path | None) -> Path:
@@ -216,7 +222,7 @@ class ScanEngine:
         self,
         target: str | Path,
         rules: Sequence[str] | None = None,
-        advisory_db_path: str | None = None,
+        advisory_db_path: str | Path | None = None,
         rule_timeout: float | None = None,
     ) -> ScanResult:
         """
@@ -237,6 +243,12 @@ class ScanEngine:
             ScanResult with sorted findings and aggregate stats.
         """
         target_path = Path(target).resolve()
+        # Normalize advisory_db_path to str; downstream detector signatures
+        # declare str | None and the rest of the engine treats this as a
+        # string key (used in cache_key, log messages, etc.). Callers can
+        # pass str or Path interchangeably.
+        if advisory_db_path is not None:
+            advisory_db_path = str(advisory_db_path)
         if not target_path.exists():
             logger.error("Scan target does not exist: %s", target_path)
             return ScanResult(target=str(target_path))

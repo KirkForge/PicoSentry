@@ -1,0 +1,4 @@
+{
+  "label": "negative",
+  "description": "npm app with a long, unique, hyphenated name. The typosquat detector should not over-match on a name that is far from any top-100 corpus entry."
+}

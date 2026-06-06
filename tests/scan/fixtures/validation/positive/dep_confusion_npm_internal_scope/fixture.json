@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app depending on @internal/payments (internal scope, no .npmrc to declare private registry).",
+  "expected_rule_ids": ["L2-DEPC-001"]
+}

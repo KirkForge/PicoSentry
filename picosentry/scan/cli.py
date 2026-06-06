@@ -1493,7 +1493,8 @@ def _handle_validate(args: argparse.Namespace, target: Path) -> int:
     print(f"Target arg ignored: {target}", file=sys.stderr)
     print("Running validation against built-in fixtures...", file=sys.stderr)
 
-    report = run_validation(output_path=output_path)
+    advisory_db = getattr(args, "advisory_db", None)
+    report = run_validation(output_path=output_path, advisory_db_path=advisory_db)
 
     # Per-rule table (stdout, easy to grep/pipe)
     header = f"{'rule_id':<24} {'tp':>4} {'fp':>4} {'fn':>4} {'prec':>8} {'recall':>8}"

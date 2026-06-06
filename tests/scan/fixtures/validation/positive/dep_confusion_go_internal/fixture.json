@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Go module depending on 'internal-payments' (matches ^internal- pattern, no GOPRIVATE config).",
+  "expected_rule_ids": ["L2-GO-DEPC-001"]
+}

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app depending on lodash 4.17.15 (CVE-2019-10744 prototype pollution, fixed in 4.17.21).",
+  "expected_rule_ids": ["L2-ADV-001"]
+}

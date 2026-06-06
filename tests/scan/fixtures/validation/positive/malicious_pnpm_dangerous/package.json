@@ -1,0 +1,7 @@
+{
+  "name": "loose-pnpm",
+  "version": "1.0.0",
+  "pnpm": {
+    "dangerouslyAllowAllBuilds": true
+  }
+}

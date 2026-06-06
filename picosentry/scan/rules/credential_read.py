@@ -278,10 +278,19 @@ def detect_credential_reading(target: Path, corpus_dir: Path) -> list[Finding]:
 
     # Check root package.json scripts
     root_pkg = target / "package.json"
+    root_pkg_label = "root"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
+            root_pkg_label = f"{pkg.get('name', 'root')}@{pkg.get('version', 'unknown')}"
             findings.extend(_scan_scripts_for_creds(pkg, root_pkg))
+
+    # Scan JS/TS source files in the root project for credential patterns.
+    # This catches credential-reading in delegate files referenced from
+    # postinstall scripts (e.g., `postinstall: "node exfil.js"` where
+    # `exfil.js` reads .npmrc and POSTs externally) — previously this was
+    # only checked inside node_modules packages.
+    _scan_package_sources(target, root_pkg_label, findings)
 
     # Check node_modules
     nm = target / "node_modules"

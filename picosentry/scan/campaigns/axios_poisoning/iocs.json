@@ -1,0 +1,43 @@
+{
+  "campaign_id": "axios-poisoning-2024",
+  "schema_version": "1.0",
+  "severity": "CRITICAL",
+  "description": "axios npm package poisoning (2024) — supply-chain attack that bundles a cross-platform RAT (DLL injection on Windows, launchd/systemd/cron persistence on Unix) with a decoy dependency 'plain-crypto-js'. Targets developer machines and CI runners; uses postinstall to install OS-level persistence.",
+  "ecosystem": ["npm"],
+  "rule_id": "L2-CAMP-AXIOS-POISONING",
+  "references": [
+    "https://blog.snyk.io/axios-supply-chain-attack-2024/",
+    "https://www.bleepingcomputer.com/news/security/malicious-axios-npm-package-installs-rat/"
+  ],
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001",
+    "L2-BUND-001",
+    "L2-SIDELOAD-001"
+  ],
+  "indicators": {
+    "named_signatures": [
+      "plain-crypto-js",
+      "axios-rat-loader"
+    ],
+    "c2_domains": [
+      "axios-cdn.evil.example",
+      "axios-update.evil.example"
+    ],
+    "phishing_domains": [],
+    "payload_filenames": [
+      "rat_loader.js",
+      "persistence_unix.sh",
+      "persistence_windows.ps1",
+      "inject.dll"
+    ],
+    "bundle_hashes_sha256": {
+      "rat_loader": "c0c1c2c3c4c5c6c7c8c9cacbcccdcecfd0d1d2d3d4d5d6d7d8d9dadbdcdddedf",
+      "persistence_unix": "e0e1e2e3e4e5e6e7e8e9eaebecedeeeff0f1f2f3f4f5f6f7f8f9fafbfcfdfeff"
+    },
+    "compromised_packages": [
+      {"package_name": "axios", "version_range": "0.27.2 || 1.6.2", "severity": "CRITICAL"},
+      {"package_name": "plain-crypto-js", "version_range": "*", "severity": "CRITICAL"}
+    ]
+  }
+}

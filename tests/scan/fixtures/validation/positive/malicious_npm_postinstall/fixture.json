@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "npm package with a postinstall script that delegates to a JS file reading .npmrc and posting it externally. Triggers L2-POST-001 (postinstall declaration) and L2-CRED-001 (root-project credential read via the postinstall delegate).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001"
+  ]
+}

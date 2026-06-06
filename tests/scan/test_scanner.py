@@ -303,14 +303,24 @@ class TestEngine:
         assert "L2-MAINT-001" in rules
         assert "L2-PNPM-001" in rules
         assert "L2-ENGIN-001" in rules
-        assert len(rules) == 31  # 23 npm + 8 PyPI + 3 shared (depc, typo, adv)
+        # 31 base rules (23 npm + 8 PyPI) + N auto-discovered campaign packages.
+        # The exact campaign count depends on which campaigns ship; assert
+        # the base invariants and at least one campaign is registered.
+        assert len(rules) >= 31
+        camp_rules = [r for r in rules if r.startswith("L2-CAMP-")]
+        assert len(camp_rules) >= 1, "At least one campaign rule should be registered"
 
     def test_rule_info_has_all_rules(self):
-        """Every registered rule should have metadata in RULE_INFO."""
+        """Every registered rule should have metadata in RULE_INFO, OR
+        be a campaign rule (campaigns ship their own metadata in iocs.json
+        and don't need a hand-maintained entry in RULE_INFO)."""
         from picosentry.scan.rules import RULE_INFO
 
         engine = create_default_engine()
         for rule_id in engine.list_rules():
+            if rule_id.startswith("L2-CAMP-"):
+                # Campaign rules self-describe via iocs.json — no RULE_INFO entry needed.
+                continue
             assert rule_id in RULE_INFO, f"Rule {rule_id} missing from RULE_INFO"
             info = RULE_INFO[rule_id]
             assert "name" in info, f"Rule {rule_id} missing 'name' in RULE_INFO"

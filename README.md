@@ -1,10 +1,13 @@
 # PicoSentry 🦞
 
-**Deterministic supply-chain scanner for npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
+![PicoSentry Banner](docs/banner.png)
 
-PicoSentry finds malicious packages before you install them — fully offline,
-deterministic rule-based detection, no probabilistic ML scoring. Same inputs +
-same policy = same SHA-256 output. Every time.
+**The only local package scanner that actually runs the package under a real kernel sandbox and shows you the syscalls.** Deterministic, offline, no telemetry. Same inputs + same policy = same SHA-256. npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet.
+
+> Every other scanner stops at static analysis. PicoSentry goes further: install
+> the candidate package inside a `seccomp-BPF` + `landlock` + `ptrace` sandbox and
+> record every syscall, file open, and network call — before you run it on
+> your laptop, CI, or production.
 
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/picosentry/)
 [![License: BUSL-1.1](https://img.shields.io/badge/license-BUSL--1.1-blue)](LICENSE)
@@ -22,8 +25,12 @@ pip install picosentry
 git clone https://github.com/KirkForge/PicoSentry.git
 cd PicoSentry
 
-# Scan a typosquatted PyPI package
+# 1. Static scan — offline, no install, finds IOCs by literal/regex match
 picosentry scan examples/pypi-obfuscated-setup/
+
+# 2. Runtime sandbox — actually install + execute under a kernel sandbox
+#    and watch the syscalls. Catches "static looks clean, dynamic is malicious."
+picosentry sandbox npm install evil-package
 ```
 
 Expected output:
@@ -31,7 +38,7 @@ Expected output:
 ```text
 🦞 PicoSentry
 Target: examples/pypi-obfuscated-setup
-Engine: v2.0.0 | Corpus: vef6b3b3115bb
+Engine: v2.0.1 | Corpus: vef6b3b3115bb
 Scan ID: 9952b1a9c6a07e7f
 
 Packages scanned: 0

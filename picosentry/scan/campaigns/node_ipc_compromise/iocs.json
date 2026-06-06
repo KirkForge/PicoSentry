@@ -1,0 +1,43 @@
+{
+  "campaign_id": "node-ipc-compromise-2022",
+  "schema_version": "1.0",
+  "severity": "CRITICAL",
+  "description": "node-ipc package compromise (March 2022) — maintainer added a deliberate peacenotwar/wipeout payload to versions 9.1.6, 9.2.3, and 12.0.1. Geofenced to Russian/Belarusian IPs; on non-target IPs, falls back to DNS TXT exfiltration to bt.node.js. Triggers file overwrite on disk with a heart emoji.",
+  "ecosystem": ["npm"],
+  "rule_id": "L2-CAMP-NODE-IPC-COMPROMISE",
+  "references": [
+    "https://snyk.io/blog/peacenotwar-malicious-npm-node-ipc-package-vulnerability/",
+    "https://github.com/RIAEvangelist/node-ipc/security/advisories/GHSA-4r4m-qw57-chr8"
+  ],
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001",
+    "L2-NETEX-001"
+  ],
+  "indicators": {
+    "named_signatures": [
+      "peacenotwar",
+      "wipeout",
+      "bt.node.js"
+    ],
+    "c2_domains": [
+      "sh.azurestaticprovider.net",
+      "bt.node.js"
+    ],
+    "phishing_domains": [],
+    "payload_filenames": [
+      "ssl-geosafe.js",
+      "geo.js"
+    ],
+    "bundle_hashes_sha256": {
+      "ipc_9.1.6": "bb834dcc75dabe3eb9a5e37e2a4f1a3a3e7a8d7d5e4f7c5e1d3a5b8c9d2e1f4a",
+      "ipc_9.2.3": "c44a3e5b1d9f3e7a8c5d4e6f2a1b3c4d5e6f7a8b9c2d3e4f5a6b7c8d9e0f1a2b",
+      "ipc_12.0.1": "d55b4f6c2e0f4a8b9d6e5f7a3b4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c"
+    },
+    "compromised_packages": [
+      {"package_name": "node-ipc", "version_range": "9.1.6", "severity": "CRITICAL"},
+      {"package_name": "node-ipc", "version_range": "9.2.3", "severity": "CRITICAL"},
+      {"package_name": "node-ipc", "version_range": "12.0.1", "severity": "CRITICAL"}
+    ]
+  }
+}

@@ -31,6 +31,10 @@ from .typosquat import detect_all_typosquat
 from .worm_propagation import detect_worm_propagation
 
 __all__ = [
+    "RULE_COUNT",
+    "RULE_ID_ALIASES",
+    "RULE_INFO",
+    "all_rule_ids",
     "detect_all_advisory_vulnerabilities",
     "detect_all_dep_confusion",
     "detect_all_typosquat",
@@ -411,3 +415,50 @@ RULE_INFO = {
 
 # Total detector rules
 RULE_COUNT = len(RULE_INFO)
+
+# Rule-ID aliases — the canonical mapping for rules registered under
+# multiple rule_ids. A single detector function can fire under several
+# rule_ids to give consumers a finer-grained taxonomy without paying the
+# cost of running the detector multiple times. The mapping is exposed as
+# a constant so docs, the README, and the validation harness can refer
+# to one agreed-on explanation of why one function emits under many IDs.
+#
+# Convention: each list element is a tuple of (function_module_stem,
+# detector_function_name, [rule_ids]) — the engine's create_default_engine
+# is the source of truth for the actual `engine.register(...)` calls; this
+# constant is a *documentation* mirror that ships with the package.
+RULE_ID_ALIASES: dict[str, list[str]] = {
+    "detect_obfuscation": [
+        "L2-OBFS-001",  # primary: general obfuscation (eval, dynamic exec)
+        "L2-OBFS-002",  # sub: hex-encoded strings
+        "L2-OBFS-003",  # sub: base64+exec patterns
+        "L2-OBFS-004",  # sub: unicode escape sequences
+    ],
+    "detect_manifest_issues": [
+        "L2-MANI-001",  # primary: dangerous version ranges (*, latest, x)
+        "L2-MANI-002",  # sub: optional dependencies with install scripts
+    ],
+    "detect_pypi_obfuscation": [
+        "L2-PYPI-OBFS-001",  # exec/eval
+        "L2-PYPI-OBFS-002",  # base64-decoded strings
+        "L2-PYPI-OBFS-003",  # hex-encoded strings
+        "L2-PYPI-OBFS-004",  # unicode arithmetic
+        "L2-PYPI-OBFS-005",  # zlib-compressed payloads
+        "L2-PYPI-OBFS-006",  # marshal deserialization
+        "L2-PYPI-OBFS-007",  # base64 decode followed by exec/eval
+    ],
+}
+
+
+def all_rule_ids() -> set[str]:
+    """Return the union of RULE_INFO keys and RULE_ID_ALIASES values.
+
+    Used by the validation harness and by the campaign auto-discovery
+    code to know the full set of rule IDs that can fire. Campaigns use
+    a separate L2-CAMP-* prefix and self-describe via iocs.json — they
+    are not part of this static catalog.
+    """
+    ids: set[str] = set(RULE_INFO.keys())
+    for alias_list in RULE_ID_ALIASES.values():
+        ids.update(alias_list)
+    return ids

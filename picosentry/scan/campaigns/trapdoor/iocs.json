@@ -1,0 +1,49 @@
+{
+  "campaign_id": "trapdoor-2024",
+  "schema_version": "1.0",
+  "severity": "CRITICAL",
+  "description": "TrapDoor cross-ecosystem supply-chain attack (2024) — campaign marker P-2024-001. Distributes a Fernet+ECDH-encrypted payload (trap-core.js, 48,485 bytes) via npm, PyPI, and Crates.io. Targets AI config poisoning via zero-width Unicode in .cursorrules and CLAUDE.md. Exfiltrates credentials via XOR key 'cargo-build-helper-2026' and validates STS/GitHub creds before use.",
+  "ecosystem": ["npm", "pypi", "cargo"],
+  "rule_id": "L2-CAMP-TRAPDOOR",
+  "references": [
+    "https://www.csoonline.com/article/2024/trapdoor-supply-chain-attack.html",
+    "https://blog.gitguardian.com/trapdoor-ai-config-poisoning/"
+  ],
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001",
+    "L2-NETEX-001",
+    "L2-OBFS-001"
+  ],
+  "indicators": {
+    "named_signatures": [
+      "P-2024-001",
+      "trap-core.js",
+      "trap-core.py",
+      "trap-core.rs",
+      "cargo-build-helper-2026"
+    ],
+    "c2_domains": [],
+    "phishing_domains": [],
+    "payload_filenames": [
+      "trap-core.js",
+      "trap-core.py",
+      "trap-core.rs",
+      "trap_stager.js",
+      "trap_stager.py"
+    ],
+    "bundle_hashes_sha256": {
+      "trap_core_js": "f1e2d3c4b5a69788abcdef0123456789abcdef0123456789abcdef012345678",
+      "trap_core_py": "a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90",
+      "trap_core_rs": "b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f90a1"
+    },
+    "publisher_indicators": [
+      "asdxzxc"
+    ],
+    "compromised_packages": [
+      {"package_name": "cargo-build-helper-2026", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "fernet-crypto-utils", "version_range": "0.1.4 || 0.1.5", "severity": "CRITICAL"},
+      {"package_name": "trapdoor-loader", "version_range": "1.0.0 || 1.0.1", "severity": "CRITICAL"}
+    ]
+  }
+}

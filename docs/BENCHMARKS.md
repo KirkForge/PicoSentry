@@ -16,8 +16,10 @@
 ## TL;DR
 
 - **Fixtures:** 45 total (39 positive, 6 negative)
-- **Rules covered by fixtures:** 50 (all 49 L2 rule_ids + the 5 L2 campaign rules; every L2
-  rule in `RULE_INFO` is exercised by at least one positive fixture)
+- **Rules covered by fixtures:** 50 (49 L2 rule_ids in `RULE_INFO` + 1 L2-CAMP rule
+  from the IoC corpus — `L2-CAMP-SHAI-HULUD`; the existing
+  `shai_hulud_named_signature` fixture exercises it). Every L2 rule in
+  `RULE_INFO` is exercised by at least one positive fixture.
 - **Aggregate TP / FP / FN:** 50 / 0 / 0
 - **Mean precision / recall:** 1.00 / 1.00
 - **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build on any regression**.
@@ -138,9 +140,9 @@ disappearing after a refactor.
 
 ## Per-rule results (v2.0.9)
 
-All 49 L2 rule_ids in `RULE_INFO` (plus the 5 L2 campaign rule_ids from
-`RULE_ID_ALIASES`) have at least one positive fixture. The harness
-reproduces these numbers from a fresh clone.
+All 49 L2 rule_ids in `RULE_INFO` (plus 1 L2-CAMP rule_id from the IoC
+corpus) have at least one positive fixture. The harness reproduces
+these numbers from a fresh clone.
 
 | rule_id                 | n_pos | n_neg | TP | FP | FN | precision | recall |
 |-------------------------|------:|------:|---:|---:|---:|----------:|-------:|
@@ -283,7 +285,7 @@ L2-BUND-001                 1    0    0 100.00% 100.00%
 L2-CAMP-SHAI-HULUD          1    0    0 100.00% 100.00%
 L2-CARGO-ADV-001            1    0    0 100.00% 100.00%
 L2-CARGO-DEPC-001           1    0    0 100.00% 100.00%
-... (45 rule_id rows total)
+... (50 rule_id rows total: 49 L2 + 1 L2-CAMP)
 ```
 
 To dump the report JSON (matches `tests/scan/fixtures/validation/REPORT.json`):

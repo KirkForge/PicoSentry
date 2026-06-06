@@ -6,7 +6,7 @@
 
 ## Why
 
-2026 is the year AI coding agents and MCP servers became mainstream. Every agent executes code, installs packages, calls tools, and reads files — all of which are attack surfaces PicoSentry already covers. The competitors (Snyk, Socket, Endor) are retrofitting agent awareness. We already ship:
+2026 is the year AI coding agents and MCP servers became mainstream. Every agent executes code, installs packages, calls tools, and reads files — all of which are attack surfaces PicoSentry already covers. The same primitives that guard human-driven package installs apply to agent-driven ones; the work is wiring the agent's tool-call boundary into the existing detection rules. We already ship:
 
 - A **syscall sandbox** (seccomp-bpf, L3) — can gate agent-executed commands
 - **Prompt injection detection** (L5, watch) — can scan agent prompts before tool calls

@@ -8,7 +8,7 @@
 
 Three tightly coupled gaps with a single solution:
 
-1. **Alert fatigue** — "CVE-2024-XXXX in transitive dep" is noise. "Your app calls the vulnerable symbol" is signal. Reachability analysis is what separates Endor/Semgrep from traditional scanners.
+1. **Alert fatigue** — "CVE-2024-XXXX in transitive dep" is noise. "Your app calls the vulnerable symbol" is signal. Reachability analysis upgrades a CVE hit from "this version is in your tree" to "your code actually exercises the vulnerable code path."
 2. **Compliance** — VEX (Vulnerability Exploitability eXchange) is increasingly a procurement requirement. Regulated orgs need `not_affected` justifications with machine-readable evidence.
 3. **Adoption** — Detection has zero value without a remediation path. Dependabot/Renovate win on the *fix*, not the *find*. Adding `scan --fix` makes PicoSentry sticky in a real team's workflow.
 

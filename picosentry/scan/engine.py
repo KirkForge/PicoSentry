@@ -26,14 +26,13 @@ from .models import Finding, RuleExecution, ScanResult, ScanStats
 # backtracking, huge directory walk, blocking I/O) must not tank the
 # whole scan. We run each rule function on its own thread via a shared
 # thread pool and wait at most DEFAULT_RULE_TIMEOUT_SECONDS; on
-# FuturesTimeoutError we record status="timeout" and continue. Mirrors
-# the reliability primitive used by @lateos/npm-scan (Promise.race vs
-# setTimeout). The worker thread is left orphaned on timeout — Python
-# cannot cancel running code, but the GIL and process-local state ensure
-# no observable side effects leak out to other rules or to the calling
-# scan() frame. The default is calibrated to the slowest real rule in
-# the default engine on a typical project. Callers can tighten it via
-# scan(rule_timeout=...) for stricter SLOs.
+# FuturesTimeoutError we record status="timeout" and continue. The worker
+# thread is left orphaned on timeout — Python cannot cancel running code,
+# but the GIL and process-local state ensure no observable side effects
+# leak out to other rules or to the calling scan() frame. The default is
+# calibrated to the slowest real rule in the default engine on a typical
+# project. Callers can tighten it via scan(rule_timeout=...) for stricter
+# SLOs.
 DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
 # Public alias — kept for tests and downstream consumers.
 RULE_TIMEOUT_SECONDS = DEFAULT_RULE_TIMEOUT_SECONDS
@@ -357,12 +356,11 @@ class ScanEngine:
         # backtracking, huge directory walk, blocking I/O) must not tank the
         # whole scan. We run each rule function on its own thread via a shared
         # thread pool and wait at most _effective_rule_timeout seconds; on
-        # FuturesTimeoutError we record status="timeout" and continue. Mirrors
-        # the reliability primitive used by @lateos/npm-scan (Promise.race
-        # vs setTimeout). The worker thread is left orphaned on timeout —
-        # Python cannot cancel running code, but the GIL and process-local
-        # state ensure no observable side effects leak out to other rules
-        # or to the calling scan() frame.
+        # FuturesTimeoutError we record status="timeout" and continue. The
+        # worker thread is left orphaned on timeout — Python cannot cancel
+        # running code, but the GIL and process-local state ensure no
+        # observable side effects leak out to other rules or to the calling
+        # scan() frame.
         from concurrent.futures import TimeoutError as FuturesTimeoutError
 
         rule_executor = _get_rule_executor()

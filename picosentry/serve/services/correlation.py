@@ -2,8 +2,8 @@
 
 Correlates findings from scan, sandbox, and watch layers into per-artifact
 kill-chain timelines. This is what turns a list of warnings into an attack
-narrative — and creates the competitive moat that no other product has
-(scan + runtime sandbox + LLM defense in one package).
+narrative that answers the alert-fatigue question: which findings
+actually matter together, and in what order?
 
 Phase 1: core data model + in-memory storage + ingestion.
 Phase 2: kill-chain scoring + query API.

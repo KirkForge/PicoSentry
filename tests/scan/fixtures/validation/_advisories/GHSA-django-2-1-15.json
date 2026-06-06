@@ -1,0 +1,26 @@
+{
+  "id": "GHSA-3c4c-django-2-1",
+  "summary": "Django: account takeover via password reset (CVE-2019-19844)",
+  "details": "Django versions 2.1.x before 2.1.15 (and 2.2.x before 2.2.8) are vulnerable to account takeover via crafted email addresses used with the password-reset form (user_email_validator is bypassed when domain part contains uppercase letters).",
+  "affected": [
+    {
+      "package": {"name": "django", "ecosystem": "pypi"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "2.1.15"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-640"]
+  },
+  "references": [
+    {"url": "https://www.djangoproject.com/weblog/2019/dec/18/django-2-1-15-release/"},
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2019-19844"}
+  ]
+}

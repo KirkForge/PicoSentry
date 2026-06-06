@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Cargo crate depending on serde 1.0.0 (illustrative advisory fixed in 1.0.184).",
+  "expected_rule_ids": ["L2-CARGO-ADV-001"]
+}

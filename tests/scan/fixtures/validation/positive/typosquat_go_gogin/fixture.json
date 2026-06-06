@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Go module named 'gogin' (short name within edit distance 2 of 'gin', a top-100 Go module).",
+  "expected_rule_ids": ["L2-GO-TYPO-001"]
+}

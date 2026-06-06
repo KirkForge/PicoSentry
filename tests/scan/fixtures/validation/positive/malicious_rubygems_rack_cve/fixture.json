@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "RubyGems project depending on rack 2.0.0 (CVE-2019-16782 path traversal, fixed in 2.0.7).",
+  "expected_rule_ids": ["L2-RUBYGEMS-ADV-001"]
+}

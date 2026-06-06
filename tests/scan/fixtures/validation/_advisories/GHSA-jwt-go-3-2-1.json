@@ -1,0 +1,26 @@
+{
+  "id": "GHSA-7q3p-jfc5-jwt",
+  "summary": "dgrijalva/jwt-go: JWT alg=none and key confusion vulnerabilities (CVE-2020-26160)",
+  "details": "dgrijalva/jwt-go versions prior to 3.2.1 allow attackers to bypass intended access restrictions via crafted JWT tokens (alg=none and key confusion).",
+  "affected": [
+    {
+      "package": {"name": "github.com/dgrijalva/jwt-go", "ecosystem": "go"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "3.2.1"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-347", "CWE-285"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2020-26160"},
+    {"url": "https://github.com/dgrijalva/jwt-go/issues/55"}
+  ]
+}

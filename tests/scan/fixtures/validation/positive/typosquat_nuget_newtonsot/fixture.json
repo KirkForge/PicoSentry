@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "NuGet package 'Newtonsot.Json' (edit distance 1 from 'Newtonsoft.Json').",
+  "expected_rule_ids": ["L2-NUGET-TYPO-001"]
+}

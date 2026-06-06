@@ -23,7 +23,7 @@ Legend:
 | PostgresPool | ❌ Stub | SQLite only; Postgres migration not started |
 | DDoSShieldMiddleware | 🔬 Experimental | Basic rate limiting, not adaptive |
 | Cluster manager | 🔬 Experimental | Single-node ✓; multi-node gossip not tested |
-| Detection quality benchmarks | ❌ Stub | Framework defined, no real data |
+| Detection quality benchmarks | ✅ Stable | 45 fixtures, 50 rules, 100% precision/recall; corpus expansion to 30+/rule in 2.1.0 (see docs/BENCHMARKS.md) |
 | Corpus marketplace | ❌ Stub | Export/import CLI commands not wired |
 | Plugin system | ⚠️ Beta | Loads and dispatches plugins; signature verify works |
 | Dashboard | 🔬 Experimental | Basic UI, not feature-complete |

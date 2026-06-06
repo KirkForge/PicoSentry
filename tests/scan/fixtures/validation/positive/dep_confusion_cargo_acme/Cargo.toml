@@ -1,0 +1,8 @@
+[package]
+name = "consumer-app"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+acme-billing = "1.0"
+serde = "1.0"

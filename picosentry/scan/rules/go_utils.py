@@ -22,7 +22,7 @@ logger = logging.getLogger("picosentry.go_utils")
 # ── Go module patterns ──────────────────────────────────────────────────
 
 _GO_MOD_REQUIRE_RE = re.compile(
-    r'\trequire\s+(\S+)\s+(\S+)'  # tab-prefixed single require line
+    r'^require\s+(\S+)\s+(\S+)'  # column-0 single require line (real-world go.mod format)
 )
 _GO_MOD_PAREN_REQUIRE_RE = re.compile(
     r'\t(\S+)\s+(\S+)'  # tab-indented line within require () block

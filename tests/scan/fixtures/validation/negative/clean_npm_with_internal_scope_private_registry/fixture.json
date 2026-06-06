@@ -1,0 +1,4 @@
+{
+  "label": "negative",
+  "description": "npm app that depends on an internal-scope package, but declares a private registry in .npmrc. Dep-confusion detector should NOT fire because the private-registry opt-out is present."
+}

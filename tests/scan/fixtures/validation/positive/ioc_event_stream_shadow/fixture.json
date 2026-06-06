@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Consumer project that depends on the known-malicious event-stream@3.3.6 (Shai-Hulud variant, bundled flatmap-stream backdoor).",
+  "expected_rule_ids": ["L2-IOC-001"]
+}

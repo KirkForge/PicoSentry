@@ -38,7 +38,7 @@ Expected output:
 ```text
 🦞 PicoSentry
 Target: examples/pypi-obfuscated-setup
-Engine: v2.0.1 | Corpus: vef6b3b3115bb
+Engine: v2.0.2 | Corpus: vef6b3b3115bb
 Scan ID: 9952b1a9c6a07e7f
 
 Packages scanned: 0

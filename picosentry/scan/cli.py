@@ -41,6 +41,7 @@ from picosentry.scan.formatters.table import _PINCH_LABELS
 from picosentry.scan.guards import diff_scans, verify_determinism
 from picosentry.scan.logging import configure_logging
 from picosentry.scan.models import Finding, ScanResult, Severity, apply_baseline, load_baseline
+from picosentry.scan.validation import run_validation
 from picosentry.scan.workspace import scan_workspace
 
 logger = logging.getLogger(__name__)
@@ -221,6 +222,13 @@ def main(argv: list[str] | None = None) -> int:
         "--verify-determinism",
         action="store_true",
         help="Run scan twice and verify SHA-256 determinism. Exit 0 if identical, 4 if different. Implies --format json.",
+    )
+    scan_parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Run the validation harness against built-in fixtures. Prints per-rule precision/recall; "
+        "exit 0 if mean precision >= 0.95 and mean recall >= 0.80. "
+        "Ignores <target> (the harness uses its own fixtures).",
     )
     scan_parser.add_argument(
         "--deterministic-output",
@@ -1470,6 +1478,56 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
         return 4
 
 
+def _handle_validate(args: argparse.Namespace, target: Path) -> int:
+    """Run the validation harness against built-in fixtures.
+
+    Prints a per-rule precision/recall table and the summary line. Exit
+    0 if mean precision >= 0.95 and mean recall >= 0.80; exit 1 otherwise.
+    The harness ignores the <target> argument — it uses its own fixtures.
+    """
+    output_path: Path | None = None
+    if getattr(args, "output", None):
+        output_path = Path(args.output)
+
+    print(f"🦞 PicoSentry v{__version__} — validation harness", file=sys.stderr)
+    print(f"Target arg ignored: {target}", file=sys.stderr)
+    print("Running validation against built-in fixtures...", file=sys.stderr)
+
+    report = run_validation(output_path=output_path)
+
+    # Per-rule table (stdout, easy to grep/pipe)
+    header = f"{'rule_id':<24} {'tp':>4} {'fp':>4} {'fn':>4} {'prec':>8} {'recall':>8}"
+    print(header)
+    print("-" * len(header))
+    rule_metrics_by_id = {m.rule_id: m for m in report.rule_metrics}
+    for rule_id in sorted(rule_metrics_by_id):
+        m = rule_metrics_by_id[rule_id]
+        print(
+            f"{rule_id:<24} {m.true_positives:>4} {m.false_positives:>4} "
+            f"{m.false_negatives:>4} {m.precision:>7.2%} {m.recall:>7.2%}"
+        )
+
+    # Pass/fail summary. Thresholds are conservative: any rule that fires
+    # a false positive on a clean fixture or misses a known-malicious
+    # fixture fails the harness.
+    failed_fixtures = [r for r in report.fixture_results if r[1] == "FAIL"]
+    precision_ok = report.mean_precision >= 0.95
+    recall_ok = report.mean_recall >= 0.80
+    passes = (not failed_fixtures) and precision_ok and recall_ok
+
+    print(
+        f"\nfixtures: {report.total_fixtures} "
+        f"({report.total_positive} pos / {report.total_negative} neg) | "
+        f"mean precision: {report.mean_precision:.2%} | "
+        f"mean recall: {report.mean_recall:.2%} | "
+        f"fixture failures: {len(failed_fixtures)} | "
+        f"passes: {passes}",
+        file=sys.stderr,
+    )
+
+    return 0 if passes else 1
+
+
 def _run_scan(
     args: argparse.Namespace,
     target: Path,
@@ -1637,6 +1695,10 @@ def _cmd_scan(args: argparse.Namespace) -> int:
     if args.verify_determinism:
         args.deterministic_output = True
         return _verify_determinism(args, target)
+
+    # --validate: run the validation harness against built-in fixtures
+    if getattr(args, "validate", False):
+        return _handle_validate(args, target)
 
     # Verbose output — show scan details before running
     if args.verbose:

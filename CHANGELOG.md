@@ -2,6 +2,11 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.2] — 2026-06-06
+
+### Added
+- **`picosentry scan --validate`** CLI flag for the validation harness. The harness itself shipped in 2.0.1 (via the Python `picosentry.scan.validation.run_validation()` API); this patch exposes it on the CLI as planned. Prints a per-rule precision/recall table and exits 0 if mean precision >= 0.95 and mean recall >= 0.80. `picosentry/cli.py` now also wires the flag through the unified-CLI parser (it was previously only registered in the inner `picosentry/scan/cli.py` parser).
+
 ## [2.0.1] — 2026-06-06
 
 ### Added

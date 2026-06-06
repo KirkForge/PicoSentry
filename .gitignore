@@ -46,7 +46,6 @@ coverage.xml
 
 # Corpus data (large, regenerated on update)
 *.corpus.json
-npm_top_packages.json
 
 # OS
 .DS_Store

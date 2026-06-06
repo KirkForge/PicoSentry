@@ -36,16 +36,25 @@ logger = logging.getLogger("picodome.tracing")
 
 # ─── Tracing availability check ─────────────────────────────────────────────
 
+# `trace` is bound to the OTel module when available, or to `None` when not.
+# Rebinding the module-level name to `None` trips mypy's `[assignment]`
+# check, and the suppression needed for it is itself flagged as
+# `[unused-ignore]` on newer mypy with `ignore_missing_imports = true`
+# (since the missing-import becomes `Any` and the rebind is then safe).
+# We use a separate sentinel to keep both versions of mypy happy without
+# per-line ignores.
 _TRACING_AVAILABLE = False
 _Tracer: Any = Any  # redefined below when OTel available
+_trace_module: Any = None  # the OTel `trace` module, or None if unavailable
 
 try:
-    from opentelemetry import trace
+    from opentelemetry import trace as _otel_trace
 
     _TRACING_AVAILABLE = True
-    _Tracer = trace.Tracer
+    _Tracer = _otel_trace.Tracer
+    _trace_module = _otel_trace
 except ImportError:
-    trace = None  # type: ignore[assignment]
+    pass
 
 
 # ─── No-op tracer ───────────────────────────────────────────────────────────
@@ -100,7 +109,7 @@ def get_tracer() -> _Tracer | _NoopTracer:
     """
     global _tracer
     if isinstance(_tracer, _NoopTracer) and _tracing_enabled and _TRACING_AVAILABLE:
-        _tracer = trace.get_tracer("picodome", "0.5.0")
+        _tracer = _trace_module.get_tracer("picodome", "0.5.0")
         logger.info("OpenTelemetry tracing enabled with tracer: picodome")
     return _tracer
 

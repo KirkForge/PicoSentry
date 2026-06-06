@@ -33,25 +33,11 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        # OTLP exporters — prefer gRPC, fall back to HTTP. Mypy only sees the
-        # gRPC branch as the canonical type, so the HTTP fallback needs an
-        # assignment-type suppression for the re-binding.
-        try:
-            from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
-                OTLPMetricExporter,
-            )
-            from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
-                OTLPSpanExporter,
-            )
-            use_grpc = True
-        except ImportError:
-            from opentelemetry.exporter.otlp.proto.http.metric_exporter import (  # type: ignore[assignment]
-                OTLPMetricExporter,
-            )
-            from opentelemetry.exporter.otlp.proto.http.trace_exporter import (  # type: ignore[assignment]
-                OTLPSpanExporter,
-            )
-            use_grpc = False
+        # OTLP exporters — prefer gRPC, fall back to HTTP. The exporter
+        # classes are imported in a helper so each branch binds a single
+        # class to one name (no rebind) and the downstream usage sites
+        # type-check without per-call ignores.
+        OTLPSpanExporter, OTLPMetricExporter, use_grpc = _load_otlp_exporters()
 
         resource = Resource.create({
             "service.name": service_name,
@@ -132,6 +118,37 @@ class NoOpSpan:
         pass
     def end(self):
         pass
+
+
+def _load_otlp_exporters():
+    """Load OTLP exporter classes, preferring gRPC transport.
+
+    Returns a ``(SpanExporterCls, MetricExporterCls, use_grpc)`` tuple.
+    Each exporter class is bound to a single name inside this helper
+    (no rebinding), so mypy type-checks the call sites in
+    ``init_telemetry`` without per-call ``# type: ignore`` comments.
+    The previous in-place ``try/except ImportError`` rebinding pattern
+    tripped the ``[assignment]`` / ``[unused-ignore]`` mismatch between
+    mypy versions (older mypy sees the real type conflict; newer mypy
+    with ``ignore_missing_imports = true`` sees the rebind as safe and
+    flags the suppression as unused).
+    """
+    try:
+        from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
+            OTLPMetricExporter as GrpcMetricExporter,
+        )
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import (
+            OTLPSpanExporter as GrpcSpanExporter,
+        )
+        return GrpcSpanExporter, GrpcMetricExporter, True
+    except ImportError:
+        from opentelemetry.exporter.otlp.proto.http.metric_exporter import (
+            OTLPMetricExporter as HttpMetricExporter,
+        )
+        from opentelemetry.exporter.otlp.proto.http.trace_exporter import (
+            OTLPSpanExporter as HttpSpanExporter,
+        )
+        return HttpSpanExporter, HttpMetricExporter, False
 
 
 class NoOpMeter:

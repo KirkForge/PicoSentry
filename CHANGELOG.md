@@ -2,6 +2,26 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.5] — 2026-06-06
+
+### Fixed — CI umbrella tests need serve deps too
+The 2.0.4 release commit (3db0635) fixed the Python 3.10 `Z`-suffix
+issue but the umbrella `test-core` and `test-matrix` jobs (which run
+`pytest tests/` across the full test tree) hit a new failure on Python
+3.10 and 3.13:
+
+  `tests/serve/test_api.py::TestDashboardSummary::test_dashboard_summary_returns_data`
+  `RuntimeError: PyJWT is required for token generation. Install with: pip install PyJWT`
+
+`tests/serve/test_api.py` needs PyJWT + passlib[bcrypt] (in the
+`[serve]` extra) and the watch tests need fastapi (in `[watch-server]`).
+The 2.0.4 install command on `test-core` / `test-matrix` was
+`.[dev,watch-server]`, which covered fastapi but not PyJWT.
+
+Fixed by changing both jobs to `.[all]` — the umbrella tests cover
+every subdir, so they need every dep. `.[all]` mirrors a real
+production install footprint.
+
 ## [2.0.4] — 2026-06-06
 
 ### Fixed — Python 3.10 ISO-8601 `Z` suffix compatibility

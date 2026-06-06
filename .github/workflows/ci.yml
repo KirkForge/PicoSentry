@@ -48,10 +48,12 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        # `.[dev,watch-server]` because the umbrella `pytest tests/` collection
-        # pulls in `tests/watch/test_server*.py`, which imports fastapi (the
-        # watch HTTP daemon). `[dev]` alone doesn't include fastapi.
-        run: pip install --no-cache-dir -e ".[dev,watch-server]"
+        # `pytest tests/` (umbrella) collects every subdir — scan, watch,
+        # serve — so the install needs the deps for all of them. Fastapi
+        # (watch), PyJWT/passlib[bcrypt] (serve), and httpx (transitive
+        # for fastapi) all live in the matching extras. We install `.[all]`
+        # to mirror a real production install footprint.
+        run: pip install --no-cache-dir -e ".[all]"
       - name: Run core tests
         run: python -m pytest tests/ -x --tb=short -q
 
@@ -121,9 +123,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        # `.[dev,watch-server]` so the umbrella `pytest tests/` collection
-        # can import `tests/watch/test_server*.py` (which needs fastapi).
-        run: pip install --no-cache-dir -e ".[dev,watch-server]"
+        # `pytest tests/` (umbrella) collects every subdir — scan, watch,
+        # serve — so the install needs the deps for all of them. `.[all]`
+        # mirrors a real production install footprint.
+        run: pip install --no-cache-dir -e ".[all]"
       - name: Run full test suite
         run: python -m pytest tests/ -x --tb=short -q
 

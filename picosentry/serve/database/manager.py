@@ -384,14 +384,23 @@ class DatabaseManager:
             raise
 
     def execute(self, sql: str, params: tuple = ()) -> list:
-        """Execute SQL and return results."""
+        """Execute SQL and return results as a list of dicts.
+
+        The connection's ``row_factory`` is ``sqlite3.Row`` (set in
+        ``pools.py``), but most call sites in the serve layer expect a
+        dict-like API (``row['col']``, ``(row or {}).get('col')``).
+        ``sqlite3.Row`` doesn't implement ``.get()``, so we materialize
+        rows as plain dicts at this boundary. Bracket access works on
+        both, so this change is source-compatible with every existing
+        call site.
+        """
         with self._lock:
             conn = self._get_connection()
             cursor = conn.execute(sql, params)
-            return cursor.fetchall()
+            return [dict(r) for r in cursor.fetchall()]
 
     def execute_one(self, sql: str, params: tuple = ()) -> dict | None:
-        """Execute SQL and return first result."""
+        """Execute SQL and return first result as a dict (or ``None``)."""
         results = self.execute(sql, params)
         return results[0] if results else None
 

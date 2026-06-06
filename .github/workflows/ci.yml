@@ -48,7 +48,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        run: pip install --no-cache-dir -e ".[dev]"
+        # `.[dev,watch-server]` because the umbrella `pytest tests/` collection
+        # pulls in `tests/watch/test_server*.py`, which imports fastapi (the
+        # watch HTTP daemon). `[dev]` alone doesn't include fastapi.
+        run: pip install --no-cache-dir -e ".[dev,watch-server]"
       - name: Run core tests
         run: python -m pytest tests/ -x --tb=short -q
 
@@ -72,7 +75,9 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install package
-        run: pip install --no-cache-dir -e ".[dev]"
+        # `[watch-server]` brings in fastapi + uvicorn, which the watch HTTP
+        # daemon and its tests require.
+        run: pip install --no-cache-dir -e ".[dev,watch-server]"
       - name: Run watch tests
         run: python -m pytest tests/watch/ -v --tb=short
 
@@ -116,7 +121,9 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
       - name: Install package
-        run: pip install --no-cache-dir -e ".[dev]"
+        # `.[dev,watch-server]` so the umbrella `pytest tests/` collection
+        # can import `tests/watch/test_server*.py` (which needs fastapi).
+        run: pip install --no-cache-dir -e ".[dev,watch-server]"
       - name: Run full test suite
         run: python -m pytest tests/ -x --tb=short -q
 

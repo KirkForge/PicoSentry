@@ -50,10 +50,11 @@ jobs:
       - name: Install package
         # `pytest tests/` (umbrella) collects every subdir — scan, watch,
         # serve — so the install needs the deps for all of them. Fastapi
-        # (watch), PyJWT/passlib[bcrypt] (serve), and httpx (transitive
-        # for fastapi) all live in the matching extras. We install `.[all]`
-        # to mirror a real production install footprint.
-        run: pip install --no-cache-dir -e ".[all]"
+        # (watch), PyJWT/passlib[bcrypt] (serve) live in the matching
+        # extras; `[all]` covers runtime deps and mirrors a real
+        # production install footprint. We also pull in `[dev]` for
+        # pytest/ruff/mypy — `.[all]` is runtime only.
+        run: pip install --no-cache-dir -e ".[all,dev]"
       - name: Run core tests
         run: python -m pytest tests/ -x --tb=short -q
 
@@ -124,9 +125,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install package
         # `pytest tests/` (umbrella) collects every subdir — scan, watch,
-        # serve — so the install needs the deps for all of them. `.[all]`
-        # mirrors a real production install footprint.
-        run: pip install --no-cache-dir -e ".[all]"
+        # serve — so the install needs the deps for all of them.
+        # `.[all,dev]` covers runtime deps (mirrors a real production
+        # install footprint) plus the test tools in `[dev]`.
+        run: pip install --no-cache-dir -e ".[all,dev]"
       - name: Run full test suite
         run: python -m pytest tests/ -x --tb=short -q
 

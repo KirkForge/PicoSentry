@@ -2,6 +2,19 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.6] — 2026-06-06
+
+### Fixed — `[dev]` is not in `[all]`
+The 2.0.5 release commit (32db570) changed the umbrella test jobs to
+`.[all]`, but the test tools (pytest, ruff, mypy, types-PyYAML) live
+in `[dev]`, not in `[all]`. Result: `No module named pytest` on every
+matrix dimension except 3.12 (which seems to have a system-installed
+pytest that got picked up).
+
+Fixed: change the install command to `.[all,dev]` — runtime deps
+(including fastapi + PyJWT + passlib[bcrypt] + everything in `[serve]`,
+`[watch-server]`, `[otel]`, `[sigstore]`) plus the test tools.
+
 ## [2.0.5] — 2026-06-06
 
 ### Fixed — CI umbrella tests need serve deps too

@@ -2,6 +2,43 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.8] — 2026-06-06
+
+### Added — kernel-syscall observation (P0)
+- **`SeccompTraceBackend`** (`--backend=seccomp-trace` on `picosentry sandbox`): sibling
+  to the existing `seccomp-bpf` backend. Uses `SCMP_ACT_LOG` + `/proc/<pid>/seccomp`
+  to capture every syscall the tracee makes and emits one `SandboxEvent` per syscall.
+  Default action is `SCMP_ACT_LOG` when the policy is permissive;
+  `SCMP_ACT_KILL_PROCESS` when KILL semantics are required. Closes the
+  teardown-proven gap: prior L3 produced `events: 0` and did not capture stdout,
+  so the README's "shows you the syscalls" claim was false. v2.0.8 ships events
+  without syscall args; v2.0.9 (`PTRACE_SECCOMP` or `SECCOMP_RET_USER_NOTIF`)
+  populates path/address.
+- Auto-detect precedence unchanged: `seccomp-trace` is explicit-only in 2.0.8
+  (set `PICODOME_SANDBOX_BACKEND=seccomp-trace` or pass `--backend=seccomp-trace`).
+- Integration tests gated on `PICODOME_HAS_SECCOMP=1` and
+  `SeccompTraceBackend.is_available()` to skip kernels without
+  `CONFIG_SECCOMP_LOG=y`.
+
+### Added — detection benchmarks (P1)
+- **`docs/BENCHMARKS.md`**: published detection-quality methodology and v2.0.8
+  numbers (7 fixtures, 5 rules, 100% precision / 100% recall). Reproducible from
+  a fresh clone via `picosentry scan --validate`. The 100% floor is enforced in
+  CI by `tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures`.
+  Corpus expansion to 30+ fixtures/rule is the v2.0.9 target (acceptance
+  criteria in the document).
+- **`tests/scan/fixtures/validation/REPORT.json`**: checked-in dump of the
+  harness output. `docs/BENCHMARKS.md` per-rule table is mechanically derivable
+  from this file; if the two diverge, the JSON is the source of truth.
+
+### Changed
+- `experimental.py` and `README.md` maturity table: `Detection benchmarks` flips
+  from `❌ Stub` to `⚠️ Beta`.
+- `README.md` "What it does NOT do" block: removed the "Does not record
+  per-syscall traces" and "Does not have detection-benchmark data" lines (both
+  gaps closed). The block is now 4 items, down from 6.
+- Version bumped to 2.0.8 in `picosentry/__init__.py` and `pyproject.toml`.
+
 ## [2.0.7] — 2026-06-06
 
 This release consolidates the unpublished 2.0.3–2.0.6 chain (CI repair

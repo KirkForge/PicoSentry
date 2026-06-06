@@ -97,7 +97,13 @@ class CorpusSource:
         if not self.reviewed_at:
             return True
         try:
-            reviewed = datetime.fromisoformat(self.reviewed_at)
+            reviewed_at = self.reviewed_at
+            # Python 3.10's `datetime.fromisoformat` does not accept the `Z`
+            # suffix (added in 3.11). Normalize so we get consistent behavior
+            # across the 3.10/3.11/3.12/3.13 matrix in CI.
+            if reviewed_at.endswith("Z"):
+                reviewed_at = reviewed_at[:-1] + "+00:00"
+            reviewed = datetime.fromisoformat(reviewed_at)
             age = (datetime.now(timezone.utc) - reviewed.astimezone(timezone.utc)).days
             return age > max_age_days
         except (ValueError, TypeError):

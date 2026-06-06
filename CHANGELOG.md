@@ -2,6 +2,24 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.4] — 2026-06-06
+
+### Fixed — Python 3.10 ISO-8601 `Z` suffix compatibility
+The 2.0.3 release commit (c40ffdd) fixed the 4 main CI failures but
+introduced a new one in `test-core (3.10)` and `test-matrix (3.10)`:
+`tests/scan/test_corpus_governance.py::TestFreshnessReport::test_stale_detection`
+asserted that a 2099-dated source is fresh and a 2020-dated source is
+stale, expecting 1 stale. In Python 3.10, `datetime.fromisoformat()` does
+not accept the `Z` suffix (added in 3.11), so the 2099 entry's date
+parse raised `ValueError` and the existing `except` clause marked it
+stale. Result: 2 stale, not 1.
+
+Fixed in `picosentry/scan/corpus_governance.py::CorpusSource.is_stale`:
+normalize trailing `Z` to `+00:00` before parsing, so the same code
+works across 3.10/3.11/3.12/3.13.
+
+No other 3.10 stdlib gaps were surfaced by the test suite.
+
 ## [2.0.3] — 2026-06-06
 
 ### Fixed — CI repair patch

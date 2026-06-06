@@ -41,9 +41,9 @@ The CampaignPackage base class:
 
 The "named signature" fast path is the cheap, high-precision CRITICAL
 check: if a literal string from `named_signatures` appears anywhere in
-a project file, emit a CRITICAL finding immediately. This is modeled
-on npm-scan's `NAMED_SIGNATURES` array and is the single highest-ROI
-primitive we can borrow from the competitor.
+a project file, emit a CRITICAL finding immediately. This is the
+single highest-ROI primitive in the campaign layer: zero expected FPs
+because the strings are the literal names of real malware.
 
 This module is intentionally small. The per-campaign detectors in
 shai_hulud/, node_ipc_compromise/, etc. do the actual work.
@@ -220,8 +220,7 @@ class CampaignPackage:
         """CRITICAL fast path: literal-string match across project files.
 
         If any file content contains a string from `named_signatures`,
-        emit a CRITICAL finding for that file. This is modeled on
-        npm-scan's NAMED_SIGNATURES first-line check and is the
+        emit a CRITICAL finding for that file. This is the
         highest-precision rule in the entire system: zero expected FPs
         because the strings are the literal names of real malware.
         """

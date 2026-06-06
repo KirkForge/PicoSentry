@@ -2,10 +2,10 @@
 Validation harness for PicoSentry detectors.
 
 A reproducible, deterministic harness that runs the scanner against
-labeled fixtures and produces a per-rule precision/recall report. This
-is the credibility play — npm-scan advertises "0% FP" on a curated set
-with thresholds tuned post-hoc; we publish our methodology so the
-numbers are auditable.
+labeled fixtures and produces a per-rule precision/recall report. The
+methodology is auditable: every rule's behavior on a known input is
+recorded, and the numbers come from running the harness, not from
+thresholds tuned post-hoc against a hand-picked set.
 
 The harness is built around three concepts:
 

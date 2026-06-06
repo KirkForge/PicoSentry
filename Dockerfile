@@ -44,8 +44,7 @@ RUN python -m build --wheel
 FROM python:3.12-slim AS runtime
 
 LABEL org.opencontainers.image.title="PicoSentry"
-LABEL org.opencontainers.image.description="Unified Pico Security Series — scanner, sandbox, LLM defense, orchestration"
-LABEL org.opencontainers.image.version="2.0.0"
+LABEL org.opencontainers.image.description="Local supply-chain scanner with kernel-sandbox enforcement (beta). See experimental.py for component maturity."
 LABEL org.opencontainers.image.url="https://github.com/KirkForge/PicoSentry"
 LABEL org.opencontainers.image.source="https://github.com/KirkForge/PicoSentry"
 LABEL org.opencontainers.image.vendor="KirkForge"
@@ -70,9 +69,13 @@ WORKDIR /home/picosentry
 # component's optional dependencies (scan → requests, watch-server → fastapi/
 # uvicorn, serve → FastAPI+auth+croniter, otel, sigstore) are present in the
 # runtime image — matching the "all 4 components" claim in the header.
+# The wheel filename is version-agnostic: this image builds against whatever
+# `python -m build` produced from pyproject.toml. To pin to a specific version,
+# override this line in a derived Dockerfile.
 COPY --from=builder /build/dist/*.whl /tmp/
-RUN pip install --no-cache-dir "/tmp/picosentry-2.0.0-py3-none-any.whl[all]" && \
-    rm -f /tmp/picosentry-2.0.0-py3-none-any.whl
+RUN WHEEL=$(ls /tmp/picosentry-*-py3-none-any.whl | head -n1) && \
+    pip install --no-cache-dir "${WHEEL}[all]" && \
+    rm -f /tmp/picosentry-*-py3-none-any.whl
 
 # Verify installation
 RUN picosentry --version && picosentry health

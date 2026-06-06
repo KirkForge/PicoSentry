@@ -2,6 +2,122 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.7] — 2026-06-06
+
+This release consolidates the unpublished 2.0.3–2.0.6 chain (CI repair
+work that was committed to `main` but never published to PyPI) plus the
+actual blocker for the `docker-build` job, plus a README and source-code
+pass to remove overclaimed language. PyPI users go straight from
+**2.0.2 → 2.0.7**.
+
+### Fixed — `docker-build` CI job
+The 2.0.6 release chain failed CI on `docker-build` because the
+`Dockerfile` was hardcoded to `picosentry-2.0.0-py3-none-any.whl` (the
+version present when the Dockerfile was last verified). The `python -m
+build` step in the builder stage was producing a wheel with the new
+version number, and the runtime stage then tried to install a
+non-existent `2.0.0` wheel. The CI red was not about pytest install
+extras — that misdiagnosis cost five release cycles.
+
+Fix in `Dockerfile`: drop the hardcoded version, glob
+`/tmp/picosentry-*-py3-none-any.whl` at install time, and remove the
+stale `org.opencontainers.image.version` label that drifted the same
+way. Verified locally with `docker build` + `docker run picosentry:test
+{scan,sandbox,watch,serve} --help`.
+
+### Fixed — CI matrix stability (cumulative from 2.0.3–2.0.6, all in this release)
+- **`test-serve` (10 failures).** `picosentry/serve/database/manager.py` —
+  `DatabaseManager.execute()` and `execute_one()` now materialize rows as
+  `dict` at the boundary, so call sites that use `(row or {}).get("col")`
+  work without further edits. Matches the `-> dict | None` hint that was
+  already documented.
+- **`test-watch` / `test-core` / `test-matrix`.** CI install command
+  changed to `pip install --no-cache-dir -e ".[all,dev]"` — runtime
+  dependencies (fastapi, PyJWT, passlib[bcrypt], etc.) plus the test tools
+  (pytest, ruff, mypy).
+- **`type-check` (3 unused-ignore errors).** `picosentry/serve/services/observability.py`
+  and `picosentry/sandbox/tracing.py` — extracted helper / sentinel
+  pattern so neither file rebinds an OTel name in an `except ImportError`
+  branch. Removes the dead `# type: ignore[assignment]` comments that
+  were flagged as unused under newer mypy with
+  `ignore_missing_imports = true`.
+- **`test-scan` (2 corpus-dependent failures).** Removed
+  `npm_top_packages.json` from `.gitignore` and committed the existing
+  327-entry corpus file. Fixes both `test_corpus_loaded_from_file` (now
+  sees 327 entries, not the 99-entry builtin fallback) and
+  `test_crossenv_credential_theft` (the `crossenv` typosquat matches
+  against `cross-env` at line 91 of the on-disk corpus).
+- **Python 3.10 `Z`-suffix compatibility.** `picosentry/scan/corpus_governance.py::CorpusSource.is_stale`
+  normalizes trailing `Z` to `+00:00` before `datetime.fromisoformat()`,
+  so the same code works across 3.10/3.11/3.12/3.13. Without this fix,
+  3.10 CI raised `ValueError` in the existing `except` branch and
+  counted the 2099-dated source as stale.
+
+### Changed — README and source-code honesty pass
+The 2.0.1–2.0.2 README and several code comments / design docs used
+"the only…", "we own…", "un-clonable moat", and "what separates X from
+Y" framing — market positioning language borrowed from a competitive
+review. Two external reviewers flagged this in June 2026. Replaced
+with feature-led copy:
+
+- `README.md` — scanner-led hero, `Status` block sourced from
+  `picosentry/experimental.py`, `What it does NOT do` block (6 items
+  including the kernel-syscall-trace gap), 30-second no-clone demo,
+  feature matrix comparison that admits where PicoSentry is weaker,
+  `Where to get help` section.
+- `picosentry/scan/engine.py` — dropped two `@lateos/npm-scan`
+  citations in the timebox comments.
+- `picosentry/scan/validation.py` — dropped the "npm-scan advertises
+  0% FP" comparison from the docstring; rewrote to describe the
+  methodology on its own merits.
+- `picosentry/scan/campaigns/_base.py` — dropped "modeled on
+  npm-scan's NAMED_SIGNATURES" framing in two docstrings/comments.
+- `picosentry/serve/services/correlation.py` — dropped the "competitive
+  moat that no other product has" line from the module docstring.
+- `docs/strategic/02-cross-layer-correlation.md`,
+  `docs/strategic/03-reachability-vex-remediation.md`,
+  `docs/strategic/04-ai-agent-security.md` — rewrote the "Why" sections
+  to describe the user problem solved, not market position.
+
+The legitimate Snyk research citations in `corpus/ioc/*.json` and
+per-rule docs (documenting real attack patterns) were kept — those
+are research attributions, not competitive positioning.
+
+### Removed
+- `/home/kirk/Madlab/Clean-Live/PicoSeries/review.txt` — v1-era
+  research chat excerpt.
+- `/home/kirk/Madlab/Clean-Live/PicoSeries/CROSS-ANALYSIS-PRs.md` —
+  historical ledger of v1 cross-codebase refactors (PR-01 through
+  PR-11). All work it tracked is already in the v2 codebase; the doc
+  was a duplicate of git history.
+- `/home/kirk/Madlab/Clean-Live/PicoSeries/.meta/BUG-HUNT-CN.md` —
+  Chinese-language ledger of v1 bugs. All defects marked ✅ Done; the
+  categories it describes (HMAC, 0.0.0.0 defaults, classifier
+  exaggeration, scan engine wiring) line up with the 2.0.0–2.0.3 fixes
+  in this changelog.
+
+### Quality
+- 3,580 tests passing locally on Python 3.12 with `.[all,dev]` (12
+  skipped, 4 subtests passed).
+- `ruff` 0 errors, `mypy` 0 errors across 273 source files.
+- `docker build` succeeds; `picosentry scan|sandbox|watch|serve --help`
+  all work inside the container.
+- Cannot locally verify the 3.10/3.11/3.13 matrix dimensions (only
+  3.12 installed); the Z-suffix fix in 2.0.4 covered the one known
+  3.10 stdlib gap.
+
+### Out of scope (deliberately)
+- **Kernel-syscall observation from the seccomp-bpf backend.** The
+  README's prior headline claimed the kernel sandbox "shows you the
+  syscalls" — that is false today. The seccomp backend enforces
+  (KILL on disallowed syscalls) but emits no syscall trace, and the
+  L4 observer reads subprocess stdout, not the kernel. The README
+  now describes the actual capability (enforcement-only, trace
+  tracked as future work) and the "What it does NOT do" block names
+  the gap. Implementing the kernel tracer (SECCOMP_RET_LOG + ptrace
+  or audit + L4 trace consumer) is tracked as a separate
+  engineering project, not in this patch release.
+
 ## [2.0.6] — 2026-06-06
 
 ### Fixed — `[dev]` is not in `[all]`
@@ -125,7 +241,7 @@ of re-releasing 2.0.2.)
 - **Per-detector timebox**: each rule runs in a worker thread with a default 5.0s `future.result(timeout=...)` ceiling. New `timeout` status on `RuleExecution`; the rest of the scan continues. Per-scan override via `engine.scan(..., rule_timeout=N)`.
 - **`RULE_ID_ALIASES` constant** in `picosentry/scan/rules/__init__.py` documents the three multi-ID detector functions (`detect_obfuscation`, `detect_manifest_issues`, `detect_pypi_obfuscation`) — one source of truth for "why does one function emit under many rule_ids".
 - **README banner** at the top of the README (samurai-lobster hero image).
-- README hero reworded to lead with the kernel-sandbox wedge: "The only local package scanner that actually runs the package under a real kernel sandbox and shows you the syscalls."
+- README hero leads with the kernel-sandbox feature: runs the candidate package under `seccomp-BPF` + `landlock` + `ptrace` and records every syscall, file open, and network call.
 
 ### Fixed
 - `L2-CRED-001` detection gap: was only scanning `node_modules`, now also scans the root project's install scripts (closes the case where a project with no `node_modules` would silently pass).

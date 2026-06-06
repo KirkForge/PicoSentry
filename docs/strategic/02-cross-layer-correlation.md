@@ -1,14 +1,22 @@
 # 02 — Cross-Layer Kill-Chain Correlation
 
-**Leverage:** Competitive moat | **Effort:** Medium | **Dependency:** None (pure serve-layer addition)
+**Leverage:** Category ownership | **Effort:** Medium | **Dependency:** None (pure serve-layer addition)
 
 ---
 
 ## Why
 
-Nobody else owns **scan + runtime sandbox + LLM defense** in one package. Snyk covers scan. Socket covers scan + runtime behavior. Nightfall covers LLM defense. Endor covers reachability. But no product correlates findings *across layers for the same artifact* — the thing that turns a list of warnings into an actual attack narrative.
+The scanner, sandbox, and LLM guard each emit structured events about
+the same artifact (a package, a prompt, a process), but those events
+land in different stores with different schemas. A user who runs all
+three layers gets three separate reports, not one picture.
 
-This kills two birds: it makes the product un-clonable, and it solves the #1 user pain of alert fatigue ("I have 42 findings — which ones actually matter together?")
+Cross-layer correlation joins events by artifact identity into a
+single timeline and scores the chain. That converts a list of
+warnings into a chronology: which package triggered which rule in
+which layer, in what order, and how serious the chain is as a whole.
+The output answers the alert-fatigue question directly: "I have 42
+findings — which ones actually matter together?"
 
 ## Architecture
 

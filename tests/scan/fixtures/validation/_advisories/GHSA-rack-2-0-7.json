@@ -1,0 +1,26 @@
+{
+  "id": "GHSA-3c4c-rack-2-0",
+  "summary": "Rack: directory traversal via path normalization (CVE-2019-16782)",
+  "details": "Rack versions prior to 2.0.7 are vulnerable to directory traversal in the Pathname and File utilities when a specially crafted path includes encoded slashes.",
+  "affected": [
+    {
+      "package": {"name": "rack", "ecosystem": "rubygems"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "2.0.7"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-22"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2019-16782"},
+    {"url": "https://github.com/rack/rack/security/advisories"}
+  ]
+}

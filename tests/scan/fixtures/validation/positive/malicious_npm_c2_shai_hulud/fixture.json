@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app whose postinstall script contacts the known Shai-Hulud C2 domain.",
+  "expected_rule_ids": ["L2-NETEX-001"]
+}

@@ -1,0 +1,12 @@
+{
+  "label": "positive",
+  "description": "PyPI setup.py triggering all six PyPI obfuscation detectors (OBFS-001..006).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-OBFS-002",
+    "L2-PYPI-OBFS-003",
+    "L2-PYPI-OBFS-004",
+    "L2-PYPI-OBFS-005",
+    "L2-PYPI-OBFS-006"
+  ]
+}

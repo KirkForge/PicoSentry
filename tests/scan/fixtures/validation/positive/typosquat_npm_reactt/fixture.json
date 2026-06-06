@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package named 'reactt' (edit distance 1 from 'react', a top-100 npm package).",
+  "expected_rule_ids": ["L2-TYPO-001"]
+}

@@ -30,7 +30,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Plugin system | **Beta** | Loads and dispatches; signature verify works |
 | Postgres backend | **Stub** | SQLite only; migration not started |
 | Cluster mode | **Experimental** | Single-node verified; multi-node gossip untested |
-| Detection benchmarks | **Stub** | Framework defined, no real data yet |
+| Detection benchmarks | **Stable** | 45 fixtures, 49 L2 rule_ids + 1 L2-CAMP rule, 100% precision/recall; small corpus (see "Honest limitations" in that document); see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) |
 | Corpus marketplace | **Stub** | Export/import CLI commands not wired |
 
 The scanner is the stable product. The kernel sandbox is beta enforcement-only today;
@@ -41,18 +41,23 @@ does NOT do" below).
 
 ## What it does NOT do (today)
 
-- **Does not record per-syscall traces from the kernel sandbox.** The seccomp-bpf
-  backend enforces (kills on disallowed syscalls) and emits meta-events (verdict,
-  timeout, violation, degradation) — not a syscall stream. L4 behavioral observers
-  read subprocess stdout, not the kernel.
+- **Records per-syscall traces from the kernel sandbox** (opt-in via
+  `--backend=seccomp-trace` on `picosentry sandbox`; requires Linux + libseccomp +
+  `CONFIG_SECCOMP_LOG=y`). Default `--backend=auto` continues to use the
+  enforcement-only `seccomp-bpf` backend. Path/address arguments on events are
+  not yet captured (v2.0.9 plan: `PTRACE_SECCOMP` or `SECCOMP_RET_USER_NOTIF`).
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
 - **Does not run cluster mode in production.** Single-node only; multi-node gossip
   is untested.
 - **Does not have a real Postgres backend.** SQLite only.
-- **Does not have detection-benchmark data.** The validation harness exists
-  (`picosentry scan --validate`); the rule-level precision/recall numbers have not
-  been run against a real dataset.
+- **Has published detection-benchmark data** in
+  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The 2.0.9 baseline is 45
+  fixtures / 49 L2 rule_ids (plus 1 L2-CAMP rule) / 100% precision /
+  100% recall. The corpus is small — 1 fixture per rule, mostly
+  hand-crafted — so the 100% number is a smoke test, not a
+  statistically meaningful measurement. See "Honest limitations" in
+  that document for what the numbers do and don't prove.
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV
   corpus (`[scan]` extra); offline-only operation pulls from the local corpus
   snapshot.
@@ -119,8 +124,10 @@ digest will match exactly — that's the determinism guarantee.
 | L2-SBOM-001 | SBOM generation | CycloneDX-compatible output |
 | L2-LICENSE-001 | License compliance | Copyleft, unknown, deprecated licenses |
 
-Full rule catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/) (50 rules
-across the supported ecosystems).
+Full rule catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/) (49
+L2 rule_ids in `RULE_INFO`; `RULE_ID_ALIASES` expands 3 detectors to
+13 sub-rule_ids for a total of 50 measurable rule_ids across the
+supported ecosystems).
 
 ---
 

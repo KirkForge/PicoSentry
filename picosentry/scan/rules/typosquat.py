@@ -169,10 +169,15 @@ def _collect_go_deps(target: Path) -> set[str]:
 
 
 def _collect_cargo_deps(target: Path) -> set[str]:
+    deps: set[str] = set()
     cargo_data = parse_cargo_toml(target)
     if cargo_data:
-        return get_cargo_dep_names(cargo_data)
-    return set()
+        deps.update(get_cargo_dep_names(cargo_data))
+        # Check root crate name (the crate itself could be a typosquat)
+        pkg_name = cargo_data.get("package_name", "")
+        if isinstance(pkg_name, str) and pkg_name:
+            deps.add(pkg_name)
+    return deps
 
 
 def _collect_pypi_deps(target: Path) -> set[str]:
@@ -200,6 +205,10 @@ def _collect_maven_deps(target: Path) -> set[str]:
     pom_data = parse_pom_xml(target)
     if pom_data:
         deps.update(get_maven_dep_identifiers(pom_data))
+        # Check root artifactId (the project itself could be a typosquat)
+        artifact_id = pom_data.get("artifact_id", "")
+        if isinstance(artifact_id, str) and artifact_id:
+            deps.add(artifact_id)
     gradle_data = parse_gradle_build(target)
     if gradle_data:
         deps.update(get_maven_dep_identifiers(gradle_data))

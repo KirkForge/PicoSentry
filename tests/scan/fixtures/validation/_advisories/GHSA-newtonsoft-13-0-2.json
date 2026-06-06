@@ -1,0 +1,25 @@
+{
+  "id": "GHSA-3c4c-newtonsoft",
+  "summary": "Newtonsoft.Json denial of service via deeply nested JSON (illustrative fixture)",
+  "details": "Fixture advisory for L2-NUGET-ADV-001. Affects Newtonsoft.Json versions prior to 13.0.2.",
+  "affected": [
+    {
+      "package": {"name": "Newtonsoft.Json", "ecosystem": "nuget"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "13.0.2"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-400"]
+  },
+  "references": [
+    {"url": "https://github.com/JamesNK/Newtonsoft.Json"}
+  ]
+}

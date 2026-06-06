@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app whose index.js contains all four obfuscation patterns: eval(), hex-escaped string, base64+eval, and unicode escapes.",
+  "expected_rule_ids": ["L2-OBFS-001", "L2-OBFS-002", "L2-OBFS-003", "L2-OBFS-004"]
+}

@@ -1,0 +1,15 @@
+{
+  "id": "event-stream-malicious-336",
+  "name": "event-stream-malicious",
+  "package_name": "event-stream",
+  "version_range": "3.3.6",
+  "ioc_type": "supply_chain_attack",
+  "attack_vector": "bundled_dependency_shadow",
+  "severity": "CRITICAL",
+  "description": "event-stream@3.3.6 contained a backdoored flatmap-stream dependency (Shai-Hulud variant). The bundled flatmap-stream library would execute arbitrary code on install, stealing credentials from the user's environment.",
+  "expected_detections": ["L2-IOC-001", "L2-BUND-001"],
+  "references": [
+    "https://snyk.io/blog/a-postmortem-of-the-malicious-event-stream-backdoor/",
+    "https://github.com/dominictarr/event-stream/issues/116"
+  ]
+}

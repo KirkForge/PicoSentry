@@ -1,0 +1,25 @@
+{
+  "id": "GHSA-3c4c-3j5c-r5vq",
+  "summary": "serde Denial of Service via deeply nested deserialization (illustrative fixture)",
+  "details": "Fixture advisory for L2-CARGO-ADV-001. Affects serde versions prior to 1.0.184.",
+  "affected": [
+    {
+      "package": {"name": "serde", "ecosystem": "cargo"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "1.0.184"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-400"]
+  },
+  "references": [
+    {"url": "https://github.com/serde-rs/serde"}
+  ]
+}

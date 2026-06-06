@@ -1,0 +1,636 @@
+{
+  "fixture_results": [
+    {
+      "details": [],
+      "fixture": "anonymous_npm_with_postinstall",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_cargo_acme",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_go_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_maven_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_npm_internal_scope",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_nuget_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_pypi_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "dep_confusion_rubygems_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "fork_drift_personal_repo",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "ioc_event_stream_shadow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "loose_engine_constraint_npm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "loose_manifest_npm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_cargo_serde_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_go_jwt_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_maven_log4j_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_bundled_dependencies",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_c2_shai_hulud",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_git_dep",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_lodash_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_obfuscated_js",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_npm_postinstall",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_nuget_newtonsoft_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_pnpm_dangerous",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_pypi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_pypi_django_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_pypi_obfs_full",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "malicious_rubygems_rack_cve",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "missing_lockfile_npm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "missing_repo_npm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "shai_hulud_named_signature",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_reqwast",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_gogin",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_junnit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_reactt",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_newtonsot",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_requestt",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_devvise",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "unlicensed_npm_package",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "worm_propagation_npm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_cargo_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_go_module",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_app",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_unique_package_name",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_with_internal_scope_private_registry",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_lib",
+      "outcome": "PASS"
+    }
+  ],
+  "mean_precision": 1.0,
+  "mean_recall": 1.0,
+  "rule_metrics": [
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-BUND-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-SHAI-HULUD",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CARGO-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CARGO-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CARGO-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CRED-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-ENGIN-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-FORK-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-GO-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-GO-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-GO-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-IOC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-LICENSE-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-LOCK-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MAINT-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MANI-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MANI-002",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MAVEN-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MAVEN-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MAVEN-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NETEX-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NUGET-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NUGET-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NUGET-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-OBFS-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-OBFS-002",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-OBFS-003",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-OBFS-004",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PNPM-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-POST-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PROV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-002",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-003",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-004",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-005",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-006",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-007",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-POST-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-RUBYGEMS-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-RUBYGEMS-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-RUBYGEMS-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-SIDELOAD-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-TYPO-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-WORM-001",
+      "true_positives": 1
+    }
+  ],
+  "total_fixtures": 45,
+  "total_negative": 6,
+  "total_positive": 39
+}

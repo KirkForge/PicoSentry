@@ -62,9 +62,11 @@ tmp/
 # Generated / runtime artifacts
 *.tar.gz
 *.log
+*.log.*
 *.db-shm
 *.db-wal
 picoshogun.db
+picosentry/serve/logs/
 
 # PicoDome runtime sandbox state
 .picodome/

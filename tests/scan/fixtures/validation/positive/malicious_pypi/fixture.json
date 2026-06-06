@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI setup.py with exec(decoded_payload) and base64-encoded exec pattern. Triggers L2-PYPI-POST-001 + L2-PYPI-OBFS-001 + L2-PYPI-OBFS-007.",
+  "expected_rule_ids": [
+    "L2-PYPI-POST-001",
+    "L2-PYPI-OBFS-007"
+  ]
+}

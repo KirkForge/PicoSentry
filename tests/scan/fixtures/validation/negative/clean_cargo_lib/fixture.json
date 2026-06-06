@@ -1,0 +1,4 @@
+{
+  "label": "negative",
+  "description": "A clean Rust crate with no suspicious patterns. Should produce zero findings."
+}

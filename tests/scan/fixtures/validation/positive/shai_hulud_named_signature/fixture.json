@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "npm project that contains a Shai-Hulud named signature (setup_bun.js) in a source file. Triggers L2-CAMP-SHAI-HULUD via the literal named-signature fast path.",
+  "expected_rule_ids": [
+    "L2-CAMP-SHAI-HULUD"
+  ]
+}

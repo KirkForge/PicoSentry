@@ -80,7 +80,11 @@ def test_bench_cold_start():
     e = create_default_engine()
     elapsed_ms = (time.monotonic() - start) * 1000
 
-    assert len(e.list_rules()) == 31
+    # 31 base rules (23 npm + 8 PyPI) + N auto-discovered campaign packages.
+    # Assert the base count plus at least one campaign is wired up.
+    rules = e.list_rules()
+    assert len(rules) >= 31
+    assert any(r.startswith("L2-CAMP-") for r in rules)
     assert e._corpus_version
 
     if elapsed_ms > TARGETS["cold_start_ms"]:
@@ -94,7 +98,7 @@ def test_bench_cold_start():
 def test_bench_rule_registration(engine):
     """All rules register quickly."""
     rules = engine.list_rules()
-    assert len(rules) == 31
+    assert len(rules) >= 31
     valid_prefixes = {
         "L2-POST",
         "L2-OBFS",
@@ -121,6 +125,7 @@ def test_bench_rule_registration(engine):
         "L2-MAVEN",
         "L2-RUBYGEMS",
         "L2-NUGET",
+        "L2-CAMP",  # Per-campaign IOC packages
     }
     for rule_id in rules:
         prefix = "-".join(rule_id.split("-")[:2])

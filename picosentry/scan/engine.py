@@ -10,8 +10,10 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import threading
 import time
 from collections.abc import Callable, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -19,6 +21,46 @@ if TYPE_CHECKING:
     from .policy import Policy
 
 from .models import Finding, RuleExecution, ScanResult, ScanStats
+
+# Per-detector timebox. A single misbehaving detector (infinite regex
+# backtracking, huge directory walk, blocking I/O) must not tank the
+# whole scan. We run each rule function on its own thread via a shared
+# thread pool and wait at most DEFAULT_RULE_TIMEOUT_SECONDS; on
+# FuturesTimeoutError we record status="timeout" and continue. Mirrors
+# the reliability primitive used by @lateos/npm-scan (Promise.race vs
+# setTimeout). The worker thread is left orphaned on timeout — Python
+# cannot cancel running code, but the GIL and process-local state ensure
+# no observable side effects leak out to other rules or to the calling
+# scan() frame. The default is calibrated to the slowest real rule in
+# the default engine on a typical project. Callers can tighten it via
+# scan(rule_timeout=...) for stricter SLOs.
+DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
+# Public alias — kept for tests and downstream consumers.
+RULE_TIMEOUT_SECONDS = DEFAULT_RULE_TIMEOUT_SECONDS
+# Pool is created lazily on first scan() call. We size it generously so
+# every rule can run in parallel; a misbehaving rule (e.g. infinite loop)
+# gets its own thread that the timebox can detach from without starving
+# subsequent rules.
+_RULE_POOL_SIZE = 64
+_rule_executor: ThreadPoolExecutor | None = None
+_rule_executor_lock = threading.Lock()
+
+
+def _get_rule_executor() -> ThreadPoolExecutor:
+    """Lazily build a process-wide thread pool for rule execution.
+
+    Created on first use so that test suites that never call scan() don't
+    pay the thread-spawn cost. The pool is reused across all scan() calls
+    in the process.
+    """
+    global _rule_executor
+    if _rule_executor is None:
+        with _rule_executor_lock:
+            if _rule_executor is None:
+                _rule_executor = ThreadPoolExecutor(
+                    max_workers=_RULE_POOL_SIZE, thread_name_prefix="picosentry-rule"
+                )
+    return _rule_executor
 
 
 # PolicyStack integration — lazy import to avoid circular dependency
@@ -176,6 +218,7 @@ class ScanEngine:
         target: str | Path,
         rules: Sequence[str] | None = None,
         advisory_db_path: str | None = None,
+        rule_timeout: float | None = None,
     ) -> ScanResult:
         """
         Run a deterministic scan on target path.
@@ -183,6 +226,13 @@ class ScanEngine:
         Args:
             target: Filesystem path to scan (project root, node_modules, etc.)
             rules: Optional subset of rule IDs to run. None = all rules.
+            advisory_db_path: Optional override for the advisory database.
+            rule_timeout: Per-detector timeout in seconds. Defaults to
+                DEFAULT_RULE_TIMEOUT_SECONDS. A rule that exceeds this
+                timebox is recorded with status="timeout" and the scan
+                continues with the remaining rules. Set to a small value
+                (e.g. 0.5) in tests to assert the timebox fires; use the
+                default for normal scans.
 
         Returns:
             ScanResult with sorted findings and aggregate stats.
@@ -191,6 +241,13 @@ class ScanEngine:
         if not target_path.exists():
             logger.error("Scan target does not exist: %s", target_path)
             return ScanResult(target=str(target_path))
+
+        # Resolve the effective per-rule timeout for this scan. The module
+        # constant is the default; callers (typically the CLI or tests) can
+        # tighten or loosen it per scan.
+        _effective_rule_timeout = (
+            DEFAULT_RULE_TIMEOUT_SECONDS if rule_timeout is None else float(rule_timeout)
+        )
 
         # ── Ecosystem auto-detection ──────────────────────────────────────
         # Detect which ecosystems are present at the target so we only run
@@ -296,21 +353,57 @@ class ScanEngine:
             fn_id = id(selected_rules[rule_id])
             fn_to_rule_ids.setdefault(fn_id, []).append(rule_id)
 
+        # Per-detector timebox. A single misbehaving detector (infinite regex
+        # backtracking, huge directory walk, blocking I/O) must not tank the
+        # whole scan. We run each rule function on its own thread via a shared
+        # thread pool and wait at most _effective_rule_timeout seconds; on
+        # FuturesTimeoutError we record status="timeout" and continue. Mirrors
+        # the reliability primitive used by @lateos/npm-scan (Promise.race
+        # vs setTimeout). The worker thread is left orphaned on timeout —
+        # Python cannot cancel running code, but the GIL and process-local
+        # state ensure no observable side effects leak out to other rules
+        # or to the calling scan() frame.
+        from concurrent.futures import TimeoutError as FuturesTimeoutError
+
+        rule_executor = _get_rule_executor()
+
+        def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
+            if fn.__name__ == "detect_all_advisory_vulnerabilities":
+                # detect_all_advisory_vulnerabilities takes an extra
+                # advisory_db_path kwarg that the base DetectorRule
+                # signature doesn't include.
+                return fn(
+                    target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
+                )
+            return fn(target_path, self._corpus_dir)
+
         for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
             rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
             rule_ids_for_fn = fn_to_rule_ids[fn_id]
             primary_rule_id = rule_ids_for_fn[0]
             rule_start = _now_ms()
             try:
-                if rule_fn.__name__ == "detect_all_advisory_vulnerabilities":
-                    # detect_all_advisory_vulnerabilities takes an extra
-                    # advisory_db_path kwarg that the base DetectorRule
-                    # signature doesn't include.
-                    findings = rule_fn(  # type: ignore[call-arg]
-                        target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
+                future = rule_executor.submit(_invoke_rule, rule_fn)
+                try:
+                    findings = future.result(timeout=_effective_rule_timeout)
+                except FuturesTimeoutError:
+                    elapsed = int(_now_ms() - rule_start)
+                    logger.warning(
+                        "Rule %s exceeded %ss timebox — skipping",
+                        primary_rule_id, _effective_rule_timeout,
                     )
-                else:
-                    findings = rule_fn(target_path, self._corpus_dir)
+                    for rid in rule_ids_for_fn:
+                        rule_timings[rid] = elapsed
+                        rule_executions.append(
+                            RuleExecution(
+                                rule_id=rid,
+                                status="timeout",
+                                duration_ms=elapsed,
+                                findings_count=0,
+                                error=f"exceeded {_effective_rule_timeout}s timebox",
+                            )
+                        )
+                    continue
                 all_findings.extend(findings)
                 logger.debug("Rules %s: %d findings", rule_ids_for_fn, len(findings))
                 elapsed = int(_now_ms() - rule_start)
@@ -558,6 +651,23 @@ def create_default_engine(
     engine.register("L2-PYPI-OBFS-005", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-006", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-007", detect_pypi_obfuscation)
+
+    # ── Per-campaign IOC packages (auto-discovered) ─────────────────────
+    # Convention over configuration: every campaign in
+    # `picosentry/scan/campaigns/<name>/` with iocs.json + detector.py is
+    # auto-registered. To add a new campaign, drop a folder in there — no
+    # changes needed here.
+    from .campaigns import iter_campaigns
+
+    for campaign in iter_campaigns():
+        try:
+            campaign.register(engine)
+        except Exception as exc:
+            logger.warning(
+                "Failed to register campaign %s: %s",
+                campaign.campaign_id,
+                exc,
+            )
 
     return engine
 

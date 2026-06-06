@@ -1,0 +1,84 @@
+{
+  "campaign_id": "shai-hulud-2025",
+  "schema_version": "1.0",
+  "severity": "CRITICAL",
+  "description": "Shai-Hulud npm worm and CVE-2025-54313 (Scavenger) — self-propagating postinstall worm that clones itself into new npm packages, exfiltrates credentials, and creates GitHub repos. 691 packages with 1192 compromised versions across the npm ecosystem. Includes Mini Shai-Hulud 2026 waves targeting @tanstack and @antv scopes.",
+  "ecosystem": ["npm"],
+  "rule_id": "L2-CAMP-SHAI-HULUD",
+  "references": [
+    "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
+    "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/",
+    "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
+    "https://github.com/TanStack/router/security/advisories/GHSA-g7cv-rxg3-hmpx"
+  ],
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001",
+    "L2-NETEX-001",
+    "L2-WORM-001"
+  ],
+  "indicators": {
+    "named_signatures": [
+      "shai-hulud worm",
+      "setup_bun.js",
+      "bun_environment.js",
+      "firedalazer",
+      "MUT-8694"
+    ],
+    "c2_domains": [
+      "shai-hulud.cc",
+      "firebase.su",
+      "dieorsuffer.com",
+      "smartscreen-api.com",
+      "git-tanstack.com",
+      "filev2.getsession.org",
+      "api.masscan.cloud",
+      "t.m-kosche.com"
+    ],
+    "phishing_domains": [
+      "npmjs.help",
+      "npmjs.support",
+      "npmjs.security",
+      "npnjs.com"
+    ],
+    "payload_filenames": [
+      "setup_bun.js",
+      "bun_environment.js",
+      "router_init.js",
+      "tanstack_runner.js",
+      "router_runtime.js",
+      "opensearch_init.js",
+      "setup.mjs",
+      "vite_setup.mjs"
+    ],
+    "bundle_hashes_sha256": {
+      "version_8_bun_environment": "62ee164b9b306250c1172583f138c9614139264f889fa99614903c12755468d0",
+      "version_9_bun_environment": "f099c5d9ec417d4445a0328ac0ada9cde79fc37410914103ae9c609cbc0ee068",
+      "version_10_bun_environment": "cbb9bc5a8496243e02f3cc080efbe3e4a1430ba0671f2e43a202bf45b05479cd",
+      "version_11_setup_bun": "a3894003ad1d293ba96d77881ccd2071446dc3f65f434669b49b3da92421901a",
+      "mini_shai_hulud_2026_payload_1": "ab4fcadaec49c03278063dd269ea5eef82d24f2124a8e15d7b90f2fa8601266c",
+      "mini_shai_hulud_2026_payload_2": "2ec78d556d696e208927cc503d48e4b5eb56b31abc2870c2ed2e98d6be27fc96",
+      "mini_shai_hulud_2026_payload_3": "2258284d65f63829bd67eaba01ef6f1ada2f593f9bbe41678b2df360bd90d3df"
+    },
+    "persistence_daemons": [
+      "gh-token-monitor",
+      "kitty-monitor"
+    ],
+    "compromised_packages": [
+      {"package_name": "shai-hulud", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "shai-hulud-1", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "shai-hulud-2", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "rxnt-authentication", "version_range": "0.0.3", "severity": "CRITICAL"},
+      {"package_name": "@tanstack/setup", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "@antv/setup", "version_range": "*", "severity": "CRITICAL"},
+      {"package_name": "@tanstack/react-router", "version_range": "1.169.5 || 1.169.8", "severity": "CRITICAL"},
+      {"package_name": "@tanstack/router-core", "version_range": "1.169.5 || 1.169.8", "severity": "CRITICAL"},
+      {"package_name": "@tanstack/react-start", "version_range": "1.167.68 || 1.167.71", "severity": "CRITICAL"},
+      {"package_name": "@tanstack/router-plugin", "version_range": "1.167.38 || 1.167.41", "severity": "CRITICAL"},
+      {"package_name": "@ctrl/deluge", "version_range": "7.2.1 || 7.2.2", "severity": "CRITICAL"},
+      {"package_name": "@crowdstrike/commitlint", "version_range": "8.1.1 || 8.1.2", "severity": "CRITICAL"},
+      {"package_name": "@ensdomains/eth-ens-namehash", "version_range": "2.0.16", "severity": "CRITICAL"},
+      {"package_name": "@nstudio/angular", "version_range": "20.0.4 || 20.0.5 || 20.0.6", "severity": "CRITICAL"}
+    ]
+  }
+}

@@ -1,0 +1,4 @@
+{
+  "label": "negative",
+  "description": "A clean Python library using pyproject.toml with no setup.py install-time code. Should produce zero findings."
+}

@@ -1,0 +1,4 @@
+{
+  "label": "negative",
+  "description": "A clean npm app with a typical Express server. No postinstall, no credential reads, no suspicious patterns. Should produce zero findings."
+}

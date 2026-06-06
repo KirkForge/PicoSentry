@@ -114,10 +114,11 @@ class TestUnifiedCLI:
     """Unified CLI delegates correctly."""
 
     def test_cli_version(self) -> None:
+        from picosentry import __version__
         from picosentry.cli import _get_unified_version
 
         version = _get_unified_version()
-        assert version == "2.0.0"
+        assert version == __version__
 
     def test_cli_health(self) -> None:
         from picosentry.cli import _handle_health

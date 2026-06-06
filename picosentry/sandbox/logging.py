@@ -19,7 +19,7 @@ from typing import Any, ClassVar
 try:
     from picosentry.sandbox import __version__
 except ImportError:
-    __version__ = "2.0.1"
+    __version__ = "2.0.2"
 
 
 class PicoDomeJSONFormatter(logging.Formatter):

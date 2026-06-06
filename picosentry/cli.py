@@ -235,6 +235,7 @@ def main(argv: list[str] | None = None) -> None:
     scan_parser.add_argument("--baseline-update", action="store_true", help="Write updated baseline")
     scan_parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     scan_parser.add_argument("--verify-determinism", action="store_true", help="Verify SHA-256 determinism")
+    scan_parser.add_argument("--validate", action="store_true", help="Run validation harness against built-in fixtures (ignores <target>)")
     scan_parser.add_argument("--sarif-file", type=str, default=None, help="SARIF output path")
     scan_parser.add_argument("--policy", "-p", type=str, default=None, help="Policy file path")
     scan_parser.add_argument("--fail-on-rule-error", action="store_true", help="Fail on rule errors")
@@ -427,6 +428,10 @@ def _handle_scan(args: argparse.Namespace) -> int:
     scan_argv: list[str] = ["scan"]
     if args.target:
         scan_argv.extend(args.target)
+    elif getattr(args, "validate", False):
+        # --validate ignores target; pass a placeholder so the inner CLI's
+        # required-positional check is satisfied.
+        scan_argv.append(".")
 
     # Forward all scan CLI flags (must match scan_parser def above)
     _forward_flag(scan_argv, args, "--format")
@@ -445,6 +450,7 @@ def _handle_scan(args: argparse.Namespace) -> int:
     _forward_flag(scan_argv, args, "--baseline-update", boolean=True)
     _forward_flag(scan_argv, args, "--no-color", boolean=True)
     _forward_flag(scan_argv, args, "--verify-determinism", boolean=True)
+    _forward_flag(scan_argv, args, "--validate", boolean=True)
     _forward_flag(scan_argv, args, "--sarif-file")
     _forward_flag(scan_argv, args, "--policy", "-p")
     _forward_flag(scan_argv, args, "--fail-on-rule-error", boolean=True)

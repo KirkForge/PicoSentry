@@ -219,10 +219,11 @@ def _collect_maven_packages(target: Path) -> list[tuple[str, str, str, Path]]:
     if pom_data:
         for dep in pom_data.get("dependencies", []):
             group_id, artifact_id, version, _scope = dep if len(dep) == 4 else (dep[0], dep[1], dep[2], "")
-            pkg_key = f"{group_id}:{artifact_id}"
+            # OSV convention: Maven packages are keyed by artifact_id only.
+            pkg_key = artifact_id
             if pkg_key and version and (pkg_key, version) not in seen:
                 seen.add((pkg_key, version))
-                packages.append((pkg_key, version, f"{pkg_key}@{version}", target / "pom.xml"))
+                packages.append((pkg_key, version, f"{group_id}:{artifact_id}@{version}", target / "pom.xml"))
 
     gradle_data = parse_gradle_build(target)
     if gradle_data:
@@ -255,7 +256,11 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
 
     gemfile_data = parse_gemfile(target)
     if gemfile_data:
-        for gem_name, version in gemfile_data.get("dependencies", {}).items():
+        # parse_gemfile returns dependencies as a list of (name, version, source_type) tuples
+        for entry in gemfile_data.get("dependencies", []):
+            if not isinstance(entry, tuple) or len(entry) < 2:
+                continue
+            gem_name, version = entry[0], entry[1]
             if gem_name and version and (gem_name, str(version)) not in seen:
                 seen.add((gem_name, str(version)))
                 packages.append((gem_name, str(version), f"{gem_name}@{version}", target / "Gemfile"))

@@ -238,8 +238,19 @@ def discover_fixtures(
 
 def _metrics_from_fixtures(
     fixtures: Sequence[FixtureSpec],
+    advisory_db_path: str | Path | None = None,
 ) -> tuple[dict[str, RuleMetrics], list[tuple[str, str, tuple[str, ...]]]]:
-    """Run the engine against each fixture, compare findings to expectations."""
+    """Run the engine against each fixture, compare findings to expectations.
+
+    Args:
+        fixtures: The fixtures to scan.
+        advisory_db_path: Path to an advisory DB directory (OSV-format JSON
+            files) for the L2-ADV-001 family of rules. If None, the
+            function auto-discovers ``<validation_root>/_advisories/`` when
+            called via :func:`run_validation`. A fresh clone with no
+            staged advisories runs the rest of the suite as before; this
+            is intentionally non-fatal.
+    """
     from .engine import create_default_engine
 
     # Lazy import to avoid circular import at module load.
@@ -258,7 +269,7 @@ def _metrics_from_fixtures(
 
     for spec in fixtures:
         try:
-            result = engine.scan(spec.path)
+            result = engine.scan(spec.path, advisory_db_path=advisory_db_path)
         except Exception as exc:
             logger.error("Fixture %s: scan raised %s", spec.name, exc)
             fixture_results.append((spec.name, "ERROR", (str(exc),)))
@@ -292,6 +303,7 @@ def run_validation(
     validation_root: Path | None = None,
     rules: Sequence[str] | None = None,
     output_path: Path | None = None,
+    advisory_db_path: str | Path | None = None,
 ) -> ValidationReport:
     """Run PicoSentry against the built-in validation fixtures.
 
@@ -303,14 +315,28 @@ def run_validation(
             advisory as-is; results are computed across all rules that
             fire on each fixture.
         output_path: If given, write the report JSON here.
+        advisory_db_path: Path to an advisory DB directory for the
+            L2-ADV-001 rule family. If None, the function auto-discovers
+            ``<validation_root>/_advisories/`` when that directory exists;
+            this is the convention for fixture-local advisory staging.
 
     Returns:
         ValidationReport with per-rule and per-fixture counts.
     """
     del rules  # Reserved for future rule-filtering; not used today.
 
+    if validation_root is None:
+        validation_root = (
+            Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
+        )
+
+    if advisory_db_path is None:
+        auto_path = validation_root / "_advisories"
+        if auto_path.is_dir():
+            advisory_db_path = str(auto_path)
+
     fixtures = discover_fixtures(validation_root)
-    metrics, fixture_results = _metrics_from_fixtures(fixtures)
+    metrics, fixture_results = _metrics_from_fixtures(fixtures, advisory_db_path=advisory_db_path)
 
     report = ValidationReport(
         rule_metrics=tuple(metrics[r] for r in sorted(metrics)),

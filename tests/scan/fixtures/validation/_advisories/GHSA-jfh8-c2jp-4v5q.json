@@ -1,0 +1,26 @@
+{
+  "id": "GHSA-jfh8-c2jp-4v5q",
+  "summary": "lodash prototype pollution via defaultsDeep (CVE-2019-10744)",
+  "details": "Versions of lodash prior to 4.17.12 are vulnerable to Prototype Pollution. The function defaultsDeep allows a malicious user to modify the prototype of Object via __proto__, causing the addition or modification of an existing property that will exist on all objects.",
+  "affected": [
+    {
+      "package": {"name": "lodash", "ecosystem": "npm"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "0.0.0"},
+            {"fixed": "4.17.21"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-1321"]
+  },
+  "references": [
+    {"url": "https://github.com/lodash/lodash/pull/4759"},
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2019-10744"}
+  ]
+}

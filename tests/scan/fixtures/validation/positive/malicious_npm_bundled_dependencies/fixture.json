@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app declaring a bundledDependencies list (bundled shadow risk).",
+  "expected_rule_ids": ["L2-BUND-001"]
+}

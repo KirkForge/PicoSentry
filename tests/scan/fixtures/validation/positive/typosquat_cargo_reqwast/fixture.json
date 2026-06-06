@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Cargo crate named 'reqwast' (edit distance 2 from 'reqwest', a top-100 cargo crate).",
+  "expected_rule_ids": ["L2-CARGO-TYPO-001"]
+}

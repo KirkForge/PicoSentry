@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Go module depending on dgrijalva/jwt-go v3.2.0 (CVE-2020-26160, fixed in 3.2.1).",
+  "expected_rule_ids": ["L2-GO-ADV-001"]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "bundled-pkg",
+  "version": "1.0.0",
+  "bundledDependencies": [
+    "flatmap-stream"
+  ]
+}

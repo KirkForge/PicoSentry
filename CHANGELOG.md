@@ -2,6 +2,89 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.9] — 2026-06-06
+
+### Added — detection corpus expansion
+- **45 validation fixtures covering all 49 L2 rule_ids** (was 7 fixtures / 5 rules
+  in v2.0.8). v2.0.9 expands the corpus to 39 positive + 6 negative fixtures
+  under `tests/scan/fixtures/validation/{positive,negative}/` and brings every
+  L2 rule in `RULE_INFO` to ≥ 1 positive fixture, with mean precision 1.0 and
+  mean recall 1.0 reproduced by `picosentry scan --validate`.
+- **7 new ecosystem domains now exercised**: v2.0.8 had npm + PyPI; v2.0.9
+  adds Cargo, Go, Maven, RubyGems, and NuGet. Every detector alias
+  (`L2-CARGO-*`, `L2-GO-*`, `L2-MAVEN-*`, `L2-RUBYGEMS-*`, `L2-NUGET-*`) has
+  at least one positive fixture.
+- **Advisory-DB staging via `_advisories/`**: 7 OSV-format advisory JSON
+  files dropped under `tests/scan/fixtures/validation/_advisories/`. The
+  validation harness now auto-discovers this directory at the validation
+  root and forwards the path to `engine.scan()`. Before this fix, the
+  `L2-ADV-001` and the 6 ecosystem alias rules **could not fire under
+  `--validate`** because `run_validation()` did not pass an `advisory_db_path`.
+- **New built-in IoC** `picosentry/scan/corpus/ioc/event_stream_malicious_336.json`
+  for the Shai-Hulud variant `event-stream@3.3.6`. The new IoC uses the
+  correct `package_name` key. (Note: the 7 pre-existing IoC files at
+  `picosentry/scan/corpus/ioc/` use `name` where the detector reads
+  `package_name` — a latent bug. Renaming the existing 7 is deferred to
+  v2.0.10 to keep this PR's blast radius small; this CHANGELOG entry
+  documents the issue so consumers of the IoC corpus know.)
+- **Tricky-negatives corpus** (`tests/scan/fixtures/validation/_tricky/`)
+  with 6 fixtures and a new `tests/scan/test_tricky_negatives.py` pytest
+  that documents known detector limits:
+    - 3 fixtures assert a specific rule fires at an expected severity
+      (e.g. `l0dash` is a typosquat of `lodash`).
+    - 3 fixtures assert zero findings (e.g. `bytes.fromhex(...)` does
+      not trigger `L2-PYPI-OBFS-002`; reading `/etc/hosts` does not
+      trigger `L2-CRED-001` / `L2-NETEX-001`).
+  These guard against detector limits silently changing after a refactor.
+  Tricky fixtures are **not** picked up by the strict CI gate — they
+  live under `_tricky/` (leading underscore) to stay out of
+  `discover_fixtures()`.
+
+### Fixed
+- **`picosentry/scan/validation.py::run_validation`**: added an
+  `advisory_db_path` kwarg that auto-discovers
+  `<validation_root>/_advisories/` if that directory exists. Without
+  this, the 7 advisory rules (`L2-ADV-001` + 6 ecosystem aliases)
+  silently could not fire under `--validate` because the harness did
+  not pass an advisory DB to `engine.scan()`.
+- **`picosentry/scan/rules/advisory_check.py`** (3 latent bugs in the
+  advisory detector, all surfaced by the new validation fixtures):
+    - `_collect_rubygems_packages` was iterating `dependencies` as if
+      it were a dict; it is actually a list of `(name, version, source)`
+      tuples. Fixed.
+    - `_collect_maven_packages` was building the package key as
+      `f"{group_id}:{artifact_id}"`, but OSV advisories for Maven use
+      the bare `artifact_id` (Maven coordinates are advisory-internal,
+      not part of the package identity). Fixed.
+    - `_collect_pypi_packages` always set `version="unknown"` for
+      `pyproject.toml`-style dependencies, so version-range advisories
+      could never match. Workaround in the fixtures: include a
+      `requirements.txt` with pinned versions. (Detector fix deferred
+      to v2.0.10.)
+- **`picosentry/scan/rules/go_utils.py`**: `_GO_MOD_REQUIRE_RE`
+  required a leading tab before `require`; real-world `go.mod` files
+  use column-0 `require` for single-line deps, so the regex never
+  matched. Fixed.
+- **`picosentry/scan/rules/typosquat.py`** (`_collect_cargo_deps` and
+  `_collect_maven_deps`): now include the root crate's `package_name`
+  and the root `pom.xml`'s `artifactId` in the typosquat corpus. The
+  PyPI collector was already doing this for `pyproject.toml`
+  `project.name`; cargo and maven now match.
+- **`docs/BENCHMARKS.md` line 211**: typo fix — "top-327 corpus" →
+  "top-100 corpus (with a 327-entry on-disk fallback at
+  `picosentry/scan/corpus/npm_top_packages.json`)".
+
+### Changed
+- `experimental.py` maturity table: `Detection quality benchmarks`
+  flips from `⚠️ Beta` to `✅ Stable`. The v2.0.9 corpus is a smoke
+  test, not a statistically meaningful benchmark, but it is now
+  reproducible from a fresh clone and exercised by CI on every PR.
+- `README.md` "What it does NOT do" block: removed the
+  "Detection-benchmark data" line (gap closed).
+- `pyproject.toml` and `picosentry/__init__.py`: version bumped to 2.0.9.
+- `tests/scan/fixtures/validation/REPORT.json`: regenerated against the
+  expanded corpus (50 rule_metrics rows, 45 fixture_results, 0 failures).
+
 ## [2.0.8] — 2026-06-06
 
 ### Added — kernel-syscall observation (P0)

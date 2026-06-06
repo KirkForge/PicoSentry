@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app whose postinstall script publishes via npm and pipes a remote shell script (worm propagation fingerprint).",
+  "expected_rule_ids": ["L2-WORM-001"]
+}

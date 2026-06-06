@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm app depending on a git+https protocol URL (protocol sideloading).",
+  "expected_rule_ids": ["L2-SIDELOAD-001"]
+}

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PyPI project depending on django==2.1.0 (CVE-2019-19844 account-takeover, fixed in 2.1.15).",
+  "expected_rule_ids": ["L2-PYPI-ADV-001"]
+}

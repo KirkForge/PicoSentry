@@ -1,0 +1,17 @@
+{
+  "name": "dns-helper",
+  "version": "1.0.0",
+  "description": "Reads /etc/hosts for DNS resolution \u2014 but this is a legitimate use case.",
+  "author": "Network Tools <net@example.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/dns-helper"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "lodash": "^4.17.21"
+  }
+}

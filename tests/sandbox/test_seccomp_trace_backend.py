@@ -28,6 +28,8 @@ from picosentry.sandbox.l3.engine import (
 )
 from picosentry.sandbox.l3.models import (
     Policy,
+    PolicyRule,
+    RuleTarget,
     SandboxEvent,
     SandboxResult,
     SyscallAction,
@@ -515,3 +517,132 @@ class TestSeccompTraceBackendProfilerRoundtrip:
         # The profiler requires non-empty path/address/detail.
         assert profile.fs_ops == []
         assert profile.network_calls == []
+
+
+# ─── v2.0.11 additions: Bug #1 + Bug #2 regression nets for the trace backend ──
+
+
+class TestSeccompTraceBackendForkOrdering:
+    """Regression net for Bug #1 mirror in the trace backend: env-dict
+    construction must run in the parent before ``os.fork()``.
+
+    Mirrors ``TestSeccompBackendForkOrdering`` for the enforcement
+    backend. If a future change reverts the trace backend's fork+exec
+    ordering (e.g. someone copies the old pattern from a v2.0.9 fork
+    of the file), this test catches it.
+    """
+
+    def _stub_lib_and_build_filter(self) -> MagicMock:
+        lib = MagicMock()
+        lib.seccomp_init.return_value = MagicMock()
+        lib.seccomp_syscall_resolve_name.return_value = 1
+        lib.seccomp_rule_add.return_value = 0
+        lib.seccomp_load.return_value = 0
+        return lib
+
+    def test_env_built_before_fork_trace_backend(self) -> None:
+        backend = SeccompTraceBackend()
+        policy = Policy(
+            name="kill-default-test",
+            default_action=SyscallAction.KILL,
+            rules=[],
+            fail_closed=True,
+        )
+        lib = self._stub_lib_and_build_filter()
+
+        call_order: list[str] = []
+
+        def fake_fork():
+            call_order.append("fork")
+            return 42
+
+        def fake_environ_copy():
+            call_order.append("environ_copy")
+            return {"PATH": "/usr/bin"}
+
+        def fake_wait_with_timeout(self, pid, out_r, err_r, timeout, log_path):
+            return (b"hi\n", b"", 0, "")
+
+        with patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.fork",
+            side_effect=fake_fork,
+        ), patch.object(
+            os.environ, "copy", side_effect=fake_environ_copy
+        ), patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.pipe",
+            return_value=(0, 1),
+        ), patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace_backend.ctypes.CDLL",
+            return_value=lib,
+        ), patch.object(
+            SeccompTraceBackend, "_wait_with_timeout", fake_wait_with_timeout
+        ), patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.read",
+            return_value=b"hi\n",
+        ), patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.close",
+            return_value=None,
+        ):
+            backend.run(["/bin/echo", "hi"], policy=policy, timeout=5.0)
+
+        assert "environ_copy" in call_order
+        assert "fork" in call_order
+        assert call_order.index("environ_copy") < call_order.index("fork"), (
+            f"trace backend: env-dict construction must run in parent "
+            f"before fork; got call_order={call_order!r}"
+        )
+
+
+class TestSeccompTraceBackendRuleAddReturn:
+    """Regression net for Bug #2 mirror in the trace backend."""
+
+    def test_build_filter_uses_add_rule_safely(self) -> None:
+        """``SeccompTraceBackend._build_filter`` must use the shared
+        ``add_rule_safely`` wrapper, not raw libseccomp calls.
+        """
+        backend = SeccompTraceBackend()
+        lib = MagicMock()
+        lib.seccomp_init.return_value = MagicMock()
+        lib.seccomp_syscall_resolve_name.return_value = 1
+        lib.seccomp_rule_add.return_value = 0
+
+        policy = Policy(
+            name="test",
+            default_action=SyscallAction.ALLOW,
+            rules=[
+                PolicyRule(
+                    rule_id="L3-TEST-001",
+                    target=RuleTarget.FILE_READ,
+                    action=SyscallAction.ALLOW,
+                ),
+            ],
+        )
+        # Patch where the call site is: filter_builder (post v2.1.0
+        # refactor). The shim's add_rule_safely attribute is a re-export,
+        # not the call site, so patching the shim wouldn't intercept.
+        with patch(
+            "picosentry.sandbox.l3.backends.seccomp_trace.filter_builder.add_rule_safely"
+        ) as mock_add:
+            _ctx, _blocked = backend._build_filter(lib, policy)
+
+        assert mock_add.called, "SeccompTraceBackend._build_filter must use add_rule_safely"
+        # At least the FS_READ_SYSCALLS syscalls + the SAFE_SYSCALLS syscalls.
+        from picosentry.sandbox.l3.backends._seccomp_common import FS_READ_SYSCALLS
+        assert mock_add.call_count >= len(FS_READ_SYSCALLS)
+
+    def test_trace_backend_safe_syscalls_is_shared_set(self) -> None:
+        """The trace backend imports SAFE_SYSCALLS from the shared
+        module, not a local copy.
+        """
+        from picosentry.sandbox.l3.backends import seccomp_trace_backend
+        from picosentry.sandbox.l3.backends._seccomp_common import (
+            FS_READ_SYSCALLS,
+            FS_WRITE_SYSCALLS,
+            NETWORK_SYSCALLS,
+            SAFE_SYSCALLS,
+        )
+        assert not hasattr(seccomp_trace_backend, "_SAFE_SYSCALLS")
+        assert seccomp_trace_backend.SAFE_SYSCALLS is SAFE_SYSCALLS
+        assert seccomp_trace_backend.FS_WRITE_SYSCALLS is FS_WRITE_SYSCALLS
+        assert seccomp_trace_backend.NETWORK_SYSCALLS is NETWORK_SYSCALLS
+        assert seccomp_trace_backend.FS_READ_SYSCALLS is FS_READ_SYSCALLS

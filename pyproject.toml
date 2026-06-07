@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.9"
+version = "2.0.11"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
 license = "BUSL-1.1"
@@ -144,12 +144,18 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = ["-ra", "--strict-markers", "--tb=short"]
 norecursedirs = ["scripts", "plugins"]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests that require network access",
 ]
+
+# pytest-asyncio settings — these belong in their own table, not
+# [tool.pytest.ini_options], where pytest-asyncio's plugin doesn't
+# read them. v2.0.9 had these misplaced, producing two
+# `Unknown config option` warnings on every test run.
+[tool.pytest_asyncio.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 target-version = "py310"

@@ -27,40 +27,11 @@ from picosentry.scan.cli import (
 )
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _make_result(
-    target: str = "/tmp/test",
-    findings: list[Finding] | None = None,
-) -> ScanResult:
-    """Create a basic ScanResult for testing."""
-    if findings is None:
-        findings = []
-    return ScanResult(
-        target=target,
-        engine_version="0.15.0",
-        corpus_version="abc123",
-        findings=findings,
-        stats=ScanStats(packages_scanned=1, files_scanned=10, duration_ms=50),
-    )
-
-
-def _make_finding(
-    rule_id: str = "L2-POST-001",
-    severity: Severity = Severity.HIGH,
-    package: str = "evil@1.0.0",
-) -> Finding:
-    return Finding(
-        rule_id=rule_id,
-        severity=severity,
-        confidence=Confidence.EXACT,
-        package=package,
-        file=f"{package}/package.json",
-        message="Post-install script",
-        evidence="scripts.postinstall",
-        remediation="Remove script",
-    )
+from tests.scan.conftest import (
+    FIXTURES_DIR,
+    make_finding as _make_finding,
+    make_scan_result as _make_result,
+)
 
 
 class TestFormatSummary:

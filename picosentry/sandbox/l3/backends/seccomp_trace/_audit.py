@@ -1,0 +1,192 @@
+"""Audit-message constants for the seccomp-trace backend.
+
+Extracted in v2.1.0 (refactor) from ``seccomp_trace_backend.py``. These
+constants are only used by ``event_parser.py`` and (re-exported) by the
+back-compat shim at ``seccomp_trace_backend.py``. Keeping them in their
+own module makes the table easier to scan (~140-entry x86_64 map) and
+makes the parser/builder files thinner.
+"""
+from __future__ import annotations
+
+import re
+
+# Audit-message constant that confirms an entry came from a LOG action.
+# Other action codes are 0x7fff0000 (ALLOW), 0x80000000 (KILL_PROCESS).
+_LOG_ACTION_CODE = "0x7ffc0000"
+
+# Audit-message fields that confirm an entry came from a LOG action.
+# Other action codes are 0x7fff0000 (ALLOW), 0x80000000 (KILL_PROCESS).
+# NOTE: the kernel's audit log field order is arch=...syscall=...code=,
+# NOT syscall=...arch=...code= — verified against real /proc/<pid>/seccomp
+# output on Linux 5.x/6.x.
+_AUDIT_LINE_RE = re.compile(
+    r"audit\(\d+\.\d+:\d+\):.*?arch=(?P<arch>[0-9a-fx]+).*?syscall=(?P<nr>\d+).*?code=(?P<code>[0-9a-fx]+)"
+)
+
+# Arch constants for the audit log's `arch=` field.
+# AUDIT_ARCH_X86_64 = 0xC000003E, AUDIT_ARCH_AARCH64 = 0xC00000B7.
+_ARCH_X86_64 = 0xC000003E
+_ARCH_AARCH64 = 0xC00000B7
+
+
+# ─── x86_64 syscall-number → name table (subset) ─────────────────────────
+# Generated from <asm/unistd_64.h>. The table covers the syscalls we care
+# about; anything missing is logged as `syscall_other`. Maintain by hand
+# when adding classifications.
+_X86_64_SYSCALLS: dict[int, str] = {
+    0: "read",
+    1: "write",
+    2: "open",
+    3: "close",
+    4: "stat",
+    5: "fstat",
+    6: "lstat",
+    7: "poll",
+    8: "lseek",
+    9: "mmap",
+    10: "mprotect",
+    11: "munmap",
+    12: "brk",
+    13: "rt_sigaction",
+    14: "rt_sigprocmask",
+    15: "rt_sigreturn",
+    16: "ioctl",
+    17: "pread64",
+    18: "pwrite64",
+    19: "readv",
+    20: "writev",
+    21: "access",
+    22: "pipe",
+    23: "select",
+    24: "sched_yield",
+    25: "mremap",
+    26: "msync",
+    27: "mincore",
+    28: "madvise",
+    29: "shmget",
+    30: "shmat",
+    31: "shmctl",
+    32: "dup",
+    33: "dup2",
+    34: "pause",
+    35: "nanosleep",
+    36: "getitimer",
+    37: "alarm",
+    38: "setitimer",
+    39: "getpid",
+    40: "sendfile",
+    41: "socket",
+    42: "connect",
+    43: "accept",
+    44: "sendto",
+    45: "recvfrom",
+    46: "sendmsg",
+    47: "recvmsg",
+    48: "shutdown",
+    49: "bind",
+    50: "listen",
+    51: "getsockname",
+    52: "getpeername",
+    56: "clone",
+    57: "fork",
+    58: "vfork",
+    59: "execve",
+    60: "exit",
+    61: "wait4",
+    62: "kill",
+    63: "uname",
+    72: "fcntl",
+    78: "getdents",
+    79: "getcwd",
+    83: "mkdir",
+    84: "rmdir",
+    85: "creat",
+    86: "link",
+    87: "unlink",
+    88: "symlink",
+    89: "readlink",
+    90: "chmod",
+    91: "fchmod",
+    92: "chown",
+    93: "fchown",
+    94: "lchown",
+    96: "gettimeofday",
+    97: "getrlimit",
+    98: "getrusage",
+    99: "sysinfo",
+    102: "getuid",
+    104: "getgid",
+    107: "geteuid",
+    108: "getegid",
+    110: "getppid",
+    131: "sigaltstack",
+    158: "arch_prctl",
+    186: "gettid",
+    200: "tkill",
+    201: "time",
+    202: "futex",
+    204: "sched_getaffinity",
+    217: "getdents64",
+    228: "clock_gettime",
+    230: "clock_nanosleep",
+    231: "exit_group",
+    234: "tgkill",
+    247: "waitid",
+    257: "openat",
+    258: "mkdirat",
+    259: "mknodat",
+    260: "fchownat",
+    263: "unlinkat",
+    264: "renameat",
+    265: "linkat",
+    266: "symlinkat",
+    267: "readlinkat",
+    268: "fchmodat",
+    269: "faccessat",
+    270: "pselect6",
+    271: "ppoll",
+    272: "unshare",
+    273: "set_robust_list",
+    274: "get_robust_list",
+    284: "eventfd",
+    285: "fallocate",
+    290: "eventfd2",
+    291: "epoll_create1",
+    292: "dup3",
+    293: "pipe2",
+    294: "inotify_init1",
+    295: "preadv",
+    296: "pwritev",
+    297: "rt_tgsigqueueinfo",
+    299: "recvmmsg",
+    316: "renameat2",
+    319: "memfd_create",
+    322: "execveat",
+    323: "userfaultfd",
+    324: "membarrier",
+    325: "mlock2",
+    326: "copy_file_range",
+    327: "preadv2",
+    328: "pwritev2",
+    329: "pkey_mprotect",
+    330: "pkey_alloc",
+    331: "pkey_free",
+    332: "statx",
+    333: "io_pgetevents",
+    334: "rseq",
+    435: "clone3",
+}
+
+# Syscalls whose only meaningful OpenAPI is the file open path —
+# currently not extractable from SCMP_ACT_LOG but called out for v2.0.9+.
+_OPEN_SYSCALLS = {"open", "openat", "creat"}
+
+
+__all__ = [
+    "_ARCH_AARCH64",
+    "_ARCH_X86_64",
+    "_AUDIT_LINE_RE",
+    "_LOG_ACTION_CODE",
+    "_OPEN_SYSCALLS",
+    "_X86_64_SYSCALLS",
+]

@@ -2,6 +2,100 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.11] — 2026-06-07
+
+Two-pronged release: (1) the v2.0.10 security and code-health follow-ups
+that were uncommitted in the working tree, rolled forward into v2.0.11
+so the version sync is real; (2) a structural refactor of the eight
+largest source files in the package into shim + subpackage form, with
+test-fixture consolidation. No public API changes for `picosentry scan`
+or `picodome` users — the public import paths and CLI surface are
+unchanged.
+
+The umbrella version, the previously-stale per-subpackage versions
+(`picosentry/sandbox/__init__.py` and `picosentry/serve/config/version.py`
+were both stuck at 2.0.7), and `pyproject.toml` are now in sync at
+2.0.11.
+
+### Fixed — sandbox seccomp fork+exec ordering (Bug #1)
+
+### Fixed — sandbox seccomp fork+exec ordering (Bug #1)
+- **`picosentry/sandbox/l3/backends/seccomp_backend.py`** and the
+  mirrored `seccomp_trace_backend.py`: env-dict construction
+  (`os.environ.copy()` + `dict.update()`) is now done in the **parent**
+  before `os.fork()`. Previously it ran in the forked child *after*
+  `seccomp_load()` but *before* `os.execve()`. Under a `KILL`-default
+  policy, CPython allocators (`mmap`/`brk`/`futex`) issued during the
+  dict operations would SIGSYS the child non-deterministically, before
+  it ever executed. The child now runs only `seccomp_load` → `execve`
+  under the active filter, with zero Python-side allocation. Trivial
+  to verify: `picosentry sandbox echo hi` under a KILL-default policy
+  succeeds deterministically.
+
+### Fixed — silent `seccomp_rule_add` failures (Bug #2)
+- **`picosentry/sandbox/l3/backends/_seccomp_common.py::add_rule_safely`** (new helper, used by both backends): wraps `seccomp_rule_add` and checks the return value. libseccomp returns `-EACCES` when a rule's action matches the filter's default action (the explicit KILL rules in a KILL-default filter were no-ops; the explicit ALLOW rules in an ALLOW-default filter were no-ops). EACCES is now logged at DEBUG and skipped, not silently swallowed. `-EINVAL` (unknown syscall) and other failures log at WARNING. Same fix applied to both `SeccompBackend` and `SeccompTraceBackend`.
+
+### Fixed — notary default-HMAC integrity hole
+- **`picosentry/sandbox/cli.py`**: removed the `_DEFAULT_CLI_HMAC_KEY = "picodome-notary-cli-default"` constant. The previous `notary submit` and `notary verify` paths used a public, hardcoded key as the *fallback* when `PICODOME_NOTARY_HMAC_KEY` was unset, after printing a stderr warning. That meant any third party with the source code could forge audit entries and pass `audit --verify`. v2.0.11 hard-errors if neither `--hmac-key` nor `PICODOME_NOTARY_HMAC_KEY` is set, with the message *"PICODOME_NOTARY_HMAC_KEY or --hmac-key is required"*. **This is a breaking change for any script relying on the default key.** The fix is one env-var export: `export PICODOME_NOTARY_HMAC_KEY=$(python3 -c 'import secrets; print(secrets.token_hex(32))')`. The `audit --verify` path didn't use the default key directly, but the underlying chain integrity is now end-to-end consistent. (Originally documented under v2.0.10, rolled forward to v2.0.11 since the v2.0.10 work was never shipped.)
+
+### Changed — `_seccomp_common` refactor
+- **New file `picosentry/sandbox/l3/backends/_seccomp_common.py`** holds the duplicated constants (`SAFE_SYSCALLS`, `NETWORK_SYSCALLS`, `FS_WRITE_SYSCALLS`, `FS_READ_SYSCALLS`, `PROCESS_SYSCALLS`), the libseccomp `setup_lib` argtypes, the `target_to_syscalls` mapping, the `resolve_syscall` cache, and the new `add_rule_safely` wrapper. Both backends now `from _seccomp_common import …` instead of carrying their own copies. The previous "Keep in sync with seccomp_backend.py" comment (an explicit maintenance hazard in the trace backend's module docstring) is gone — a change to the syscall sets is now a single edit. The duplication was 99% byte-identical (only comment lines differed); the refactor is risk-neutral and adds a `TestSeccompCommon.test_target_to_syscalls_all_targets` net.
+
+### Changed — main `picosentry` CLI `sandbox` parity
+- **`picosentry/cli.py`**: the `sandbox` subcommand's `--backend` choices now include `seccomp-trace` (previously only the standalone `picodome` CLI accepted it, despite the README documenting it on `picosentry sandbox`). Also added three missing flags: `--allow-degraded` (forwarded to picodome's CLI), `--allow-runtime {node,python}` (preset policies for npm/pip), and `--verify-determinism` (SHA-256 stability check). The `_handle_sandbox` forwarder (`picosentry/cli.py:512-555`) was extended to pass all three through. Users who read the README at line 44–48 will now find `--backend=seccomp-trace` actually accepted by argparse, and won't have to discover the picodome CLI to use these features.
+
+### Changed — `seccomp_trace_backend.py` docstring honesty
+- The module docstring previously advertised *"Strategy B (PTRACE_SECCOMP) and C (SECCOMP_RET_USER_NOTIF) will populate args in v2.0.9+"* and *"the canonical audit-log integration (auditd / ausearch) is the v2.0.9 target."* Neither landed. v2.0.11 rewrites both as v2.1.0+ work and keeps the existing `SCMP_ACT_LOG` limitation prose (no path/address args) intact. The trace backend still works as documented for "list every syscall the tracee made"; it does not, and v2.0.11 will not, list file paths or network addresses.
+
+### Fixed — pytest config typo
+- **`pyproject.toml:147-148`**: `asyncio_mode` and `asyncio_default_fixture_loop_scope` were under `[tool.pytest.ini_options]` but they're `pytest-asyncio` settings, not core pytest settings. Moved to a new `[tool.pytest_asyncio.ini_options]` section. Silences the two `Unknown config option` warnings on every test run.
+
+### Changed — version sync
+- `picosentry/sandbox/__init__.py:3` and `picosentry/serve/config/version.py:3` were stale at `2.0.7` (two versions behind). Bumped to `2.0.11` along with the umbrella version and `pyproject.toml`. All four now agree.
+
+### Changed — refactor: 5 source files split into shim + subpackage
+Eight long source files (the five flagged in the audit plus three
+follow-on splits) were broken up so no `picosentry/` source file is
+over 800 lines. Each split preserves a thin re-export shim at the
+original import path, so production callers and test files that import
+private symbols (`_cmd_update`, `_AUDIT_LINE_RE`, `_handle_validate`,
+etc.) keep working unchanged.
+
+| File (before) | Lines | Shim | New submodules |
+|---|---|---|---|
+| `scan/cli.py` | 1940 | 178 | `scan/cli_commands/{__init__,_common,scan,check,diff,init,update,workspace,corpus,ioc,policy,advisories,daemon,cache,metrics,benchmark,rules,version}.py` (17 modules, registry-based dispatch) |
+| `sandbox/cli.py` | 1461 | 117 | `sandbox/cli_commands/<one module per subcommand>.py` (16 modules) |
+| `sandbox/daemon/server.py` | 1364 | 50 | `sandbox/daemon/{constants,job_store,handler_mixins,handler_routes_get,handler_routes_post,handler,daemon,app}.py` (8 modules; `PicoDomeHandler` composed from 4 mixins) |
+| `serve/services/correlation.py` | 1080 | 68 (folded into `correlation/__init__.py`) | `serve/services/correlation/{models,helpers,narrative,persistence,engine}.py` (5 modules) |
+| `sandbox/cluster/manager.py` | 1050 | 112 | `sandbox/cluster/{models,state,orchestrator}.py` + `sandbox/cluster/backends/{base,memory,sqlite}.py` (7 modules) |
+| `sandbox/l3/backends/seccomp_trace_backend.py` | 914 | 107 (re-exports `os`, `_AUDIT_LINE_RE`, `_LOG_ACTION_CODE`, `add_rule_safely` for test patches) | `sandbox/l3/backends/seccomp_trace/{__init__,_audit,filter_builder,event_parser,process_manager,orchestrator}.py` (6 modules) |
+| `scan/policy.py` | 836 | 72 | `scan/policy_pkg/{models,engine,bundle,template}.py` (5 modules) |
+| `sandbox/daemon/sqlite_store` + `.store` (in `daemon/server.py`) | — | (folded into `daemon/` subpackage) | `sandbox/daemon/{store,sqlite_store}.py` (referenced by the shim) |
+
+Largest remaining source file: `picosentry/scan/daemon.py` at 797
+lines. Public import paths, public function/class names, and the CLI
+surface are unchanged.
+
+### Added — shared scan test fixtures
+- **`tests/scan/conftest.py`** (new): `make_npm_project`, `make_finding`,
+  `make_scan_result`, and a `scan_fixtures_dir` fixture. The three
+  `_make_project` / `_make_finding` / `_make_result` helpers and six
+  `FIXTURES_DIR = Path(__file__).parent / "fixtures"` constants that
+  were duplicated across `test_scanner.py`, `test_cli.py`,
+  `test_cli_unit.py`, `test_policy_extended.py`,
+  `test_action_exit_code.py`, `test_engine.py`, and
+  `test_realistic_fixtures.py` now share a single definition. Tests
+  import from `conftest` and keep the same fixture name in scope.
+
+### Changed — test patches
+- **`tests/scan/test_crypto_integration.py:157`**: patch target moved
+  from `picosentry.scan.policy.sign_content` to
+  `picosentry.scan.policy_pkg.bundle.sign_content` (call-site migration
+  to the new module that owns `export_signed_policy`). All other test
+  patches land unchanged because the shim files re-export the symbols
+  tests reach for, and Python's package-vs-module precedence
+  guarantees `correlation/` wins over the deleted `correlation.py`.
+
 ## [2.0.9] — 2026-06-06
 
 ### Added — detection corpus expansion

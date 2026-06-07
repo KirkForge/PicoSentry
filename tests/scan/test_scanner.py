@@ -19,16 +19,7 @@ import pytest
 from picosentry.scan.engine import ScanEngine, create_default_engine
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
 
-
-def _make_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
-    """Create a minimal project tree with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestDeterminism:
@@ -538,7 +529,7 @@ class TestMLContextFormat:
 # These test against known real-world supply chain attacks.
 # If any of these fail, the scanner has regressed.
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+from tests.scan.conftest import FIXTURES_DIR  # noqa: E402
 
 
 class TestIoCRegression:

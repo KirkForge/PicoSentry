@@ -20,30 +20,10 @@ from picosentry.scan.cli import (
 from picosentry.scan.config import PicoSentryConfig, load_config
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
 
-
-def _make_finding(rule_id="L2-POST-001", severity=Severity.HIGH, package="evil@1.0.0") -> Finding:
-    return Finding(
-        rule_id=rule_id,
-        severity=severity,
-        confidence=Confidence.EXACT,
-        package=package,
-        file=f"{package}/package.json",
-        message="Post-install script",
-        evidence="scripts.postinstall",
-        remediation="Remove script",
-    )
-
-
-def _make_result(target="/tmp/test", findings=None) -> ScanResult:
-    if findings is None:
-        findings = []
-    return ScanResult(
-        target=target,
-        engine_version="0.15.0",
-        corpus_version="abc123",
-        findings=findings,
-        stats=ScanStats(packages_scanned=1, files_scanned=10, duration_ms=50),
-    )
+from tests.scan.conftest import (
+    make_finding as _make_finding,
+    make_scan_result as _make_result,
+)
 
 
 class TestDaemonCommand:
@@ -197,7 +177,10 @@ class TestUpdateCommand:
         """Update command should handle network errors."""
         with (
             patch("sys.argv", ["picosentry", "update", "--top", "5"]),
-            patch("picosentry.scan._network.safe_urlopen") as mock_url,
+            # Patch where the call site is (post v2.1.0 refactor):
+            # ``update.py`` imports safe_urlopen into its own namespace, so
+            # the source module's attribute is a separate binding.
+            patch("picosentry.scan.cli_commands.update.safe_urlopen") as mock_url,
         ):
             mock_url.side_effect = Exception("network error")
             rc = main()

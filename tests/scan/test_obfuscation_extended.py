@@ -16,16 +16,7 @@ from picosentry.scan.rules.obfuscation import (
     detect_obfuscation,
 )
 
-
-def _make_project(tmp_path, pkg_json, files=None):
-    """Create a minimal project with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestPatternRegexes(unittest.TestCase):

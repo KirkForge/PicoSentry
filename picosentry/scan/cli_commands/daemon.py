@@ -1,7 +1,3 @@
-"""`daemon` subcommand — start HTTP daemon for health checks and metrics.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,12 +25,11 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Start the HTTP daemon."""
     from picosentry.scan.auth import AuthConfig
     from picosentry.scan.daemon import TLSConfig, run_daemon
     from picosentry.scan.enterprise import is_enterprise_mode
 
-    # Build auth config from CLI flags + env
+
     auth_config = AuthConfig.from_env()
     if getattr(args, "auth_mode", None) is not None:
         auth_config.mode = args.auth_mode
@@ -43,13 +38,13 @@ def cmd(args: argparse.Namespace) -> int:
     if getattr(args, "rate_limit", None) is not None:
         auth_config.rate_limit_rps = args.rate_limit
 
-    # Enterprise mode: --enterprise flag or env var
+
     if getattr(args, "enterprise", False) and not is_enterprise_mode():
         import os
 
         os.environ["PICOSENTRY_ENTERPRISE_MODE"] = "1"
 
-    # Resolve TLS configuration
+
     tls_config = TLSConfig(
         cert_file=getattr(args, "tls_cert", None) or "",
         key_file=getattr(args, "tls_key", None) or "",

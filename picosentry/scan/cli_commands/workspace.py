@@ -1,7 +1,3 @@
-"""`workspace` subcommand — scan a monorepo/workspace for all npm projects.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -42,7 +38,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Scan an entire monorepo workspace."""
     root = Path(args.root).resolve()
     if not root.is_dir():
         print(f"Error: {root} is not a directory", file=sys.stderr)
@@ -143,7 +138,6 @@ def cmd(args: argparse.Namespace) -> int:
     return 1 if wr.total_findings > 0 else 0
 
 
-# Back-compat alias for the historic name in the monolithic cli.py.
 _cmd_workspace = cmd
 
 __all__ = ["NAME", "_cmd_workspace", "add_arguments", "cmd"]

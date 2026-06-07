@@ -1,4 +1,3 @@
-"""Anomaly detection engine — auto-threshold rules + alert pipeline."""
 
 import json
 import logging
@@ -92,7 +91,6 @@ class AnomalyAlert:
 
 
 class AnomalyDetector:
-    """Background anomaly detection with configurable rules."""
 
     def __init__(self, db: DatabaseManager, alert_hub=None):
         self.db = db
@@ -105,7 +103,6 @@ class AnomalyDetector:
         self._load_rules()
 
     def _load_rules(self):
-        """Load rules from config file, falling back to defaults."""
         if CONFIG_PATH.exists():
             try:
                 with open(CONFIG_PATH) as f:
@@ -128,7 +125,7 @@ class AnomalyDetector:
             except Exception:
                 pass
 
-        # Write defaults if no config exists
+
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
             json.dump(DEFAULT_RULES, f, indent=2)
@@ -148,7 +145,6 @@ class AnomalyDetector:
         ]
 
     def _compare(self, value: float, threshold: float, comparison: str) -> bool:
-        """Evaluate a comparison."""
         ops = {
             "gt": lambda v, t: v > t,
             "gte": lambda v, t: v >= t,
@@ -159,13 +155,12 @@ class AnomalyDetector:
         return ops.get(comparison, ops["gt"])(value, threshold)
 
     def _get_metric_value(self, rule: AnomalyRule) -> float | None:
-        """Extract the latest value for a rule's metric from the metrics collector."""
         with metrics._lock:
             metric_list = metrics.metrics.get(rule.metric_name, [])
             if not metric_list:
                 return None
 
-            # Filter by labels if specified
+
             if rule.labels:
                 filtered = [
                     m for m in metric_list
@@ -178,10 +173,6 @@ class AnomalyDetector:
                 return metric_list[-1].value
 
     def _get_health_value(self) -> float:
-        """Convert health check statuses to a numeric score.
-
-        0 = all healthy, 1 = any warning/degraded, 2 = any critical.
-        """
         try:
             rows = self.db.execute("""
                 SELECT component, status FROM health_checks
@@ -189,7 +180,7 @@ class AnomalyDetector:
             """)
             if not rows:
                 return 0.0
-            # Get latest status per component (most recent first)
+
             latest_by_component: dict[str, str] = {}
             for r in rows:
                 component, status = r[0], r[1]
@@ -206,14 +197,13 @@ class AnomalyDetector:
             return 0.0
 
     def check_rules(self) -> list[AnomalyAlert]:
-        """Run all enabled rules and return any triggered alerts."""
         alerts = []
 
         for rule in self.rules:
             if not rule.enabled:
                 continue
 
-            # Special: health_status uses DB not metrics
+
             value = self._get_health_value() if rule.metric_name == "health_status" else self._get_metric_value(rule)
 
             if value is None:
@@ -236,7 +226,6 @@ class AnomalyDetector:
         return alerts
 
     def _fire_alert(self, alert: AnomalyAlert):
-        """Forward anomaly alert through the alert hub."""
         if self.alert_hub:
             self.alert_hub.send(
                 project_id="system",
@@ -252,7 +241,7 @@ class AnomalyDetector:
                 channels=["syslog"]
             )
 
-        # Store in DB
+
         try:
             self.db.execute_insert("""
                 INSERT INTO anomaly_alerts (rule_id, metric_name, value, threshold, comparison, severity, description, created_at)
@@ -263,7 +252,7 @@ class AnomalyDetector:
                 alert.description, alert.timestamp
             ))
         except Exception:
-            # Table might not exist yet — create it
+
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS anomaly_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -289,10 +278,9 @@ class AnomalyDetector:
         self.alert_history.append(alert)
 
     def _run_check_cycle(self):
-        """Single check cycle: evaluate rules, fire alerts."""
         alerts = self.check_rules()
         for alert in alerts:
-            # Deduplicate: don't fire same rule within 5 minutes
+
             recent = [a for a in self.alert_history
                        if a.rule_id == alert.rule_id
                        and (datetime.now(timezone.utc) - datetime.fromisoformat(a.timestamp)).total_seconds() < 300]
@@ -300,7 +288,6 @@ class AnomalyDetector:
                 self._fire_alert(alert)
 
     def _background_loop(self):
-        """Background daemon loop."""
         while self._running:
             try:
                 self._run_check_cycle()
@@ -309,7 +296,6 @@ class AnomalyDetector:
             time.sleep(self._check_interval)
 
     def start(self):
-        """Start the background anomaly detector."""
         if self._running:
             return
         self._running = True
@@ -317,13 +303,11 @@ class AnomalyDetector:
         self._thread.start()
 
     def stop(self):
-        """Stop the background anomaly detector."""
         self._running = False
         if self._thread:
             self._thread.join(timeout=5)
 
     def get_alerts(self, limit: int = 50) -> list[dict[str, Any]]:
-        """Return recent anomaly alerts from the database."""
         try:
             rows = self.db.execute("""
                 SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at
@@ -343,11 +327,9 @@ class AnomalyDetector:
             return []
 
     def get_rules(self) -> list[dict[str, Any]]:
-        """Return all configured rules."""
         return [asdict(r) for r in self.rules]
 
     def update_rule(self, rule_id: str, **kwargs) -> bool:
-        """Update a rule's parameters."""
         for rule in self.rules:
             if rule.id == rule_id:
                 for k, v in kwargs.items():
@@ -358,7 +340,6 @@ class AnomalyDetector:
         return False
 
     def _save_rules(self):
-        """Persist current rules to config file."""
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
             json.dump([asdict(r) for r in self.rules], f, indent=2)

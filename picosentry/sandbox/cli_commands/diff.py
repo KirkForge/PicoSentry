@@ -1,7 +1,3 @@
-"""`diff` subcommand — compare two result JSON files.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +16,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Compare two result JSON files."""
     exit_code, message = diff_results(args.file_a, args.file_b, verbose=args.verbose)
     print(message)
     return exit_code

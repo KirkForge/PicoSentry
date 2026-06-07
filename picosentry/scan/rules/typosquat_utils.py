@@ -1,11 +1,3 @@
-"""
-Shared typosquatting detection utilities — ecosystem-agnostic.
-
-Provides Levenshtein distance, keyboard adjacency distance, homoglyph detection,
-and combined scoring. Used by npm, PyPI, and all future ecosystem typosquat rules.
-
-Pure functions only — no global state, no network calls.
-"""
 
 from __future__ import annotations
 
@@ -15,9 +7,7 @@ from pathlib import Path
 
 logger = logging.getLogger("picosentry.typosquat_utils")
 
-# ── QWERTY keyboard adjacency map ───────────────────────────────────────
-# For keyboard_distance(): adjacent keys on a standard US QWERTY layout.
-# Defined manually to preserve column alignment (alphabetical sort doesn't).
+
 _KEYBOARD_ADJ: dict[str, set[str]] = {
     "q": {"w", "a"},
     "w": {"q", "e", "a", "s"},
@@ -47,7 +37,7 @@ _KEYBOARD_ADJ: dict[str, set[str]] = {
     "m": {"j", "k", "n"},
 }
 
-# ── Common homoglyph pairs ──────────────────────────────────────────────
+
 _HOMOGLYPHS: dict[str, str] = {
     "0": "o",
     "1": "l",
@@ -67,10 +57,6 @@ _HOMOGLYPHS: dict[str, str] = {
 
 
 def edit_distance(a: str, b: str) -> int:
-    """Levenshtein edit distance between two strings — O(len(a)*len(b)).
-
-    Public version of the original _edit_distance utility.
-    """
     if len(a) < len(b):
         a, b = b, a
     if len(b) == 0:
@@ -89,15 +75,6 @@ def edit_distance(a: str, b: str) -> int:
 
 
 def keyboard_distance(a: str, b: str) -> float:
-    """QWERTY keyboard adjacency cost between two strings.
-
-    Like Levenshtein distance, but a substitution between adjacent keys
-    costs 0.5 instead of 1.0. Returns float so keyboard-adjacent
-    substitutions score lower than full substitutions.
-
-    Example: ``reqct`` → ``react`` costs 0.5 instead of 1.0 because
-    'q' is keyboard-adjacent to 'a'.
-    """
     if len(a) < len(b):
         a, b = b, a
     if len(b) == 0:
@@ -121,10 +98,6 @@ def keyboard_distance(a: str, b: str) -> float:
 
 
 def _is_keyboard_adjacent(a: str, b: str) -> bool:
-    """Check if two characters are adjacent on a QWERTY keyboard.
-
-    Does NOT count equal characters as adjacent — the caller handles equality.
-    """
     al = a.lower()
     bl = b.lower()
     if al == bl:
@@ -133,11 +106,6 @@ def _is_keyboard_adjacent(a: str, b: str) -> bool:
 
 
 def homoglyph_score(name: str) -> float:
-    """Score a name for homoglyph substitution patterns.
-
-    Returns a float 0.0–1.0 where higher means more likely a homoglyph attack.
-    Counts characters that are common Unicode homoglyphs of ASCII letters.
-    """
     if not name:
         return 0.0
 
@@ -145,7 +113,7 @@ def homoglyph_score(name: str) -> float:
     for ch in name:
         if ch in _HOMOGLYPHS:
             suspicious_count += 1
-        # Non-ASCII letters are suspicious
+
         if ord(ch) > 127 and ch.isalpha():
             suspicious_count += 2  # Heavier weight for non-ASCII
 
@@ -153,18 +121,10 @@ def homoglyph_score(name: str) -> float:
 
 
 def scope_confusion_score(name: str) -> float:
-    """Score a package name for scope-confusion patterns.
-
-    npm-style scoped packages (@org/pkg) can be typosquatted as
-    org-pkg or org_pkg in unscoped ecosystems (PyPI, Go).
-
-    Returns 1.0 if the name matches an org-pkg pattern that could be
-    confused with a scoped package name, 0.0 otherwise.
-    """
     if name.startswith("@"):
         return 0.0  # Already scoped, not a confusion vector
 
-    # Check for org-pkg or org_pkg or org.pkg patterns
+
     for sep in ("-", "_", "."):
         parts = name.split(sep)
         if len(parts) >= 2 and len(parts[0]) <= 20 and all(c.isalnum() for c in parts[0]):
@@ -179,24 +139,7 @@ def check_typosquat(
     max_distance: float = 2.0,
     use_keyboard: bool = False,
 ) -> list[tuple[str, float]]:
-    """Return list of (popular_package, distance) tuples for typosquat matches.
 
-    Optimised with length filter: edit distance >= |len(a) - len(b)|,
-    so entries differing by > max_distance in length can't match and are skipped.
-
-    When use_keyboard=True, uses keyboard_distance instead of edit_distance
-    for more lenient QWERTY typo detection.
-
-    Args:
-        dep_name: Package name to check.
-        corpus: Set of known popular package names.
-        max_distance: Maximum edit distance for a match (default 2).
-        use_keyboard: Use keyboard-aware distance instead of pure Levenshtein.
-
-    Returns:
-        List of (match_name, distance) tuples, sorted by distance ascending.
-    """
-    # Skip scoped packages — typosquatting targets unscoped names
     if dep_name.startswith("@"):
         return []
 
@@ -207,14 +150,14 @@ def check_typosquat(
     for popular in sorted(corpus):  # sorted for determinism
         if popular == dep_name:
             continue
-        # Length filter: edit distance >= |len(a) - len(b)|
+
         if abs(name_len - len(popular)) > max_distance:
             continue
         dist = distance_fn(dep_name, popular)
         if dist <= max_distance:
             matches.append((popular, dist))
 
-    # Sort by distance ascending, then alphabetically for determinism
+
     matches.sort(key=lambda m: (m[1], m[0]))
     return matches
 
@@ -224,23 +167,13 @@ def typosquat_severity_confidence(
     match_name: str,
     distance: float,
 ) -> tuple:
-    """Determine severity and confidence for a typosquat match.
-
-    Short names (<=4 chars) are extremely prone to false positives because
-    almost any 3-4 char string is within edit distance 2 of some other
-    short name. We cap these at LOW/MEDIUM to avoid noisy HIGH-severity
-    findings that break CI with --fail-on high.
-
-    For normal-length names, edit distance <=1 is HIGH (likely real squat),
-    edit distance ~2 is MEDIUM (could be coincidence).
-    """
     from ..models import Confidence, Severity
 
     min_len = min(len(dep_name), len(match_name))
     length_ratio = min_len / max(len(dep_name), len(match_name), 1)
 
     if min_len <= 4:
-        # Short names: edit distance >= 2 at LOW, distance <= 1 at MEDIUM
+
         if distance >= 2:
             return Severity.LOW, Confidence.LOW
         return Severity.MEDIUM, Confidence.MEDIUM
@@ -257,19 +190,6 @@ def load_corpus_for_ecosystem(
     ecosystem: str,
     builtin_list: list[str] | None = None,
 ) -> set[str]:
-    """Load package corpus for a given ecosystem from file.
-
-    Looks for ``{ecosystem}_top_packages.json`` in the corpus directory.
-    Falls back to builtin_list if the corpus file is missing or corrupt.
-
-    Args:
-        corpus_dir: Path to the corpus directory.
-        ecosystem: Ecosystem name (``npm``, ``pypi``, etc.).
-        builtin_list: Fallback list of popular packages if file is missing.
-
-    Returns:
-        Set of popular package names.
-    """
     corpus_file = corpus_dir / f"{ecosystem}_top_packages.json"
     if corpus_file.is_file():
         try:
@@ -293,7 +213,6 @@ def load_corpus_for_ecosystem(
     return set()
 
 
-# ── NPM built-in fallback corpus (top-100 npm packages) ─────────────────
 BUILTIN_TOP_100: list[str] = sorted([
     "react", "react-dom", "next", "typescript", "eslint",
     "lodash", "axios", "express", "vue", "angular",
@@ -319,7 +238,7 @@ BUILTIN_TOP_100: list[str] = sorted([
     "class-validator", "yup", "io-ts", "runtypes",
 ])
 
-# ── PyPI built-in fallback corpus (top-100 PyPI packages) ────────────────
+
 BUILTIN_PYPI_TOP_100: list[str] = sorted([
     "pip", "setuptools", "wheel", "requests", "urllib3",
     "botocore", "boto3", "s3transfer", "certifi", "idna",
@@ -343,7 +262,7 @@ BUILTIN_PYPI_TOP_100: list[str] = sorted([
     "platformdirs", "distlib", "pipenv", "tox", "nox",
 ])
 
-# ── Go built-in fallback corpus (top-100 Go modules) ─────────────────────
+
 BUILTIN_GO_TOP_100: list[str] = sorted([
     "kubernetes", "kubectl", "helm", "etcd", "prometheus",
     "grafana", "alertmanager", "thanos", "cadvisor", "node-exporter",
@@ -367,7 +286,7 @@ BUILTIN_GO_TOP_100: list[str] = sorted([
     "crypto", "net", "sys", "text", "time",
 ])
 
-# ── Cargo built-in fallback corpus (top-100 Rust crates) ──────────────────
+
 BUILTIN_CARGO_TOP_100: list[str] = sorted([
     "serde", "tokio", "rand", "reqwest", "clap",
     "serde_json", "regex", "syn", "quote", "proc-macro2",
@@ -395,7 +314,7 @@ BUILTIN_CARGO_TOP_100: list[str] = sorted([
     "handlebars", "minijinja", "html2md",
 ])
 
-# ── Maven built-in fallback corpus (top-100 Java/Maven artifacts) ─────────────
+
 BUILTIN_MAVEN_TOP_100: list[str] = sorted([
     "junit-jupiter", "junit-jupiter-api", "junit-jupiter-engine", "mockito-core",
     "mockito-junit-jupiter", "assertj-core", "hamcrest", "byte-buddy",
@@ -429,7 +348,7 @@ BUILTIN_MAVEN_TOP_100: list[str] = sorted([
     "pmd", "spotbugs-annotations", "error-prone-annotations",
 ])
 
-# ── RubyGems built-in fallback corpus (top-100 Ruby gems) ────────────────────
+
 BUILTIN_RUBYGEMS_TOP_100: list[str] = sorted([
     "rails", "activesupport", "actionpack", "actionview", "activerecord",
     "activemodel", "actionmailer", "activejob", "actioncable", "activestorage",
@@ -458,7 +377,7 @@ BUILTIN_RUBYGEMS_TOP_100: list[str] = sorted([
     "listen", "spring", "annotate", "letter_opener", "sendgrid-ruby",
 ])
 
-# ── NuGet built-in fallback corpus (top-100 .NET packages) ───────────────────
+
 BUILTIN_NUGET_TOP_100: list[str] = sorted([
     "Newtonsoft.Json", "Serilog", "Serilog.AspNetCore", "Serilog.Sinks.Console",
     "Serilog.Sinks.File", "AutoMapper", "FluentValidation", "FluentValidation.AspNetCore",

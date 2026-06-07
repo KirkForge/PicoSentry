@@ -1,10 +1,3 @@
-"""Policy class with evaluation methods.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/scan/policy.py``.
-
-The :class:`Policy` dataclass and all its evaluation logic (file loading,
-digest, license/package/requirement checks, ``apply``).
-"""
 from __future__ import annotations
 
 import hashlib
@@ -28,11 +21,6 @@ logger = logging.getLogger("picosentry.policy")
 
 @dataclass
 class Policy:
-    """Enterprise policy definition for supply-chain governance.
-
-    Loaded from .picosentry-policy.yml alongside .picosentry.yml config.
-    Policies enforce organizational standards beyond what the scanner detects.
-    """
 
     fail_on_severity: str = "high"  # minimum severity to fail
     fail_on_rules: list[str] = field(default_factory=list)  # specific rules that always fail
@@ -42,7 +30,7 @@ class Policy:
     require_lockfile: bool = True
     require_integrity: bool = True
     require_provenance: bool = False
-    # Update / network policy
+
     updates_enabled: bool = True  # False = hard-disable network updates
     updates_allowed_sources: list[str] = field(default_factory=list)  # allowlist of URLs
     updates_require_integrity: bool = True  # fail-closed on bad signatures
@@ -51,7 +39,6 @@ class Policy:
 
     @property
     def digest(self) -> str:
-        """Deterministic policy digest for audit trail."""
         raw = json.dumps(self.to_dict(), sort_keys=True)
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
@@ -108,10 +95,6 @@ class Policy:
 
     @staticmethod
     def from_file(path: Path) -> Policy:
-        """Load policy from a YAML (preferred) or JSON file.
-
-        Returns default (permissive) policy if file not found.
-        """
         if not path.is_file():
             return Policy()
 
@@ -140,10 +123,6 @@ class Policy:
         return policy
 
     def get_active_waivers(self) -> list[Waiver]:
-        """Return waivers that haven't expired.
-
-        Also logs expired waivers for visibility.
-        """
         active = []
         for w in self.waivers:
             if w.is_expired():
@@ -155,30 +134,21 @@ class Policy:
         return active
 
     def is_finding_waived(self, rule_id: str, package: str) -> tuple[bool, Waiver | None]:
-        """Check if a finding is covered by an active waiver."""
         for w in self.get_active_waivers():
             if w.matches(rule_id, package):
                 return True, w
         return False, None
 
     def check_licenses(self, package_licenses: dict[str, str]) -> list[PolicyViolation]:
-        """Check package licenses against allow/deny lists.
-
-        Args:
-            package_licenses: {package_name: license_identifier} mapping.
-
-        Returns:
-            List of policy violations.
-        """
         violations: list[PolicyViolation] = []
 
         for pkg, lic in sorted(package_licenses.items()):
             lic_norm = lic.strip()
 
-            # Deny list takes precedence
+
             if self.deny_licenses:
                 for denied in self.deny_licenses:
-                    # Exact SPDX identifier match (case-insensitive)
+
                     if denied.lower() == lic_norm.lower():
                         violations.append(
                             PolicyViolation(
@@ -190,11 +160,11 @@ class Policy:
                         )
                         break
                 else:
-                    # Check allow list if no deny match
+
                     if self.allow_licenses:
                         allowed = False
                         for allowed_lic in self.allow_licenses:
-                            # Exact SPDX identifier match (case-insensitive)
+
                             if allowed_lic.lower() == lic_norm.lower():
                                 allowed = True
                                 break
@@ -212,28 +182,17 @@ class Policy:
 
     @staticmethod
     def _parse_package_name(pkg: str) -> str:
-        """Parse package name from label, handling scoped packages.
-
-        '@scope/name@1.2.3' -> '@scope/name'
-        'lodash@4.17.21' -> 'lodash'
-        'lodash' -> 'lodash'
-        """
         if pkg.startswith("@"):
-            # Scoped package: find last @ which separates name from version
+
             last_at = pkg.rfind("@")
             if last_at == 0:
                 return pkg  # '@scope/name' with no version
             return pkg[:last_at]
-        # Unscoped: name@version or name
+
         parts = pkg.split("@", 1)
         return parts[0] if len(parts) == 2 else pkg
 
     def check_packages(self, installed_packages: set[str]) -> list[PolicyViolation]:
-        """Check installed packages against deny list.
-
-        Handles scoped packages correctly: @scope/name@1.2.3
-        is parsed as name=@scope/name, version=1.2.3.
-        """
         violations: list[PolicyViolation] = []
         if not self.deny_packages:
             return violations
@@ -256,7 +215,6 @@ class Policy:
         return violations
 
     def check_requirements(self, target: Path, scan_result: Any) -> list[PolicyViolation]:
-        """Check environmental requirements."""
         violations: list[PolicyViolation] = []
 
         if self.require_lockfile:
@@ -297,32 +255,21 @@ class Policy:
         package_licenses: dict[str, str] | None = None,
         installed_packages: set[str] | None = None,
     ) -> PolicyResult:
-        """Apply the full policy to a scan result.
-
-        Args:
-            scan_result: ScanResult from engine.
-            target: Target directory.
-            package_licenses: {pkg: license} mapping (from L2-LICENSE-001).
-            installed_packages: Set of installed package names.
-
-        Returns:
-            PolicyResult with violations, waivers, and pass/fail.
-        """
         violations: list[PolicyViolation] = []
 
-        # Check findings against severity + rule policies
+
         from picosentry.scan.models import SEVERITY_ORDER
         fail_level = SEVERITY_ORDER.get(self.fail_on_severity.lower(), 1)
 
         waived_count = 0
         for f in scan_result.findings:
-            # Check if waived
+
             is_waived, _waiver = self.is_finding_waived(f.rule_id, f.package)
             if is_waived:
                 waived_count += 1
                 continue
 
-            # Check rule-specific fail
+
             if f.rule_id in self.fail_on_rules:
                 violations.append(
                     PolicyViolation(
@@ -334,7 +281,7 @@ class Policy:
                 )
                 continue
 
-            # Check severity threshold
+
             f_level = SEVERITY_ORDER.get(f.severity.value.lower(), 4)
             if f_level <= fail_level:
                 violations.append(
@@ -346,21 +293,21 @@ class Policy:
                     )
                 )
 
-        # Check licenses
+
         if package_licenses:
             violations.extend(self.check_licenses(package_licenses))
 
-        # Check deny packages
+
         if installed_packages:
             violations.extend(self.check_packages(installed_packages))
 
-        # Check requirements
+
         violations.extend(self.check_requirements(target, scan_result))
 
-        # Check for expired waivers
+
         expired = [w.id for w in self.waivers if w.is_expired()]
 
-        # Audit policy application
+
         audit(
             "policy.apply",
             target=str(target),

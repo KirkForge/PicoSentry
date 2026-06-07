@@ -1,12 +1,3 @@
-"""PicoDomeHandler GET route handlers (mixin).
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-All ``_handle_*`` methods dispatched by :meth:`PicoDomeHandler._handle_get`
-live here. The ``_handle_get`` dispatcher itself lives in
-:mod:`picosentry.sandbox.daemon.handler` to keep this file focused on
-individual route logic.
-"""
 from __future__ import annotations
 
 import logging
@@ -24,10 +15,9 @@ logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomeGetRoutesMixin:
-    """GET route handlers: health, ready, metrics, scans, policies, audit, etc."""
 
     def _handle_get(self) -> None:
-        # Request size limit
+
         content_length = self.headers.get("Content-Length")
         if content_length:
             try:
@@ -42,9 +32,9 @@ class PicoDomeGetRoutesMixin:
         path = parsed.path.rstrip("/")
         query = parse_qs(parsed.query)
 
-        # Health / ready (unauthenticated)
+
         if path == "/health":
-            # F7: Rate limit unauthenticated health/ready endpoints
+
             if not self.rate_limiter.allow(actor="__health__"):
                 self._send_error(ErrorCodes.RATE_LIMITED)
             else:
@@ -55,7 +45,7 @@ class PicoDomeGetRoutesMixin:
             else:
                 self._handle_ready()
         elif path == "/metrics":
-            # If metrics-only server, skip auth
+
             metrics_only = getattr(self, "_metrics_only", False)
             if metrics_only:
                 self._handle_metrics()
@@ -64,7 +54,7 @@ class PicoDomeGetRoutesMixin:
                 if token:
                     self._handle_metrics()
 
-        # Authenticated GET endpoints
+
         elif path == f"/api/{self.API_VERSION}/scans":
             token = self._require_permission("scan:read")
             if token:
@@ -109,7 +99,7 @@ class PicoDomeGetRoutesMixin:
     def _handle_health(self) -> None:
         uptime = int(time.time() - self._start_time)
 
-        # Check Redis health
+
         redis_health = {}
         try:
             from picosentry.sandbox.redis_health import check_redis_health
@@ -118,11 +108,11 @@ class PicoDomeGetRoutesMixin:
         except Exception:
             redis_health = {"connected": False, "mode": "in-memory"}
 
-        # F8: Reduce info disclosure on health endpoint
+
         health_data: dict[str, Any] = {
             "status": "healthy",
         }
-        # Only include version and details if not in enterprise mode
+
         if not _ENTERPRISE_MODE:
             health_data["version"] = __version__
             health_data["api_version"] = self.API_VERSION
@@ -132,11 +122,8 @@ class PicoDomeGetRoutesMixin:
         self._send_json(health_data)
 
     def _handle_ready(self) -> None:
-        # Check that sandbox backend works. In community/default mode the
-        # readiness probe may degrade to the observational subprocess backend
-        # so orchestration health checks still receive a concrete JSON status.
-        # Enterprise mode remains fail-closed and rejects observational-only
-        # backends.
+
+
         try:
             from picosentry.sandbox.l3.engine import _detect_backend
 
@@ -165,7 +152,6 @@ class PicoDomeGetRoutesMixin:
             self._send_error(ErrorCodes.NOT_READY, detail=str(e))
 
     def _handle_metrics(self) -> None:
-        """Prometheus-format metrics endpoint."""
         uptime = int(time.time() - self._start_time)
         avg_ms = self._scan_total_ms / max(self._scan_count, 1)
 
@@ -271,7 +257,6 @@ class PicoDomeGetRoutesMixin:
         )
 
     def _handle_list_tenants(self) -> None:
-        """List registered tenants (admin endpoint)."""
         from picosentry.sandbox.tenant import get_tenant_registry
 
         registry = get_tenant_registry()
@@ -291,7 +276,6 @@ class PicoDomeGetRoutesMixin:
         )
 
     def _handle_tls_config(self) -> None:
-        """Return current TLS/mTLS configuration (no secrets exposed)."""
         from picosentry.sandbox.mtls import get_tls_config_info
 
         config_info = get_tls_config_info()
@@ -303,7 +287,7 @@ class PicoDomeGetRoutesMixin:
         audit = get_audit_logger()
         audit_stats = audit.get_stats()
 
-        # F8: Reduce info disclosure on stats endpoint in enterprise mode
+
         stats_data: dict[str, Any] = {
             "scans_total": self._scan_count,
             "scans_avg_ms": self._scan_total_ms / max(self._scan_count, 1),

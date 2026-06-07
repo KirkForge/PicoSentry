@@ -1,4 +1,3 @@
-"""Kill-chain correlation API endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -17,14 +16,10 @@ def list_chains(
     limit: int = Query(50, ge=1, le=500),
     user: dict = Depends(require_role("viewer")),
 ):
-    """List all kill chains sorted by score descending.
-
-    Returns active chains (artifacts with correlated events across layers).
-    """
     if threshold > 0:
         chains = correlation_engine.critical_chains(threshold=threshold)
     else:
-        # No threshold — return all artifacts with any events
+
         all_ids = correlation_engine.all_artifact_ids()
         chains = []
         for artifact_id in all_ids:
@@ -46,7 +41,6 @@ def get_chain(
     artifact_id: str,
     user: dict = Depends(require_role("viewer")),
 ):
-    """Get the full kill-chain timeline for one artifact."""
     chain = correlation_engine.kill_chain(artifact_id)
     if chain is None:
         raise HTTPException(
@@ -61,7 +55,6 @@ def get_chain_narrative(
     artifact_id: str,
     user: dict = Depends(require_role("viewer")),
 ):
-    """Get the kill-chain narrative text for one artifact."""
     chain = correlation_engine.kill_chain(artifact_id)
     if chain is None:
         raise HTTPException(
@@ -89,13 +82,12 @@ def ingest_event(
     detail: str = Query("", description="Evidence / context"),
     user: dict = Depends(require_role("operator")),
 ):
-    """Ingest a custom correlated event (for external integrations)."""
     from datetime import datetime, timezone
 
     from picosentry._core.models import Confidence, Severity
     from picosentry.serve.services.correlation import CorrelatedEvent
 
-    # Parse enums
+
     try:
         sev = Severity(severity.upper())
     except ValueError as err:
@@ -133,11 +125,6 @@ def ingest_event(
 def chains_summary(
     user: dict = Depends(require_role("viewer")),
 ):
-    """Get kill chains dashboard summary.
-
-    Returns aggregate metrics: total/critical/high/medium/low counts,
-    layer coverage, phase distribution, and top 10 chains.
-    """
     return correlation_engine.chains_summary()
 
 
@@ -145,7 +132,6 @@ def chains_summary(
 def persist_chains(
     user: dict = Depends(require_role("operator")),
 ):
-    """Persist in-memory events and chains to SQLite (if enabled)."""
     event_count = correlation_engine.persist_events()
     chain_count = correlation_engine.persist_chains_cache()
     return {
@@ -160,5 +146,4 @@ def persist_chains(
 def engine_stats(
     user: dict = Depends(require_role("viewer")),
 ):
-    """Get correlation engine statistics."""
     return correlation_engine.stats()

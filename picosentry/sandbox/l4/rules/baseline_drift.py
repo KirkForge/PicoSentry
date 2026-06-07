@@ -1,4 +1,3 @@
-"""L4 baseline drift detector."""
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
@@ -8,7 +7,6 @@ def detect_baseline_drift(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect significant drift from known baselines."""
     findings: list[Finding] = []
 
     if not baselines:
@@ -19,7 +17,7 @@ def detect_baseline_drift(
     best = find_best_baseline(profile, baselines)
 
     if best is None:
-        # No matching baseline — not necessarily bad, but notable
+
         findings.append(
             Finding(
                 rule_id="L4-BASE-001",

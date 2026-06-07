@@ -1,7 +1,3 @@
-"""`health` subcommand — run PicoDome health checks.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -16,7 +12,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Run health checks."""
     from picosentry.sandbox.health import check_health
 
     checks = check_health()

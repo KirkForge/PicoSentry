@@ -1,15 +1,3 @@
-"""Token-bucket rate limiter for the PicoDome daemon.
-
-Per-actor rate limiting using the token bucket algorithm. Each actor
-(e.g., API token, IP address) gets an independent bucket with
-configurable rate and burst capacity.
-
-Design:
-- In-memory state (no external store needed)
-- Lazy cleanup of stale buckets
-- Configurable per-actor or global limits
-- Thread-safe via locks
-"""
 
 from __future__ import annotations
 
@@ -24,17 +12,16 @@ logger = logging.getLogger("picodome.ratelimit")
 
 @dataclass(frozen=True)
 class RateLimitConfig:
-    """Rate limit configuration."""
 
-    # Tokens added per second per actor
+
     rate_per_second: float = 2.0
-    # Maximum burst size (tokens that can accumulate)
+
     burst_size: int = 10
-    # Maximum number of distinct actors to track
+
     max_actors: int = 10000
-    # Seconds before an idle actor's bucket is evicted
+
     idle_timeout_seconds: int = 3600
-    # Global requests per second across all actors
+
     global_rps: float = 25.0
 
     def to_dict(self) -> dict[str, Any]:
@@ -48,7 +35,6 @@ class RateLimitConfig:
 
 
 class _TokenBucket:
-    """Single token bucket for one actor."""
 
     __slots__ = ("burst", "last_refill", "rate", "tokens")
 
@@ -59,14 +45,12 @@ class _TokenBucket:
         self.burst = burst
 
     def refill(self) -> None:
-        """Add tokens based on elapsed time."""
         now = time.monotonic()
         elapsed = now - self.last_refill
         self.tokens = min(self.burst, self.tokens + elapsed * self.rate)
         self.last_refill = now
 
     def consume(self, tokens: float = 1.0) -> bool:
-        """Try to consume tokens. Returns True if allowed."""
         self.refill()
         if self.tokens >= tokens:
             self.tokens -= tokens
@@ -75,16 +59,6 @@ class _TokenBucket:
 
 
 class TokenBucketLimiter:
-    """Token-bucket rate limiter with per-actor and global limits.
-
-    Usage::
-
-        limiter = TokenBucketLimiter()
-        if limiter.allow(actor="token-abc123"):
-            # Process request
-        else:
-            # Reject with 429 Too Many Requests
-    """
 
     def __init__(self, config: RateLimitConfig | None = None) -> None:
         self._config = config or RateLimitConfig()
@@ -100,24 +74,15 @@ class TokenBucketLimiter:
             )
 
     def allow(self, actor: str, tokens: float = 1.0) -> bool:
-        """Check if a request from the given actor is allowed.
-
-        Args:
-            actor: Actor identifier (token, IP, etc.)
-            tokens: Number of tokens to consume
-
-        Returns:
-            True if the request is allowed, False if rate-limited.
-        """
         with self._lock:
-            # Global rate limit check
+
             if self._global_bucket and not self._global_bucket.consume(tokens):
                 logger.debug("Global rate limit hit: actor=%s", actor)
                 return False
 
-            # Per-actor rate limit check
+
             if actor not in self._buckets:
-                # Evict stale actors if at capacity
+
                 if len(self._buckets) >= self._config.max_actors:
                     self._cleanup_stale()
 
@@ -130,7 +95,7 @@ class TokenBucketLimiter:
             if not allowed:
                 logger.debug("Rate limit hit for actor=%s", actor)
 
-            # Periodic cleanup
+
             now = time.monotonic()
             if now - self._last_cleanup > 60:
                 self._cleanup_stale()
@@ -139,7 +104,6 @@ class TokenBucketLimiter:
             return allowed
 
     def get_status(self, actor: str) -> dict[str, Any]:
-        """Get rate limit status for an actor."""
         with self._lock:
             if actor in self._buckets:
                 bucket = self._buckets[actor]
@@ -160,7 +124,6 @@ class TokenBucketLimiter:
             }
 
     def reset(self, actor: str | None = None) -> None:
-        """Reset rate limit state for an actor or all actors."""
         with self._lock:
             if actor:
                 self._buckets.pop(actor, None)
@@ -172,7 +135,6 @@ class TokenBucketLimiter:
         return self._config
 
     def _cleanup_stale(self) -> None:
-        """Remove buckets for idle actors."""
         now = time.monotonic()
         cutoff = now - self._config.idle_timeout_seconds
         stale = [actor for actor, bucket in self._buckets.items() if bucket.last_refill < cutoff]

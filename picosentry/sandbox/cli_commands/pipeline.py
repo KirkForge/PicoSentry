@@ -1,7 +1,3 @@
-"""`pipeline` subcommand — full L3+L4 pipeline on a command.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -62,25 +58,24 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Run full L3+L4 pipeline."""
-    # Strip leading '--' separator
+
     if args.command and args.command[0] == '--':
         args.command = args.command[1:]
     if not args.command:
         print("Error: no command specified", file=sys.stderr)
         return 1
 
-    # --allow-runtime takes precedence over --policy
+
     if getattr(args, "allow_runtime", None) and not args.policy:
         policy = load_policy(name=args.allow_runtime)
     elif args.policy:
         policy = load_policy(args.policy)
     else:
-        # Auto-detect runtime from command
+
         policy = _auto_detect_policy(args.command)
     deterministic = args.deterministic_output
 
-    # Resolve backend
+
     from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
 
     backend_name = getattr(args, "backend", "auto") or "auto"
@@ -98,7 +93,7 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # L3
+
     sandbox = sandbox_run(
         command=args.command,
         policy=policy,
@@ -108,12 +103,12 @@ def cmd(args: argparse.Namespace) -> int:
         deterministic=deterministic,
     )
 
-    # L4
+
     profile = profile_from_sandbox_result(sandbox)
     engine = create_default_engine()
     analysis = engine.analyze(profile, rules=args.rules, deterministic=deterministic)
 
-    # Run determinism guard check if in deterministic mode
+
     if deterministic:
         guard = DeterministicGuard()
         violations = guard.check(sandbox) + guard.check(analysis)
@@ -121,7 +116,7 @@ def cmd(args: argparse.Namespace) -> int:
             for v in violations:
                 print(f"DETERMINISM VIOLATION: {v}", file=sys.stderr)
 
-    # Output
+
     if not args.quiet:
         from picosentry.sandbox.cli_commands._common import _output_summary_pipeline
 

@@ -1,14 +1,8 @@
-#!/usr/bin/env python3
-"""Generate npm top packages corpus from known high-download packages.
 
-This is a static snapshot. Use `picosentry update` to refresh from npm registry.
-"""
 
-# Top 500 npm packages by weekly downloads (curated 2024-2025).
-# These are the most attractive typosquat targets.
-# Source: npm trends, bundlephobia, library.io
+
 TOP_500 = [
-    # 1-50: The essentials
+
     "react",
     "lodash",
     "express",
@@ -59,7 +53,7 @@ TOP_500 = [
     "joi",
     "cookie-parser",
     "body-parser",
-    # 51-100: Build tools & utilities
+
     "cross-env",
     "rimraf",
     "glob",
@@ -110,7 +104,7 @@ TOP_500 = [
     "process",
     "process-nextick-args",
     "readable-stream",
-    # 101-150: React ecosystem
+
     "react-router",
     "react-router-dom",
     "redux",
@@ -156,7 +150,7 @@ TOP_500 = [
     "vite",
     "@vitejs/plugin-react",
     "rollup",
-    # 151-200: Testing & quality
+
     "mocha",
     "chai",
     "sinon",
@@ -177,7 +171,7 @@ TOP_500 = [
     "selenium-webdriver",
     "cypress",
     "@testing-library/cypress",
-    # 201-250: Security & auth
+
     "helmet",
     "express-rate-limit",
     "express-validator",
@@ -198,7 +192,7 @@ TOP_500 = [
     "jose",
     "@panva/jose",
     "crypto-random-string",
-    # 251-300: Data & ORM
+
     "prisma-client",
     "@prisma/client",
     "mongodb",
@@ -214,7 +208,7 @@ TOP_500 = [
     "graphql-request",
     "graphql-tag",
     "graphql-tools",
-    # 301-350: Logging & monitoring
+
     "winston",
     "pino",
     "morgan",
@@ -230,7 +224,7 @@ TOP_500 = [
     "@sentry/react",
     "newrelic",
     "prom-client",
-    # 351-400: File handling & streams
+
     "fs-extra",
     "graceful-fs",
     "chokidar",
@@ -251,7 +245,7 @@ TOP_500 = [
     "xlsx",
     "exceljs",
     "pdfkit",
-    # 401-450: Network & HTTP
+
     "http-proxy",
     "http-proxy-middleware",
     "connect",
@@ -267,7 +261,7 @@ TOP_500 = [
     "tough-cookie",
     "set-cookie-parser",
     "parseurl",
-    # 451-500: CLI & terminal
+
     "ora",
     "cli-spinners",
     "cli-table3",
@@ -290,8 +284,7 @@ TOP_500 = [
     "command-line-usage",
 ]
 
-# Known malicious packages (IoCs) — these should NEVER be in the top list
-# but SHOULD be flagged by typosquat detection if found in a project
+
 KNOWN_MALICIOUS = [
     "crossenv",  # cross-env typosquat (2017)
     "babelcli",  # babel-cli typosquat

@@ -1,15 +1,3 @@
-"""Plugin system for extensible project integration.
-
-Security note: Plugins are loaded from the local plugins/ directory only.
-Each plugin must have a plugin.json manifest. The manifest is validated
-before loading: entry_point must be a simple Python identifier (no dots,
-no path separators), and hooks must be from the known whitelist. Arbitrary
-code execution via path traversal or importlib abuse is prevented.
-
-For production deployments, manifests can be Ed25519-signed to verify
-plugin authenticity. Set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 to enforce
-signature verification.
-"""
 import hashlib
 import importlib
 import inspect
@@ -21,7 +9,7 @@ import sys
 from dataclasses import dataclass
 from typing import Any
 
-# Ed25519 signature support — lazy-imported to avoid hard dependency
+
 HAS_NACL = False
 try:
     import nacl.exceptions
@@ -33,17 +21,17 @@ except ImportError:
 
 logger = logging.getLogger("picoshogun.Plugins")
 
-# Valid hook names — plugins can only register for these
+
 VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
-# Manifest fields and their expected types
+
 REQUIRED_MANIFEST_FIELDS = {"name": str, "entry_point": str}
 OPTIONAL_MANIFEST_FIELDS = {
     "version": str, "author": str, "description": str,
     "hooks": list, "dependencies": list, "config": dict,
 }
 
-# Entry point must be a simple Python identifier — no dots, slashes, or path traversal
+
 _ENTRY_POINT_RE = re.compile(r"^[a-zA-Z_][a-zA-Z0-9_]*$")
 
 
@@ -62,56 +50,37 @@ class PluginMetadata:
 
 
 class PluginInterface:
-    """Base interface all plugins must implement."""
 
     def initialize(self, config: dict[str, Any]) -> bool:
-        """Called once when plugin is loaded."""
         raise NotImplementedError
 
     def on_project_start(self, project_id: str, metadata: dict) -> None:
-        """Hook: Before project execution."""
         pass
 
     def on_project_complete(self, project_id: str, result: dict) -> None:
-        """Hook: After project execution."""
         pass
 
     def on_intelligence(self, intel: dict) -> dict | None:
-        """Hook: Intelligence signal received."""
         return None
 
     def on_alert(self, alert: dict) -> dict | None:
-        """Hook: Alert triggered."""
         return None
 
     def health_check(self) -> dict:
-        """Return plugin health status."""
         return {"status": "healthy"}
 
     def shutdown(self) -> None:
-        """Cleanup when plugin is unloaded."""
         pass
 
 
 class PluginManager:
-    """Dynamic plugin loader and lifecycle manager.
-
-    Security measures:
-    - Plugins are loaded only from the configured plugin_dir (local directory).
-    - Manifest validation: entry_point must be a simple identifier, hooks must
-      be from the known whitelist, required fields must be present.
-    - sys.path manipulation is scoped: plugin path is added then removed in a
-      try/finally block. Only the plugin directory itself is added, not arbitrary
-      paths.
-    - Module import is limited to the declared entry_point identifier.
-    """
 
     def __init__(self, plugin_dir: str | None = None):
         if plugin_dir:
             self.plugin_dir = os.path.realpath(plugin_dir)
         else:
-            # Resolve plugins directory: try installed package location first,
-            # then fall back to relative path for development
+
+
             try:
                 import plugins as _plugins_pkg
                 self.plugin_dir = os.path.realpath(os.path.dirname(_plugins_pkg.__file__))
@@ -131,10 +100,9 @@ class PluginManager:
 
     @staticmethod
     def _validate_manifest(meta: dict, manifest_path: str) -> list[str]:
-        """Validate plugin manifest. Returns list of issues (empty = valid)."""
         issues: list[str] = []
 
-        # Required fields
+
         for field, expected_type in REQUIRED_MANIFEST_FIELDS.items():
             if field not in meta:
                 issues.append(f"Missing required field: {field}")
@@ -144,7 +112,7 @@ class PluginManager:
         if issues:
             return issues  # Can't validate further without name/entry_point
 
-        # Entry point must be a simple Python identifier — no path traversal
+
         entry_point = meta["entry_point"]
         if not _ENTRY_POINT_RE.match(entry_point):
             issues.append(
@@ -152,7 +120,7 @@ class PluginManager:
                 f"(must match {_ENTRY_POINT_RE.pattern})"
             )
 
-        # Hooks must be from the known whitelist
+
         hooks = meta.get("hooks", [])
         if not isinstance(hooks, list):
             issues.append("'hooks' must be a list")
@@ -161,7 +129,7 @@ class PluginManager:
             if unknown:
                 issues.append(f"Unknown hooks: {unknown}. Valid hooks: {sorted(VALID_HOOKS)}")
 
-        # Name must be a reasonable string
+
         name = meta.get("name", "")
         if not isinstance(name, str) or not name.strip():
             issues.append("Plugin name must be a non-empty string")
@@ -170,12 +138,6 @@ class PluginManager:
 
     @staticmethod
     def _compute_manifest_signature_content(meta: dict, module_checksum: str) -> str:
-        """Compute the canonical content to sign/verify for a plugin manifest.
-
-        The signed content includes the manifest name, version, entry_point,
-        hooks, and the SHA-256 checksum of the entry module. This ensures
-        both the manifest and code are verified.
-        """
         hooks = meta.get("hooks", [])
         return json.dumps({
             "name": meta.get("name", ""),
@@ -188,17 +150,6 @@ class PluginManager:
     @staticmethod
     def verify_manifest_signature(meta: dict, module_checksum: str,
                                   signature_hex: str, public_key_hex: str) -> bool:
-        """Verify an Ed25519 signature on a plugin manifest.
-
-        Args:
-            meta: The parsed plugin.json manifest dict.
-            module_checksum: SHA-256 hex digest of the entry module file.
-            signature_hex: Hex-encoded Ed25519 signature.
-            public_key_hex: Hex-encoded Ed25519 public key.
-
-        Returns:
-            True if signature is valid, False otherwise.
-        """
         if not HAS_NACL:
             logger.warning("pynacl not installed — cannot verify Ed25519 signatures")
             return False
@@ -219,7 +170,6 @@ class PluginManager:
             return False
 
     def _load_plugins(self):
-        """Discover and load all plugins from plugin directory."""
         if not os.path.exists(self.plugin_dir):
             logger.info("Plugin directory not found: %s", self.plugin_dir)
             return
@@ -231,7 +181,7 @@ class PluginManager:
             if not os.path.isdir(plugin_path) or not os.path.exists(manifest_path):
                 continue
 
-            # Verify plugin_path hasn't escaped the plugin directory via symlinks
+
             real_plugin_path = os.path.realpath(plugin_path)
             if not real_plugin_path.startswith(self.plugin_dir + os.sep) and real_plugin_path != self.plugin_dir:
                 logger.error("Plugin path escapes plugin_dir: %s -> %s", plugin_path, real_plugin_path)
@@ -241,7 +191,7 @@ class PluginManager:
                 with open(manifest_path) as f:
                     meta = json.load(f)
 
-                # Validate manifest before loading
+
                 issues = self._validate_manifest(meta, manifest_path)
                 if issues:
                     logger.error("Plugin '%s' manifest validation failed: %s", entry, '; '.join(issues))
@@ -252,11 +202,10 @@ class PluginManager:
                 logger.error("Failed to load plugin %s: %s", entry, e)
 
     def _load_plugin(self, path: str, meta: dict):
-        """Load a single plugin by its manifest."""
         name = meta["name"]
         entry = meta["entry_point"]
 
-        # Compute full module checksum for signature verification
+
         module_file = os.path.join(path, f"{entry}.py")
         module_checksum = ""
         if os.path.exists(module_file):
@@ -266,7 +215,7 @@ class PluginManager:
         else:
             logger.warning("Plugin '%s' entry module not found at %s", name, module_file)
 
-        # Ed25519 signature verification
+
         require_signed = os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() in ("1", "true", "yes")
         sig_hex = meta.get("signature")
         pub_key_hex = meta.get("public_key")
@@ -283,18 +232,18 @@ class PluginManager:
                 return
             logger.info("Plugin '%s': Ed25519 signature verified", name)
         elif sig_hex and pub_key_hex and module_checksum and HAS_NACL:
-            # Optional: verify if signature is present but not required
+
             if self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
                 logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
             else:
                 logger.warning("Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)", name)
 
-        # Add plugin path to sys.path (scoped — removed in finally)
+
         sys.path.insert(0, path)
         try:
             module = importlib.import_module(entry)
 
-            # Find plugin class
+
             plugin_class = None
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
@@ -324,7 +273,7 @@ class PluginManager:
                     signed=require_signed or bool(sig_hex and pub_key_hex),
                 )
 
-                # Register hooks (only validated ones)
+
                 for hook in meta.get("hooks", []):
                     if hook in self.hooks:
                         self.hooks[hook].append(name)
@@ -335,12 +284,11 @@ class PluginManager:
         except Exception as e:
             logger.error("Failed to load plugin '%s': %s", name, e)
         finally:
-            # Always remove the plugin path from sys.path to prevent leakage
+
             if path in sys.path:
                 sys.path.remove(path)
 
     def dispatch(self, hook: str, **kwargs):
-        """Dispatch event to all plugins registered for a hook."""
         if hook not in VALID_HOOKS:
             logger.warning("Dispatch called with unknown hook '%s' — ignoring", hook)
             return []
@@ -363,7 +311,6 @@ class PluginManager:
         return results
 
     def get_status(self) -> dict[str, Any]:
-        """Get status of all loaded plugins."""
         status: dict[str, Any] = {}
         for name, plugin in self.plugins.items():
             try:
@@ -380,7 +327,6 @@ class PluginManager:
         return status
 
     def unload_all(self):
-        """Gracefully shutdown all plugins."""
         for name, plugin in self.plugins.items():
             try:
                 plugin.shutdown()
@@ -394,5 +340,4 @@ class PluginManager:
             hook_list.clear()
 
 
-# Global plugin manager instance
 plugin_manager = PluginManager()

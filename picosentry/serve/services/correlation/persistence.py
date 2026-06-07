@@ -1,14 +1,3 @@
-"""SQLite persistence for correlation events and chain cache.
-
-Extracted in v2.1.0 (refactor) from the ``persist_events`` / ``load_events`` /
-``persist_chains_cache`` methods of
-:class:`~picosentry.serve.services.correlation.engine.CorrelationEngine`.
-
-The free functions take a ``CorrelationEngine`` instance as their first
-argument so they can read ``PERSIST_ENABLED`` plus the in-memory ``_events``
-and ``_chains`` dicts without importing from :mod:`engine` (avoiding
-circular imports).
-"""
 from __future__ import annotations
 
 import logging
@@ -25,11 +14,6 @@ logger = logging.getLogger("picosentry.correlation")
 
 
 def _persist_events_impl(engine) -> int:
-    """Persist all in-memory events to SQLite.
-
-    Uses INSERT OR IGNORE with a hash-based idempotency key to avoid
-    duplicates across restarts. Returns the number of events persisted.
-    """
     if not engine.PERSIST_ENABLED:
         return 0
 
@@ -37,7 +21,7 @@ def _persist_events_impl(engine) -> int:
     with engine._lock:
         for artifact_id, events in list(engine._events.items()):
             for event in events:
-                # Deterministic dedup key
+
                 dedup_key = sha256(
                     f"{event.artifact_id}|{event.layer}|{event.rule_id}"
                     f"|{event.timestamp}".encode()
@@ -67,7 +51,6 @@ def _persist_events_impl(engine) -> int:
 
 
 def _load_events_impl(engine) -> int:
-    """Load events from SQLite into memory on startup. Returns event count."""
     if not engine.PERSIST_ENABLED:
         return 0
 
@@ -93,12 +76,12 @@ def _load_events_impl(engine) -> int:
                 timestamp=row["timestamp"],
                 run_id=row["run_id"],
             )
-            # Bypass lock and FIFO for bulk load
+
             events = engine._events[event.artifact_id]
             events.append(event)
             count += 1
 
-        # Invalidate all cached chains on reload
+
         engine._chains.clear()
         logger.info("Loaded %d correlation event(s) from DB", count)
     except Exception as e:
@@ -108,7 +91,6 @@ def _load_events_impl(engine) -> int:
 
 
 def _persist_chains_cache_impl(engine) -> int:
-    """Persist cached chain summaries to SQLite. Returns chain count."""
     if not engine.PERSIST_ENABLED:
         return 0
 

@@ -1,10 +1,3 @@
-"""OpenTelemetry trace integration (ADR-002).
-
-Optional dependency: pip install picowatch[otel]
-
-Provides distributed tracing for every LLM request/response cycle.
-Each scan/validation becomes a span with standardized attributes.
-"""
 
 from __future__ import annotations
 
@@ -15,21 +8,12 @@ from picosentry.watch.types import PromptScanResult, ValidationResult
 
 logger = logging.getLogger("picowatch.otel")
 
-# Lazy imports — these are optional dependencies
+
 _tracer: Any = None
 _initialized = False
 
 
 def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -> bool:
-    """Initialize OpenTelemetry tracing.
-
-    Args:
-        service_name: Service name for traces.
-        endpoint: OTLP endpoint (e.g. 'localhost:4317'). If None, uses OTEL_EXPORTER_OTLP_ENDPOINT env var.
-
-    Returns:
-        True if tracing was initialized, False if dependencies are missing.
-    """
     global _tracer, _initialized
 
     try:
@@ -47,7 +31,7 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
             exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(exporter))
         else:
-            # Try env var or use default OTLP exporter
+
             try:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
@@ -68,11 +52,6 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
 
 
 def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> None:
-    """Record a span for a prompt scan (L5).
-
-    Creates an OpenTelemetry span with standardized attributes per ADR-002.
-    No-op if OTel is not installed.
-    """
     if not _initialized or _tracer is None:
         return
 
@@ -98,11 +77,6 @@ def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> Non
 
 
 def trace_output_validation(result: ValidationResult, model: str | None = None) -> None:
-    """Record a span for an output validation (L6).
-
-    Creates an OpenTelemetry span with standardized attributes per ADR-002.
-    No-op if OTel is not installed.
-    """
     if not _initialized or _tracer is None:
         return
 

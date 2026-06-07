@@ -1,8 +1,3 @@
-"""L7 Telemetry Sink — OpenTelemetry traces, Prometheus metrics, audit logging.
-
-Core uses structured JSON logging + SQLite audit (zero external deps).
-OpenTelemetry is optional (pip install picowatch[otel]).
-"""
 
 from __future__ import annotations
 
@@ -27,7 +22,6 @@ logger = logging.getLogger("picowatch")
 
 @dataclass
 class TelemetryConfig:
-    """Telemetry configuration."""
 
     audit_db_path: Path = field(default_factory=lambda: Path("picowatch_audit.db"))
     audit_retention_days: int = 30
@@ -37,13 +31,6 @@ class TelemetryConfig:
 
 
 class TelemetrySink:
-    """L7 Telemetry: structured logging + SQLite audit + optional OTel.
-
-    Usage:
-        sink = TelemetrySink()
-        sink.record_prompt_scan(result)
-        sink.record_validation(validation_result)
-    """
 
     def __init__(self, config: TelemetryConfig | None = None) -> None:
         self._config = config or TelemetryConfig()
@@ -57,11 +44,10 @@ class TelemetrySink:
             "picowatch_scan_duration_ms_sum": 0.0,
         }
         self._init_audit_db()
-        # Prune expired audit entries on startup (ADR-002 retention)
+
         self.cleanup_audit()
 
     def _init_audit_db(self) -> None:
-        """Initialize SQLite audit database in WAL mode with integrity checksums (ADR-008)."""
         conn = sqlite3.connect(str(self._config.audit_db_path))
         try:
             conn.execute("PRAGMA journal_mode=WAL")
@@ -81,7 +67,7 @@ class TelemetrySink:
             conn.execute("""
                 CREATE INDEX IF NOT EXISTS idx_audit_timestamp ON audit_log(timestamp)
             """)
-            # Migration: add checksum column if upgrading from older schema
+
             with contextlib.suppress(sqlite3.OperationalError):
                 conn.execute("ALTER TABLE audit_log ADD COLUMN checksum TEXT")
             conn.commit()
@@ -92,15 +78,6 @@ class TelemetrySink:
 
     @classmethod
     def _audit_key(cls) -> bytes:
-        """Derive the audit HMAC key from PICOWATCH_AUDIT_HMAC_KEY env var.
-
-        Falls back to a per-process random key if not set, logging a warning.
-        In production, set PICOWATCH_AUDIT_HMAC_KEY to a stable secret (≥32 chars)
-        so audit logs can be verified across restarts.
-
-        The per-process key is cached after first generation so all calls
-        within the same process use the same key.
-        """
         if cls._cached_audit_key is not None:
             return cls._cached_audit_key
         key = os.environ.get("PICOWATCH_AUDIT_HMAC_KEY")
@@ -122,17 +99,10 @@ class TelemetrySink:
     def _compute_checksum(
         self, timestamp: str, event_type: str, request_id: str | None, score: float, verdict: str, rules: str
     ) -> str:
-        """Compute HMAC-SHA256 checksum for audit log row integrity (ADR-008).
-
-        Uses PICOWATCH_AUDIT_HMAC_KEY env var (≥32 chars) for deterministic
-        signing. Falls back to a random per-process key with a warning —
-        checksums are for tamper-detection, not cryptographic secrecy.
-        """
         msg = f"{timestamp}|{event_type}|{request_id or ''}|{score}|{verdict}|{rules}"
         return hmac.new(self._audit_key(), msg.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
     def record_prompt_scan(self, result: PromptScanResult, request_id: str | None = None) -> None:
-        """Record a prompt scan result."""
         self._metrics["picowatch_requests_total"] += 1
         self._metrics["picowatch_prompt_score_sum"] = float(self._metrics["picowatch_prompt_score_sum"]) + result.score
         self._metrics["picowatch_scan_duration_ms_sum"] = (
@@ -141,7 +111,7 @@ class TelemetrySink:
 
         if result.blocked:
             self._metrics["picowatch_prompt_blocked_total"] = int(self._metrics["picowatch_prompt_blocked_total"]) + 1
-        # Prometheus metrics (ADR-002)
+
         model = result.details.get("model") if result.details else None
         labels = {"model": model} if model else None
         self._prometheus.inc_counter("picowatch_requests_total", labels=labels)
@@ -154,7 +124,7 @@ class TelemetrySink:
             labels={"guard_type": "prompt"},
         )
 
-        # Structured JSON log
+
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": "warn" if result.blocked else "info",
@@ -168,7 +138,7 @@ class TelemetrySink:
         }
         logger.info(json.dumps(log_entry))
 
-        # SQLite audit
+
         self._audit_write(
             event_type="prompt_scan",
             request_id=request_id,
@@ -179,7 +149,6 @@ class TelemetrySink:
         )
 
     def record_validation(self, result: ValidationResult, request_id: str | None = None) -> None:
-        """Record an output validation result."""
         if result.violations:
             self._metrics["picowatch_output_violations_total"] = (
                 int(self._metrics["picowatch_output_violations_total"]) + 1
@@ -187,7 +156,7 @@ class TelemetrySink:
         self._metrics["picowatch_scan_duration_ms_sum"] = (
             float(self._metrics["picowatch_scan_duration_ms_sum"]) + result.duration_ms
         )
-        # Prometheus metrics (ADR-002)
+
         self._prometheus.inc_counter("picowatch_requests_total")
         if result.valid:
             self._prometheus.inc_counter("picowatch_output_validated_total")
@@ -199,7 +168,7 @@ class TelemetrySink:
             labels={"guard_type": "output"},
         )
 
-        # Structured JSON log
+
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": "warn" if not result.valid else "info",
@@ -213,7 +182,7 @@ class TelemetrySink:
         }
         logger.info(json.dumps(log_entry))
 
-        # SQLite audit
+
         self._audit_write(
             event_type="output_validation",
             request_id=request_id,
@@ -232,7 +201,6 @@ class TelemetrySink:
         rules: str,
         details: str | None,
     ) -> None:
-        """Write to SQLite audit log with integrity checksum (ADR-008)."""
         timestamp = datetime.now(timezone.utc).isoformat()
         checksum = self._compute_checksum(timestamp, event_type, request_id, score, verdict, rules)
         conn = None
@@ -257,18 +225,13 @@ class TelemetrySink:
             )
             conn.commit()
         except sqlite3.Error:
-            # Audit write failure should not break scanning
+
             logger.warning("Failed to write audit log entry")
         finally:
             if conn:
                 conn.close()
 
     def verify_audit_integrity(self) -> list[int]:
-        """Verify integrity checksums for all audit log rows (ADR-008).
-
-        Returns a list of row IDs with invalid checksums.
-        An empty list means all rows are intact.
-        """
         invalid_rows: list[int] = []
         conn = None
         try:
@@ -289,14 +252,9 @@ class TelemetrySink:
         return invalid_rows
 
     def render_prometheus(self) -> str:
-        """Render Prometheus metrics in text format (zero-dep).
-
-        Merges manual counters with histogram data collected by
-        PrometheusMetrics.observe_histogram().
-        """
         lines: list[str] = []
 
-        # Counters
+
         lines.append("# HELP picowatch_requests_total Total requests processed")
         lines.append("# TYPE picowatch_requests_total counter")
         lines.append(f"picowatch_requests_total {self._metrics['picowatch_requests_total']}")
@@ -317,7 +275,7 @@ class TelemetrySink:
         lines.append("# TYPE picowatch_scan_duration_ms_sum counter")
         lines.append(f"picowatch_scan_duration_ms_sum {self._metrics['picowatch_scan_duration_ms_sum']}")
 
-        # Histograms from PrometheusMetrics
+
         if self._prometheus._histograms:
             lines.append("")
             lines.append(self._prometheus.render())
@@ -332,7 +290,6 @@ class TelemetrySink:
         rules_expected: int = 0,
         load_errors: list[str] | None = None,
     ) -> HealthStatus:
-        """Return health status."""
         return HealthStatus(
             healthy=True,
             version=__version__,
@@ -345,7 +302,6 @@ class TelemetrySink:
         )
 
     def cleanup_audit(self) -> int:
-        """Remove audit entries older than retention period. Returns count deleted."""
         if self._config.audit_retention_days <= 0:
             return 0
 

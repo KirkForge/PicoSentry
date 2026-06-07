@@ -1,19 +1,3 @@
-"""mTLS context configuration and SSL context factory.
-
-Creates properly configured ssl.SSLContext for the daemon's HTTP
-server with mutual TLS (client certificate verification).
-
-Certificate management:
-- Server cert/key: from PICODOME_TLS_CERT / PICODOME_TLS_KEY env vars or file paths
-- CA bundle (for verifying client certs): from PICODOME_TLS_CA env var or file path
-- Auto-generates self-signed certs for development (PICODOME_TLS_DEV=1)
-
-Hardening:
-- TLS 1.2+ only (no SSLv3, TLS 1.0, 1.1)
-- Strong cipher suites only
-- OCSP stapling enabled where available
-- Certificate revocation checking
-"""
 
 from __future__ import annotations
 
@@ -32,19 +16,18 @@ logger = logging.getLogger("picodome.mtls")
 
 @dataclass(frozen=True)
 class MTLSConfig:
-    """mTLS configuration."""
 
-    # Server certificate (PEM)
+
     cert_path: str = ""
-    # Server private key (PEM)
+
     key_path: str = ""
-    # CA certificate bundle for verifying client certs
+
     ca_path: str = ""
-    # Development mode: auto-generate self-signed certs
+
     dev_mode: bool = False
-    # Minimum TLS version
+
     min_tls_version: str = "TLSv1_2"
-    # Whether to verify client certificates
+
     verify_client: bool = True
 
     def to_dict(self) -> dict[str, Any]:
@@ -59,7 +42,6 @@ class MTLSConfig:
 
     @classmethod
     def from_env(cls) -> MTLSConfig:
-        """Create config from environment variables."""
         return cls(
             cert_path=os.environ.get("PICODOME_TLS_CERT", ""),
             key_path=os.environ.get("PICODOME_TLS_KEY", ""),
@@ -70,19 +52,10 @@ class MTLSConfig:
 
     @property
     def is_configured(self) -> bool:
-        """Check if mTLS is properly configured (has cert and key)."""
         return bool(self.cert_path and self.key_path) or self.dev_mode
 
 
 def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | None:
-    """Create an ssl.SSLContext for the daemon with mTLS.
-
-    Args:
-        config: mTLS configuration. None = load from environment.
-
-    Returns:
-        Configured SSLContext, or None if mTLS is not configured.
-    """
     if config is None:
         config = MTLSConfig.from_env()
 
@@ -97,23 +70,23 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
         logger.warning("mTLS enabled but cert/key not configured")
         return None
 
-    # Create SSL context with secure defaults
+
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
-    # Set minimum TLS version
+
     try:
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
     except AttributeError:
         pass
 
-    # Load server certificate and key
+
     try:
         ctx.load_cert_chain(certfile=config.cert_path, keyfile=config.key_path)
     except (ssl.SSLError, OSError) as e:
         logger.error("Failed to load TLS cert/key: %s", e)
         raise
 
-    # Configure client certificate verification
+
     if config.verify_client and config.ca_path:
         try:
             ctx.load_verify_locations(cafile=config.ca_path)
@@ -122,19 +95,19 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
             raise
         ctx.verify_mode = ssl.CERT_REQUIRED
     elif config.verify_client:
-        # Use system CA bundle
+
         ctx.set_default_verify_paths()
         ctx.verify_mode = ssl.CERT_REQUIRED
     else:
         ctx.verify_mode = ssl.CERT_NONE
 
-    # Harden: disable weak ciphers
+
     ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
-    # Disable compression (CRIME attack)
+
     ctx.options |= ssl.OP_NO_COMPRESSION
 
-    # Enable OCSP stapling where available
+
     try:
         ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
     except AttributeError:
@@ -150,36 +123,10 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
 
 
 def reload_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | None:
-    """Reload the SSL context from disk.
-
-    Call this when certificates have been rotated (e.g., via certbot
-    renewal or a Kubernetes secret update). Creates a fresh SSLContext
-    by re-reading the cert/key/CA files.
-
-    In a running daemon, this can be called from a signal handler or
-    a file watcher to pick up new certificates without restarting.
-
-    Args:
-        config: mTLS configuration. None = load from environment.
-
-    Returns:
-        New SSLContext, or None if mTLS is not configured.
-    """
     return create_ssl_context(config)
 
 
 def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
-    """Get TLS configuration info for the /api/v1/tls/config endpoint.
-
-    Returns a dict describing the current TLS state without exposing
-    secrets (key contents are never included).
-
-    Args:
-        config: mTLS configuration. None = load from environment.
-
-    Returns:
-        Dict with TLS state, cert paths, and connection details.
-    """
     if config is None:
         config = MTLSConfig.from_env()
 
@@ -193,7 +140,7 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
         "ca_path": config.ca_path,
     }
 
-    # Check if cert files exist and are readable
+
     if config.is_configured and not config.dev_mode:
         cert_path = Path(config.cert_path) if config.cert_path else None
         key_path = Path(config.key_path) if config.key_path else None
@@ -203,7 +150,7 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
         info["key_exists"] = key_path.is_file() if key_path else False
         info["ca_exists"] = ca_path.is_file() if ca_path else False
 
-        # Read cert metadata (not the key!)
+
         if cert_path and cert_path.is_file():
             try:
                 import subprocess
@@ -223,14 +170,7 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
 
 
 def _create_dev_ssl_context() -> ssl.SSLContext:
-    """Create a self-signed SSL context for development.
 
-    WARNING: Only use in development. Self-signed certs provide
-    encryption but no identity verification.
-
-    F9: Blocked in enterprise mode.
-    """
-    # F9: Block dev TLS mode in enterprise mode
     if os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes"):
         raise RuntimeError("PICODOME_TLS_DEV=1 is not allowed in enterprise mode. Provide proper certificates.")
 

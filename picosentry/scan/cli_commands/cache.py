@@ -1,7 +1,3 @@
-"""`cache` subcommand — manage the scan result cache (stats/purge/wipe).
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +23,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage scan result cache."""
     from picosentry.scan.cache import ScanCache
 
     cache_config = load_config(Path(args.target) if hasattr(args, "target") and args.target else Path.cwd())
@@ -58,7 +53,7 @@ def cmd(args: argparse.Namespace) -> int:
         removed = cache.wipe()
         print(f"Wiped {removed} cache entries")
     else:
-        # No subcommand given — print stats by default.
+
         stats = cache.stats()
         print(f"Cache directory: {stats['cache_dir']}")
         print(f"Entries: {stats['entries']}")

@@ -1,15 +1,3 @@
-"""Kill-chain correlation data models, enum, and phase mapping tables.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/serve/services/correlation.py``.
-
-Contains:
-
-- :class:`KillChainPhase` — the kill-chain phase enum.
-- :data:`PHASE_WEIGHTS`, :data:`SEVERITY_WEIGHTS` — score-computation tables.
-- :data:`LAYER_PHASE_MAP`, :data:`RULE_PHASE_OVERRIDES` — event→phase mapping.
-- :class:`CorrelatedEvent` — frozen dataclass for a single event.
-- :class:`KillChainTimeline` — output dataclass for a correlated chain.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -20,7 +8,6 @@ from picosentry._core.models import Confidence, Severity
 
 
 class KillChainPhase(str, Enum):
-    """Phases of the cyber kill chain, mapped from PicoSentry rule layers."""
 
     RECONNAISSANCE = "reconnaissance"
     DELIVERY = "delivery"
@@ -31,7 +18,6 @@ class KillChainPhase(str, Enum):
     IMPACT = "impact"
 
 
-# Phase progression weights — later phases score higher in chain_score
 PHASE_WEIGHTS: dict[KillChainPhase, float] = {
     KillChainPhase.RECONNAISSANCE: 0.3,
     KillChainPhase.DELIVERY: 0.5,
@@ -42,7 +28,7 @@ PHASE_WEIGHTS: dict[KillChainPhase, float] = {
     KillChainPhase.IMPACT: 1.0,
 }
 
-# Severity weights for score computation
+
 SEVERITY_WEIGHTS: dict[str, float] = {
     "CRITICAL": 1.0,
     "HIGH": 0.7,
@@ -51,8 +37,7 @@ SEVERITY_WEIGHTS: dict[str, float] = {
     "INFO": 0.05,
 }
 
-# Default phase mapping: rule_id prefix → kill-chain phases
-# More specific rule_id overrides can be added
+
 LAYER_PHASE_MAP: dict[str, list[KillChainPhase]] = {
     "scan": [
         KillChainPhase.DELIVERY,
@@ -75,46 +60,40 @@ LAYER_PHASE_MAP: dict[str, list[KillChainPhase]] = {
     ],
 }
 
-# Specific rule_id → phase overrides (takes precedence over layer-based mapping)
+
 RULE_PHASE_OVERRIDES: dict[str, KillChainPhase] = {
-    # Scan: delivery-phase rules
+
     "L2-TYPO-001": KillChainPhase.DELIVERY,
     "L2-DEPC-001": KillChainPhase.DELIVERY,
-    # Scan: execution-phase rules
+
     "L2-POST-001": KillChainPhase.EXECUTION,
     "L2-OBFS-001": KillChainPhase.EXECUTION,
     "L2-MAL-001": KillChainPhase.EXECUTION,
     "L2-POSTINSTALL-001": KillChainPhase.EXECUTION,
-    # Scan: persistence-phase rules
+
     "L2-PROV-001": KillChainPhase.PERSISTENCE,
-    # Sandbox: execution
+
     "L3-PROC-001": KillChainPhase.EXECUTION,
     "L3-PROC-002": KillChainPhase.EXECUTION,
     "L3-PROC-003": KillChainPhase.EXECUTION,
-    # Sandbox: C2
+
     "L3-NET-001": KillChainPhase.C2,
     "L3-NET-002": KillChainPhase.C2,
-    # Sandbox L4: reconnaissance
+
     "L4-DNS-001": KillChainPhase.RECONNAISSANCE,
-    # Sandbox L4: exfiltration
+
     "L4-FILE-001": KillChainPhase.EXFILTRATION,
-    # Watch: reconnaissance
+
     "L5-PROMPT-001": KillChainPhase.RECONNAISSANCE,
-    # Watch: impact
+
     "L5-PROMPT-002": KillChainPhase.IMPACT,
-    # Watch: exfiltration
+
     "L6-OUTPUT-001": KillChainPhase.EXFILTRATION,
 }
 
 
 @dataclass(frozen=True)
 class CorrelatedEvent:
-    """A single event from any PicoSentry layer, ready for correlation.
-
-    Immutable by design. Each event represents one atomic finding or
-    observation that can be correlated with others sharing the same
-    artifact_id.
-    """
 
     artifact_id: str
     """Package@version, globally unique (e.g. 'lodash@4.17.21')."""
@@ -163,7 +142,6 @@ class CorrelatedEvent:
 
 @dataclass
 class KillChainTimeline:
-    """Correlated output — a chronology of related events forming an attack narrative."""
 
     artifact_id: str
     """The package under analysis."""

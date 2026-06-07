@@ -1,8 +1,3 @@
-"""Shared argparse helpers and constants for the cli_commands subpackage.
-
-Kept intentionally small — only the most-duplicated argument patterns
-get extracted here. Per-subcommand bespoke args stay in each module.
-"""
 from __future__ import annotations
 
 import argparse
@@ -13,16 +8,10 @@ logger = logging.getLogger(__name__)
 NAME = ""  # placeholder; subcommand modules override
 
 
-# Standard output format choices, used by `scan` and `workspace`.
 OUTPUT_FORMAT_CHOICES = ["json", "sarif", "table", "ml-context", "github", "cyclonedx"]
 
 
 def add_output_args(parser: argparse.ArgumentParser) -> None:
-    """Add ``--format/-f`` and ``--output/-o`` to a subparser.
-
-    Used by `scan`, `workspace`, and any other subcommand that writes a
-    structured report to stdout or a file.
-    """
     parser.add_argument(
         "--format",
         "-f",

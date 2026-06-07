@@ -1,4 +1,3 @@
-"""L4 entropy anomaly detector."""
 
 import math
 from collections import Counter
@@ -11,10 +10,9 @@ def detect_entropy_anomalies(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect high-entropy strings indicative of encoded/encrypted payloads."""
     findings: list[Finding] = []
 
-    # Check file paths for high-entropy names
+
     for op in profile.fs_ops:
         name = op.path.split("/")[-1] if "/" in op.path else op.path
         ent = _shannon_entropy(name)
@@ -29,7 +27,7 @@ def detect_entropy_anomalies(
                 )
             )
 
-    # Check DNS hostnames for high entropy
+
     for dns in profile.dns_queries:
         host_part = dns.hostname.split(".")[0]
         if len(host_part) > 20:
@@ -49,7 +47,6 @@ def detect_entropy_anomalies(
 
 
 def _shannon_entropy(data: str) -> float:
-    """Calculate Shannon entropy of a string."""
     if not data:
         return 0.0
     counts = Counter(data)

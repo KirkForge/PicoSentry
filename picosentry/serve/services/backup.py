@@ -1,4 +1,3 @@
-"""Backup and restore system for database and logs."""
 import json
 import logging
 import os
@@ -14,7 +13,6 @@ from picosentry.serve.config.version import __version__
 logger = logging.getLogger("picoshogun.Backup")
 
 class BackupManager:
-    """Backup and restore for PicoShogun."""
 
     def __init__(self):
         self.backup_dir = Path(settings.database.backup_dir)
@@ -22,7 +20,6 @@ class BackupManager:
         self.retention_days = getattr(settings.database, "backup_retention_days", 30)
 
     def create_backup(self, name: str | None = None, include_logs: bool = True) -> dict | None:
-        """Create a full backup of database and optionally logs."""
         timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
         name = name or f"picoshogun_{timestamp}"
         backup_path = self.backup_dir / f"{name}.tar.gz"
@@ -33,11 +30,11 @@ class BackupManager:
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-            # Backup database
+
             db_backup = temp_dir / "database.sqlite3"
             shutil.copy2(str(self.db_path), str(db_backup))
 
-            # Create metadata
+
             meta = {
                 "version": __version__,
                 "created": datetime.now(timezone.utc).isoformat(),
@@ -48,13 +45,13 @@ class BackupManager:
             with open(temp_dir / "metadata.json", "w") as f:
                 json.dump(meta, f, indent=2)
 
-            # Backup logs if requested
+
             if include_logs:
                 logs_dir = self.backup_dir.parent / "logs"
                 if logs_dir.exists():
                     shutil.copytree(str(logs_dir), str(temp_dir / "logs"), dirs_exist_ok=True)
 
-            # Create tarball
+
             with tarfile.open(str(backup_path), "w:gz") as tar:
                 for item in temp_dir.iterdir():
                     tar.add(str(item), arcname=item.name)
@@ -75,19 +72,18 @@ class BackupManager:
             return None
 
         finally:
-            # Cleanup temp
+
             if temp_dir.exists():
                 shutil.rmtree(str(temp_dir))
 
     def restore_backup(self, backup_path: str | Path, force: bool = False) -> bool:
-        """Restore from a backup archive."""
         backup_path = Path(backup_path)
 
         if not backup_path.exists():
             logger.error("Backup not found: %s", backup_path)
             return False
 
-        # Safety check
+
         if not force:
             current_db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
             logger.warning("About to restore over database (%s bytes). Use force=True to confirm.", current_db_size)
@@ -96,9 +92,9 @@ class BackupManager:
         temp_dir = self.backup_dir / f"restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         try:
-            # Extract backup
+
             with tarfile.open(str(backup_path), "r:gz") as tar:
-                # Safe extraction: filter out paths with .. or absolute paths
+
                 for member in tar.getmembers():
                     member_path = os.path.normpath(member.name)
                     if member_path.startswith('..') or os.path.isabs(member.name):
@@ -106,25 +102,25 @@ class BackupManager:
                         continue
                     tar.extract(member, str(temp_dir))
 
-            # Verify metadata
+
             meta_path = temp_dir / "metadata.json"
             if meta_path.exists():
                 with open(meta_path) as f:
                     meta = json.load(f)
                 logger.info("Restoring backup from %s", meta['created'])
 
-            # Restore database
+
             db_backup = temp_dir / "database.sqlite3"
             if db_backup.exists():
-                # Backup current first
+
                 current_backup = f"{self.db_path}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
                 shutil.copy2(str(self.db_path), current_backup)
 
-                # Restore
+
                 shutil.copy2(str(db_backup), str(self.db_path))
                 logger.info("Database restored")
 
-            # Restore logs
+
             logs_backup = temp_dir / "logs"
             if logs_backup.exists():
                 logs_dir = self.backup_dir.parent / "logs"
@@ -144,7 +140,6 @@ class BackupManager:
                 shutil.rmtree(str(temp_dir))
 
     def list_backups(self) -> list[dict[str, Any]]:
-        """List all available backups."""
         backups: list[dict[str, Any]] = []
 
         if not self.backup_dir.exists():
@@ -162,7 +157,6 @@ class BackupManager:
         return sorted(backups, key=lambda x: x["created"], reverse=True)
 
     def cleanup_old_backups(self) -> int:
-        """Remove backups older than retention period."""
         if not self.backup_dir.exists() or self.retention_days <= 0:
             return 0
 
@@ -178,7 +172,6 @@ class BackupManager:
         return removed
 
     def auto_backup(self) -> dict | None:
-        """Create automated daily backup with cleanup."""
         result = self.create_backup(
             name=f"auto_{datetime.now(timezone.utc).strftime('%Y%m%d')}",
             include_logs=True

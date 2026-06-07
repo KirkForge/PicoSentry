@@ -1,7 +1,3 @@
-"""`rules` subcommand — list available L4 detector rules.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -18,7 +14,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """List available L4 rules."""
     engine = create_default_engine()
     rules = engine.list_rules()
     if args.json:

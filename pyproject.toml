@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.11"
+version = "2.0.12"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
 license = "BUSL-1.1"
@@ -168,6 +168,14 @@ ignore = [
     "A002", "B007", "B905",
     "SIM105", "SIM102", "SIM108", "SIM117", "C416",
     "B008",
+    # I001 (isort "import block is un-sorted or un-formatted") is suppressed
+    # for the shipped codebase. The minifier (.tools/minify.py) strips
+    # module docstrings and most blank lines to reduce token cost, which
+    # leaves import blocks without the inter-group blank lines isort
+    # expects. The minified output is functionally equivalent; unminified
+    # source can still be edited by hand and any future minifier passes
+    # will produce the same import layout.
+    "I001",
 ]
 
 [tool.ruff.lint.per-file-ignores]

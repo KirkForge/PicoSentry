@@ -1,7 +1,3 @@
-"""`sign-policy` subcommand — sign or verify a policy file.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -44,7 +40,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Handle sign-policy subcommands (sign, verify, generate-key)."""
     from picosentry.sandbox.policy_versioned.signing import (
         generate_key,
         key_to_hex,
@@ -64,7 +59,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
 
-        # Resolve key
+
         key = _resolve_signing_key(args)
         if key is None:
             return 1
@@ -87,7 +82,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
 
-        # Resolve key
+
         key = _resolve_signing_key(args)
         if key is None:
             return 1

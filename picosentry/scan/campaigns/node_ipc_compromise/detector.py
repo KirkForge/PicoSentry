@@ -1,4 +1,3 @@
-"""node-ipc compromise campaign detector."""
 
 from __future__ import annotations
 
@@ -10,7 +9,6 @@ __all__ = ["NodeIpcCompromiseCampaign"]
 
 
 class NodeIpcCompromiseCampaign(CampaignPackage):
-    """Detection package for the node-ipc 9.1.6 / 9.2.3 / 12.0.1 sabotage."""
 
     campaign_id = "node-ipc-compromise-2022"
     rule_id = "L2-CAMP-NODE-IPC-COMPROMISE"

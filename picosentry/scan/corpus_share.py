@@ -1,22 +1,3 @@
-"""
-Corpus marketplace — share and import custom IoC packs.
-
-Enterprise teams can export their IoC collections, share them
-across the organization, or import community packs.
-
-⚠️ **EXPERIMENTAL**: The CLI commands (corpus export/import/list/validate)
-   exist in the module but may not be wired to the CLI. The underlying
-   CorpusPack class and import/export logic are functional. See CLI help
-   for current command status.
-
-Format: Corpus Pack JSON — a versioned, signed collection of IoCs.
-
-Usage:
-    picosentry corpus export ./my-iocs.json
-    picosentry corpus import ./community-pack.json
-    picosentry corpus list
-    picosentry corpus validate ./some-pack.json
-"""
 
 from __future__ import annotations
 
@@ -40,13 +21,13 @@ from picosentry.scan.ioc_registry import IoCRecord, _validate_ioc_id, list_custo
 
 logger = logging.getLogger("picosentry.corpus_share")
 
-# Corpus Pack format version
+
 PACK_VERSION = "1.0"
 
-# Maximum file size for imported corpus packs (10 MB)
+
 _MAX_PACK_BYTES = 10 * 1024 * 1024
 
-# Reserved pack names that ship with PicoSentry
+
 BUILTIN_PACKS = {
     "known-attacks": "Known supply-chain attacks (event-stream, left-pad, etc.)",
     "typosquat-top1000": "Top 1000 npm packages for typosquat detection",
@@ -55,7 +36,6 @@ BUILTIN_PACKS = {
 
 
 class CorpusPack:
-    """A versioned, shareable collection of IoCs."""
 
     def __init__(self, name: str, description: str = "", author: str = "") -> None:
         self.name = name
@@ -70,7 +50,6 @@ class CorpusPack:
         self.iocs.append(record.to_dict())
 
     def digest(self) -> str:
-        """Deterministic SHA256 digest of pack contents (excluding signature)."""
         raw = json.dumps(
             {
                 "pack_id": self.pack_id,
@@ -82,12 +61,6 @@ class CorpusPack:
         return f"sha256:{hashlib.sha256(raw.encode()).hexdigest()[:32]}"
 
     def seal(self, signer: str) -> None:
-        """Seal the pack with an identity + content digest for integrity checking.
-
-        This is NOT a cryptographic signature. It is a content hash with
-        an identity claim — useful for detecting tampering within a trusted
-        distribution channel, but not a replacement for Sigstore or GPG signing.
-        """
         if not self.created_at:
             self.created_at = datetime.now(timezone.utc).isoformat()
         self._signature = {
@@ -105,15 +78,6 @@ class CorpusPack:
     def sign_cryptographically(
         self, method: str = "sigstore", secret_key: str = "", password: str = ""
     ) -> SignatureBundle:
-        """Cryptographically sign this pack using Sigstore or minisign.
-
-        Args:
-            method: "sigstore" (default) or "minisign".
-            secret_key: Path to minisign secret key (minisign only).
-            password: Password for minisign secret key.
-
-        Returns the SignatureBundle. Raises ImportError if unavailable.
-        """
         canonical = self.to_json().encode("utf-8")
         sig = sign_content(canonical, method, secret_key, password)
         self._signature = {
@@ -162,7 +126,7 @@ class CorpusPack:
         pack.pack_id = data.get("pack_id", "")
         pack.created_at = data.get("created_at", "")
         pack.iocs = data.get("iocs", [])
-        # Preserve signature block for verification
+
         sig = data.get("signature")
         if sig and isinstance(sig, dict):
             pack._signature = sig
@@ -183,19 +147,6 @@ def export_corpus_pack(
     sign_secret_key: str = "",
     sign_password: str = "",
 ) -> CorpusPack:
-    """Export all user-registered custom IoCs as a shareable pack.
-
-    Args:
-        output_path: Where to write the .json pack file.
-        name: Pack name.
-        description: Pack description.
-        author: Pack author.
-        sign_method: If set, sign with "sigstore" or "minisign".
-        sign_secret_key: Path to minisign secret key (minisign only).
-        sign_password: Password for minisign secret key.
-
-    Returns the exported CorpusPack.
-    """
     pack = CorpusPack(name=name, description=description, author=author)
 
     for record in list_custom_iocs():
@@ -224,27 +175,14 @@ def import_corpus_pack(
     public_key: str = "",
     offline: bool = False,
 ) -> dict:
-    """Import a corpus pack into the user's custom IoC registry.
-
-    Args:
-        path: Path to the .json corpus pack file.
-        allow_overwrite: If True, overwrite existing IoCs with same ID.
-        dry_run: If True, validate only — don't actually register.
-        verify_crypto: If True, verify cryptographic signature.
-        public_key: Path to minisign public key (minisign only).
-        offline: If True, use offline Sigstore verification.
-
-    Returns:
-        Dict with import statistics.
-    """
     if not path.exists():
         raise FileNotFoundError(f"Corpus pack not found: {path}")
 
-    # Validate file extension
+
     if path.suffix.lower() != ".json":
         raise ValueError(f"Corpus pack must be a .json file, got: {path.suffix!r}")
 
-    # Check file size to prevent OOM on maliciously large files
+
     try:
         size = path.stat().st_size
     except OSError as _err:
@@ -254,7 +192,7 @@ def import_corpus_pack(
 
     pack = CorpusPack.from_file(path)
 
-    # Verify pack digest against signature (if signed)
+
     if hasattr(pack, "_signature") and pack._signature:
         expected_digest = pack._signature.get("digest", "")
         actual_digest = pack.digest()
@@ -269,7 +207,7 @@ def import_corpus_pack(
             actual_digest,
         )
 
-    # Verify cryptographic signature (Sigstore or minisign)
+
     if verify_crypto:
         sig_data = read_detached_signature(path)
         if sig_data is None and hasattr(pack, "_signature"):
@@ -366,10 +304,6 @@ def import_corpus_pack(
 
 
 def validate_corpus_pack(path: Path) -> dict:
-    """Validate a corpus pack without importing it.
-
-    Returns a dict with validation results.
-    """
     result: dict[str, Any] = {
         "valid": True,
         "errors": [],
@@ -378,7 +312,7 @@ def validate_corpus_pack(path: Path) -> dict:
         "pack_name": "",
     }
 
-    # Check file size before reading
+
     try:
         file_size = path.stat().st_size
     except OSError as e:
@@ -400,9 +334,9 @@ def validate_corpus_pack(path: Path) -> dict:
         result["errors"].append(f"Parse error: {e}")
         return result
 
-    # Validate each IoC
+
     for i, ioc in enumerate(pack.iocs):
-        # Validate IoC ID for path traversal
+
         ioc_id = ioc.get("id", "")
         if ioc_id:
             try:
@@ -430,10 +364,9 @@ def validate_corpus_pack(path: Path) -> dict:
 
 
 def list_available_packs() -> list[dict]:
-    """List all corpus packs available (built-in + user directory)."""
     packs = []
 
-    # Built-in packs
+
     for name, desc in BUILTIN_PACKS.items():
         packs.append(
             {
@@ -444,7 +377,7 @@ def list_available_packs() -> list[dict]:
             }
         )
 
-    # User packs (custom IoCs exported as packs)
+
     user_dir = user_corpus_dir()
     for f in sorted(user_dir.glob("*.json")):
         try:

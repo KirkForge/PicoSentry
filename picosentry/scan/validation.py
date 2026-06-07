@@ -1,31 +1,3 @@
-"""
-Validation harness for PicoSentry detectors.
-
-A reproducible, deterministic harness that runs the scanner against
-labeled fixtures and produces a per-rule precision/recall report. The
-methodology is auditable: every rule's behavior on a known input is
-recorded, and the numbers come from running the harness, not from
-thresholds tuned post-hoc against a hand-picked set.
-
-The harness is built around three concepts:
-
-  - Fixture:        a directory under ``tests/scan/fixtures/validation/``
-                     containing a ``fixture.json`` that declares whether
-                     the fixture is positive (known-bad) or negative
-                     (known-clean) and which ``rule_id``s are expected
-                     to fire.
-
-  - run_validation: scans every fixture, compares findings to expected,
-                     returns a ``ValidationReport``.
-
-  - ValidationReport: dataclass with per-rule and per-campaign counts.
-                     Deterministic by construction — sorted, no random IDs.
-
-Adding a new fixture: drop a folder under
-``tests/scan/fixtures/validation/positive/`` or
-``tests/scan/fixtures/validation/negative/`` with a ``fixture.json``
-and the source files. The harness picks it up on the next run.
-"""
 
 from __future__ import annotations
 
@@ -38,21 +10,8 @@ from pathlib import Path
 logger = logging.getLogger("picosentry.validation")
 
 
-# ── Public dataclasses ──────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class FixtureSpec:
-    """A labeled validation fixture.
-
-    Attributes:
-        path:         Directory containing the fixture source files.
-        label:        "positive" (known-bad) or "negative" (known-clean).
-        expected_rule_ids: rule_ids that MUST fire on this fixture
-                           (for positive fixtures) or MUST NOT fire
-                           (for negative fixtures).
-        description:  Human-readable one-liner about what this fixture covers.
-    """
 
     path: Path
     label: str  # "positive" | "negative"
@@ -66,7 +25,6 @@ class FixtureSpec:
 
 @dataclass(frozen=True)
 class RuleMetrics:
-    """Precision/recall counts for a single rule_id."""
 
     rule_id: str
     true_positives: int = 0
@@ -90,11 +48,6 @@ class RuleMetrics:
 
 @dataclass(frozen=True)
 class ValidationReport:
-    """Aggregate validation report.
-
-    The same report shape is the input to the README's "0% FP at threshold
-    X" claim and to the regression test in ``tests/scan/test_validation.py``.
-    """
 
     rule_metrics: tuple[RuleMetrics, ...] = ()
     total_fixtures: int = 0
@@ -140,7 +93,6 @@ class ValidationReport:
         }
 
     def to_text(self) -> str:
-        """Render as a fixed-width table for CLI output."""
         lines: list[str] = []
         lines.append("PicoSentry validation report")
         lines.append("=" * 60)
@@ -169,11 +121,7 @@ class ValidationReport:
 
     @property
     def passes(self) -> bool:
-        """All fixtures passed (no false positives, no false negatives)."""
         return all(outcome == "PASS" for _, outcome, _ in self.fixture_results)
-
-
-# ── Fixture discovery ───────────────────────────────────────────────────
 
 
 def _load_fixture(path: Path) -> FixtureSpec | None:
@@ -200,19 +148,6 @@ def _load_fixture(path: Path) -> FixtureSpec | None:
 def discover_fixtures(
     validation_root: Path | None = None,
 ) -> list[FixtureSpec]:
-    """Discover all validation fixtures under ``validation_root``.
-
-    Layout:
-
-        <root>/
-          positive/
-            <name>/
-              fixture.json
-              ... source files
-          negative/
-            <name>/
-              ...
-    """
     if validation_root is None:
         validation_root = (
             Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
@@ -233,27 +168,13 @@ def discover_fixtures(
     return fixtures
 
 
-# ── Runner ──────────────────────────────────────────────────────────────
-
-
 def _metrics_from_fixtures(
     fixtures: Sequence[FixtureSpec],
     advisory_db_path: str | Path | None = None,
 ) -> tuple[dict[str, RuleMetrics], list[tuple[str, str, tuple[str, ...]]]]:
-    """Run the engine against each fixture, compare findings to expectations.
-
-    Args:
-        fixtures: The fixtures to scan.
-        advisory_db_path: Path to an advisory DB directory (OSV-format JSON
-            files) for the L2-ADV-001 family of rules. If None, the
-            function auto-discovers ``<validation_root>/_advisories/`` when
-            called via :func:`run_validation`. A fresh clone with no
-            staged advisories runs the rest of the suite as before; this
-            is intentionally non-fatal.
-    """
     from .engine import create_default_engine
 
-    # Lazy import to avoid circular import at module load.
+
     engine = create_default_engine()
     metrics: dict[str, RuleMetrics] = {}
     fixture_results: list[tuple[str, str, tuple[str, ...]]] = []
@@ -277,10 +198,10 @@ def _metrics_from_fixtures(
 
         fired_ids = {f.rule_id for f in result.findings}
         if spec.label == "positive":
-            # Each expected rule that didn't fire = false negative.
+
             missing = sorted(set(spec.expected_rule_ids) - fired_ids)
-            # Each fired rule that wasn't expected = benign, doesn't count
-            # (we only score the rules we *claim* to detect on this fixture).
+
+
             for rid in spec.expected_rule_ids:
                 if rid in fired_ids:
                     _bump(rid, tp=1)
@@ -289,7 +210,7 @@ def _metrics_from_fixtures(
             outcome = "PASS" if not missing else "FAIL"
             fixture_results.append((spec.name, outcome, tuple(missing)))
         else:  # negative
-            # Any rule that fires on a known-clean fixture = false positive.
+
             unexpected = sorted(fired_ids)
             for rid in unexpected:
                 _bump(rid, fp=1)
@@ -305,24 +226,6 @@ def run_validation(
     output_path: Path | None = None,
     advisory_db_path: str | Path | None = None,
 ) -> ValidationReport:
-    """Run PicoSentry against the built-in validation fixtures.
-
-    Args:
-        validation_root: Path to the validation fixtures root. Defaults
-            to ``tests/scan/fixtures/validation`` (relative to the repo
-            root resolved from the installed package).
-        rules: Optional rule_id filter. None = all rules. Currently
-            advisory as-is; results are computed across all rules that
-            fire on each fixture.
-        output_path: If given, write the report JSON here.
-        advisory_db_path: Path to an advisory DB directory for the
-            L2-ADV-001 rule family. If None, the function auto-discovers
-            ``<validation_root>/_advisories/`` when that directory exists;
-            this is the convention for fixture-local advisory staging.
-
-    Returns:
-        ValidationReport with per-rule and per-fixture counts.
-    """
     del rules  # Reserved for future rule-filtering; not used today.
 
     if validation_root is None:

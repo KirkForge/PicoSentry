@@ -1,7 +1,3 @@
-"""`ioc` subcommand — manage custom IoC indicators (register/list/remove).
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +23,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage custom IoC indicators."""
     from picosentry.scan.ioc_registry import list_custom_iocs, register_ioc, remove_ioc
 
     if not args.ioc_action:
@@ -80,7 +75,6 @@ def cmd(args: argparse.Namespace) -> int:
     return 0
 
 
-# Back-compat alias
 _cmd_ioc = cmd
 
 __all__ = ["NAME", "_cmd_ioc", "add_arguments", "cmd"]

@@ -1,12 +1,3 @@
-"""WebhookSink — POST audit events to an HTTP endpoint with retry.
-
-Events are serialized as JSON and POSTed to a configurable URL.
-On failure, retries with exponential backoff up to max_retries.
-If all retries fail, the event is dropped and stats are updated.
-
-Headers and authentication (Bearer token, custom headers) are
-configurable via SinkConfig or WebhookSink constructor.
-"""
 
 from __future__ import annotations
 
@@ -23,14 +14,6 @@ logger = logging.getLogger("picodome.audit.sink.webhook")
 
 
 class WebhookSink(AuditSink):
-    """POST audit events as JSON to an HTTP endpoint.
-
-    Args:
-        config: Common sink configuration (retry/backoff/timeout).
-        url: Target URL for POST requests.
-        headers: Additional HTTP headers (e.g. Content-Type defaults to JSON).
-        auth_token: Optional Bearer token for Authorization header.
-    """
 
     def __init__(
         self,
@@ -50,12 +33,10 @@ class WebhookSink(AuditSink):
             self._headers.update(headers)
         self._auth_token = auth_token
 
-    # ── Lifecycle ────────────────────────────────────────────────────────
 
     def start(self) -> None:
-        """Verify the webhook URL is reachable (best-effort)."""
         super().start()
-        # Best-effort connectivity check — don't block startup on failure
+
         try:
             req = Request(
                 self._url,
@@ -67,10 +48,8 @@ class WebhookSink(AuditSink):
         except Exception as exc:
             logger.warning("WebhookSink: endpoint not reachable at %s: %s", self._url, exc)
 
-    # ── Core ─────────────────────────────────────────────────────────────
 
     def send(self, event: AuditEvent) -> None:
-        """POST a single audit event to the webhook URL with retry."""
         payload = event.to_dict()
         body = json.dumps(payload, sort_keys=True, default=str).encode("utf-8")
         headers = self._build_headers()
@@ -85,7 +64,7 @@ class WebhookSink(AuditSink):
                     headers=headers,
                 )
                 response = urlopen(req, timeout=self._config.timeout)
-                # 2xx = success
+
                 if 200 <= response.status < 300:
                     self._record_success()
                     return
@@ -107,12 +86,12 @@ class WebhookSink(AuditSink):
                     exc,
                 )
 
-            # Exponential backoff (skip on last attempt)
+
             if attempt < self._config.max_retries:
                 backoff = self._config.retry_backoff * (2**attempt)
                 time.sleep(min(backoff, 30.0))  # cap at 30s
 
-        # All retries exhausted
+
         self._record_failure(last_error)
         self._record_dropped()
         logger.error(
@@ -122,17 +101,13 @@ class WebhookSink(AuditSink):
             last_error,
         )
 
-    # ── Properties ──────────────────────────────────────────────────────
 
     @property
     def url(self) -> str:
-        """Target URL for this webhook."""
         return self._url
 
-    # ── Internal ─────────────────────────────────────────────────────────
 
     def _build_headers(self) -> dict[str, str]:
-        """Build HTTP headers including auth if configured."""
         headers = dict(self._headers)
         if self._auth_token:
             headers["Authorization"] = f"Bearer {self._auth_token}"

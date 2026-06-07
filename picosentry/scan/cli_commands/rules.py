@@ -1,9 +1,3 @@
-"""`rules` subcommand — list available detector rules.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-The handler was inlined in the original ``main()``; here it lives in its
-own module for consistency with the per-subcommand pattern.
-"""
 from __future__ import annotations
 
 import argparse
@@ -18,7 +12,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """List all available detector rules."""
     from picosentry.scan.rules import RULE_INFO
 
     rule_ids = sorted(RULE_INFO.keys())

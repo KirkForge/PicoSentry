@@ -1,7 +1,3 @@
-"""Supply chain scan and sandbox endpoints (API v1).
-
-All scanner and sandbox functionality is built-in — no separate package required.
-"""
 import logging
 from pathlib import Path
 
@@ -23,7 +19,6 @@ async def create_scan(
     request: ScanRequest,
     user: dict = Depends(require_role("viewer")),
 ):
-    """Run an L2 supply chain scan on a project directory."""
     target = Path(request.target).resolve()
     if not target.exists():
         raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
@@ -44,7 +39,6 @@ async def create_scan(
 
 @router.get("/scans/rules", tags=["Scans"])
 async def list_scan_rules(user: dict = Depends(require_role("viewer"))):
-    """List available supply chain scanner rules."""
     from picosentry.scan.rules import RULE_INFO
 
     return {
@@ -60,7 +54,6 @@ async def run_sandbox(
     request: SandboxRunRequest,
     user: dict = Depends(require_role("operator")),
 ):
-    """Run a command under L3 sandbox policy."""
     try:
         result = _sandbox_run(request.command, timeout=request.timeout)
     except Exception as exc:
@@ -80,6 +73,5 @@ async def run_sandbox(
 
 @router.get("/sandboxes/policies/default", tags=["Sandbox"])
 async def get_default_policy(user: dict = Depends(require_role("viewer"))):
-    """Get the default L3 sandbox policy."""
     policy = _default_policy()
     return policy.to_dict() if hasattr(policy, "to_dict") else {"policy": str(policy)}

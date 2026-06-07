@@ -1,4 +1,3 @@
-"""Real-time WebSocket events for live monitoring."""
 import asyncio
 import contextlib
 import json
@@ -10,7 +9,6 @@ from picosentry.serve.services.event_bus import Event, event_bus
 
 
 class ConnectionManager:
-    """Manage WebSocket connections with channel-based subscriptions."""
 
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
@@ -29,8 +27,7 @@ class ConnectionManager:
             self.connections[channel].add(websocket)
 
     def subscribe(self, websocket: WebSocket, channels: list):
-        """Update subscription channels without re-accepting."""
-        # Remove from old channels
+
         if websocket in self.client_channels:
             for ch in self.client_channels[websocket]:
                 self.connections[ch].discard(websocket)
@@ -44,19 +41,18 @@ class ConnectionManager:
             del self.client_channels[websocket]
 
     async def broadcast(self, event_type: str, payload: dict):
-        """Broadcast event to all clients subscribed to matching channels."""
         message = json.dumps({
             "type": event_type,
             "payload": payload,
             "timestamp": datetime.now().isoformat()
         })
 
-        # Send to wildcard subscribers
+
         for ws in self.connections.get("*", set()).copy():
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
 
-        # Send to specific channel subscribers
+
         for ws in self.connections.get(event_type, set()).copy():
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
@@ -64,11 +60,6 @@ class ConnectionManager:
 ws_manager = ConnectionManager()
 
 def websocket_event_handler(event: Event):
-    """Bridge event bus to WebSocket clients — thread-safe.
-
-    Uses call_soon_threadsafe to safely schedule broadcasts from any thread.
-    Falls back gracefully when no event loop is available.
-    """
     payload = {
         "source": event.source,
         "payload": event.payload,
@@ -80,9 +71,9 @@ def websocket_event_handler(event: Event):
             lambda: loop.create_task(ws_manager.broadcast(event.type, payload))
         )
     except RuntimeError:
-        # No running event loop — skip WebSocket broadcast
-        # (e.g. during startup or when called from sync code)
+
+
         pass
 
-# Auto-subscribe event bus to WebSocket
+
 event_bus.subscribe("*", websocket_event_handler)

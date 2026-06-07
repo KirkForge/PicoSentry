@@ -1,11 +1,3 @@
-"""
-L2-PYPI-OBFS-001: PyPI obfuscated code detection.
-
-Flags obfuscated code in Python packages — encoded strings, eval/exec calls,
-base64 payloads. Python's equivalent of the JavaScript obfuscation rules.
-
-Pure function: (target_path, corpus_dir) -> List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -17,7 +9,7 @@ from .pypi_utils import detect_pypi_project
 
 __all__ = ["detect_pypi_obfuscation"]
 
-# Binary extensions to skip
+
 SKIP_EXTENSIONS = frozenset({
     ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
     ".woff", ".woff2", ".ttf", ".eot",
@@ -25,23 +17,22 @@ SKIP_EXTENSIONS = frozenset({
     ".so", ".dll", ".dylib",
 })
 
-# Maximum file size to scan (500 KB)
+
 MAX_FILE_BYTES = 512_000
 
-# Max files per package
+
 MAX_FILES_PER_PACKAGE = 200
 
-# Python file extensions
+
 PY_EXTENSIONS = {".py"}
 
-# Directories to skip
+
 SKIP_DIRS = frozenset({
     "dist", "build", "out", ".cache",
     "__pycache__", ".git", ".hg", ".svn",
     "*.egg-info", "*.dist-info", "node_modules",
 })
 
-# ── Obfuscation patterns for Python ────────────────────────────────────
 
 EVAL_PATTERN = re.compile(
     r"\b(?:exec|eval)\s*\(",
@@ -77,7 +68,6 @@ BASE64_EXEC_PATTERN = re.compile(
 
 
 def _scan_python_file(file_path: Path) -> list[Finding]:
-    """Scan a single Python file for obfuscation patterns."""
     findings: list[Finding] = []
 
     if file_path.suffix in SKIP_EXTENSIONS:
@@ -96,14 +86,14 @@ def _scan_python_file(file_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-    # Derive package name from path
+
     parts = file_path.parts
     pkg_label = "unknown"
     py_markers = ("site-packages", ".venv", "venv")
     for marker in py_markers:
         if marker in parts:
             idx = parts.index(marker)
-            # site-packages has the package dir next
+
             sp_idx = parts.index("site-packages") if "site-packages" in parts else -1
             if sp_idx >= 0 and sp_idx + 1 < len(parts):
                 pkg_label = parts[sp_idx + 1]
@@ -165,16 +155,12 @@ def _scan_python_file(file_path: Path) -> list[Finding]:
 
 
 def detect_pypi_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect obfuscated payloads in Python files.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
     if not detect_pypi_project(target):
         return findings
 
-    # Root source files
+
     if target.is_dir():
         for ext in PY_EXTENSIONS:
             for f in target.glob(f"*{ext}"):
@@ -182,7 +168,7 @@ def detect_pypi_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
                     continue
                 findings.extend(_scan_python_file(f))
 
-        # Walk site-packages per-package with file budget
+
         for site_dir in _find_site_dirs(target):
             if site_dir.is_dir():
                 for child in sorted(site_dir.iterdir()):
@@ -208,7 +194,6 @@ def detect_pypi_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
 
 
 def _find_site_dirs(target: Path) -> list[Path]:
-    """Find site-packages directories under target."""
     dirs: list[Path] = []
     patterns = [
         ".venv/lib/python*/site-packages",

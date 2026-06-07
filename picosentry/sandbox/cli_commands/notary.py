@@ -1,7 +1,3 @@
-"""`notary` subcommand — audit transparency notary (Rekor/Sigstore).
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -61,7 +57,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Handle notary subcommands (submit, verify)."""
     from picosentry.sandbox.notary import AuditNotary, NullNotary, RekorNotary, sign_entry
 
     notary: AuditNotary
@@ -78,12 +73,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
 
-        # v2.0.11: hard-error if no HMAC key is provided. A built-in default
-        # (the previous behavior) signed/verified entries with a public
-        # constant in this file's source code, which means anyone with
-        # the source could forge entries. For a feature marketed as a
-        # transparency log / Rekor integration, that's a real integrity
-        # hole. Users must set PICODOME_NOTARY_HMAC_KEY or pass --hmac-key.
+
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:
             print(
@@ -102,11 +92,11 @@ def cmd(args: argparse.Namespace) -> int:
         else:
             notary = NullNotary(hmac_key=hmac_key)
 
-        # Sign locally first
+
         signature = sign_entry(entry, key=hmac_key)
         print(f"HMAC-SHA256 signature: {signature}")
 
-        # Submit to notary
+
         try:
             uuid = notary.submit_entry(entry)
             print(f"Entry submitted: {uuid}")
@@ -129,7 +119,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
 
-        # v2.0.11: hard-error if no HMAC key is provided. See submit for rationale.
+
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:
             print(

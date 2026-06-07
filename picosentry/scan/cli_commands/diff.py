@@ -1,7 +1,3 @@
-"""`diff` subcommand — compare two scan JSON files for determinism verification.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -20,7 +16,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Compare two scan JSON files. Exits 0 if identical, 1 if different."""
     path_a = Path(args.scan_a)
     path_b = Path(args.scan_b)
     verbose = getattr(args, "verbose", False)

@@ -1,9 +1,3 @@
-"""Discord notifier plugin — sends alerts to Discord via webhook.
-
-If DISCORD_WEBHOOK_URL is not configured, alerts are logged with a clear
-warning that no webhook is set. This is NOT a silent stub — it tells you
-when it can't deliver.
-"""
 import logging
 from typing import Any
 
@@ -19,16 +13,11 @@ except ImportError:
 
 
 def _get_webhook_url() -> str | None:
-    """Read the Discord webhook URL from env / settings."""
     import os
     return os.environ.get("DISCORD_WEBHOOK_URL") or None
 
 
 class DiscordNotifier(PluginInterface):
-    """Sends project completions and alerts to Discord via webhook.
-
-    Falls back to log-only delivery when no webhook URL is configured.
-    """
 
     def initialize(self, config: dict[str, Any]) -> bool:
         self.webhook_url = config.get("webhook_url") or _get_webhook_url()
@@ -63,7 +52,6 @@ class DiscordNotifier(PluginInterface):
         }
 
     def _send(self, severity: str, message: str, metadata: dict | None = None) -> None:
-        """Post to Discord webhook, or log if unavailable."""
         if not self.webhook_url or not HAS_REQUESTS:
             logger.info("[DiscordNotifier] %s — %s", severity.upper(), message)
             return

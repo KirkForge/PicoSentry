@@ -1,9 +1,3 @@
-"""
-Scanner engine — deterministic, offline, pure-function rules.
-
-Orchestrates detector rules, collects findings, produces ScanResult.
-Same input + same corpus = same output. No global state. No HTTP at scan time.
-"""
 
 from __future__ import annotations
 
@@ -22,36 +16,18 @@ if TYPE_CHECKING:
 
 from .models import Finding, RuleExecution, ScanResult, ScanStats
 
-# Per-detector timebox. A single misbehaving detector (infinite regex
-# backtracking, huge directory walk, blocking I/O) must not tank the
-# whole scan. We run each rule function on its own thread via a shared
-# thread pool and wait at most DEFAULT_RULE_TIMEOUT_SECONDS; on
-# FuturesTimeoutError we record status="timeout" and continue. The worker
-# thread is left orphaned on timeout — Python cannot cancel running code,
-# but the GIL and process-local state ensure no observable side effects
-# leak out to other rules or to the calling scan() frame. The default is
-# calibrated to the slowest real rule in the default engine on a typical
-# project. Callers can tighten it via scan(rule_timeout=...) for stricter
-# SLOs.
+
 DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
-# Public alias — kept for tests and downstream consumers.
+
 RULE_TIMEOUT_SECONDS = DEFAULT_RULE_TIMEOUT_SECONDS
-# Pool is created lazily on first scan() call. We size it generously so
-# every rule can run in parallel; a misbehaving rule (e.g. infinite loop)
-# gets its own thread that the timebox can detach from without starving
-# subsequent rules.
+
+
 _RULE_POOL_SIZE = 64
 _rule_executor: ThreadPoolExecutor | None = None
 _rule_executor_lock = threading.Lock()
 
 
 def _get_rule_executor() -> ThreadPoolExecutor:
-    """Lazily build a process-wide thread pool for rule execution.
-
-    Created on first use so that test suites that never call scan() don't
-    pay the thread-spawn cost. The pool is reused across all scan() calls
-    in the process.
-    """
     global _rule_executor
     if _rule_executor is None:
         with _rule_executor_lock:
@@ -62,17 +38,7 @@ def _get_rule_executor() -> ThreadPoolExecutor:
     return _rule_executor
 
 
-# PolicyStack integration — lazy import to avoid circular dependency
 def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any = None) -> Policy | None:
-    """Resolve the effective policy using PolicyStack inheritance.
-
-    If a policy file or config is provided, builds a PolicyStack from
-    global → org → repo → pipeline layers and returns the merged Policy.
-    Returns None if no policy layers are available.
-
-    Called from the CLI scan flow to apply policy-based filtering
-    (deny_packages, deny_licenses, fail_on_severity) to findings.
-    """
     if policy_path is None and config is None:
         return None
     try:
@@ -95,17 +61,6 @@ logger = logging.getLogger("picosentry.engine")
 
 
 def user_corpus_dir() -> Path:
-    """Return the user corpus directory (XDG data dir).
-
-    Preference order:
-        1. $PICOSENTRY_CORPUS_DIR (canonical)
-        2. $PICOCORPUS_DIR (backward compat)
-        3. $XDG_DATA_HOME/picosentry/corpus
-        4. ~/.local/share/picosentry/corpus
-
-    This directory is writable by the user and separate from the
-    installed package, so `picosentry update` works without root.
-    """
     explicit = os.environ.get("PICOSENTRY_CORPUS_DIR") or os.environ.get("PICOCORPUS_DIR")
     if explicit:
         return Path(explicit)
@@ -115,17 +70,15 @@ def user_corpus_dir() -> Path:
     return Path.home() / ".local" / "share" / "picosentry" / "corpus"
 
 
-# Version resolution: importlib.metadata primary, source fallback
 def _get_version() -> str:
-    """Read version — prefer importlib.metadata, fall back to source parsing."""
-    # Primary: importlib.metadata (standard, robust)
+
     try:
         from importlib.metadata import version
 
         return version("picosentry")
     except Exception:
         pass
-    # Fallback: parse __init__.py source (works for editable installs without metadata)
+
     import re
 
     init_path = Path(__file__).parent / "__init__.py"
@@ -141,18 +94,11 @@ def _get_version() -> str:
 
 _VERSION = _get_version()
 
-# A detector rule is a pure function: (target_path, corpus_dir) → List[Finding]
+
 DetectorRule = Callable[[Path, Path], list[Finding]]
 
 
 class ScanEngine:
-    """
-    Deterministic supply chain scanner engine.
-
-    Register detector rules, then scan a target path.
-    Each rule runs independently — composable, no side-effects between rules.
-    Rules receive (target_path, corpus_dir) — no HTTP, no global state.
-    """
 
     def __init__(
         self,
@@ -168,29 +114,18 @@ class ScanEngine:
 
     @staticmethod
     def _resolve_corpus_dir(explicit: Path | None) -> Path:
-        """Resolve corpus directory with priority: explicit > user > built-in.
-
-        1. If caller passed a corpus_dir (CLI --corpus), use that.
-        2. If user corpus dir has any ecosystem corpus file, use that.
-        3. Fall back to built-in corpus (shipped with the package).
-        """
         if explicit:
             return explicit
         user_dir = user_corpus_dir()
-        # Check for any ecosystem corpus file
+
         for eco_file in ("npm_top_packages.json", "pypi_top_packages.json", "go_top_packages.json", "cargo_top_packages.json", "maven_top_packages.json", "rubygems_top_packages.json", "nuget_top_packages.json"):
             if (user_dir / eco_file).is_file():
                 logger.info("Using user corpus: %s", user_dir)
                 return user_dir
-        # Built-in corpus (shipped with the package)
+
         return Path(__file__).parent / "corpus"
 
     def _compute_corpus_version(self) -> str:
-        """Compute deterministic corpus version from corpus file hashes.
-
-        sha256 of all corpus files (sorted by path) → first 12 hex chars.
-        Same corpus content = same version. Corpus changes = different version.
-        """
         h = hashlib.sha256()
         corpus_files = sorted(self._corpus_dir.rglob("*.json"))
         if not corpus_files:
@@ -206,16 +141,13 @@ class ScanEngine:
         return h.hexdigest()[:12]
 
     def register(self, rule_id: str, rule: DetectorRule) -> ScanEngine:
-        """Register a detector rule. Returns self for chaining."""
         self._rules[rule_id] = rule
         return self
 
     def unregister(self, rule_id: str) -> None:
-        """Remove a detector rule."""
         self._rules.pop(rule_id, None)
 
     def list_rules(self) -> list[str]:
-        """Return sorted list of registered rule IDs."""
         return sorted(self._rules.keys())
 
     def scan(
@@ -225,46 +157,21 @@ class ScanEngine:
         advisory_db_path: str | Path | None = None,
         rule_timeout: float | None = None,
     ) -> ScanResult:
-        """
-        Run a deterministic scan on target path.
-
-        Args:
-            target: Filesystem path to scan (project root, node_modules, etc.)
-            rules: Optional subset of rule IDs to run. None = all rules.
-            advisory_db_path: Optional override for the advisory database.
-            rule_timeout: Per-detector timeout in seconds. Defaults to
-                DEFAULT_RULE_TIMEOUT_SECONDS. A rule that exceeds this
-                timebox is recorded with status="timeout" and the scan
-                continues with the remaining rules. Set to a small value
-                (e.g. 0.5) in tests to assert the timebox fires; use the
-                default for normal scans.
-
-        Returns:
-            ScanResult with sorted findings and aggregate stats.
-        """
         target_path = Path(target).resolve()
-        # Normalize advisory_db_path to str; downstream detector signatures
-        # declare str | None and the rest of the engine treats this as a
-        # string key (used in cache_key, log messages, etc.). Callers can
-        # pass str or Path interchangeably.
+
+
         if advisory_db_path is not None:
             advisory_db_path = str(advisory_db_path)
         if not target_path.exists():
             logger.error("Scan target does not exist: %s", target_path)
             return ScanResult(target=str(target_path))
 
-        # Resolve the effective per-rule timeout for this scan. The module
-        # constant is the default; callers (typically the CLI or tests) can
-        # tighten or loosen it per scan.
+
         _effective_rule_timeout = (
             DEFAULT_RULE_TIMEOUT_SECONDS if rule_timeout is None else float(rule_timeout)
         )
 
-        # ── Ecosystem auto-detection ──────────────────────────────────────
-        # Detect which ecosystems are present at the target so we only run
-        # relevant rules. PyPI rules check detect_pypi_project() internally,
-        # but filtering at this level avoids running the detector function
-        # at all when the ecosystem isn't present.
+
         _detected_npm = (target_path / "package.json").is_file() or (target_path / "node_modules").is_dir()
         _detected_pypi = (target_path / "pyproject.toml").is_file() or \
             (target_path / "setup.py").is_file() or \
@@ -281,8 +188,7 @@ class ScanEngine:
 
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
 
-        # Filter out ecosystem-specific rules when that ecosystem isn't detected.
-        # npm rules are always included for backward compatibility.
+
         if not _detected_pypi:
             selected_rules = {
                 k: v for k, v in selected_rules.items()
@@ -334,8 +240,7 @@ class ScanEngine:
         packages_scanned = 0
         rule_timings: dict[str, int] = {}
 
-        # Count packages if node_modules or site-packages
-        # Includes scoped packages (@scope/pkg) as individual packages
+
         nm_path = target_path / "node_modules"
         if nm_path.is_dir():
             packages_scanned = 0
@@ -343,12 +248,12 @@ class ScanEngine:
                 if not d.is_dir() or d.name.startswith("."):
                     continue
                 if d.name.startswith("@"):
-                    # Scoped package directory: count each sub-directory
+
                     packages_scanned += sum(1 for s in d.iterdir() if s.is_dir())
                 else:
                     packages_scanned += 1
 
-        # Count site-packages for Python projects
+
         if not packages_scanned:
             for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
                 if sp_path.is_dir():
@@ -357,31 +262,21 @@ class ScanEngine:
                         if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
                     )
 
-        # Deduplicate: multiple rule_ids may map to the same function (sub-rules).
-        # Call each unique function once, then filter findings by requested rule_ids.
+
         fn_to_rule_ids: dict[int, list[str]] = {}
         for rule_id in selected_rules:
             fn_id = id(selected_rules[rule_id])
             fn_to_rule_ids.setdefault(fn_id, []).append(rule_id)
 
-        # Per-detector timebox. A single misbehaving detector (infinite regex
-        # backtracking, huge directory walk, blocking I/O) must not tank the
-        # whole scan. We run each rule function on its own thread via a shared
-        # thread pool and wait at most _effective_rule_timeout seconds; on
-        # FuturesTimeoutError we record status="timeout" and continue. The
-        # worker thread is left orphaned on timeout — Python cannot cancel
-        # running code, but the GIL and process-local state ensure no
-        # observable side effects leak out to other rules or to the calling
-        # scan() frame.
+
         from concurrent.futures import TimeoutError as FuturesTimeoutError
 
         rule_executor = _get_rule_executor()
 
         def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
             if fn.__name__ == "detect_all_advisory_vulnerabilities":
-                # detect_all_advisory_vulnerabilities takes an extra
-                # advisory_db_path kwarg that the base DetectorRule
-                # signature doesn't include.
+
+
                 return fn(
                     target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
                 )
@@ -443,28 +338,23 @@ class ScanEngine:
                         )
                     )
 
-        # Filter findings: only include findings whose rule_id was in the selected set
+
         if rules is not None:
             selected_set = set(selected_rules.keys())
             all_findings = [f for f in all_findings if f.rule_id in selected_set]
 
-        # Normalize finding paths: make them relative to target for portable,
-        # path-independent determinism. Same project content at different
-        # filesystem locations should produce the same scan_id and output.
-        # Using str(target_path) as prefix to strip, with trailing separator
-        # to avoid partial path matches (e.g., /foo/bar vs /foo/barbaz).
+
         target_prefix = str(target_path)
         if not target_prefix.endswith("/") and not target_prefix.endswith("\\"):
             target_prefix += "/"
         for f in all_findings:
             if f.file.startswith(target_prefix):
-                # dataclass is frozen — we need to use object.__setattr__
+
                 object.__setattr__(f, "file", f.file[len(target_prefix) :])
 
         duration = _now_ms() - start_ms
 
-        # Count files traversed (best-effort, relevant file types only)
-        # Excludes .git, __pycache__, node_modules/.cache, etc.
+
         _SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
         _RELEVANT_EXTENSIONS = frozenset(
             {
@@ -498,7 +388,7 @@ class ScanEngine:
             for file in target_path.rglob("*"):
                 if not file.is_file() or file.is_symlink():
                     continue
-                # Skip files in irrelevant directories
+
                 if any(part in _SKIP_DIRS for part in file.parts):
                     continue
                 if file.suffix in _RELEVANT_EXTENSIONS or file.name in {
@@ -533,7 +423,7 @@ class ScanEngine:
         else:
             files_scanned = 1
 
-        # Build stats
+
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}
         for f in all_findings:
@@ -569,7 +459,7 @@ class ScanEngine:
             int(duration),
         )
 
-        # Record metrics for observability
+
         try:
             from .metrics import increment, observe, set_gauge
 
@@ -593,15 +483,6 @@ def create_default_engine(
     advisory_db_path: str | None = None,
     ecosystems: list[str] | None = None,
 ) -> ScanEngine:
-    """Create a ScanEngine with all built-in detector rules registered.
-
-    Args:
-        corpus_dir: Optional explicit corpus directory.
-        advisory_db_path: Optional explicit advisory DB path.
-        ecosystems: Optional list of ecosystems to restrict rules to.
-            If None, ecosystems are auto-detected from the target at scan time.
-            Valid values: "npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget".
-    """
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
@@ -625,12 +506,12 @@ def create_default_engine(
     from .rules.worm_propagation import detect_worm_propagation
 
     engine = ScanEngine(corpus_dir=corpus_dir, advisory_db_path=advisory_db_path)
-    # ── Cross-ecosystem rules (always registered) ─────────────────────────
+
     engine.register("L2-DEPC-001", detect_all_dep_confusion)
     engine.register("L2-TYPO-001", detect_all_typosquat)
     engine.register("L2-ADV-001", detect_all_advisory_vulnerabilities)
 
-    # ── npm rules (always registered, backward compatible) ─────────────────
+
     engine.register("L2-POST-001", detect_post_install_scripts)
     engine.register("L2-OBFS-001", detect_obfuscation)
     engine.register("L2-OBFS-002", detect_obfuscation)  # sub-rule: hex obfuscation
@@ -652,7 +533,7 @@ def create_default_engine(
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
 
-    # ── PyPI rules (always registered — scan() filters by ecosystem) ─────
+
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-002", detect_pypi_obfuscation)
@@ -662,11 +543,7 @@ def create_default_engine(
     engine.register("L2-PYPI-OBFS-006", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-007", detect_pypi_obfuscation)
 
-    # ── Per-campaign IOC packages (auto-discovered) ─────────────────────
-    # Convention over configuration: every campaign in
-    # `picosentry/scan/campaigns/<name>/` with iocs.json + detector.py is
-    # auto-registered. To add a new campaign, drop a folder in there — no
-    # changes needed here.
+
     from .campaigns import iter_campaigns
 
     for campaign in iter_campaigns():
@@ -684,11 +561,3 @@ def create_default_engine(
 
 def _now_ms() -> float:
     return time.monotonic() * 1000
-
-
-# Note: SIGALRM-based timeout in cli.py is Unix-only.
-# For cross-platform determinism, use subprocess isolation:
-#   timeout_cmd = ["timeout", str(seconds), "picosentry", "scan", target]
-# Or the multiprocessing module with join(timeout).
-# This stub documents the enterprise approach — the CLI already handles
-# timeout via SIGALRM (Unix) and warns on Windows.

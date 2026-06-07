@@ -1,12 +1,3 @@
-"""
-L2-BUND-001: Bundled dependency shadow detection.
-
-Flags packages that bundle their own copies of dependencies inside
-dist tarballs (via "bundledDependencies" or "files" field), which can
-hide malicious or outdated code from audit tools.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -20,13 +11,12 @@ __all__ = ["detect_bundled_shadows"]
 
 
 def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
-    """Check a single package.json for bundled dependency issues."""
     findings: list[Finding] = []
     pkg_name = pkg.get("name", pkg_json.parent.name)
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
 
-    # L2-BUND-001: bundledDependencies / bundleDependencies
+
     bundled = pkg.get("bundledDependencies") or pkg.get("bundleDependencies")
     if bundled:
         if isinstance(bundled, list):
@@ -74,10 +64,10 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
                 )
             )
 
-    # Check "files" field for suspicious inclusions
+
     files_field = pkg.get("files")
     if isinstance(files_field, list):
-        # Flag if "files" includes node_modules or dist with compiled code
+
         suspicious = [f for f in files_field if f in ("node_modules", "dist", "build", "out")]
         if suspicious:
             findings.append(
@@ -103,7 +93,7 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
                 )
             )
 
-    # Check for packages that ship pre-built native binaries
+
     binary_field = pkg.get("binary")
     if binary_field and isinstance(binary_field, dict):
         findings.append(
@@ -130,21 +120,16 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
 
 
 def detect_bundled_shadows(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect bundled dependency shadows — packages that bundle their own deps,
-    hiding them from audit tools.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_bundled(pkg, root_pkg))
 
-    # node_modules packages
+
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_bundled(pkg, pkg_json))
 

@@ -1,13 +1,3 @@
-"""Rich attack-narrative generation for kill-chain timelines.
-
-Extracted in v2.1.0 (refactor) from the
-``_generate_narrative`` method of
-:class:`~picosentry.serve.services.correlation.engine.CorrelationEngine`.
-
-Implemented as a free function (no ``self``) so it can be unit-tested in
-isolation and the engine file stays focused on orchestration. Inputs are
-passed explicitly — the function is pure.
-"""
 from __future__ import annotations
 
 from typing import Any
@@ -46,22 +36,6 @@ def generate_narrative(
     max_confidence: Confidence,
     layers_observed: set[str],
 ) -> str:
-    """Generate a rich attack narrative from the phase-event data.
-
-    Produces a multi-paragraph story covering phase progression, layer
-    correlation, severity assessment, and attack pattern synthesis.
-
-    Args:
-        artifact_id: The package@version under analysis.
-        phase_events: Map of phase name (str) → list of events in that phase.
-        chain_score: Composite chain score in [0.0, 1.0].
-        max_severity: Highest severity observed across all events.
-        max_confidence: Highest confidence observed across all events.
-        layers_observed: Set of source layer names ("scan", "sandbox_l3", etc.).
-
-    Returns:
-        A multi-paragraph Markdown-formatted narrative string.
-    """
     active_phases: list[str] = [
         p.value for p in _PHASE_ORDER if p.value in phase_events
     ]
@@ -71,7 +45,7 @@ def generate_narrative(
 
     parts: list[str] = []
 
-    # ── Opening summary ──
+
     layer_labels = [
         _LAYER_NAMES.get(l, l) for l in sorted(layers_observed)
     ]
@@ -87,7 +61,7 @@ def generate_narrative(
         f"rated **{severity_label} severity** with **{confidence_label} confidence**."
     )
 
-    # ── Phase progression ──
+
     parts.append("**Phase Progression:**")
     for i, phase_name in enumerate(active_phases):
         try:
@@ -98,7 +72,7 @@ def generate_narrative(
         weight = PHASE_WEIGHTS.get(phase, 0.5)
         phase_events_list = phase_events[phase_name]
 
-        # Compute phase score
+
         max_sev_weight = 0.0
         max_sev_name = "INFO"
         event_descriptions: list[str] = []
@@ -129,7 +103,7 @@ def generate_narrative(
             + (f" (+{len(event_descriptions) - 3} more)" if len(event_descriptions) > 3 else "")
         )
 
-    # ── Multi-layer correlation ──
+
     if len(layers_observed) >= 2:
         layers_by_phase: dict[str, set[str]] = {}
         for phase_name in active_phases:
@@ -150,7 +124,7 @@ def generate_narrative(
                 "in the assessed attack pattern."
             )
 
-    # ── Chain score interpretation ──
+
     if chain_score >= 0.8:
         score_assessment = (
             "CRITICAL — This artifact shows a near-complete attack chain "
@@ -176,7 +150,7 @@ def generate_narrative(
 
     parts.append(f"**Assessment:** {score_assessment}")
 
-    # ── Coverage summary ──
+
     covered = len(active_phases)
     total_phases = len(_PHASE_ORDER)
     phase_pct = (covered / total_phases) * 100

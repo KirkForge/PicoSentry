@@ -1,31 +1,3 @@
-"""
-PicoSentry daemon mode — HTTP server for health checks, metrics, and scans.
-
-Provides a lightweight HTTP endpoint for integrating PicoSentry with
-orchestration systems (Kubernetes probes, load balancers, monitoring).
-
-Supports optional authentication (token or OIDC/JWT) and rate limiting
-for shared-service enterprise deployments.
-
-Usage:
-    picosentry daemon --port 9090
-    picosentry daemon --port 9090 --auth-mode token --auth-token s3cret
-
-Endpoints:
-    GET  /health         — liveness/readiness probe (200 OK)
-    GET  /healthz        — alias for /health
-    GET  /ready          — readiness probe (checks engine init)
-    GET  /readyz         — alias for /ready
-    GET  /metrics        — Prometheus text format metrics
-    GET  /metrics/json   — JSON format metrics
-    GET  /dashboard      — enterprise dashboard overview (auth required)
-    GET  /dashboard/tenants — tenant list and health (auth required)
-    GET  /dashboard/fleet   — fleet rollout status (auth required)
-    GET  /dashboard/compliance — compliance report (auth required)
-
-Design: stdlib-only (http.server). Zero additional dependencies.
-Production deployments should place this behind a reverse proxy (nginx, envoy).
-"""
 
 from __future__ import annotations
 
@@ -53,34 +25,22 @@ _request_counter = 0
 
 
 class HealthHandler(BaseHTTPRequestHandler):
-    """HTTP handler for health, metrics, and scan endpoints.
 
-    Supports optional authentication and rate limiting when configured.
-    Tracks per-request latency and emits SLO headers.
-    """
 
-    # Class-level config — set by run_daemon before server starts
     auth_config: AuthConfig = AuthConfig()
     rate_limiter: RateLimiter = RateLimiter()
     _engine_cache: Any = None
 
     def log_message(self, _format: str, *args) -> None:
-        """Suppress default access logging to stderr; use structured logger."""
         logger.debug("daemon: %s", _format % args)
 
     def _get_headers_dict(self) -> dict[str, str]:
-        """Convert request headers to a lowercase-keyed dict for auth lookup."""
         headers = {}
         for key, value in self.headers.items():
             headers[key.lower()] = value
         return headers
 
     def _request_id(self) -> str:
-        """Extract or generate a request ID for tracing.
-
-        Uses a monotonic counter instead of uuid4 to avoid
-        non-determinism if request IDs ever surface in scan output.
-        """
         global _request_counter
         rid = self.headers.get("X-Request-Id")
         if rid:
@@ -90,11 +50,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             return f"req-{_request_counter:08x}"
 
     def _client_ip(self) -> str:
-        """Get client IP for rate limiting.
-
-        Only trusts X-Forwarded-For if the direct client is a trusted proxy.
-        Otherwise, uses the direct client address to prevent spoofing.
-        """
         direct_ip = self.client_address[0] if self.client_address else "unknown"
         if self.auth_config.trusted_proxies and direct_ip in self.auth_config.trusted_proxies:
             forwarded = self.headers.get("X-Forwarded-For", "")
@@ -103,7 +58,6 @@ class HealthHandler(BaseHTTPRequestHandler):
         return direct_ip
 
     def _send_json(self, code: int, data: dict, request_id: str = "", start_time: float | None = None) -> None:
-        """Send a JSON response with standard headers including response time."""
         self.send_response(code)
         self.send_header("Content-Type", "application/json")
         if request_id:
@@ -115,13 +69,9 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(data).encode())
 
     def _check_auth(self, request_id: str) -> AuthResult:
-        """Check authentication. Returns AuthResult.
-
-        If auth fails, sends 401/403 response.
-        """
         headers = self._get_headers_dict()
 
-        # Check if path is public
+
         path = self.path.split("?")[0].split("#")[0]
         if path in self.auth_config.public_endpoints and self.auth_config.mode != "off":
             logger.info("request: public endpoint=%s request_id=%s", path, request_id)
@@ -146,7 +96,6 @@ class HealthHandler(BaseHTTPRequestHandler):
         return result
 
     def _check_rate_limit(self, client_ip: str, request_id: str) -> bool:
-        """Check rate limit. Returns True if allowed, False if rejected (429 sent)."""
         if not self.rate_limiter.check(client_ip):
             retry_after = self.rate_limiter.retry_after(client_ip)
             self.send_response(429)
@@ -211,7 +160,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                 auth_result = self._check_auth(request_id)
                 if not auth_result.ok:
                     return
-                # Authorize: require tenant scope for tenant dashboard
+
                 authz = check_authorization(auth_result, "/dashboard/tenants", "GET")
                 if not authz.ok:
                     self._send_json(403, {"error": authz.error, "request_id": request_id}, request_id, start_time)
@@ -221,7 +170,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                 auth_result = self._check_auth(request_id)
                 if not auth_result.ok:
                     return
-                # Authorize: require fleet scope for fleet dashboard
+
                 authz = check_authorization(auth_result, "/dashboard/fleet", "GET")
                 if not authz.ok:
                     self._send_json(403, {"error": authz.error, "request_id": request_id}, request_id, start_time)
@@ -231,7 +180,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                 auth_result = self._check_auth(request_id)
                 if not auth_result.ok:
                     return
-                # Authorize: require fleet scope for compliance dashboard
+
                 authz = check_authorization(auth_result, "/dashboard/compliance", "GET")
                 if not authz.ok:
                     self._send_json(403, {"error": authz.error, "request_id": request_id}, request_id, start_time)
@@ -245,13 +194,12 @@ class HealthHandler(BaseHTTPRequestHandler):
             else:
                 self.send_error(404, "Not Found")
         finally:
-            # Clear thread-local request context to prevent leaks
+
             from picosentry.scan.logging import clear_request_context
 
             clear_request_context()
 
     def do_POST(self) -> None:
-        """Handle POST requests — currently only /scan."""
         start_time = time.monotonic()
         client_ip = self._client_ip()
         request_id = self._request_id()
@@ -267,7 +215,7 @@ class HealthHandler(BaseHTTPRequestHandler):
                 if not auth_result.ok:
                     return
 
-                # Authorize: require scan or write scope
+
                 from picosentry.scan.auth import check_authorization
 
                 authz = check_authorization(auth_result, "/scan", "POST")
@@ -284,7 +232,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             clear_request_context()
 
     def _handle_scan(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Run a supply chain scan and return results as JSON."""
         import json as _json
 
         try:
@@ -303,9 +250,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Missing 'target' field", "request_id": request_id}, request_id, start_time)
             return
 
-        # §1.4: Restrict scan targets to prevent arbitrary filesystem access.
-        # Reject absolute paths and path traversal. Resolve and verify the
-        # target stays under the configured scan root (or CWD if none).
+
         if os.path.isabs(target) or ".." in target:
             self._send_json(
                 400,
@@ -339,14 +284,9 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(500, {"error": str(e), "request_id": request_id}, request_id, start_time)
 
     def _handle_health(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Liveness probe — always returns 200 if the process is alive."""
         self._send_json(200, {"status": "healthy", "request_id": request_id}, request_id, start_time)
 
     def _handle_readiness(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Readiness probe — checks that PicoSentry can initialize.
-
-        Caches the engine instance on the class to avoid re-creating on every probe.
-        """
         try:
             engine = HealthHandler._engine_cache
             if engine is None:
@@ -367,7 +307,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(503, status, request_id, start_time)
 
     def _handle_metrics(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Prometheus text format metrics."""
         from picosentry.scan.metrics import get_metrics
 
         metrics = get_metrics().snapshot()
@@ -382,14 +321,12 @@ class HealthHandler(BaseHTTPRequestHandler):
         self.wfile.write(metrics.to_prometheus().encode())
 
     def _handle_metrics_json(self, request_id: str = "", start_time: float | None = None) -> None:
-        """JSON format metrics."""
         from picosentry.scan.metrics import get_metrics
 
         metrics = get_metrics().snapshot()
         self._send_json(200, metrics.to_dict(), request_id, start_time)
 
     def _handle_root(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Root endpoint — service info."""
         from picosentry import __version__
 
         info = {
@@ -414,16 +351,12 @@ class HealthHandler(BaseHTTPRequestHandler):
     def _handle_dashboard(
         self, request_id: str = "", start_time: float | None = None, tenant_id: str | None = None
     ) -> None:
-        """Enterprise dashboard — overview of service health, tenants, and fleet.
-
-        If X-Tenant-Id header is provided, scopes the overview to a single tenant.
-        """
         from picosentry import __version__
         from picosentry.scan.metrics import get_metrics
 
         metrics = get_metrics().snapshot()
 
-        # Collect advisory DB status
+
         advisory_status = "not_loaded"
         advisory_count = 0
         has_errors = False
@@ -438,14 +371,14 @@ class HealthHandler(BaseHTTPRequestHandler):
             advisory_status = "error"
             has_errors = True
 
-        # Collect tenant summary (if tenants exist)
+
         tenant_summary = {"enabled": 0, "disabled": 0, "total": 0}
         try:
             from picosentry.scan.tenant import TenantManager
 
             tm = TenantManager()
             if tenant_id:
-                # Scope to single tenant when X-Tenant-Id is provided
+
                 health = tm.tenant_health(tenant_id)
                 if health.get("status") == "not_found":
                     self._send_json(
@@ -470,7 +403,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         except Exception:
             pass
 
-        # Collect fleet summary (if fleet exists)
+
         fleet_summary = {"active_rollouts": 0, "failed_rollouts": 0, "total_targets": 0}
         try:
             from picosentry.scan.fleet import FleetManager
@@ -517,10 +450,6 @@ class HealthHandler(BaseHTTPRequestHandler):
         self._send_json(200 if not has_errors else 503, dashboard, request_id, start_time)
 
     def _handle_dashboard_tenants(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Dashboard endpoint — tenant list and health.
-
-        If X-Tenant-Id header is provided, scopes the response to that tenant.
-        """
         try:
             from picosentry.scan.tenant import TenantManager
 
@@ -545,10 +474,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"tenants": {}, "total_tenants": 0, "error": str(e)}, request_id, start_time)
 
     def _handle_dashboard_fleet(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Dashboard endpoint — fleet rollout status and health.
-
-        If X-Tenant-Id header is provided, scopes fleet data to that tenant.
-        """
         try:
             from picosentry.scan.fleet import FleetManager
 
@@ -568,10 +493,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(503, {"fleet_health": {}, "rollouts": [], "error": str(e)}, request_id, start_time)
 
     def _handle_dashboard_compliance(self, request_id: str = "", start_time: float | None = None) -> None:
-        """Dashboard endpoint — fleet compliance report.
-
-        If X-Tenant-Id header is provided, scopes the compliance report to that tenant.
-        """
         try:
             from picosentry.scan.fleet import FleetManager
 
@@ -588,30 +509,19 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 @dataclass
 class TLSConfig:
-    """TLS/mTLS configuration for the daemon.
-
-    Attributes:
-        cert_file: Path to the TLS certificate file (PEM format).
-        key_file: Path to the TLS private key file (PEM format).
-        mtls_ca: Path to the CA certificate for mutual TLS client verification.
-                If set, clients must present a valid certificate signed by this CA.
-    """
 
     cert_file: str = ""
     key_file: str = ""
     mtls_ca: str = ""
 
     def is_enabled(self) -> bool:
-        """Return True if TLS is configured (cert and key are both set)."""
         return bool(self.cert_file and self.key_file)
 
     def is_mtls(self) -> bool:
-        """Return True if mutual TLS is configured (CA cert is set)."""
         return self.is_enabled() and bool(self.mtls_ca)
 
     @staticmethod
     def from_env() -> TLSConfig:
-        """Create TLSConfig from environment variables."""
         import os
 
         return TLSConfig(
@@ -621,12 +531,6 @@ class TLSConfig:
         )
 
     def to_ssl_context(self) -> ssl.SSLContext | None:
-        """Create an SSL context from this configuration.
-
-        Returns None if TLS is not enabled.
-        Raises FileNotFoundError if cert or key files don't exist.
-        Raises ssl.SSLError if the files are invalid.
-        """
         if not self.is_enabled():
             return None
 
@@ -641,7 +545,7 @@ class TLSConfig:
         else:
             ctx.verify_mode = ssl.CERT_NONE
 
-        # Harden: disable weak ciphers and protocols
+
         ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
         return ctx
@@ -653,25 +557,13 @@ def run_daemon(
     auth_config: AuthConfig | None = None,
     tls_config: TLSConfig | None = None,
 ) -> None:
-    """Start the PicoSentry daemon HTTP server.
-
-    Args:
-        host: Bind address (default: 127.0.0.1).
-        port: Listen port (default: 9090).
-        auth_config: Authentication configuration. If None, reads from
-                     environment variables via AuthConfig.from_env().
-        tls_config: TLS/mTLS configuration. If None, reads from
-                    environment variables via TLSConfig.from_env().
-
-    Runs until SIGTERM or SIGINT is received.
-    """
     import signal
 
     from picosentry.scan.audit import audit
     from picosentry.scan.metrics import increment, set_gauge
 
     if auth_config is None:
-        # Try config file first, then env vars
+
         from pathlib import Path
 
         from picosentry.scan.config import load_config
@@ -683,14 +575,14 @@ def run_daemon(
             logger.debug("Config file not found or invalid, falling back to env vars", exc_info=True)
             auth_config = AuthConfig.from_env()
 
-    # Configure rate limiter from auth config
+
     rate_limiter = RateLimiter(rps=auth_config.rate_limit_rps)
 
-    # Set class-level config on handler
+
     HealthHandler.auth_config = auth_config
     HealthHandler.rate_limiter = rate_limiter
 
-    # Enterprise mode checks — refuse insecure daemon defaults
+
     if is_enterprise_mode():
         try:
             warnings = enterprise_daemon_checks(auth_config.mode, host)
@@ -735,15 +627,15 @@ def run_daemon(
             )
             print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
 
-    # Set initial metrics
+
     set_gauge("daemon.active_requests", 0)
     increment("daemon.start")
 
-    # Resolve TLS config
+
     if tls_config is None:
         tls_config = TLSConfig.from_env()
 
-    # Create SSL context if TLS is configured
+
     ssl_ctx = None
     if tls_config and tls_config.is_enabled():
         try:
@@ -759,7 +651,7 @@ def run_daemon(
         server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
     server_name = f"{host}:{port}"
 
-    # Graceful shutdown handler
+
     def shutdown(signum: int, frame) -> None:
         logger.info("Received signal %d, shutting down daemon...", signum)
         audit("daemon.stop", target=f"{host}:{port}", metadata={"signal": signum})

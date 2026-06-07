@@ -1,7 +1,3 @@
-"""`corpus` subcommand — manage custom IoC corpus packs (export/import/list/validate/sign).
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -23,7 +19,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(NAME, help="Manage custom IoC corpus packs (export/import/list)")
     sub = parser.add_subparsers(dest="corpus_action", help="Corpus actions")
 
-    # export
+
     export = sub.add_parser("export", help="Export custom IoCs as a shareable pack")
     export.add_argument("output", type=str, help="Output file path (.json)")
     export.add_argument("--name", type=str, default="my-iocs", help="Pack name")
@@ -32,7 +28,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     export.add_argument("--sign", choices=["sigstore", "minisign"], default=None, help="Cryptographically sign the pack")
     export.add_argument("--sign-key", type=str, default="", help="Path to minisign secret key (for --sign minisign)")
 
-    # import
+
     import_ = sub.add_parser("import", help="Import a corpus pack into your IoC registry")
     import_.add_argument("path", type=str, help="Path to corpus pack .json file")
     import_.add_argument("--force", action="store_true", help="Overwrite existing IoCs")
@@ -42,14 +38,14 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     import_.add_argument("--public-key", type=str, default="", help="Path to minisign public key (for minisign verification)")
     import_.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
 
-    # validate
+
     validate = sub.add_parser("validate", help="Validate a corpus pack without importing")
     validate.add_argument("path", type=str, help="Path to corpus pack .json file")
 
-    # list
+
     sub.add_parser("list", help="List available corpus packs (built-in + user)")
 
-    # sign
+
     sign = sub.add_parser("sign", help="Sign a corpus pack with cryptographic signature")
     sign.add_argument("path", type=str, help="Path to corpus pack .json file to sign")
     sign.add_argument("--method", choices=["sigstore", "minisign", "digest"], default="digest", help="Signing method (default: digest-only)")
@@ -58,7 +54,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage custom IoC corpus packs."""
     if not args.corpus_action:
         print("Usage: picosentry corpus {export|import|validate|list}")
         return 2
@@ -195,7 +190,6 @@ def cmd(args: argparse.Namespace) -> int:
     return 0
 
 
-# Back-compat alias
 _cmd_corpus = cmd
 
 __all__ = ["NAME", "_cmd_corpus", "add_arguments", "cmd"]

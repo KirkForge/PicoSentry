@@ -1,16 +1,10 @@
-"""L4 supply-chain attack pattern detector.
-
-Detects patterns commonly seen in supply-chain attacks: post-install script
-manipulation, obfuscated payloads, typosquatting indicators, and install-time
-network calls that deviate from expected package manager behavior.
-"""
 
 import re
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Patterns indicating obfuscated or encoded payloads
+
 _OBFUSCATION_PATTERNS: list[tuple[str, str]] = [
     (r"\\x[0-9a-f]{2}", "hex-escape sequence"),
     (r"\\u[0-9a-f]{4}", "unicode-escape sequence"),
@@ -21,7 +15,7 @@ _OBFUSCATION_PATTERNS: list[tuple[str, str]] = [
     (r"\\x[0-9a-f]{2}.+\\x[0-9a-f]{2}.+\\x[0-9a-f]{2}", "multiple hex escapes"),
 ]
 
-# Commands that indicate install-time code execution
+
 _INSTALL_EXEC_PATTERNS: list[tuple[str, str]] = [
     (r"curl\s+\S+\s*\|\s*(?:sh|bash|zsh)", "pipelined remote script execution"),
     (r"wget\s+\S+\s*-O\s*\S+\s*&&\s*(?:sh|bash)", "download-and-execute"),
@@ -37,10 +31,9 @@ def detect_supply_chain_patterns(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect supply-chain attack patterns in sandboxed execution."""
     findings: list[Finding] = []
 
-    # L4-SC-001: Obfuscated payload indicators in spawned commands
+
     for spawn in profile.spawns:
         args_str = " ".join(spawn.args)
         for pattern, description in _OBFUSCATION_PATTERNS:
@@ -56,7 +49,7 @@ def detect_supply_chain_patterns(
                 )
                 break
 
-        # L4-SC-002: Install-time remote code execution
+
         for pattern, description in _INSTALL_EXEC_PATTERNS:
             if re.search(pattern, args_str):
                 findings.append(
@@ -69,7 +62,7 @@ def detect_supply_chain_patterns(
                     )
                 )
 
-    # L4-SC-003: Network calls during zero-network baseline execution
+
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
@@ -92,7 +85,7 @@ def detect_supply_chain_patterns(
                 )
             )
 
-    # L4-SC-004: Process spawns during zero-spawn baseline execution
+
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
@@ -115,7 +108,7 @@ def detect_supply_chain_patterns(
                 )
             )
 
-    # L4-SC-005: Unexpected DNS queries during package install
+
     suspicious_keywords = {"pastebin", "webhook", "ipify", "ifconfig", "whatismyip", "checkip"}
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()

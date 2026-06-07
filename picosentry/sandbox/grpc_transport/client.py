@@ -1,11 +1,3 @@
-"""PicoDome gRPC Client — connects to an PicoDome gRPC server.
-
-Provides both synchronous and asynchronous scan methods, with
-timeout and retry logic, and TLS/mTLS support.
-
-Uses lazy imports for grpcio so the module degrades gracefully
-when grpcio is not installed.
-"""
 
 from __future__ import annotations
 
@@ -20,11 +12,6 @@ logger = logging.getLogger("picodome.grpc_transport.client")
 
 
 class ScanResult:
-    """Result of a gRPC scan call.
-
-    Mirrors the key fields from the daemon's scan response,
-    but as a plain Python object (no dependency on proto classes).
-    """
 
     def __init__(
         self,
@@ -69,22 +56,6 @@ class ScanResult:
 
 
 class PicoDomeGRPCClient:
-    """gRPC client for PicoDome — connects to an PicoDome gRPC server.
-
-    Usage::
-
-        client = PicoDomeGRPCClient(target="localhost:50051")
-        result = client.scan(command=["echo", "hello"])
-
-    Or with TLS::
-
-        from picosentry.sandbox.mtls import MTLSConfig
-        config = MTLSConfig(cert_path="client.crt", key_path="client.key", ca_path="ca.crt")
-        client = PicoDomeGRPCClient(target="localhost:50051", mtls_config=config)
-
-    If grpcio is not installed, calling scan() will raise ImportError.
-    Check ``is_grpc_available()`` before instantiating.
-    """
 
     def __init__(
         self,
@@ -103,7 +74,6 @@ class PicoDomeGRPCClient:
         self._stub = None
 
     def _ensure_channel(self) -> None:
-        """Lazily create the gRPC channel and stub."""
         if self._channel is not None:
             return
 
@@ -121,7 +91,7 @@ class PicoDomeGRPCClient:
             self._channel = grpc.insecure_channel(self._target)
             logger.info("gRPC client connected (plaintext) to %s", self._target)
 
-        # Try to use generated stubs, fall back to manual
+
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc
 
@@ -131,7 +101,6 @@ class PicoDomeGRPCClient:
             self._stub = None
 
     def _create_client_credentials(self, mtls_config) -> Any:
-        """Create gRPC client credentials from MTLSConfig."""
         if mtls_config is None:
             return None
 
@@ -142,7 +111,7 @@ class PicoDomeGRPCClient:
             return None
 
         if mtls_config.dev_mode:
-            # Dev mode: use insecure channel
+
             return None
 
         if not mtls_config.cert_path or not mtls_config.key_path:
@@ -181,21 +150,6 @@ class PicoDomeGRPCClient:
         timeout: float | None = None,
         cwd: str | None = None,
     ) -> ScanResult:
-        """Submit a scan request synchronously with retry logic.
-
-        Args:
-            command: Command to execute (e.g. ["echo", "hello"]).
-            policy: Policy name or JSON-encoded policy.
-            timeout: Timeout in seconds (overrides client default).
-            cwd: Working directory.
-
-        Returns:
-            ScanResult with the scan outcome.
-
-        Raises:
-            ImportError: If grpcio is not installed.
-            ConnectionError: If all retries fail.
-        """
         self._ensure_channel()
 
         scan_timeout = timeout or self._timeout
@@ -227,7 +181,6 @@ class PicoDomeGRPCClient:
         timeout: float,
         cwd: str | None,
     ) -> ScanResult:
-        """Execute a single scan RPC call."""
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2 as pb2
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc
@@ -253,7 +206,7 @@ class PicoDomeGRPCClient:
                 findings_count=response.findings_count,
             )
         except ImportError:
-            # Proto stubs not compiled — use manual call
+
             return self._do_scan_manual(command, policy, timeout, cwd)
 
     def _do_scan_manual(
@@ -263,13 +216,9 @@ class PicoDomeGRPCClient:
         timeout: float,
         cwd: str | None,
     ) -> ScanResult:
-        """Manual scan call when proto stubs are not compiled.
-
-        This uses the raw gRPC call method as a fallback.
-        """
         import grpc
 
-        # Serialize request manually (simple JSON-based approach for fallback)
+
         request_data = json.dumps(
             {
                 "command": command,
@@ -279,7 +228,7 @@ class PicoDomeGRPCClient:
             }
         ).encode("utf-8")
 
-        # Use generic unary-unary call
+
         try:
             response_data = self._channel.unary_unary(
                 "/picodome.PicoDomeService/Scan",
@@ -300,13 +249,6 @@ class PicoDomeGRPCClient:
         timeout: float | None = None,
         cwd: str | None = None,
     ) -> ScanResult:
-        """Submit a scan request asynchronously.
-
-        Uses asyncio.to_thread to run the synchronous gRPC call in a
-        thread pool, allowing concurrent scans without blocking the
-        event loop. Falls back to synchronous scan if asyncio is not
-        available.
-        """
         import asyncio
 
         try:
@@ -320,7 +262,6 @@ class PicoDomeGRPCClient:
             return self.scan(command=command, policy=policy, timeout=timeout, cwd=cwd)
 
     def health(self) -> dict[str, Any]:
-        """Check the health of the gRPC server."""
         self._ensure_channel()
 
         try:
@@ -339,7 +280,7 @@ class PicoDomeGRPCClient:
                 "uptime_seconds": response.uptime_seconds,
             }
         except ImportError:
-            # Proto stubs not compiled
+
             import grpc
 
             try:
@@ -354,7 +295,6 @@ class PicoDomeGRPCClient:
                 return {"healthy": False, "detail": str(e)}
 
     def get_policy(self, name: str, version: int | None = None) -> dict[str, Any]:
-        """Get a policy by name."""
         self._ensure_channel()
 
         try:
@@ -395,7 +335,6 @@ class PicoDomeGRPCClient:
         until: str | None = None,
         limit: int = 100,
     ) -> dict[str, Any]:
-        """Query the audit log via gRPC."""
         self._ensure_channel()
 
         try:
@@ -443,7 +382,6 @@ class PicoDomeGRPCClient:
                 raise
 
     def close(self) -> None:
-        """Close the gRPC channel."""
         if self._channel is not None:
             try:
                 self._channel.close()

@@ -1,11 +1,3 @@
-"""Table formatter for PicoDome results — human-readable terminal output.
-
-Uses dome-themed severity labels (like PicoSentry's claw-pinch branding):
-  CRITICAL/HIGH → HARD PINCH 🛡️
-  MEDIUM         → SOFT PINCH
-  LOW/INFO       → NUDGE
-  Clean scan     → "All clear. Dome intact. 🛡️"
-"""
 
 from __future__ import annotations
 
@@ -13,7 +5,7 @@ from picosentry.sandbox.l3.models import SandboxResult, Verdict
 from picosentry.sandbox.l4.models import AnalysisResult, BehavioralVerdict
 from picosentry.sandbox.models import Severity
 
-# Dome-themed severity labels for human-facing output
+
 _DOME_LABELS = {
     Severity.CRITICAL: "HARD PINCH 🛡️",
     Severity.HIGH: "HARD PINCH 🛡️",
@@ -24,14 +16,12 @@ _DOME_LABELS = {
 
 
 def format_table(result: SandboxResult | AnalysisResult) -> str:
-    """Format sandbox or analysis result as a human-readable table."""
     if isinstance(result, SandboxResult):
         return _l3_table(result)
     return _l4_table(result)
 
 
 def _l3_table(result: SandboxResult) -> str:
-    """Format L3 sandbox result as a table."""
     width = max(80, len(" ".join(result.command)) + 20)
 
     lines = [
@@ -82,7 +72,6 @@ def _l3_table(result: SandboxResult) -> str:
 
 
 def _l4_table(result: AnalysisResult) -> str:
-    """Format L4 analysis result as a table."""
     width = 80
 
     verdict_icon = _behavioral_icon(result.overall_verdict)
@@ -101,7 +90,7 @@ def _l4_table(result: AnalysisResult) -> str:
             f"║ {'Duration:':<16} {result.stats.duration_ms}ms{'':<{width - 20 - len(str(result.stats.duration_ms))}} ║"
         )
 
-    # Severity summary with dome labels
+
     if result.stats.findings_by_severity:
         lines.append("╠" + "═" * (width - 2) + "╣")
         lines.append(f"║ {'PINCHES BY SEVERITY':^{width - 4}} ║")

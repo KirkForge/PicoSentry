@@ -1,9 +1,3 @@
-"""L3 Execution Sandbox — data models.
-
-Deterministic by default: SandboxResult.run_id and .timestamp default to ""
-(empty string). Use models._generate_run_id() and _generate_timestamp() to
-fill in non-deterministic values when needed.
-"""
 
 from __future__ import annotations
 
@@ -36,7 +30,6 @@ class RuleTarget(str, Enum):
 
 @dataclass(frozen=True)
 class PolicyRule:
-    """A single rule in a sandbox policy. Frozen for determinism."""
 
     rule_id: str
     target: RuleTarget
@@ -60,7 +53,6 @@ class PolicyRule:
 
 @dataclass(frozen=True)
 class Policy:
-    """Sandbox execution policy. Frozen for determinism."""
 
     name: str
     version: str = "1.0"
@@ -91,7 +83,6 @@ class Policy:
 
 @dataclass(frozen=True)
 class SandboxEvent:
-    """A single event from a sandbox run. Frozen for determinism."""
 
     rule_id: str
     verdict: Verdict
@@ -118,21 +109,11 @@ class SandboxEvent:
 
 @dataclass(frozen=True)
 class SandboxResult:
-    """Result of a sandbox execution. Frozen for determinism.
-
-    Deterministic by default: run_id and timestamp default to "".
-    Use models._generate_run_id() / _generate_timestamp() for non-deterministic.
-
-    Backend classification:
-        isolation_level: "kernel_enforced" | "os_policy_enforced" |
-                         "observational_only"
-        enforcement_guarantee: "hard" | "best_effort"
-    """
 
     run_id: str = ""
     timestamp: str = ""
 
-    # Evidence metadata (deterministic)
+
     backend: str = ""
     policy_hash: str = ""
     policy_version: str = ""
@@ -151,10 +132,6 @@ class SandboxResult:
     stderr: str = ""
 
     def to_dict(self, deterministic: bool = False) -> dict:
-        """Serialize to dict. Sort keys for deterministic JSON output.
-
-        In deterministic mode, omit run_id, timestamp, duration_ms.
-        """
         d: dict = {
             "backend": self.backend_name,
             "command": list(self.command),

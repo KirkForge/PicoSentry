@@ -1,4 +1,3 @@
-"""Configuration management for PicoShogun."""
 import json
 import os
 from dataclasses import dataclass, field
@@ -12,7 +11,6 @@ BASE_DIR = Path(__file__).parent.parent
 
 
 def _env(key: str, default: str = "") -> str:
-    """Read env var with PICOSHOGUN_ prefix first, fall back to SHOGUN_ prefix."""
     val = os.environ.get(f"PICOSHOGUN_{key}")
     if val is not None:
         return val
@@ -20,17 +18,10 @@ def _env(key: str, default: str = "") -> str:
 
 
 def _env_bool(key: str, default: str = "false") -> bool:
-    """Read boolean env var with PICOSHOGUN_ / SHOGUN_ fallback."""
     return _env(key, default).lower() == "true"
 
 
 def _parse_cors_origins() -> list[str]:
-    """Parse PICOSHOGUN_CORS_ORIGINS (or SHOGUN_CORS_ORIGINS) env var into a list of origins.
-
-    Accepts comma-separated origins, e.g. ``https://app.example.com,https://admin.example.com``.
-    Defaults to ``["http://localhost:8765"]`` when the env var is unset.
-    In production, set SHOGUN_CORS_ORIGINS to explicit origins — wildcard is insecure.
-    """
     raw = _env("CORS_ORIGINS", "").strip()
     if not raw:
         return ["http://localhost:8765"]
@@ -53,7 +44,6 @@ class DatabaseConfig:
 
     @classmethod
     def from_env(cls) -> "DatabaseConfig":
-        """Load database config from environment variables."""
         return cls()  # defaults already read from env via field default_factory
 
 @dataclass
@@ -69,14 +59,13 @@ class APIConfig:
 
     @classmethod
     def from_env(cls) -> "APIConfig":
-        """Load API config from environment variables."""
         return cls()  # defaults already read from env via field default_factory
 
 @dataclass
 class SecurityConfig:
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "change-me-in-production"))
-    # CRITICAL: Set PICOSHOGUN_SECRET_KEY (or SHOGUN_SECRET_KEY) env var in production! assert_secure() will refuse to start
-    # with the default key. See config.validate() and config.assert_secure().
+
+
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
     password_hash_rounds: int = 12
@@ -89,7 +78,6 @@ class SecurityConfig:
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":
-        """Load security config from environment variables."""
         return cls()  # defaults already read from env via field default_factory
 
 @dataclass
@@ -122,7 +110,6 @@ class AlertConfig:
 
     @classmethod
     def from_env(cls) -> "AlertConfig":
-        """Load alert config from environment variables."""
         return cls()  # defaults already read from env via field default_factory
 
 @dataclass
@@ -137,11 +124,9 @@ class OrchestratorConfig:
 
     @classmethod
     def from_env(cls) -> "OrchestratorConfig":
-        """Load orchestrator config from environment variables."""
         return cls()  # defaults already read from env via field default_factory
 
 class _SslCertCheck:
-    """PicoShogun-specific: SSL cert must be configured in production."""
 
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
@@ -157,7 +142,6 @@ class _SslCertCheck:
 
 
 class _WildcardHostsCheck:
-    """PicoShogun-specific: wildcard allowed hosts in production is insecure."""
 
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
@@ -187,7 +171,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         return self.env == "production"
 
     def validate(self) -> list[str]:
-        """Validate configuration and return list of issues."""
         issues = []
 
         if self.is_production():
@@ -202,7 +185,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
             if "*" in self.api.cors_origins and self.api.cors_origins == ["*"]:
                 issues.append("SECURITY: Wildcard CORS origin in production — specify explicit origins")
 
-        # Non-production warnings (still logged but not blocking)
+
         if not self.is_production():
             if self.security.secret_key == "change-me-in-production":
                 issues.append("CONFIG: Default secret key — set SHOGUN_SECRET_KEY before production deployment")
@@ -212,12 +195,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         return issues
 
     def assert_secure(self) -> None:
-        """Enforce secure configuration in production.
-
-        Delegates to picosentry._core.config.assert_secure with PicoShogun-specific
-        custom checks (SSL cert, wildcard hosts/CORS).
-        Override with PICOSHOGUN_SKIP_SECURE_ASSERT=1 (not recommended).
-        """
 
         if _env("SKIP_SECURE_ASSERT", "") == "1":
             __import__("logging").getLogger("picoshogun.config").warning(
@@ -241,10 +218,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
     @classmethod
     def from_env(cls) -> "Settings":
-        """Load settings from environment variables.
-
-        Composes sub-configs via their own from_env() classmethods.
-        """
         return cls(
             env=_env("ENV", "development"),
             debug=_env_bool("DEBUG", "false"),
@@ -258,30 +231,23 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
     @classmethod
     def from_file(cls, path: Path) -> "Settings":
-        """Load settings from JSON file.
-
-        Only known fields are accepted — unknown keys are ignored to prevent
-        injection of arbitrary attributes. Nested dataclass fields are
-        constructed from their dicts. Config files should be stored outside
-        any user-writable path.
-        """
         import logging
         from dataclasses import fields as dc_fields
         logger = logging.getLogger("picoshogun.config")
         with open(path) as f:
             data = json.load(f)
 
-        # Resolve type hints (handles forward refs and string annotations)
+
         known_hints = get_type_hints(cls)
         known_field_names = {f.name for f in dc_fields(cls)}
 
-        # Filter to only known fields to prevent attribute injection
+
         unknown = set(data.keys()) - known_field_names
         if unknown:
             logger.warning("Ignoring unknown config fields in %s: %s", path, unknown)
         data = {k: v for k, v in data.items() if k in known_field_names}
 
-        # Convert nested dicts to their dataclass types
+
         for field_name, field_type in known_hints.items():
             if field_name in data and isinstance(data[field_name], dict):
                 if hasattr(field_type, "__dataclass_fields__"):
@@ -290,11 +256,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         return cls(**data)
 
     def to_file(self, path: Path):
-        """Save settings to JSON file."""
         with open(path, "w") as f:
             json.dump(self.__dict__, f, indent=2, default=str)
 
 
-
-# Global settings instance
 settings = Settings()

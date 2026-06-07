@@ -1,11 +1,3 @@
-"""PicoDomeDaemon — HTTP API server orchestrator.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-Drives the lifecycle of the HTTP server: configuration from environment,
-job-store backend selection, audit-sink wiring, mTLS setup, signal handlers,
-and graceful shutdown.
-"""
 from __future__ import annotations
 
 import logging
@@ -23,34 +15,6 @@ logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomeDaemon:
-    """PicoDome daemon — HTTP API server for sandbox-as-a-service.
-
-    Usage::
-
-        daemon = PicoDomeDaemon(host="127.0.0.1", port=8443)
-        daemon.start()   # blocking
-        # or
-        daemon.start(background=True)
-
-    Configuration:
-    - ``PICODOME_DAEMON_HOST`` — bind address (default: 127.0.0.1)
-    - ``PICODOME_DAEMON_PORT`` — bind port (default: 8443)
-    - ``PICODOME_METRICS_PORT`` — separate metrics port (default: None, same as API)
-    - ``PICODOME_API_TOKENS`` — comma-separated auth tokens
-    - ``PICODOME_JOB_STORE_DIR`` — directory for persistent job storage
-    - ``PICODOME_AUDIT_SINKS`` — comma-separated sink types (default: null)
-      Available: null, file, webhook, syslog
-    - ``PICODOME_WEBHOOK_URL`` — URL for webhook sink
-    - ``PICODOME_WEBHOOK_TOKEN`` — Bearer token for webhook sink
-    - ``PICODOME_SYSLOG_HOST`` — Syslog server host (default: 127.0.0.1)
-    - ``PICODOME_SYSLOG_PORT`` — Syslog server port (default: 514)
-    - ``PICODOME_FILE_SINK_DIR`` — Directory for file sink output
-    - ``PICODOME_GLOBAL_RPS`` — global requests per second across all actors (default: 25.0)
-    - ``PICODOME_RATE_PER_SECOND`` — per-actor requests per second (default: 2.0)
-    - ``PICODOME_STORE_BACKEND`` — job store backend: jsonl (default) or sqlite
-    - ``PICODOME_SQLITE_PATH`` — path to SQLite database (default: ~/.picodome/jobs.db)
-    - ``PICODOME_CORS_ORIGINS`` — allowed CORS origins (default: *)
-    """
 
     def __init__(
         self,
@@ -70,7 +34,7 @@ class PicoDomeDaemon:
         self._job_store_dir = job_store_dir or os.environ.get("PICODOME_JOB_STORE_DIR")
         self._store_backend = store_backend or os.environ.get("PICODOME_STORE_BACKEND", "jsonl")
 
-        # Set up job store backend (jsonl or sqlite)
+
         backend = self._store_backend.lower()
         if backend == "sqlite":
             from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
@@ -87,7 +51,7 @@ class PicoDomeDaemon:
             PicoDomeHandler.job_store = PersistentScanJobStore(store_dir=store_dir)
             logger.info("Using JSONL job store backend")
 
-        # Set up rate limiter from environment
+
         global_rps = float(os.environ.get("PICODOME_GLOBAL_RPS", "25.0"))
         rate_per_second = float(os.environ.get("PICODOME_RATE_PER_SECOND", "2.0"))
         PicoDomeHandler.rate_limiter = TokenBucketLimiter(
@@ -97,11 +61,10 @@ class PicoDomeDaemon:
             )
         )
 
-        # Set up audit sinks
+
         self._sinks = self._init_sinks()
 
     def _init_sinks(self) -> list:
-        """Initialize audit sinks from environment configuration."""
         from picosentry.sandbox.audit.sinks import (
             AuditSink,
             FileSink,
@@ -160,7 +123,6 @@ class PicoDomeDaemon:
         return sinks
 
     def start(self, background: bool = False) -> None:
-        """Start the daemon HTTP server."""
         from picosentry.sandbox.mtls import create_ssl_context
 
         server = HTTPServer((self._host, self._port), PicoDomeHandler)
@@ -170,10 +132,10 @@ class PicoDomeDaemon:
             logger.info("mTLS: TLS enabled on %s:%d", self._host, self._port)
         self._server = server
 
-        # Audit
+
         try:
             audit = get_audit_logger()
-            # Wire sinks into the audit logger
+
             for sink in self._sinks:
                 try:
                     sink.start()
@@ -190,7 +152,7 @@ class PicoDomeDaemon:
 
         logger.info("PicoDome daemon starting on %s:%d", self._host, self._port)
 
-        # If metrics port is separate, start a metrics-only listener
+
         if self._metrics_port and self._metrics_port != self._port:
             metrics_handler = type(
                 "MetricsHandler",
@@ -226,18 +188,13 @@ class PicoDomeDaemon:
                 self.stop()
 
     def stop(self) -> None:
-        """Stop the daemon gracefully.
-
-        Shuts down HTTP servers, stops audit sinks, and records a
-        DAEMON_STOP audit event. Safe to call multiple times.
-        """
         if self._server:
             self._server.shutdown()
 
         if self._metrics_server:
             self._metrics_server.shutdown()
 
-        # Stop audit sinks
+
         for sink in self._sinks:
             try:
                 sink.stop()
@@ -257,17 +214,6 @@ class PicoDomeDaemon:
         logger.info("PicoDome daemon stopped")
 
     def install_signal_handlers(self) -> None:
-        """Install SIGTERM and SIGINT handlers for graceful shutdown.
-
-        Call before start() when running in the foreground to ensure
-        the daemon shuts down cleanly on termination signals.
-
-        Usage::
-
-            daemon = PicoDomeDaemon()
-            daemon.install_signal_handlers()
-            daemon.start()  # blocks; SIGTERM triggers graceful shutdown
-        """
 
         def _handle_shutdown(signum: int, frame: Any) -> None:
             sig_name = signal.Signals(signum).name
@@ -277,7 +223,7 @@ class PicoDomeDaemon:
         signal.signal(signal.SIGTERM, _handle_shutdown)
         signal.signal(signal.SIGINT, _handle_shutdown)
 
-        # SIGHUP for config reload (graceful — reloads audit sinks and TLS certs)
+
         if hasattr(signal, "SIGHUP"):
 
             def _handle_hup(signum: int, frame: Any) -> None:

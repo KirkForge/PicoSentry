@@ -1,7 +1,3 @@
-"""`check` subcommand — CI-optimized health check.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -33,7 +29,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Execute the 'check' subcommand. Returns 0 if clean, 1 if findings, 2 if target not found, 4 on rule error."""
     target = Path(args.target).resolve()
 
     if not target.exists():
@@ -49,7 +44,7 @@ def cmd(args: argparse.Namespace) -> int:
     severity_order = dict(SEVERITY_ORDER)
     fail_level = severity_order[args.fail_on.lower()]
 
-    # Check for rule failures — check ALWAYS fails closed
+
     failed_rules = [r for r in result.rule_executions if r.status == "failed"]
     if failed_rules:
         for r in failed_rules:

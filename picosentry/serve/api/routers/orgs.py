@@ -1,4 +1,3 @@
-"""Organization management endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -14,14 +13,12 @@ router = APIRouter(prefix="/orgs")
 
 @router.get("", tags=["Organizations"])
 async def list_orgs(user: dict = Depends(get_current_user)):
-    """List organizations the user belongs to."""
     orgs = Organization.list_orgs_for_user(user["id"])
     return {"orgs": orgs, "count": len(orgs)}
 
 
 @router.get("/{org_id}", tags=["Organizations"])
 async def get_org(org_id: int, user: dict = Depends(get_current_user)):
-    """Get organization details + usage."""
     orgs = Organization.list_orgs_for_user(user["id"])
     org = next((o for o in orgs if o["id"] == org_id), None)
     if not org:
@@ -44,7 +41,6 @@ async def create_org(
     request: OrgCreateRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Create a new organization."""
     org_id = Organization.create(
         name=request.name,
         slug=request.slug,
@@ -66,7 +62,6 @@ async def list_org_members(
     org_id: int,
     user: dict = Depends(get_current_user),
 ):
-    """List members of an organization."""
     orgs = Organization.list_orgs_for_user(user["id"])
     if not any(o["id"] == org_id for o in orgs):
         raise HTTPException(status_code=403, detail="Not a member of this organization")
@@ -79,7 +74,6 @@ async def get_org_usage(
     org_id: int,
     user: dict = Depends(get_current_user),
 ):
-    """Get current usage vs limits for an organization."""
     orgs = Organization.list_orgs_for_user(user["id"])
     if not any(o["id"] == org_id for o in orgs):
         raise HTTPException(status_code=403, detail="Not a member of this organization")
@@ -92,7 +86,6 @@ async def upgrade_org_tier(
     request: OrgTierUpgradeRequest,
     user: dict = Depends(require_role("admin")),
 ):
-    """Upgrade organization subscription tier."""
     orgs = Organization.list_orgs_for_user(user["id"])
     org = next((o for o in orgs if o["id"] == org_id), None)
     if not org:

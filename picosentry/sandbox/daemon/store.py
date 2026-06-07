@@ -1,11 +1,3 @@
-"""Persistent scan job store — JSONL-backed storage for scan results.
-
-Jobs are stored as JSON Lines in ``~/.picodome/jobs.jsonl``. Each line is
-a complete JSON object for one job. The store appends on write and
-compacts on startup if the file exceeds ``MAX_FILE_SIZE``.
-
-Thread-safe via ``threading.Lock``.
-"""
 
 from __future__ import annotations
 
@@ -18,27 +10,20 @@ from typing import Any
 
 logger = logging.getLogger("picodome.daemon.store")
 
-# Schema version for job store files
+
 JOB_STORE_SCHEMA_VERSION = 2  # v2: adds schema_version field to every job
 
-# Default storage directory
+
 DEFAULT_STORE_DIR = Path.home() / ".picodome"
 
-# Maximum file size before compaction (10 MB)
+
 MAX_FILE_SIZE = 10 * 1024 * 1024
 
-# Maximum number of jobs to keep after compaction
+
 MAX_JOBS = 1000
 
 
 class PersistentScanJobStore:
-    """JSONL-backed persistent scan job store.
-
-    - Appends new jobs to the end of the file.
-    - Compacts on startup if file exceeds MAX_FILE_SIZE.
-    - Thread-safe via lock.
-    - Falls back to in-memory store if file I/O fails.
-    """
 
     def __init__(
         self,
@@ -53,7 +38,6 @@ class PersistentScanJobStore:
         self._loaded = False
 
     def _ensure_loaded(self) -> None:
-        """Lazy-load jobs from disk on first access."""
         if self._loaded:
             return
         with self._lock:
@@ -66,11 +50,10 @@ class PersistentScanJobStore:
             self._loaded = True
 
     def _load_from_disk(self) -> None:
-        """Load jobs from JSONL file."""
         if not self._store_file.exists():
             return
 
-        # Check file size for compaction
+
         try:
             file_size = self._store_file.stat().st_size
         except OSError:
@@ -80,7 +63,7 @@ class PersistentScanJobStore:
             self._compact()
             return
 
-        # Load all jobs
+
         jobs: dict[str, dict[str, Any]] = {}
         try:
             with open(self._store_file, encoding="utf-8") as f:
@@ -99,7 +82,7 @@ class PersistentScanJobStore:
             logger.warning("Failed to read job store: %s", e)
             return
 
-        # Keep only the most recent max_jobs
+
         if len(jobs) > self._max_jobs:
             sorted_jobs = sorted(
                 jobs.values(),
@@ -112,10 +95,9 @@ class PersistentScanJobStore:
         logger.info("Loaded %d jobs from %s", len(jobs), self._store_file)
 
     def _compact(self) -> None:
-        """Compact the job store by keeping only the most recent max_jobs."""
         logger.info("Compacting job store %s", self._store_file)
 
-        # Load all jobs
+
         jobs: dict[str, dict[str, Any]] = {}
         try:
             with open(self._store_file, encoding="utf-8") as f:
@@ -133,14 +115,14 @@ class PersistentScanJobStore:
         except OSError:
             return
 
-        # Keep only the most recent max_jobs
+
         sorted_jobs = sorted(
             jobs.values(),
             key=lambda j: j.get("created_at", ""),
             reverse=True,
         )[: self._max_jobs]
 
-        # Write compacted file
+
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
@@ -159,7 +141,6 @@ class PersistentScanJobStore:
         self._jobs = {j["job_id"]: j for j in sorted_jobs}
 
     def _append_to_disk(self, job: dict[str, Any]) -> None:
-        """Append a single job to the JSONL file."""
         self._store_dir.mkdir(parents=True, exist_ok=True)
         try:
             with open(self._store_file, "a", encoding="utf-8") as f:
@@ -168,16 +149,6 @@ class PersistentScanJobStore:
             logger.warning("Failed to persist job %s: %s", job.get("job_id", "?"), e)
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
-        """Add a new job and persist it.
-
-        Args:
-            job_id: Unique job identifier.
-            command: Command that was submitted.
-            actor: Authenticated actor (token prefix).
-
-        Returns:
-            The job dict.
-        """
         self._ensure_loaded()
         job = {
             "job_id": job_id,
@@ -196,15 +167,6 @@ class PersistentScanJobStore:
         return job
 
     def update(self, job_id: str, **kwargs: Any) -> dict[str, Any] | None:
-        """Update a job's fields and persist.
-
-        Args:
-            job_id: Job identifier.
-            **kwargs: Fields to update (status, result, error, etc.)
-
-        Returns:
-            Updated job dict, or None if not found.
-        """
         self._ensure_loaded()
         with self._lock:
             job = self._jobs.get(job_id)
@@ -213,18 +175,16 @@ class PersistentScanJobStore:
             job.update(kwargs)
             if "status" in kwargs and kwargs["status"] in ("completed", "failed"):
                 job["completed_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-            # Re-write the entire file on update (simple but correct)
+
             self._rewrite_disk()
             return job
 
     def get(self, job_id: str) -> dict[str, Any] | None:
-        """Get a job by ID."""
         self._ensure_loaded()
         with self._lock:
             return self._jobs.get(job_id)
 
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
-        """List recent jobs, newest first."""
         self._ensure_loaded()
         with self._lock:
             jobs = sorted(
@@ -235,7 +195,6 @@ class PersistentScanJobStore:
             return jobs[:limit]
 
     def _rewrite_disk(self) -> None:
-        """Rewrite the entire job store file."""
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:

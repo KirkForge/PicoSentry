@@ -1,4 +1,3 @@
-"""Rate limiting middleware with optional SQLite-backed persistence."""
 import logging
 import threading
 import time
@@ -12,13 +11,6 @@ logger = logging.getLogger("picoshogun.RateLimit")
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
-    """Per-IP + per-org rate limiter with optional SQLite persistence.
-
-    When ``persist=True``, rate-limit counters are flushed to the ``rate_limit_counters``
-    table on every request and restored on startup — so limits survive pod restarts.
-    The in-memory path remains the hot path; persistence is a checkpoint, not a
-    per-request DB round-trip for reads.
-    """
 
     def __init__(
         self,
@@ -35,7 +27,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = window
         self.max_buckets = max_buckets
         self.persist = persist
-        # Two separate buckets so org calls don't eat the IP budget
+
         self.ip_requests: dict[str, list] = defaultdict(list)
         self.org_requests: dict[str, list] = defaultdict(list)
         self._lock = threading.Lock()
@@ -46,15 +38,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._init_db()
             self._restore_from_db()
 
-    # ── Persistence helpers ──────────────────────────────────────────
 
     def _get_db(self):
-        """Lazy-load database manager (avoids import-time circular dependency)."""
         from picosentry.serve.database.manager import db
         return db
 
     def _init_db(self):
-        """Create the rate_limit_counters table if it doesn't exist."""
         db = self._get_db()
         db.execute("""
             CREATE TABLE IF NOT EXISTS rate_limit_counters (
@@ -68,7 +57,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         logger.info("Rate limit persistence table initialized")
 
     def _restore_from_db(self):
-        """Load persisted counters from DB on startup."""
         db = self._get_db()
         now = time.time()
         cutoff = now - self.window
@@ -84,7 +72,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             except (ValueError, TypeError):
                 continue
 
-            # Only restore timestamps still within the window
+
             valid = [t for t in timestamps if t > cutoff]
             if valid:
                 if bucket_type == "ip":
@@ -100,7 +88,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         )
 
     def _flush_to_db(self):
-        """Persist current counters to DB (called periodically, not per-request)."""
         if not self.persist:
             return
 
@@ -109,10 +96,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         with self._lock:
             try:
-                # Clear old data
+
                 db.execute("DELETE FROM rate_limit_counters")
 
-                # Flush IP buckets
+
                 for key, timestamps in self.ip_requests.items():
                     if timestamps and timestamps[-1] > now - self.window:
                         db.execute_insert(
@@ -120,7 +107,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                             ("ip", key, ",".join(str(t) for t in timestamps)),
                         )
 
-                # Flush org buckets
+
                 for key, timestamps in self.org_requests.items():
                     if timestamps and timestamps[-1] > now - self.window:
                         db.execute_insert(
@@ -130,10 +117,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             except Exception as exc:
                 logger.warning("Rate limit persistence flush failed: %s", exc)
 
-    # ── Core rate limiting logic ──────────────────────────────────────
 
     def _evict_if_needed(self, now: float):
-        """Periodically evict stale buckets to prevent memory leak."""
         if now - self._last_eviction < 60:
             return
         self._last_eviction = now
@@ -147,7 +132,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         for k in stale_orgs:
             del self.org_requests[k]
 
-        # Hard cap
+
         if len(self.ip_requests) > self.max_buckets:
             sorted_keys = sorted(self.ip_requests, key=lambda k: self.ip_requests[k][-1] if self.ip_requests[k] else 0)
             for k in sorted_keys[:len(self.ip_requests) - self.max_buckets]:
@@ -157,7 +142,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             for k in sorted_keys[:len(self.org_requests) - self.max_buckets]:
                 del self.org_requests[k]
 
-        # Flush to DB during eviction cycle
+
         if self.persist and now - self._last_flush > 60:
             self._last_flush = now
             self._flush_to_db()
@@ -173,7 +158,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         with self._lock:
             self._evict_if_needed(now)
 
-            # ── Per-Org limit (check first — org keys have higher quota) ──
+
             org_api_key = request.headers.get("X-Org-API-Key", "")
             rate_limited = False
             if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith("sk_") or org_api_key.startswith("pk_")):
@@ -193,7 +178,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 else:
                     self.org_requests[org_api_key].append(now)
 
-            # ── Per-IP limit ──
+
             if not rate_limited:
                 ip_count = self._clean_and_count(self.ip_requests, client_ip, now)
                 if ip_count >= self.max_requests_per_ip:

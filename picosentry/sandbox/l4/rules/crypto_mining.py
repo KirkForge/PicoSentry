@@ -1,14 +1,8 @@
-"""L4 crypto mining / resource abuse detector.
-
-Detects cryptocurrency mining activity: connections to mining pools,
-spawning of known mining binaries, suspicious resource consumption
-patterns, and CPU-intensive execution anomalies.
-"""
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Common crypto mining pool ports
+
 MINING_PORTS = {
     3333,   # Default Stratum
     4444,   # Alternative Stratum
@@ -21,7 +15,7 @@ MINING_PORTS = {
     34444,  # Mining pool
 }
 
-# Known mining binary names
+
 MINING_BINARIES = {
     "xmrig",
     "minerd",
@@ -45,7 +39,7 @@ MINING_BINARIES = {
     "progpowminer",
 }
 
-# DNS patterns commonly associated with mining pools
+
 MINING_DNS_PATTERNS = (
     "pool.",
     "stratum.",
@@ -62,10 +56,9 @@ def detect_crypto_mining(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect cryptocurrency mining or resource abuse during sandboxed execution."""
     findings: list[Finding] = []
 
-    # L4-CRYPTO-001: Connections to known mining ports
+
     for call in profile.network_calls:
         if call.port in MINING_PORTS:
             findings.append(
@@ -78,7 +71,7 @@ def detect_crypto_mining(
                 )
             )
 
-    # L4-CRYPTO-002: Spawning known mining binaries
+
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in MINING_BINARIES:
@@ -92,7 +85,7 @@ def detect_crypto_mining(
                 )
             )
 
-    # L4-CRYPTO-003: DNS queries to mining pool domains
+
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
         for pattern in MINING_DNS_PATTERNS:
@@ -107,13 +100,12 @@ def detect_crypto_mining(
                     )
                 )
 
-    # L4-CRYPTO-004: Suspiciously long execution time with network activity
-    # Mining typically runs for extended periods while communicating with pools
+
     has_mining_port = any(call.port in MINING_PORTS for call in profile.network_calls)
     has_network = len(profile.network_calls) > 0
     long_execution = profile.total_runtime_ms > 60000  # > 60s
     if long_execution and has_network and not has_mining_port:
-        # Long execution + network without known ports = suspicious but not definitive
+
         findings.append(
             Finding(
                 rule_id="L4-CRYPTO-004",
@@ -127,7 +119,7 @@ def detect_crypto_mining(
             )
         )
 
-    # L4-CRYPTO-005: Mining config file access
+
     mining_config_patterns = (
         "config.json",  # XMRig config
         "pools.txt",
@@ -148,7 +140,7 @@ def detect_crypto_mining(
                     )
                 )
 
-    # L4-CRYPTO-006: Spawning processes with mining-related arguments
+
     mining_arg_patterns = {"--url=stratum", "--pool", "--algo=cryptonight", "--coin", "--donate-level"}
     for spawn in profile.spawns:
         all_args_str = " ".join(spawn.args).lower()

@@ -1,9 +1,3 @@
-"""L4 Behavioral Analysis Engine.
-
-The `deterministic` parameter controls whether timing fields and random IDs
-are included in findings and stats. When deterministic=True (default), findings
-have empty finding_id and stats omit duration_ms.
-"""
 
 from __future__ import annotations
 
@@ -31,26 +25,18 @@ DetectorRule = Callable[..., list[Finding]]
 
 
 class L4Engine:
-    """
-    Deterministic behavioral analysis engine.
-
-    Register detector rules, then analyze a behavioral profile.
-    """
 
     def __init__(self) -> None:
         self._rules: dict[str, DetectorRule] = {}
 
     def register(self, rule_id: str, rule: DetectorRule) -> L4Engine:
-        """Register a detector rule. Returns self for chaining."""
         self._rules[rule_id] = rule
         return self
 
     def unregister(self, rule_id: str) -> None:
-        """Remove a detector rule."""
         self._rules.pop(rule_id, None)
 
     def list_rules(self) -> list[str]:
-        """Return sorted list of registered rule IDs."""
         return sorted(self._rules.keys())
 
     def analyze(
@@ -60,18 +46,6 @@ class L4Engine:
         rules: Sequence[str] | None = None,
         deterministic: bool = True,
     ) -> AnalysisResult:
-        """
-        Run behavioral analysis on a profile.
-
-        Args:
-            profile: Behavioral profile to analyze.
-            baselines: Optional dict of baselines. None = use shipped defaults.
-            rules: Optional subset of rule IDs to run. None = all rules.
-            deterministic: If True, ensure no timestamps or random IDs in findings.
-
-        Returns:
-            AnalysisResult with findings and overall verdict.
-        """
         if baselines is None:
             baselines = load_all_baselines()
 
@@ -96,7 +70,7 @@ class L4Engine:
 
         for rule_id, rule_fn in selected.items():
             try:
-                # Call with baselines if the function accepts them
+
                 sig = inspect.signature(rule_fn)
                 param_count = len(sig.parameters)
                 if param_count >= 2:
@@ -108,7 +82,7 @@ class L4Engine:
             except Exception:
                 logger.exception("L4 rule %s raised an exception", rule_id)
 
-        # In non-deterministic mode, fill in finding IDs
+
         if not deterministic:
             filled_findings = []
             for f in all_findings:
@@ -126,17 +100,17 @@ class L4Engine:
 
         duration = int(_now_ms() - start_ms)
 
-        # Compute drift
+
         drift_results: list[DriftResult] = []
         best_match = find_best_baseline(profile, baselines)
         if best_match:
             _, drift = best_match
             drift_results.append(drift)
 
-        # Compute verdict
+
         overall = _compute_verdict(all_findings)
 
-        # Stats
+
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}
         for f in all_findings:
@@ -169,7 +143,6 @@ class L4Engine:
 
 
 def create_default_engine() -> L4Engine:
-    """Create L4Engine with all built-in detector rules registered."""
     from picosentry.sandbox.l4.rules.baseline_drift import detect_baseline_drift
     from picosentry.sandbox.l4.rules.container_escape import detect_container_escape
     from picosentry.sandbox.l4.rules.crypto_mining import detect_crypto_mining
@@ -211,13 +184,11 @@ def analyze(
     rules: Sequence[str] | None = None,
     deterministic: bool = True,
 ) -> AnalysisResult:
-    """Run behavioral analysis with the default engine."""
     engine = create_default_engine()
     return engine.analyze(profile, baselines=baselines, rules=rules, deterministic=deterministic)
 
 
 def _compute_verdict(findings: list[Finding]) -> BehavioralVerdict:
-    """Compute overall verdict from findings."""
     if not findings:
         return BehavioralVerdict.CLEAN
     for f in findings:

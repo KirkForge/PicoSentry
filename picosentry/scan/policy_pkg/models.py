@@ -1,11 +1,3 @@
-"""Policy data models and constants.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/scan/policy.py``.
-
-Holds the pure dataclasses (``Waiver``, ``PolicyViolation``, ``PolicyResult``)
-plus module-level constants and the npm-label parser. ``Policy`` itself lives
-in ``engine.py`` because it carries the evaluation methods.
-"""
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -50,24 +42,18 @@ VALID_LICENSES = frozenset(
 
 
 def _parse_npm_label(label: str) -> tuple[str, str]:
-    """Parse an npm package label into (name, version).
-
-    Handles scoped packages: '@scope/name@1.2.3' -> ('@scope/name', '1.2.3')
-    Handles unscoped: 'lodash@4.17.21' -> ('lodash', '4.17.21')
-    Handles name-only: 'lodash' -> ('lodash', '')
-    """
     if label.startswith("@"):
-        # Scoped package: @scope/name@version or @scope/name
-        # Find the last @ which separates name from version
+
+
         last_at = label.rfind("@")
         if last_at == 0:
-            # Just @scope/name with no version
+
             return (label, "")
         name = label[:last_at]
         version = label[last_at + 1 :]
         return (name, version)
     else:
-        # Unscoped: name@version or name
+
         parts = label.split("@", 1)
         if len(parts) == 2:
             return (parts[0], parts[1])
@@ -76,12 +62,6 @@ def _parse_npm_label(label: str) -> tuple[str, str]:
 
 @dataclass
 class Waiver:
-    """A time-bound exception to a policy rule.
-
-    Enterprise teams can waive specific findings with an expiration date,
-    owner, reason, and optional ticket link. Expired waivers are NOT honored
-    and findings will re-appear.
-    """
 
     id: str
     rule_id: str
@@ -92,7 +72,6 @@ class Waiver:
     ticket: str = ""  # Jira/GitHub issue link
 
     def is_expired(self) -> bool:
-        """Check if this waiver has expired."""
         try:
             expiry = datetime.fromisoformat(self.expires)
             return datetime.now(timezone.utc) > expiry.astimezone(timezone.utc)
@@ -100,15 +79,14 @@ class Waiver:
             return True  # Invalid date = expired (fail-safe)
 
     def matches(self, rule_id: str, package: str) -> bool:
-        """Check if this waiver applies to a finding."""
         if self.rule_id != rule_id:
             return False
-        # Parse npm package labels correctly (handles scoped packages)
+
         pkg_name, _ = _parse_npm_label(package)
         w_pkg_name, _ = _parse_npm_label(self.package)
         if w_pkg_name == "*" or w_pkg_name == pkg_name:
             return True
-        # Also try exact match for name@version
+
         return self.package == package
 
     def to_dict(self) -> dict:
@@ -137,7 +115,6 @@ class Waiver:
 
 @dataclass
 class PolicyViolation:
-    """A policy rule that was violated during a scan."""
 
     violation_type: str  # "severity", "license", "deny_package", "requirement"
     severity: str = "ERROR"
@@ -155,7 +132,6 @@ class PolicyViolation:
 
 @dataclass
 class PolicyResult:
-    """Result of applying policy to a scan."""
 
     passed: bool = True
     violations: list[PolicyViolation] = field(default_factory=list)

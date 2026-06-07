@@ -1,4 +1,3 @@
-"""L3 Execution Sandbox — deterministic command execution under policy."""
 
 from picosentry.sandbox.l3.engine import SandboxEngine, sandbox_run
 from picosentry.sandbox.l3.models import Policy, SandboxEvent, SandboxResult

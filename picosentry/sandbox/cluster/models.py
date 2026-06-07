@@ -1,10 +1,3 @@
-"""PicoDome cluster data models and constants.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cluster/manager.py``.
-
-Contains the shared dataclasses and the ``NodeStatus`` enum. State backends
-live in :mod:`picosentry.sandbox.cluster.backends`.
-"""
 from __future__ import annotations
 
 import os
@@ -12,7 +5,7 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
-# Cluster protocol constants (also re-exported from the shim)
+
 DEFAULT_HEARTBEAT_INTERVAL = 10  # seconds
 DEFAULT_HEARTBEAT_TIMEOUT = 30  # seconds
 DEFAULT_MAX_MISSED_HEARTBEATS = 3
@@ -20,7 +13,6 @@ DEFAULT_CLUSTER_PORT = 8444  # cluster communication port (distinct from daemon 
 
 
 class NodeStatus(str, Enum):
-    """Cluster node status."""
 
     ONLINE = "online"
     OFFLINE = "offline"
@@ -29,11 +21,6 @@ class NodeStatus(str, Enum):
 
 @dataclass
 class ClusterNode:
-    """Represents a node in the PicoDome cluster.
-
-    Deterministic: comparison is by (load, node_id) for consistent
-    least-loaded assignment.
-    """
 
     node_id: str
     address: str
@@ -69,11 +56,6 @@ class ClusterNode:
 
     @classmethod
     def generate_id(cls) -> str:
-        """Generate a deterministic-style node ID from hostname + pid.
-
-        Not truly deterministic (depends on runtime), but stable within
-        a single process session for testing.
-        """
         import socket
 
         hostname = socket.gethostname()
@@ -83,7 +65,6 @@ class ClusterNode:
 
 @dataclass
 class ScanRequest:
-    """A scan request to be assigned to a cluster node."""
 
     scan_id: str
     command: list[str]

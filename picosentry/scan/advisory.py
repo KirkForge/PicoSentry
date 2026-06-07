@@ -1,17 +1,3 @@
-"""
-Advisory database integration for PicoSentry.
-
-Loads OSV-format vulnerability data from a local directory and matches
-installed packages against known CVEs, GHSA advisories, and npm advisories.
-
-Enterprise teams can mirror the OSV database locally for air-gapped scanning:
-    gsutil cp gs://osv-vulnerabilities/npm/all.zip .
-    unzip all.zip -d advisories/
-    picosentry scan . --advisory-db advisories/
-
-Offline-only. No network calls at scan time.
-Supports: OSV JSON format, GitHub Advisory Database (GHSA), npm advisory format.
-"""
 
 from __future__ import annotations
 
@@ -23,15 +9,13 @@ from pathlib import Path
 
 logger = logging.getLogger("picosentry.advisory")
 
-# Semver parsing: extract major.minor.patch and pre-release from a version string.
-# Pre-release versions (e.g. 1.2.3-alpha) sort lower than their release counterpart.
+
 _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:[-.]([a-zA-Z0-9._-]+))?")
 _PRE_RELEASE_RE = re.compile(r"^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$")
 
 
 @dataclass
 class Advisory:
-    """A single security advisory from an OSV-format database."""
 
     id: str = ""  # CVE-2024-xxxx, GHSA-xxxx-xxxx, etc.
     package_name: str = ""  # npm package name
@@ -61,17 +45,13 @@ class Advisory:
 
     @staticmethod
     def from_osv(data: dict) -> Advisory | None:
-        """Parse an OSV-format advisory entry.
-
-        OSV schema: https://ossf.github.io/osv-schema/
-        """
         adv_id = data.get("id", "")
         summary = data.get("summary", "")
         details = data.get("details", "")
         if not summary and details:
             summary = details[:200]
 
-        # Extract package name from "affected" array
+
         pkg_name = ""
         affected_versions: list[str] = []
         affected_ranges: list[tuple[str, str, bool]] = []
@@ -93,13 +73,13 @@ class Advisory:
                         last_affected = event["last_affected"]
                 if introduced:
                     if fixed:
-                        # fixed is exclusive upper bound (< fixed)
+
                         affected_ranges.append((introduced, fixed, False))
                     elif last_affected:
-                        # last_affected is inclusive upper bound (<= last_affected)
+
                         affected_ranges.append((introduced, last_affected, True))
                     else:
-                        # No upper bound — all versions >= introduced are affected
+
                         affected_ranges.append((introduced, "", False))
             for ver in affected.get("versions", []):
                 if ver not in affected_versions:
@@ -108,7 +88,7 @@ class Advisory:
         if not pkg_name:
             return None
 
-        # Determine severity from database_specific or aliases
+
         severity = "MEDIUM"
         db_specific = data.get("database_specific", {})
         if isinstance(db_specific, dict):
@@ -116,7 +96,7 @@ class Advisory:
             if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
                 severity = sev
 
-        # Extract fixed version
+
         fixed_version = ""
         for affected in data.get("affected", []):
             for r in affected.get("ranges", []):
@@ -142,7 +122,6 @@ class Advisory:
 
     @staticmethod
     def from_ghsa(data: dict) -> Advisory | None:
-        """Parse a GitHub Advisory Database (GHSA) entry."""
         adv_id = data.get("ghsa_id", data.get("id", ""))
         return Advisory(
             id=adv_id,
@@ -158,17 +137,6 @@ class Advisory:
 
 
 class AdvisoryDB:
-    """Offline advisory database loaded from local OSV-format files.
-
-    Directory structure expected:
-        advisories/
-          npm/
-            CVE-2024-xxxx.json
-            GHSA-xxxx-xxxx.json
-          or flat .json files
-
-    Each file is a single OSV-format advisory entry.
-    """
 
     def __init__(self, db_dir: Path | None = None) -> None:
         self._advisories: dict[str, list[Advisory]] = {}  # pkg_name → advisories
@@ -179,10 +147,6 @@ class AdvisoryDB:
             self.load(db_dir)
 
     def load(self, db_dir: Path) -> int:
-        """Load all advisory files from a directory.
-
-        Returns number of advisories loaded.
-        """
         import time
         count = 0
         for json_file in sorted(db_dir.rglob("*.json")):
@@ -194,7 +158,7 @@ class AdvisoryDB:
                 logger.debug("Failed to read advisory file: %s", json_file)
                 continue
 
-            # Support both single advisory and array of advisories
+
             entries = data if isinstance(data, list) else [data]
 
             for entry in entries:
@@ -210,12 +174,6 @@ class AdvisoryDB:
         return count
 
     def check(self, pkg_name: str, pkg_version: str) -> list[Advisory]:
-        """Check a package against known advisories.
-
-        Returns list of advisories affecting this package.
-        Simple version matching: checks if version is in affected range
-        or below the fixed version.
-        """
         advisories = self._advisories.get(pkg_name, [])
         if not advisories:
             return []
@@ -228,17 +186,11 @@ class AdvisoryDB:
         return results
 
     def _version_affected(self, version: str, adv: Advisory) -> bool:
-        """Check if a version is affected by an advisory.
-
-        Checks structured range intervals first (with AND logic within each
-        range), then falls back to fixed_version heuristic and explicit
-        affected_versions list for backward compatibility.
-        """
         v_tuple = self._parse_version(version)
         if v_tuple is None:
             return False  # Can't parse, assume not affected (conservative)
 
-        # Check structured range intervals (AND logic within each range)
+
         for introduced, upper, upper_inclusive in adv.affected_ranges:
             iv = self._parse_version(introduced)
             if iv is None:
@@ -256,40 +208,27 @@ class AdvisoryDB:
                             continue
             return True
 
-        # Fallback: if fixed version is set and version < fixed_version,
-        # the package is affected (used by GHSA and other sources without ranges).
-        # Skip this heuristic when structured ranges are available, since
-        # ranges encode both lower and upper bounds correctly.
+
         if not adv.affected_ranges:
             fv_tuple = self._parse_version(adv.fixed_version)
             if fv_tuple and v_tuple < fv_tuple:
                 return True
 
-        # Check explicit affected version matches
+
         return any(self._version_in_range(v_tuple, av) for av in adv.affected_versions)
 
     @staticmethod
     def _parse_version(version_str: str) -> tuple | None:
-        """Parse a semver-ish string into a comparable tuple.
-
-        Returns (major, minor, patch, pre_release) where pre_release is
-        a tuple of identifiers. Pre-release versions sort lower than the
-        release: 1.2.3-alpha < 1.2.3, 1.2.3-alpha.1 < 1.2.3-alpha.2.
-        A release version (no pre-release tag) uses an empty tuple for
-        pre_release, which sorts higher than any pre-release tuple per
-        semver spec (§11).
-        """
         if not version_str:
             return None
         m = _SEMVER_RE.search(version_str)
         if m:
             pre = m.group(4) or ""
-            # Strip build metadata (+build.xxx) that follows pre-release
+
             if "+" in pre:
                 pre = pre[: pre.index("+")]
-            # Parse pre-release identifiers: "alpha.1" → (0, "alpha", 1)
-            # Pre-release versions sort lower than release (0, ...) < (1,)
-            # per semver spec §11.
+
+
             if pre:
                 parts: list[int | str] = []
                 for ident in pre.split("."):
@@ -305,7 +244,6 @@ class AdvisoryDB:
 
     @staticmethod
     def _version_in_range(v_tuple: tuple, range_str: str) -> bool:
-        """Check if version falls within a simple range like '>=1.0.0' or '<2.0.0'."""
         range_str = range_str.strip()
         if range_str.startswith(">="):
             rv = AdvisoryDB._parse_version(range_str[2:])
@@ -319,7 +257,7 @@ class AdvisoryDB:
         if range_str.startswith("<"):
             rv = AdvisoryDB._parse_version(range_str[1:])
             return rv is not None and v_tuple < rv
-        # Exact version match
+
         rv = AdvisoryDB._parse_version(range_str)
         return rv is not None and v_tuple == rv
 
@@ -337,31 +275,13 @@ class AdvisoryDB:
 
     @property
     def is_stale(self) -> bool:
-        """Check if the advisory database is stale (loaded > 24h ago).
-
-        Returns True if the database was never loaded or loaded more than
-        24 hours ago, indicating it should be refreshed.
-        """
         import time
         if self._loaded_at is None:
             return True
         return (time.monotonic() - self._loaded_at) > 86400  # 24 hours
 
 
-# ── Bundled advisory snapshot ─────────────────────────────────────────
-
-
 def load_bundled_advisories() -> AdvisoryDB:
-    """Load the bundled advisory snapshot that ships with PicoSentry.
-
-    The snapshot contains a curated set of critical/high severity
-    npm advisories for air-gapped and offline environments.
-    For the full advisory database, use `picosentry advisories fetch`
-    or run `scripts/download-advisories.sh`.
-
-    Returns:
-        AdvisoryDB loaded with bundled advisories.
-    """
     bundled_path = Path(__file__).parent / "corpus" / "advisories" / "npm-critical-advisories.json"
     db = AdvisoryDB()
     if not bundled_path.is_file():
@@ -396,13 +316,6 @@ def load_bundled_advisories() -> AdvisoryDB:
 
 
 def default_advisory_dir() -> Path:
-    """Return default advisory database directory path.
-
-    Preference order:
-        1. $PICOSENTRY_ADVISORY_DIR env var (canonical)
-        2. $PICOADVISORY_DIR env var (backward compat)
-        3. ~/.local/share/picosentry/advisories/
-    """
     import os
 
     explicit = os.environ.get("PICOSENTRY_ADVISORY_DIR") or os.environ.get("PICOADVISORY_DIR")

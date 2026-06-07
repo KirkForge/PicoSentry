@@ -1,17 +1,9 @@
-"""Abstract state backend for cluster shared state.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cluster/manager.py``.
-
-Defines the CRUD contract that :class:`MemoryStateBackend` and
-:class:`SQLiteStateBackend` implement.
-"""
 from __future__ import annotations
 
 from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class StateBackend:
-    """Abstract base class for cluster state backends."""
 
     def save_node(self, node: ClusterNode) -> None:
         raise NotImplementedError

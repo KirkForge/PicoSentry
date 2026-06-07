@@ -1,12 +1,3 @@
-"""
-L2-PYPI-POST-001: PyPI post-install script detection.
-
-Flags packages with suspicious setup.py / pyproject.toml build commands,
-post-install hooks, or setuptools-script magic that executes code
-during installation. Python's equivalent of npm's postinstall scripts.
-
-Pure function: (target_path, corpus_dir) -> List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -20,8 +11,7 @@ logger = logging.getLogger("picosentry.pypi_post_install")
 
 __all__ = ["detect_pypi_post_install"]
 
-# Python equivalent of dangerous npm script keys
-# Commands that indicate network access or code execution
+
 NETWORK_PATTERNS = (
     "curl",
     "wget",
@@ -34,7 +24,7 @@ NETWORK_PATTERNS = (
     "ftp://",
 )
 
-# Patterns indicating code execution capability
+
 EXEC_PATTERNS = (
     "subprocess.call",
     "subprocess.run",
@@ -57,7 +47,7 @@ EXEC_PATTERNS = (
     "compile(",
 )
 
-# Patterns that read credentials or sensitive files
+
 CREDENTIAL_PATTERNS = (
     ".env",
     ".pypirc",
@@ -69,7 +59,6 @@ CREDENTIAL_PATTERNS = (
 
 
 def _scan_setup_py(setup_path: Path) -> list[Finding]:
-    """Scan a setup.py file for suspicious build-time code execution."""
     findings: list[Finding] = []
 
     if not setup_path.is_file():
@@ -80,7 +69,7 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-    # Look for suspicious patterns in setup.py
+
     has_suspicious_code = False
     risk_tags: list[str] = []
     evidence_lines: list[str] = []
@@ -89,7 +78,7 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
     for i, line in enumerate(lines):
         stripped = line.strip()
 
-        # Skip comments and docstrings
+
         if stripped.startswith("#") or stripped.startswith(('"""', "'''", '"', "'")):
             continue
 
@@ -146,7 +135,6 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
 
 
 def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
-    """Scan pyproject.toml for suspicious build system commands."""
     findings: list[Finding] = []
 
     if not pyproject_path.is_file():
@@ -156,17 +144,17 @@ def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
     if not project_data:
         return findings
 
-    # Check build-system
+
     build_system = project_data.get("build-system", {})
     build_backend = build_system.get("build-backend", "")
 
     if "setuptools" in build_backend:
-        # setuptools with setup.py is the traditional build path
+
         setup_py = pyproject_path.parent / "setup.py"
         if setup_py.is_file():
             findings.extend(_scan_setup_py(setup_py))
 
-    # Check for poetry build scripts
+
     poetry_tool = project_data.get("tool", {}).get("poetry", {})
     if "scripts" in poetry_tool:
         scripts = poetry_tool["scripts"]
@@ -199,17 +187,12 @@ def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
 
 
 def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect PyPI packages with suspicious install-time code execution.
-    Scans setup.py and pyproject.toml for malicious build scripts.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
     if not detect_pypi_project(target):
         return findings
 
-    # Scan root project
+
     setup_py = target / "setup.py"
     if setup_py.is_file():
         findings.extend(_scan_setup_py(setup_py))
@@ -218,12 +201,12 @@ def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
     if pyproject.is_file():
         findings.extend(_scan_pyproject_build(pyproject))
 
-    # Scan installed site-packages for malicious setup files
+
     for meta_path, metadata in iter_site_packages(target):
         metadata.get("name", "") if metadata else meta_path.parent.name
         pkg_dir = meta_path.parent
 
-        # Check for setup.py in editable installs (egg-link)
+
         setup_py_path = pkg_dir / "setup.py"
         if setup_py_path.is_file():
             findings.extend(_scan_setup_py(setup_py_path))

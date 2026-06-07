@@ -1,11 +1,3 @@
-"""Health and readiness checks for PicoDome daemon mode.
-
-Provides both programmatic health checks and a CLI-accessible
-health verification command.
-
-Health = process is running, basic invariants hold.
-Ready = daemon can accept and process scan jobs.
-"""
 
 from __future__ import annotations
 
@@ -22,7 +14,6 @@ logger = logging.getLogger("picodome.health")
 
 @dataclass(frozen=True)
 class HealthStatus:
-    """Result of a health or readiness check."""
 
     healthy: bool
     component: str
@@ -39,11 +30,10 @@ class HealthStatus:
 
 
 def check_health() -> list[HealthStatus]:
-    """Run all health checks. Returns list of check results."""
     checks: list[HealthStatus] = []
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    # 1. Version check
+
     checks.append(
         HealthStatus(
             healthy=True,
@@ -53,7 +43,7 @@ def check_health() -> list[HealthStatus]:
         )
     )
 
-    # 2. Backend check
+
     try:
         backend = get_backend()
         available = backend.is_available()
@@ -75,7 +65,7 @@ def check_health() -> list[HealthStatus]:
             )
         )
 
-    # 3. Audit log check
+
     try:
         from picosentry.sandbox.audit import get_audit_logger
 
@@ -100,7 +90,7 @@ def check_health() -> list[HealthStatus]:
             )
         )
 
-    # 4. Retention / storage check
+
     try:
         from picosentry.sandbox.retention import get_retention_manager
 
@@ -125,7 +115,7 @@ def check_health() -> list[HealthStatus]:
             )
         )
 
-    # 5. Store backend check (SQLite or JSONL)
+
     try:
         import os
 
@@ -166,7 +156,6 @@ def check_health() -> list[HealthStatus]:
 
 
 def check_readiness() -> HealthStatus:
-    """Check if the daemon is ready to process scan jobs."""
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
     try:

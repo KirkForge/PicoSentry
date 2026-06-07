@@ -1,12 +1,3 @@
-"""
-Shared typosquatting detection engine.
-
-Consolidated from 7 per-ecosystem files into one shared algorithm.
-Each ecosystem provides data (corpus, known-legitimate list, parser functions)
-via an ECOSYSTEMS registry.
-
-Pure function: (target_path, corpus_dir) -> List[Finding]
-"""
 from __future__ import annotations
 
 import logging
@@ -46,36 +37,28 @@ logger = logging.getLogger("picosentry.typosquat")
 __all__ = ["detect_all_typosquat"]
 
 
-# ── Ecosystem configuration ────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class TyposquatConfig:
-    """Configuration for one ecosystem's typosquatting detection."""
 
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
     builtin_corpus: list[str]
     known_legitimate: frozenset[str] = field(default_factory=frozenset)
-    # Go uses get_module_short_name() to extract the last path segment
+
     use_short_name: bool = False
-    # Source file to reference in findings (e.g. "Cargo.toml", "Gemfile")
+
     manifest_file: str = ""
-    # Dep name collection function: (target) -> set[str]
+
     collect_deps: Callable[[Path], set[str]] | None = None
-    # Manifest file needs dynamic detection for some ecosystems
+
     file_detection_fn: Callable[[Path], str] | None = None
 
     def __hash__(self):
         return hash(self.ecosystem)
 
 
-# ── Short-name extraction for Go ──────────────────────────────────────────
-
-
 def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: TyposquatConfig) -> list[Finding]:
-    """Standard typosquat detection for non-npm ecosystems."""
     findings: list[Finding] = []
 
     if not config.detect_project(target):
@@ -97,7 +80,7 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         if not compare_name or compare_name in config.known_legitimate:
             continue
 
-        # Skip if the name is itself a known popular package (it's the real thing)
+
         if compare_name in corpus:
             continue
 
@@ -148,9 +131,6 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
     return findings
 
 
-# ── Per-ecosystem dep collection functions ────────────────────────────────
-
-
 def _collect_go_deps(target: Path) -> set[str]:
     deps: set[str] = set()
     go_mod_data = parse_go_mod(target)
@@ -173,7 +153,7 @@ def _collect_cargo_deps(target: Path) -> set[str]:
     cargo_data = parse_cargo_toml(target)
     if cargo_data:
         deps.update(get_cargo_dep_names(cargo_data))
-        # Check root crate name (the crate itself could be a typosquat)
+
         pkg_name = cargo_data.get("package_name", "")
         if isinstance(pkg_name, str) and pkg_name:
             deps.add(pkg_name)
@@ -186,7 +166,7 @@ def _collect_pypi_deps(target: Path) -> set[str]:
     if project_data:
         project_section = project_data.get("project", project_data)
         deps.update(get_python_dep_names(project_section))
-        # Check root package name (the project itself could be a typosquat)
+
         pkg_name = project_section.get("name", "")
         if isinstance(pkg_name, str) and pkg_name:
             deps.add(pkg_name)
@@ -205,7 +185,7 @@ def _collect_maven_deps(target: Path) -> set[str]:
     pom_data = parse_pom_xml(target)
     if pom_data:
         deps.update(get_maven_dep_identifiers(pom_data))
-        # Check root artifactId (the project itself could be a typosquat)
+
         artifact_id = pom_data.get("artifact_id", "")
         if isinstance(artifact_id, str) and artifact_id:
             deps.add(artifact_id)
@@ -233,9 +213,6 @@ def _collect_rubygems_deps(target: Path) -> set[str]:
     return set()
 
 
-# ── Dynamic finding-file detection ────────────────────────────────────────
-
-
 def _maven_finding_file(target: Path) -> str:
     pom = target / "pom.xml"
     if pom.exists():
@@ -247,7 +224,6 @@ def _maven_finding_file(target: Path) -> str:
 
 
 def _nuget_finding_file(target: Path) -> str:
-    """Find the first .csproj or packages.config file in target."""
     for f in sorted(target.iterdir()):
         if f.suffix == ".csproj":
             return str(f)
@@ -260,9 +236,6 @@ def _pypi_finding_file(target: Path) -> str:
     if (target / "pyproject.toml").exists():
         return str(target / "pyproject.toml")
     return str(target)
-
-
-# ── Ecosystem configs ──────────────────────────────────────────────────────
 
 
 _GO_CONFIG = TyposquatConfig(
@@ -353,17 +326,8 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
     collect_deps=_collect_rubygems_deps,
 )
 
-# ── npm is special — keep its unique logic separate ────────────────────────
-
 
 def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
-    """npm typosquat detection.
-
-    npm is special because:
-    - It checks the package's own name (the project itself could be a typosquat)
-    - It walks node_modules to find transitive dependencies
-    - It uses scoped @org/package names
-    """
     findings: list[Finding] = []
     corpus = load_corpus_for_ecosystem(corpus_dir, "npm", BUILTIN_TOP_100)
 
@@ -380,7 +344,7 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     if not pkg:
         return findings
 
-    # Check the package's own name first
+
     pkg_name = pkg.get("name", "")
     if pkg_name and not pkg_name.startswith("@") and pkg_name not in corpus and pkg_name not in KNOWN_LEGITIMATE:
         close_matches = check_typosquat(pkg_name, corpus)
@@ -413,7 +377,7 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
 
     all_deps = get_dep_names(pkg)
 
-    # Also walk node_modules for transitive deps
+
     nm = target / "node_modules"
     if nm.is_dir():
         for child in sorted(nm.iterdir()):
@@ -424,7 +388,7 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                 dep_data = load_package_json(pkg_json)
                 if dep_data:
                     all_deps.update(get_dep_names(dep_data))
-            # Scoped packages
+
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):
                     if not scoped_child.is_dir():
@@ -469,24 +433,13 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     return findings
 
 
-# ── Main detection engine ─────────────────────────────────────────────────
-
-
 def detect_all_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect typosquatting for all 7 ecosystems.
-
-    For each detected ecosystem, checks if dependency names are within
-    edit distance <=2 of popular packages in that ecosystem's corpus.
-
-    No network calls. Pure filesystem + corpus scan.
-    """
     findings: list[Finding] = []
 
-    # npm — special logic (own-name check + node_modules walk)
+
     findings.extend(_detect_npm_typosquat(target, corpus_dir))
 
-    # Standard ecosystems — data-driven
+
     for config in (_GO_CONFIG, _CARGO_CONFIG, _PYPI_CONFIG, _MAVEN_CONFIG, _NUGET_CONFIG, _RUBYGEMS_CONFIG):
         findings.extend(_detect_all_typosquat_standard(target, corpus_dir, config))
 

@@ -1,13 +1,3 @@
-"""GitHub Actions formatter — SARIF file + markdown summary.
-
-Outputs SARIF v2.1.0 to a file (for Code Scanning upload) and prints
-a markdown summary to stdout (for GitHub Actions step summary).
-
-If $GITHUB_STEP_SUMMARY is set, the summary is also appended to that file.
-
-Deterministic: same input = same SARIF output. Summary includes scan metadata
-but is not byte-identical across runs (timestamps in GHA are runtime).
-"""
 
 from __future__ import annotations
 
@@ -20,7 +10,7 @@ from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
 
-# Dome-themed severity labels for markdown output
+
 _DOME_LABELS = {
     Severity.CRITICAL: "HARD PINCH 🛡️",
     Severity.HIGH: "HARD PINCH 🛡️",
@@ -34,19 +24,7 @@ def format_github(
     result: SandboxResult | AnalysisResult,
     sarif_path: str = "picodome-results.sarif",
 ) -> str:
-    """
-    Format a result for GitHub Actions.
 
-    Writes SARIF to sarif_path and returns a markdown summary string.
-
-    Args:
-        result: SandboxResult or AnalysisResult to format.
-        sarif_path: Path to write SARIF file (default: picodome-results.sarif).
-
-    Returns:
-        Markdown summary string for GitHub Actions step summary.
-    """
-    # Write SARIF file
     sarif_content = format_sarif(result)
     sarif_file = Path(sarif_path)
     sarif_file.write_text(sarif_content, encoding="utf-8")
@@ -57,11 +35,10 @@ def format_github(
 
 
 def _l3_github(result: SandboxResult, sarif_path: str) -> str:
-    """Format L3 sandbox result as GitHub markdown summary."""
     lines = []
     lines.append("## 🛡️ PicoDome — L3 Sandbox Results\n")
 
-    # Summary
+
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "ALLOW" else "🚫"
     lines.append(f"**Verdict: {icon} {verdict}**\n")
@@ -90,11 +67,10 @@ def _l3_github(result: SandboxResult, sarif_path: str) -> str:
 
 
 def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
-    """Format L4 analysis result as GitHub markdown summary."""
     lines = []
     lines.append("## 🛡️ PicoDome — L4 Behavioral Analysis\n")
 
-    # Summary
+
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "CLEAN" else ("⚠️" if verdict == "SUSPICIOUS" else "🚫")
 
@@ -103,7 +79,7 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
     else:
         lines.append(f"**{icon} {verdict}** — {len(result.findings)} finding(s)\n")
 
-        # Severity breakdown
+
         lines.append("| Severity | Count | Label |")
         lines.append("|----------|-------|-------|")
         for sev in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO):
@@ -113,7 +89,7 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
                 lines.append(f"| {sev.value} | {count} | {label} |")
         lines.append("")
 
-        # Findings table (top 50)
+
         lines.append("### Findings\n")
         lines.append("| Rule | Severity | Message | Location |")
         lines.append("|------|----------|---------|----------|")
@@ -123,7 +99,7 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more finding(s)\n")
 
-    # Metadata footer
+
     lines.append("\n---\n")
     lines.append("| Field | Value |")
     lines.append("|-------|-------|")
@@ -138,7 +114,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
 
 
 def _append_github_summary(summary: str) -> None:
-    """Append summary to GITHUB_STEP_SUMMARY if available."""
     gh_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_summary:
         try:

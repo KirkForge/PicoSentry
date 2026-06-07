@@ -1,11 +1,3 @@
-"""
-Shared advisory database vulnerability detection engine.
-
-Consolidated from 7 per-ecosystem files into one shared algorithm.
-Each ecosystem provides a package collector function and metadata.
-
-Pure function: (target_path, corpus_dir, advisory_db_path) -> List[Finding]
-"""
 from __future__ import annotations
 
 import contextlib
@@ -29,21 +21,11 @@ logger = logging.getLogger("picosentry.advisory_check")
 
 __all__ = ["detect_all_advisory_vulnerabilities"]
 
-# Module-level advisory DB cache — shared by all ecosystems
+
 _advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
 
 
-# ── Shared advisory DB loader (replaces 7 copies) ──────────────────────────
-
-
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
-    """Get an AdvisoryDB instance, using a module-level cache.
-
-    Search order:
-        1. advisory_db_path — explicitly provided (CLI --advisory-db / config)
-        2. corpus_dir/advisories/ — if it exists and has content
-        3. $PICOADVISORY_DIR env var (via default_advisory_dir())
-    """
     import time
     cache_key = (advisory_db_path or "", str(corpus_dir))
     if cache_key in _advisory_db_cache:
@@ -52,7 +34,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
             logger.warning("Advisory DB is stale (loaded > 24h ago). Run 'picosentry advisories fetch' to refresh.")
         return db
 
-    # 1. Explicit path takes priority
+
     if advisory_db_path:
         path = Path(advisory_db_path)
         db = AdvisoryDB(path)
@@ -63,7 +45,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
 
-    # 2. Corpus-adjacent advisories
+
     candidate = corpus_dir / "advisories"
     if candidate.is_dir():
         db = AdvisoryDB(candidate)
@@ -72,7 +54,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
             _advisory_db_cache[cache_key] = (db, time.time())
             return db
 
-    # 3. Default location ($PICOADVISORY_DIR / ~/.local/share/picosentry/advisories)
+
     default_dir = default_advisory_dir()
     if default_dir.is_dir():
         db = AdvisoryDB(default_dir)
@@ -84,12 +66,8 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
     return None
 
 
-# ── Ecosystem configuration ────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class AdvisoryConfig:
-    """Configuration for one ecosystem's advisory check."""
 
     ecosystem: str
     rule_id: str
@@ -100,11 +78,7 @@ class AdvisoryConfig:
         return hash(self.ecosystem)
 
 
-# ── Per-ecosystem package collection ──────────────────────────────────────
-
-
 def _collect_npm_packages(target: Path) -> list[tuple[str, str, str, Path]]:
-    """Collect (name, version, label, source_path) for npm packages."""
     packages: list[tuple[str, str, str, Path]] = []
 
     root_pkg = target / "package.json"
@@ -189,14 +163,14 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
         deps = project_section.get("dependencies", [])
         if isinstance(deps, list):
             for dep in deps:
-                # Parse "name>=1.0" style strings
+
                 if isinstance(dep, str) and dep:
                     name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
                     if name and (name, "unknown") not in seen:
                         seen.add((name, "unknown"))
                         packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))
 
-    # Lock files
+
     for lock_parser, lock_file in [(parse_poetry_lock, "poetry.lock"), (parse_requirements_txt, "requirements.txt"), (parse_uv_lock, "uv.lock")]:
         lock_path = target / lock_file
         if lock_path.exists():
@@ -219,7 +193,7 @@ def _collect_maven_packages(target: Path) -> list[tuple[str, str, str, Path]]:
     if pom_data:
         for dep in pom_data.get("dependencies", []):
             group_id, artifact_id, version, _scope = dep if len(dep) == 4 else (dep[0], dep[1], dep[2], "")
-            # OSV convention: Maven packages are keyed by artifact_id only.
+
             pkg_key = artifact_id
             if pkg_key and version and (pkg_key, version) not in seen:
                 seen.add((pkg_key, version))
@@ -256,7 +230,7 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
 
     gemfile_data = parse_gemfile(target)
     if gemfile_data:
-        # parse_gemfile returns dependencies as a list of (name, version, source_type) tuples
+
         for entry in gemfile_data.get("dependencies", []):
             if not isinstance(entry, tuple) or len(entry) < 2:
                 continue
@@ -277,18 +251,11 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
     return packages
 
 
-# ── Main detection engine ──────────────────────────────────────────────────
-
-
 def _check_packages(
     packages: list[tuple[str, str, str, Path]],
     db: AdvisoryDB,
     config: AdvisoryConfig,
 ) -> list[Finding]:
-    """Check a list of (name, version, label, source_path) against advisory DB.
-
-    Shared finding construction for all ecosystems.
-    """
     findings: list[Finding] = []
 
     for pkg_name, pkg_version, pkg_label, source_path in packages:
@@ -321,8 +288,6 @@ def _check_packages(
     return findings
 
 
-# ── Ecosystem configs ──────────────────────────────────────────────────────
-
 _ECOSYSTEMS: list[AdvisoryConfig] = [
     AdvisoryConfig(ecosystem="npm", rule_id="L2-ADV-001", detect_project=lambda p: (p / "package.json").exists(), collect_packages=_collect_npm_packages),
     AdvisoryConfig(ecosystem="go", rule_id="L2-GO-ADV-001", detect_project=detect_go_project, collect_packages=_collect_go_packages),
@@ -337,12 +302,6 @@ _ECOSYSTEMS: list[AdvisoryConfig] = [
 def detect_all_advisory_vulnerabilities(
     target: Path, corpus_dir: Path, advisory_db_path: str | None = None
 ) -> list[Finding]:
-    """
-    Detect packages with known security advisories for all 7 ecosystems.
-
-    Loads advisory database from local files. No network calls.
-    Without an advisory DB, returns empty list.
-    """
     findings: list[Finding] = []
 
     db = _get_advisory_db(corpus_dir, advisory_db_path)

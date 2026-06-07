@@ -1,7 +1,3 @@
-"""`policy-versions` subcommand — manage versioned policies.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -22,7 +18,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage versioned policies."""
     from picosentry.sandbox.policy_versioned import get_policy_store
 
     store = get_policy_store()

@@ -1,14 +1,3 @@
-"""Redis-backed scan job store — horizontal scale shared state.
-
-When running multiple PicoDome replicas behind a load balancer,
-in-memory job state is not shared. This Redis-backed store
-provides shared state accessible from all replicas.
-
-Configuration:
-  PICODOME_REDIS_URL — Redis connection URL (default: redis://localhost:6379/0)
-
-Falls back to PersistentScanJobStore when Redis is unavailable.
-"""
 
 from __future__ import annotations
 
@@ -24,7 +13,7 @@ _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 _JOB_KEY_PREFIX = "picodome:job:"
 _JOB_LIST_KEY = "picodome:jobs:recent"
 
-# Allowed columns for update() — prevents arbitrary field injection
+
 ALLOWED_COLUMNS = frozenset(
     {
         "job_id",
@@ -41,17 +30,6 @@ ALLOWED_COLUMNS = frozenset(
 
 
 class RedisScanJobStore:
-    """Redis-backed scan job store for horizontal scaling.
-
-    Stores each job as a Redis hash under ``picodome:job:<job_id>``.
-    Maintains a sorted set of recent job IDs for list_recent queries.
-
-    Thread-safe: Redis connections are thread-safe by default.
-
-    Args:
-        redis_url: Redis connection URL.
-        max_jobs: Maximum jobs to keep in the recent list.
-    """
 
     def __init__(
         self,
@@ -64,7 +42,6 @@ class RedisScanJobStore:
         self._available = False
 
     def _get_client(self):
-        """Lazy-init Redis client."""
         if self._client is not None:
             return self._client
 
@@ -72,7 +49,7 @@ class RedisScanJobStore:
             import redis
 
             self._client = redis.from_url(self._redis_url, decode_responses=True)
-            # Test connection
+
             self._client.ping()
             self._available = True
             logger.info("Redis connected: %s", self._redis_url)
@@ -88,13 +65,11 @@ class RedisScanJobStore:
 
     @property
     def available(self) -> bool:
-        """Check if Redis is available."""
         if self._client is None:
             self._get_client()
         return self._available
 
     def _check_available(self) -> bool:
-        """Re-check Redis availability (for health checks)."""
         if self._client is None:
             return False
         try:
@@ -106,19 +81,9 @@ class RedisScanJobStore:
         return True
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
-        """Add a new job to Redis.
-
-        Args:
-            job_id: Unique job identifier.
-            command: Command that was submitted.
-            actor: Authenticated actor.
-
-        Returns:
-            The job dict.
-        """
         client = self._get_client()
         if not self._available:
-            # Fallback: return in-memory job (no persistence)
+
             logger.warning("Redis unavailable, job %s not persisted", job_id)
             return {
                 "job_id": job_id,
@@ -148,7 +113,7 @@ class RedisScanJobStore:
         pipe.zadd(_JOB_LIST_KEY, {job_id: time.time()})
         pipe.execute()
 
-        # Return a dict with the original types
+
         return {
             "job_id": job_id,
             "command": command,
@@ -161,7 +126,6 @@ class RedisScanJobStore:
         }
 
     def get(self, job_id: str) -> dict[str, Any] | None:
-        """Get a job by ID from Redis."""
         client = self._get_client()
         if not self._available:
             return None
@@ -174,7 +138,6 @@ class RedisScanJobStore:
         return self._deserialize_job(data)
 
     def update(self, job_id: str, **kwargs: Any) -> dict[str, Any] | None:
-        """Update a job's fields in Redis."""
         client = self._get_client()
         if not self._available:
             return None
@@ -184,7 +147,7 @@ class RedisScanJobStore:
         if not existing:
             return None
 
-        # Update fields — only allowed columns
+
         updates = {}
         for k, v in kwargs.items():
             if k not in ALLOWED_COLUMNS:
@@ -202,22 +165,21 @@ class RedisScanJobStore:
 
         client.hset(key, mapping=updates)
 
-        # Return updated job
+
         data = client.hgetall(key)
         return self._deserialize_job(data)
 
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
-        """List recent jobs from Redis, newest first."""
         client = self._get_client()
         if not self._available:
             return []
 
-        # Get most recent job IDs from sorted set
+
         job_ids = client.zrevrange(_JOB_LIST_KEY, 0, limit - 1)
         if not job_ids:
             return []
 
-        # Fetch all jobs in a pipeline
+
         pipe = client.pipeline()
         for job_id in job_ids:
             pipe.hgetall(f"{_JOB_KEY_PREFIX}{job_id}")
@@ -231,15 +193,14 @@ class RedisScanJobStore:
         return jobs
 
     def _deserialize_job(self, data: dict[str, str]) -> dict[str, Any]:
-        """Deserialize a job from Redis hash to dict."""
         job: dict[str, Any] = dict(data)
-        # Parse JSON fields
+
         if "command" in job and isinstance(job["command"], str):
             try:
                 job["command"] = json.loads(job["command"])
             except json.JSONDecodeError:
                 pass
-        # Convert empty strings to None
+
         for field in ("completed_at", "result", "error"):
             if job.get(field) == "":
                 job[field] = None
@@ -247,5 +208,4 @@ class RedisScanJobStore:
 
     @property
     def redis_url(self) -> str:
-        """The configured Redis URL."""
         return self._redis_url

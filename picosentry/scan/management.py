@@ -1,19 +1,3 @@
-"""
-Central management module for enterprise PicoSentry deployments.
-
-Provides org-wide configuration, policy distribution, and advisory
-database management for teams running PicoSentry at scale.
-
-Usage:
-    picosentry policy fetch https://security.example.com/policy.json
-    picosentry advisories fetch https://security.example.com/advisories.zip
-    picosentry policy push https://security.example.com/upload
-
-Supports:
-- Fetching signed policy bundles from a central URL
-- Downloading advisory database updates
-- Org-level configuration discovery
-"""
 
 from __future__ import annotations
 
@@ -32,24 +16,19 @@ from picosentry.scan.crypto import (
 
 logger = logging.getLogger("picosentry.management")
 
-# Default org config locations
+
 ORG_CONFIG_PATHS = [
     ".picosentry-org.yml",
     ".picosentry-org.yaml",
     "/etc/picosentry/org.yml",
 ]
 
-# Environment variable overrides
+
 ORG_POLICY_URL_ENV = "PICOSENTRY_POLICY_URL"
 ORG_ADVISORY_URL_ENV = "PICOSENTRY_ADVISORY_URL"
 
 
 class OrgConfig:
-    """Organization-level configuration for PicoSentry.
-
-    Discovered from .picosentry-org.yml files in the repo or system paths.
-    Provides central URLs for policy bundles and advisory databases.
-    """
 
     def __init__(self) -> None:
         self.policy_url: str = ""
@@ -59,22 +38,15 @@ class OrgConfig:
 
     @staticmethod
     def discover(root: Path | None = None) -> OrgConfig:
-        """Discover org configuration from filesystem or environment.
-
-        Search order:
-            1. $PICOSENTRY_POLICY_URL / $PICOSENTRY_ADVISORY_URL env vars
-            2. .picosentry-org.yml in project root
-            3. /etc/picosentry/org.yml (system-wide)
-        """
         import os
 
         config = OrgConfig()
 
-        # Environment overrides
+
         config.policy_url = os.environ.get(ORG_POLICY_URL_ENV, "")
         config.advisory_url = os.environ.get(ORG_ADVISORY_URL_ENV, "")
 
-        # File-based config
+
         search_paths = []
         if root and root.is_dir():
             for name in ORG_CONFIG_PATHS[:2]:
@@ -103,21 +75,6 @@ class OrgConfig:
 
 
 def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int = 30) -> Path:
-    """Fetch a signed policy bundle from a central URL.
-
-    Args:
-        url: URL to fetch the policy bundle from.
-        output_path: Where to save the downloaded bundle.
-        verify: If True, verify the bundle digest.
-        timeout: HTTP request timeout in seconds.
-
-    Returns:
-        Path to the saved policy bundle.
-
-    Raises:
-        ValueError: If verification fails.
-        urllib.error.URLError: If the URL is unreachable.
-    """
     import urllib.error
     import urllib.request
 
@@ -146,16 +103,9 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
 
 
 def _validate_zip_paths(zf: zipfile.ZipFile, output_dir: Path) -> None:
-    """Validate all paths in a ZIP to prevent Zip Slip path traversal.
-
-    Rejects entries that would extract outside output_dir, contain symlinks,
-    or have suspicious names (.., absolute paths).
-
-    Raises ValueError if any path is unsafe.
-    """
     root = output_dir.resolve()
     for member in zf.infolist():
-        # Reject symlinks
+
         if member.filename.startswith("/"):
             raise ValueError(f"Unsafe ZIP path (absolute): {member.filename}")
         if ".." in Path(member.filename).parts:
@@ -173,26 +123,6 @@ def fetch_advisories(
     public_key: str = "",
     offline: bool = False,
 ) -> int:
-    """Download advisory database from a central URL.
-
-    Supports .zip archives and raw .json files.
-    Optionally verifies cryptographic signatures on the downloaded data.
-
-    Args:
-        url: URL to the advisory database (zip archive or JSON endpoint).
-        output_dir: Directory to extract/download advisories into.
-        timeout: HTTP request timeout in seconds.
-        verify_crypto: If True, verify a cryptographic signature on the bundle.
-        public_key: Path to minisign public key (minisign only).
-        offline: If True, use offline Sigstore verification.
-
-    Returns:
-        Number of advisory files downloaded.
-
-    Raises:
-        urllib.error.URLError: If the URL is unreachable.
-        ValueError: If cryptographic verification fails.
-    """
     import urllib.error
     import urllib.request
 
@@ -210,7 +140,7 @@ def fetch_advisories(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    # Verify cryptographic signature if requested
+
     if verify_crypto:
         sig_url = url + ".sig"
         logger.info("Fetching advisory signature from %s", sig_url)
@@ -244,7 +174,7 @@ def fetch_advisories(
         else:
             sig_resp.close()
 
-    # Check if it's a zip file
+
     if data[:4] == b"PK\x03\x04":
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
             tf.write(data)
@@ -252,7 +182,7 @@ def fetch_advisories(
 
         try:
             with zipfile.ZipFile(tmp_zip, "r") as zf:
-                # Validate all paths before extracting (Zip Slip prevention)
+
                 _validate_zip_paths(zf, output_dir)
                 zf.extractall(output_dir)
         finally:
@@ -262,7 +192,7 @@ def fetch_advisories(
         logger.info("Extracted %d advisory files to %s", count, output_dir)
         return count
     else:
-        # Single JSON file or JSON array
+
         digest = hashlib.sha256(data).hexdigest()[:12]
         out_file = output_dir / f"advisory-{digest}.json"
         out_file.write_bytes(data)
@@ -271,20 +201,6 @@ def fetch_advisories(
 
 
 def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 30) -> bool:
-    """Push a policy bundle to a central server.
-
-    Args:
-        url: Upload endpoint URL.
-        policy_path: Path to the policy bundle file.
-        api_key: API key for authentication.
-        timeout: HTTP request timeout in seconds.
-
-    Returns:
-        True if upload succeeded.
-
-    Raises:
-        urllib.error.URLError: If the URL is unreachable.
-    """
     import urllib.error
     import urllib.request
 
@@ -319,7 +235,6 @@ def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 3
 
 
 def org_config_template() -> str:
-    """Return a YAML template for .picosentry-org.yml."""
     return """# PicoSentry Organization Configuration
 # Place in project root or /etc/picosentry/org.yml
 #
@@ -339,20 +254,11 @@ require_signed_policy: true
 """
 
 
-# ── Authentication helpers ──
-
 PICOSENTRY_API_KEY_ENV = "PICOSENTRY_API_KEY"
 PICOSENTRY_AUTH_TOKEN_ENV = "PICOSENTRY_AUTH_TOKEN"
 
 
 def get_auth_token(api_key: str = "") -> str:
-    """Resolve authentication token from args or environment.
-
-    Priority:
-        1. Explicit api_key argument
-        2. $PICOSENTRY_API_KEY
-        3. $PICOSENTRY_AUTH_TOKEN
-    """
     import os
 
     if api_key:
@@ -363,29 +269,13 @@ def get_auth_token(api_key: str = "") -> str:
 def make_authenticated_request(
     url: str, data: bytes | None = None, method: str = "GET", api_key: str = "", timeout: int = 30
 ) -> dict:
-    """Make an authenticated HTTP request to a central management server.
-
-    Args:
-        url: Request URL.
-        data: Request body (for POST/PUT).
-        method: HTTP method.
-        api_key: API key or bearer token.
-        timeout: Request timeout.
-
-    Returns:
-        Dict with 'status', 'body', 'headers'.
-
-    Raises:
-        urllib.error.URLError: If the URL is unreachable.
-        ValueError: If authentication fails (HTTP 401/403).
-    """
     import urllib.error
     import urllib.request
 
     token = get_auth_token(api_key)
     headers = {"Accept": "application/json"}
     if token:
-        # Try Bearer token first, fall back to X-API-Key
+
         if token.startswith("eyJ") or len(token) > 40:
             headers["Authorization"] = f"Bearer {token}"
         else:

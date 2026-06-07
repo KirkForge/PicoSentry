@@ -1,7 +1,3 @@
-"""`init` subcommand — initialize PicoDome configuration.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +13,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Initialize PicoDome configuration."""
     target = Path(args.target).resolve()
     config_dir = target / ".picodome"
     config_file = config_dir / "policy.json"

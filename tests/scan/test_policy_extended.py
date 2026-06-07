@@ -33,27 +33,7 @@ from picosentry.scan.policy import (
 
 # ── Helpers ──
 
-
-def _make_finding(
-    rule_id="L2-POST-001",
-    severity=Severity.HIGH,
-    package="bad-pkg",
-    file="index.js",
-    message="test",
-    confidence=Confidence.HIGH,
-    evidence="ev",
-    remediation="fix",
-):
-    return Finding(
-        rule_id=rule_id,
-        severity=severity,
-        confidence=confidence,
-        package=package,
-        file=file,
-        message=message,
-        evidence=evidence,
-        remediation=remediation,
-    )
+from tests.scan.conftest import make_finding as _make_finding  # noqa: E402
 
 
 def _make_scan_result(findings=None):

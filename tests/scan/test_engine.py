@@ -9,18 +9,7 @@ from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
 from picosentry.scan.rules.engine import detect_engine_issues
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _make_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
-    """Create a minimal project tree with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import FIXTURES_DIR, make_npm_project as _make_project
 
 
 class TestEngineConstraints:

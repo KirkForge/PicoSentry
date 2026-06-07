@@ -7,16 +7,7 @@ from pathlib import Path
 
 from picosentry.scan.rules.network_exfil import detect_network_exfiltration
 
-
-def _make_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
-    """Create a minimal project tree with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json, indent=2))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestC2DomainDetection(unittest.TestCase):

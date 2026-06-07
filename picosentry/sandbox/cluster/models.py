@@ -1,0 +1,125 @@
+"""PicoDome cluster data models and constants.
+
+Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cluster/manager.py``.
+
+Contains the shared dataclasses and the ``NodeStatus`` enum. State backends
+live in :mod:`picosentry.sandbox.cluster.backends`.
+"""
+from __future__ import annotations
+
+import os
+from dataclasses import dataclass
+from enum import Enum
+from typing import Any
+
+# Cluster protocol constants (also re-exported from the shim)
+DEFAULT_HEARTBEAT_INTERVAL = 10  # seconds
+DEFAULT_HEARTBEAT_TIMEOUT = 30  # seconds
+DEFAULT_MAX_MISSED_HEARTBEATS = 3
+DEFAULT_CLUSTER_PORT = 8444  # cluster communication port (distinct from daemon 8443)
+
+
+class NodeStatus(str, Enum):
+    """Cluster node status."""
+
+    ONLINE = "online"
+    OFFLINE = "offline"
+    DRAINING = "draining"
+
+
+@dataclass
+class ClusterNode:
+    """Represents a node in the PicoDome cluster.
+
+    Deterministic: comparison is by (load, node_id) for consistent
+    least-loaded assignment.
+    """
+
+    node_id: str
+    address: str
+    port: int = DEFAULT_CLUSTER_PORT
+    status: NodeStatus = NodeStatus.ONLINE
+    last_heartbeat: str = ""
+    load: int = 0  # scans in progress
+
+    def __post_init__(self) -> None:
+        if isinstance(self.status, str):
+            self.status = NodeStatus(self.status)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "node_id": self.node_id,
+            "address": self.address,
+            "port": self.port,
+            "status": self.status.value,
+            "last_heartbeat": self.last_heartbeat,
+            "load": self.load,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ClusterNode:
+        return cls(
+            node_id=data["node_id"],
+            address=data["address"],
+            port=data.get("port", DEFAULT_CLUSTER_PORT),
+            status=NodeStatus(data.get("status", "online")),
+            last_heartbeat=data.get("last_heartbeat", ""),
+            load=data.get("load", 0),
+        )
+
+    @classmethod
+    def generate_id(cls) -> str:
+        """Generate a deterministic-style node ID from hostname + pid.
+
+        Not truly deterministic (depends on runtime), but stable within
+        a single process session for testing.
+        """
+        import socket
+
+        hostname = socket.gethostname()
+        pid = os.getpid()
+        return f"picodome-{hostname}-{pid}"
+
+
+@dataclass
+class ScanRequest:
+    """A scan request to be assigned to a cluster node."""
+
+    scan_id: str
+    command: list[str]
+    priority: int = 0  # higher = more urgent
+    assigned_node: str | None = None
+    created_at: str = ""
+    status: str = "pending"  # pending, running, completed, failed
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scan_id": self.scan_id,
+            "command": self.command,
+            "priority": self.priority,
+            "assigned_node": self.assigned_node,
+            "created_at": self.created_at,
+            "status": self.status,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> ScanRequest:
+        return cls(
+            scan_id=data["scan_id"],
+            command=data["command"],
+            priority=data.get("priority", 0),
+            assigned_node=data.get("assigned_node"),
+            created_at=data.get("created_at", ""),
+            status=data.get("status", "pending"),
+        )
+
+
+__all__ = [
+    "DEFAULT_CLUSTER_PORT",
+    "DEFAULT_HEARTBEAT_INTERVAL",
+    "DEFAULT_HEARTBEAT_TIMEOUT",
+    "DEFAULT_MAX_MISSED_HEARTBEATS",
+    "ClusterNode",
+    "NodeStatus",
+    "ScanRequest",
+]

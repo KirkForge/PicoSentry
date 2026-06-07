@@ -252,7 +252,33 @@ def main(argv: list[str] | None = None) -> None:
     sandbox_parser.add_argument("--fail-on", choices=["critical", "high", "medium", "low", "info"], default=None)
     sandbox_parser.add_argument("--quiet", "-q", action="store_true")
     sandbox_parser.add_argument("--summary", action="store_true")
-    sandbox_parser.add_argument("--backend", choices=["auto", "seccomp-bpf", "seatbelt", "subprocess"], default="auto")
+    sandbox_parser.add_argument(
+        "--backend",
+        choices=["auto", "seccomp-bpf", "seccomp-trace", "seatbelt", "subprocess"],
+        default="auto",
+        help=(
+            "Sandbox backend: auto (default), seccomp-bpf (enforcement), "
+            "seccomp-trace (observability, emits per-syscall events via "
+            "SCMP_ACT_LOG; needs CONFIG_SECCOMP_LOG=y), seatbelt (macOS), "
+            "subprocess (unconfined, last-resort)."
+        ),
+    )
+    sandbox_parser.add_argument(
+        "--allow-degraded",
+        action="store_true",
+        help="Allow fallback to subprocess if the requested backend is unavailable (default: fail closed).",
+    )
+    sandbox_parser.add_argument(
+        "--allow-runtime",
+        choices=["node", "python"],
+        default=None,
+        help="Use a runtime-friendly policy (node or python) that allows common package-manager operations.",
+    )
+    sandbox_parser.add_argument(
+        "--verify-determinism",
+        action="store_true",
+        help="Run twice and compare SHA-256 hashes to verify determinism.",
+    )
     sandbox_parser.add_argument("--policy", type=str, default=None, help="Path to sandbox policy file")
     sandbox_parser.add_argument("--timeout", type=int, default=None, help="Sandbox timeout in seconds")
 
@@ -534,6 +560,12 @@ def _handle_sandbox(args: argparse.Namespace) -> None:
         sandbox_argv.append("--summary")
     if args.backend:
         sandbox_argv.extend(["--backend", args.backend])
+    if getattr(args, "allow_degraded", False):
+        sandbox_argv.append("--allow-degraded")
+    if getattr(args, "allow_runtime", None):
+        sandbox_argv.extend(["--allow-runtime", args.allow_runtime])
+    if getattr(args, "verify_determinism", False):
+        sandbox_argv.append("--verify-determinism")
     if args.policy:
         sandbox_argv.extend(["--policy", args.policy])
     if args.timeout:

@@ -1,13 +1,3 @@
-"""DDoS Shield middleware — **EXPERIMENTAL**.
-
-Provides basic path-based token bucket rate limiting. Not adaptive.
-The full L1 Perimeter DDoS shield was part of the vendored pico_dome
-package and is not yet available in the unified codebase.
-
-⚠️ This is a basic rate limiter, not production DDoS protection.
-   It uses in-memory state (lost on restart) and does not support
-   distributed rate limiting. Expect improvements in future releases.
-"""
 import logging
 from typing import ClassVar
 
@@ -18,14 +8,8 @@ logger = logging.getLogger("picoshogun.DDoSShield")
 
 
 class DDoSShieldMiddleware(BaseHTTPMiddleware):
-    """Adaptive rate-limiting DDoS shield.
 
-    When picodome is installed, this wraps the L1 Perimeter adaptive
-    rate limiter. Without it, falls back to request-path-based
-    burst detection using a simple token bucket per path.
-    """
 
-    # Paths that are common DDoS targets — stricter limits
     HIGH_RISK_PATHS: ClassVar[set[str]] = {"/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"}
 
     def __init__(self, app, enabled: bool = True):
@@ -44,16 +28,16 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         now = time.monotonic()
         cutoff = now - 10.0  # 10-second window
 
-        # Clean old entries
+
         self._global_bucket = [t for t in self._global_bucket if t > cutoff]
 
-        # Global limit
+
         if len(self._global_bucket) >= self._global_limit:
             logger.warning("DDoS shield: global rate limit exceeded from %s", request.client.host if request.client else "unknown")
             from starlette.responses import JSONResponse
             return JSONResponse({"error": "rate_limit_exceeded", "detail": "Global rate limit exceeded"}, status_code=429)
 
-        # Per-path burst detection for high-risk paths
+
         path = request.url.path
         if path in self.HIGH_RISK_PATHS:
             bucket = self._path_buckets.get(path, [])

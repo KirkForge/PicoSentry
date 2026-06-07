@@ -1,12 +1,3 @@
-"""Redis-backed baseline store — horizontal scale shared state.
-
-Stores L4 behavioral baselines in Redis so all replicas share
-the same baseline data. Falls back to shipped baselines when
-Redis is unavailable.
-
-Configuration:
-  PICODOME_REDIS_URL — Redis connection URL (default: redis://localhost:6379/0)
-"""
 
 from __future__ import annotations
 
@@ -24,14 +15,6 @@ _BASELINE_KEY_PREFIX = "picodome:baseline:"
 
 
 class RedisBaselineStore:
-    """Redis-backed baseline store for horizontal scaling.
-
-    Stores custom baselines in Redis, falls back to shipped baselines
-    when Redis is unavailable.
-
-    Args:
-        redis_url: Redis connection URL.
-    """
 
     def __init__(self, redis_url: str | None = None) -> None:
         self._redis_url = redis_url or os.environ.get("PICODOME_REDIS_URL", _DEFAULT_REDIS_URL)
@@ -39,7 +22,6 @@ class RedisBaselineStore:
         self._available = False
 
     def _get_client(self):
-        """Lazy-init Redis client."""
         if self._client is not None:
             return self._client
 
@@ -62,23 +44,12 @@ class RedisBaselineStore:
 
     @property
     def available(self) -> bool:
-        """Check if Redis is available."""
         if self._client is None:
             self._get_client()
         return self._available
 
     def get(self, name: str) -> Baseline | None:
-        """Get a baseline by name.
 
-        Checks Redis first, falls back to shipped baselines.
-
-        Args:
-            name: Baseline name.
-
-        Returns:
-            Baseline object, or None if not found.
-        """
-        # Try Redis first
         if self._available:
             client = self._get_client()
             try:
@@ -89,18 +60,13 @@ class RedisBaselineStore:
             except Exception as exc:
                 logger.warning("Redis baseline get failed: %s", exc)
 
-        # Fall back to shipped baselines
+
         if name in SHIPPED_BASELINES:
             return SHIPPED_BASELINES[name]
 
         return None
 
     def set(self, baseline: Baseline) -> None:
-        """Store a custom baseline in Redis.
-
-        Args:
-            baseline: The Baseline to store.
-        """
         if not self._available:
             logger.warning("Redis unavailable, cannot store baseline '%s'", baseline.name)
             return
@@ -114,11 +80,6 @@ class RedisBaselineStore:
             logger.warning("Redis baseline set failed: %s", exc)
 
     def delete(self, name: str) -> bool:
-        """Delete a custom baseline from Redis.
-
-        Returns:
-            True if deleted, False if not found or unavailable.
-        """
         if not self._available:
             return False
 
@@ -132,7 +93,6 @@ class RedisBaselineStore:
             return False
 
     def list_custom(self) -> list[str]:
-        """List custom baseline names stored in Redis."""
         if not self._available:
             return []
 
@@ -144,10 +104,9 @@ class RedisBaselineStore:
             return []
 
     def list_all(self) -> list[str]:
-        """List all baseline names (shipped + custom)."""
         shipped = list(SHIPPED_BASELINES.keys())
         custom = self.list_custom()
-        # Merge without duplicates
+
         seen = set(shipped)
         for name in custom:
             if name not in seen:
@@ -156,7 +115,6 @@ class RedisBaselineStore:
         return shipped
 
     def _serialize(self, baseline: Baseline) -> str:
-        """Serialize a Baseline to JSON string."""
         data = {
             "name": baseline.name,
             "package": baseline.package,
@@ -173,7 +131,6 @@ class RedisBaselineStore:
         return json.dumps(data, sort_keys=True)
 
     def _deserialize(self, data: str) -> Baseline:
-        """Deserialize a Baseline from JSON string."""
         d = json.loads(data)
         runtime_range = tuple(d.get("expected_runtime_ms_range", (0, 0)))
         return Baseline(

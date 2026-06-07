@@ -1,21 +1,3 @@
-"""
-L2-NETEX-001: Network exfiltration and C2 domain detection.
-
-Detects connections to known command-and-control domains, cloud metadata
-endpoints, and phishing/typosquatting domains used by supply chain attacks.
-Catches Shai-Hulud worm family C2 infrastructure (shai-hulud.cc, firebase.su,
-dieorsuffer.com, smartscreen-api.com) and CVE-2025-54313 (Scavenger) C2.
-
-Patterns detected:
-  - Known C2 domains (Shai-Hulud, Scavenger)
-  - Cloud metadata endpoint access (AWS IMDS, GCP, Azure)
-  - Phishing/typosquatting domains (npmjs.help, npnjs.com)
-  - Webhook exfiltration endpoints
-  - Download-and-execute patterns in install scripts
-  - Environment variable exfiltration via network requests
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -27,7 +9,7 @@ from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_network_exfiltration"]
 
-# Install-time script keys.
+
 INSTALL_SCRIPT_KEYS = (
     "install",
     "postinstall",
@@ -36,16 +18,16 @@ INSTALL_SCRIPT_KEYS = (
     "prepack",
 )
 
-# JS/TS extensions to scan.
+
 JS_EXTENSIONS = {".js", ".mjs", ".cjs", ".ts", ".tsx"}
 
-# Max file size to scan.
+
 MAX_FILE_BYTES = 512_000
 
-# Max files per package.
+
 MAX_FILES_PER_PACKAGE = 200
 
-# Directories to skip.
+
 SKIP_DIRS = frozenset(
     {"dist", "build", "out", ".cache", "__pycache__", ".git", ".hg", ".svn"}
 )
@@ -57,9 +39,9 @@ SKIP_EXTENSIONS = frozenset(
     }
 )
 
-# ---- C2 domain patterns (Shai-Hulud + Scavenger) ----
+
 C2_DOMAINS: list[tuple[str, str, Severity, str]] = [
-    # (pattern, name, severity, description)
+
     (r"\bshai-hulud\.cc\b", "Shai-Hulud C2", Severity.CRITICAL, "Shai-Hulud worm C2 domain"),
     (r"\bfirebase\.su\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
     (r"\bdieorsuffer\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
@@ -67,7 +49,7 @@ C2_DOMAINS: list[tuple[str, str, Severity, str]] = [
     (r"\bwebhook\.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7", "Shai-Hulud exfil", Severity.CRITICAL, "Known Shai-Hulud exfiltration webhook"),
 ]
 
-# Phishing/typosquat domains targeting npm
+
 PHISHING_DOMAINS: list[tuple[str, str, Severity, str]] = [
     (r"\bnpmjs\.(?:help|support|security)\b", "npm phishing", Severity.HIGH, "Phishing domain impersonating npmjs.com"),
     (r"\bnpnjs\.com\b", "npm typosquat", Severity.HIGH, "Typosquat domain mimicking npmjs.com"),
@@ -76,7 +58,7 @@ PHISHING_DOMAINS: list[tuple[str, str, Severity, str]] = [
     (r"\bnpn-js\.\b", "npm typosquat", Severity.MEDIUM, "Typosquat domain mimicking npmjs.com"),
 ]
 
-# Cloud metadata endpoints (credential exfiltration via IMDS)
+
 CLOUD_METADATA: list[tuple[str, str, Severity, str]] = [
     (r"169\.254\.169\.254", "AWS IMDS", Severity.CRITICAL, "AWS Instance Metadata Service endpoint — credential exfiltration risk"),
     (r"fd00:ec2::254", "AWS IMDS IPv6", Severity.CRITICAL, "AWS Instance Metadata Service IPv6 endpoint"),
@@ -87,7 +69,7 @@ CLOUD_METADATA: list[tuple[str, str, Severity, str]] = [
     (r"/computeMetadata/v1/", "GCP metadata path", Severity.CRITICAL, "GCP metadata path pattern"),
 ]
 
-# Compile all patterns into a single list for scanning
+
 ALL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = []
 
 for pattern_str, name, severity, desc in C2_DOMAINS:
@@ -97,8 +79,7 @@ for pattern_str, name, severity, desc in PHISHING_DOMAINS:
 for pattern_str, name, severity, desc in CLOUD_METADATA:
     ALL_PATTERNS.append((name, re.compile(pattern_str), severity, desc, name))
 
-# Additional patterns for source file scanning (install scripts get the above + these)
-# Environment variable exfiltration via network
+
 ENV_EXFIL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
     (
         "env_exfil_fetch",
@@ -132,7 +113,6 @@ ENV_EXFIL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
 
 
 def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) -> list[Finding]:
-    """Scan text content for network exfiltration patterns."""
     findings: list[Finding] = []
 
     patterns = ALL_PATTERNS + ENV_EXFIL_PATTERNS if is_script else ALL_PATTERNS
@@ -141,7 +121,7 @@ def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) 
         for match in pattern.finditer(text):
             matched_text = match.group(0)[:120]
 
-            # Determine remediation based on the category
+
             if "C2" in name or name in ("Shai-Hulud exfil", "Scavenger C2"):
                 remediation = (
                     "Known supply chain attack C2 domain detected. Remove this dependency immediately. "
@@ -196,7 +176,6 @@ def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) 
 
 
 def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
-    """Scan a JS/TS source file for network exfiltration patterns."""
     findings: list[Finding] = []
 
     if file_path.suffix in SKIP_EXTENSIONS:
@@ -222,7 +201,7 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
             line_num = content[: match.start()].count("\n") + 1
             matched_text = match.group(0)[:120]
 
-            # Determine remediation
+
             if "C2" in name or name == "Shai-Hulud exfil":
                 remediation = (
                     "Known supply chain attack C2 domain detected in source. "
@@ -270,7 +249,6 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:
-    """Scan JS/TS source files in a package directory for network exfil patterns."""
     file_count = 0
     for ext in JS_EXTENSIONS:
         for src_file in pkg_dir.rglob(f"*{ext}"):
@@ -285,15 +263,9 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
 
 
 def detect_network_exfiltration(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect network exfiltration patterns — C2 domains, cloud metadata access,
-    phishing domains, and credential exfiltration in install scripts and source.
-
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
@@ -302,7 +274,7 @@ def detect_network_exfiltration(target: Path, corpus_dir: Path) -> list[Finding]
             pkg_version = pkg.get("version", "unknown")
             pkg_label = f"{pkg_name}@{pkg_version}"
 
-            # Check install scripts for C2 domains and exfil patterns
+
             scripts = pkg.get("scripts", {})
             if isinstance(scripts, dict):
                 for script_key in INSTALL_SCRIPT_KEYS:
@@ -328,13 +300,13 @@ def detect_network_exfiltration(target: Path, corpus_dir: Path) -> list[Finding]
 
             _scan_package_sources(target, pkg_label, findings)
 
-    # node_modules packages
+
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)
         pkg_version = pkg.get("version", "unknown")
         pkg_label = f"{pkg_name}@{pkg_version}"
 
-        # Check install scripts
+
         scripts = pkg.get("scripts", {})
         if isinstance(scripts, dict):
             for script_key in INSTALL_SCRIPT_KEYS:
@@ -358,7 +330,7 @@ def detect_network_exfiltration(target: Path, corpus_dir: Path) -> list[Finding]
                             )
                         )
 
-        # Scan source files
+
         pkg_dir = pkg_json.parent
         _scan_package_sources(pkg_dir, pkg_label, findings)
 

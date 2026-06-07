@@ -1,11 +1,3 @@
-"""
-Cargo lockfile parsers.
-
-Parsers for Cargo.lock — Rust's dependency lockfile.
-Analogous to Go's go.sum and npm's package-lock.json.
-
-Pure functions. No network calls.
-"""
 
 from __future__ import annotations
 
@@ -15,22 +7,6 @@ from .cargo_utils import parse_cargo_lock, parse_cargo_toml
 
 
 def parse_cargo_lockfile(path: Path) -> list[tuple[str, str, str]]:
-    """Auto-detect and parse a Cargo lockfile by filename.
-
-    Supports:
-    - ``Cargo.toml`` → dependencies with version constraints
-    - ``Cargo.lock`` → pinned versions with source identifiers
-
-    Returns list of ``(crate_name, version, source)`` tuples
-    where ``source`` is the filename (for provenance tracking).
-
-    Args:
-        path: Path to the lockfile (Cargo.toml or Cargo.lock).
-
-    Returns:
-        List of (crate_name, version, source) tuples.
-        Empty list if the file doesn't exist or format is unrecognized.
-    """
     if not path.is_file():
         return []
 
@@ -45,11 +21,6 @@ def parse_cargo_lockfile(path: Path) -> list[tuple[str, str, str]]:
 
 
 def parse_cargo_toml_for_lock(path: Path) -> list[tuple[str, str, str]]:
-    """Parse Cargo.toml for dependency list.
-
-    Returns ``(crate_name, version, "Cargo.toml")`` tuples.
-    Includes both regular and dev dependencies.
-    """
     cargo_data = parse_cargo_toml(path.parent)
     if cargo_data is None:
         return []
@@ -73,11 +44,6 @@ def parse_cargo_toml_for_lock(path: Path) -> list[tuple[str, str, str]]:
 
 
 def parse_cargo_lock_for_lock(path: Path) -> list[tuple[str, str, str]]:
-    """Parse Cargo.lock for pinned dependency versions.
-
-    Returns ``(crate_name, version, "Cargo.lock")`` tuples.
-    Deduplicates multiple entries for the same crate+version.
-    """
     packages = parse_cargo_lock(path.parent)
     if not packages:
         return []

@@ -1,12 +1,3 @@
-"""
-L2-MANI-001: Manifest integrity — version range attacks.
-L2-MANI-002: Optional dependencies with install scripts.
-
-Flags dangerous version ranges (>=0.0.0, *, empty), and optional
-dependencies that declare install scripts (supply chain attack vector).
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -16,15 +7,14 @@ from ..models import Confidence, Finding, Severity
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_manifest_issues"]
-# Version ranges that accept ANY version — supply chain attack enablers.
+
 DANGEROUS_RANGES = ("*", "", ">=", ">=0.0.0", "x", "latest", "*.*.*")
 
-# Install-time script keys that execute code.
+
 INSTALL_SCRIPT_KEYS = ("install", "postinstall", "preinstall", "prepare", "prepack")
 
 
 def _get_dep_sections(pkg: dict) -> dict[str, dict]:
-    """Return {section_name: {pkg: version_str}} for all dependency sections."""
     sections: dict[str, dict] = {}
     for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
         section = pkg.get(key)
@@ -34,17 +24,16 @@ def _get_dep_sections(pkg: dict) -> dict[str, dict]:
 
 
 def _is_dangerous_range(version_str: str) -> bool:
-    """Check if a version range is overly permissive."""
     stripped = version_str.strip()
-    # Exact matches
+
     if stripped in DANGEROUS_RANGES:
         return True
-    # Prefixes like ">=0.0.0", "^*", "~*"
+
     for prefix in (">=", "^", "~", ">"):
         for dangerous in ("*", "0.0.0"):
             if stripped == f"{prefix}{dangerous}":
                 return True
-    # ">=0" with no upper bound
+
     if stripped.startswith(">=") and stripped.replace(">=", "").strip().replace(".", "0").isdigit():
         base = stripped[2:].strip()
         parts = base.split(".")
@@ -54,7 +43,6 @@ def _is_dangerous_range(version_str: str) -> bool:
 
 
 def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
-    """Check a single package.json for manifest issues."""
     findings: list[Finding] = []
     pkg_name = pkg.get("name", pkg_json_path.parent.name)
     pkg_version = pkg.get("version", "unknown")
@@ -62,7 +50,7 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
     sections = _get_dep_sections(pkg)
 
-    # L2-MANI-001: Dangerous version ranges
+
     for section_name, deps in sections.items():
         for dep_name, version_str in sorted(deps.items()):
             if _is_dangerous_range(str(version_str)):
@@ -89,8 +77,7 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                     )
                 )
 
-    # L2-MANI-002: Optional dependencies with install scripts
-    # Consolidate into a single finding per package (was one per optional dep — noisy)
+
     optional_deps = pkg.get("optionalDependencies", {})
     if isinstance(optional_deps, dict) and optional_deps:
         scripts = pkg.get("scripts", {})
@@ -128,21 +115,16 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
 
 def detect_manifest_issues(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect manifest integrity issues — dangerous version ranges and
-    optional deps with install scripts.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_manifest(pkg, root_pkg))
 
-    # node_modules packages
+
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_manifest(pkg, pkg_json))
 

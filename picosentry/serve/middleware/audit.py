@@ -1,4 +1,3 @@
-"""Audit logging middleware."""
 import json
 import logging
 
@@ -7,11 +6,10 @@ from starlette.requests import Request
 
 logger = logging.getLogger("picoshogun.Audit")
 
-# Lazy imports to avoid circular dependency and premature DB init
+
 _auth_svc = None
 
 def _get_auth_service():
-    """Lazy-load AuthService to avoid import-time DB connection."""
     global _auth_svc
     if _auth_svc is None:
         try:
@@ -22,7 +20,6 @@ def _get_auth_service():
     return _auth_svc
 
 def _get_db():
-    """Lazy-load database manager."""
     try:
         from picosentry.serve.database.manager import db
         return db
@@ -30,7 +27,6 @@ def _get_db():
         return None
 
 class AuditMiddleware(BaseHTTPMiddleware):
-    """Log all API requests to audit log."""
 
     async def dispatch(self, request: Request, call_next):
         import time

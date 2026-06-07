@@ -1,38 +1,20 @@
-"""Audit-message constants for the seccomp-trace backend.
-
-Extracted in v2.1.0 (refactor) from ``seccomp_trace_backend.py``. These
-constants are only used by ``event_parser.py`` and (re-exported) by the
-back-compat shim at ``seccomp_trace_backend.py``. Keeping them in their
-own module makes the table easier to scan (~140-entry x86_64 map) and
-makes the parser/builder files thinner.
-"""
 from __future__ import annotations
 
 import re
 
-# Audit-message constant that confirms an entry came from a LOG action.
-# Other action codes are 0x7fff0000 (ALLOW), 0x80000000 (KILL_PROCESS).
+
 _LOG_ACTION_CODE = "0x7ffc0000"
 
-# Audit-message fields that confirm an entry came from a LOG action.
-# Other action codes are 0x7fff0000 (ALLOW), 0x80000000 (KILL_PROCESS).
-# NOTE: the kernel's audit log field order is arch=...syscall=...code=,
-# NOT syscall=...arch=...code= — verified against real /proc/<pid>/seccomp
-# output on Linux 5.x/6.x.
+
 _AUDIT_LINE_RE = re.compile(
     r"audit\(\d+\.\d+:\d+\):.*?arch=(?P<arch>[0-9a-fx]+).*?syscall=(?P<nr>\d+).*?code=(?P<code>[0-9a-fx]+)"
 )
 
-# Arch constants for the audit log's `arch=` field.
-# AUDIT_ARCH_X86_64 = 0xC000003E, AUDIT_ARCH_AARCH64 = 0xC00000B7.
+
 _ARCH_X86_64 = 0xC000003E
 _ARCH_AARCH64 = 0xC00000B7
 
 
-# ─── x86_64 syscall-number → name table (subset) ─────────────────────────
-# Generated from <asm/unistd_64.h>. The table covers the syscalls we care
-# about; anything missing is logged as `syscall_other`. Maintain by hand
-# when adding classifications.
 _X86_64_SYSCALLS: dict[int, str] = {
     0: "read",
     1: "write",
@@ -177,8 +159,7 @@ _X86_64_SYSCALLS: dict[int, str] = {
     435: "clone3",
 }
 
-# Syscalls whose only meaningful OpenAPI is the file open path —
-# currently not extractable from SCMP_ACT_LOG but called out for v2.0.9+.
+
 _OPEN_SYSCALLS = {"open", "openat", "creat"}
 
 

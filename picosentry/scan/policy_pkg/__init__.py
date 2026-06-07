@@ -1,16 +1,3 @@
-"""Enterprise policy-as-code subpackage for PicoSentry.
-
-Split in v2.1.0 (refactor) from the monolithic ``picosentry/scan/policy.py``.
-
-Submodules:
-- ``models``   — Policy dataclasses + helpers (Waiver, PolicyViolation,
-                 PolicyResult, _parse_npm_label, constants)
-- ``engine``   — Policy class with all evaluation methods
-- ``bundle``   — export_signed_policy, import_policy_bundle (signed bundles)
-- ``template`` — default_policy_template, policy_from_org (org templates)
-
-The public API is re-exported here for ``from picosentry.scan.policy_pkg import ...``
-"""
 from picosentry.scan.policy_pkg.models import (
     KNOWN_POLICY_KEYS,
     POLICY_VERSION,

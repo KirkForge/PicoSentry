@@ -1,11 +1,3 @@
-"""`scan` subcommand — the core PicoSentry scan + determinism/validation.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-The largest single subcommand module, by design: `scan` carries the
-full pipeline (config load, cache, scan, baseline, policy, format,
-output, exit code, verbose footer, baseline update) plus the
-``--verify-determinism`` and ``--validate`` short-circuits.
-"""
 from __future__ import annotations
 
 import argparse
@@ -34,14 +26,10 @@ from picosentry.scan.validation import run_validation
 
 NAME = "scan"
 
-# Module-level logger — re-exported at the same name the original
-# monolithic ``cli.py`` used (so the verbose-block log lines work).
+
 import logging as _logging
 
 logger = _logging.getLogger(__name__)
-
-
-# ── Module-level helpers (re-exported for back-compat) ────────────────────
 
 
 class ScanTimeout(Exception):
@@ -59,11 +47,6 @@ def _scan_worker(
     advisory_db_path: str | None,
     result_queue: multiprocessing.Queue,
 ) -> None:
-    """Run a scan in a child process and post the result to a queue.
-
-    Used by ``_run_scan`` when ``--timeout > 0`` so the parent can
-    terminate the worker and raise ``ScanTimeout`` cleanly.
-    """
     try:
         from pathlib import Path
 
@@ -80,11 +63,6 @@ def _scan_worker(
 
 
 def _format_summary(result: ScanResult) -> str:
-    """One-line summary for CI notifications.
-
-    Example: ``PicoSentry: 3 HARD PINCH, 1 SOFT PINCH, 2 NUDGE``
-    Or:      ``PicoSentry: No pinches. All clear.``
-    """
     if not result.findings:
         return "PicoSentry: No pinches. All clear. 🦞"
 
@@ -99,11 +77,6 @@ def _format_summary(result: ScanResult) -> str:
 
 
 def _format_quiet(result: ScanResult) -> str:
-    """Quiet mode — summary + finding count per rule, no details.
-
-    Designed for CI logs where you want a quick overview without the
-    full table.
-    """
     if not result.findings:
         return "🦞 No pinches. All clear."
 
@@ -128,11 +101,7 @@ def _format_quiet(result: ScanResult) -> str:
     return "\n".join(lines)
 
 
-# ── Argparse wiring ────────────────────────────────────────────────────────
-
-
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
-    """Register the ``scan`` subparser with all flags."""
     scan_parser = subparsers.add_parser(NAME, help="Scan a project directory for supply chain risks")
     scan_parser.add_argument("target", type=str, help="Path to project directory to scan")
     scan_parser.add_argument(
@@ -188,26 +157,22 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
-# ── Handler ────────────────────────────────────────────────────────────────
-
-
 def cmd(args: argparse.Namespace) -> int:
-    """Execute the 'scan' subcommand."""
     target = Path(args.target).resolve()
     if not target.exists():
         print(f"Error: target does not exist: {target}", file=sys.stderr)
         return 2
 
-    # --verify-determinism: run scan twice, compare SHA-256
+
     if args.verify_determinism:
         args.deterministic_output = True
         return _verify_determinism(args, target)
 
-    # --validate: run the validation harness against built-in fixtures
+
     if getattr(args, "validate", False):
         return _handle_validate(args, target)
 
-    # Verbose output — show scan details before running
+
     if args.verbose:
         from picosentry.scan.engine import create_default_engine
 
@@ -218,11 +183,11 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Rules: {', '.join(temp_engine.list_rules())}", file=sys.stderr)
         print("Scanning...", file=sys.stderr)
 
-    # Load config and merge CLI args once — used for both scanning and formatting
+
     file_config = load_config(target)
     config = file_config.merge_cli(args)
 
-    # Check cache before scanning
+
     cached_result = None
     cache = None
     lockfile_hash = ""
@@ -231,7 +196,7 @@ def cmd(args: argparse.Namespace) -> int:
             from picosentry.scan.cache import ScanCache
 
             cache = ScanCache.from_config(config)
-            # Compute lockfile hash for cache key
+
             for lockfile_name in ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"):
                 lf = target / lockfile_name
                 if lf.is_file():
@@ -270,7 +235,7 @@ def cmd(args: argparse.Namespace) -> int:
         except Exception:
             cache = None  # Cache errors should not block scanning
 
-    # Run the scan (handles config, filtering, timeout) — or use cached result
+
     try:
         result = cached_result or _run_scan(args, target, merged_config=config)
     except ScanTimeout:
@@ -280,7 +245,7 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-    # Store result in cache after successful scan
+
     if cache and lockfile_hash and not cached_result:
         try:
             corpus_dir = Path(config.corpus) if config.corpus else None
@@ -298,7 +263,7 @@ def cmd(args: argparse.Namespace) -> int:
         except Exception:
             pass  # Cache write errors should not block the scan result
 
-    # Check for rule failures
+
     from picosentry.scan.enterprise import is_enterprise_mode
 
     enterprise = is_enterprise_mode() or getattr(args, "enterprise", False)
@@ -311,7 +276,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Scan aborted: {len(failed_rules)} rule(s) failed. Exiting with code 4.", file=sys.stderr)
             return 4
 
-    # Save pre-baseline findings for --baseline-update
+
     pre_baseline_findings = list(result.findings)
     baseline_info = None
     if config.baseline:
@@ -322,14 +287,14 @@ def cmd(args: argparse.Namespace) -> int:
         baseline_fingerprints = load_baseline(baseline_path)
         baseline_info = apply_baseline(result, baseline_fingerprints)
         result.apply_overrides(baseline_info.remaining)
-        # Log baseline info (not in quiet/summary mode)
+
         if not config.quiet and not config.summary:
             print(
                 f"Baseline: {baseline_info.suppressed_count} known, {baseline_info.new_count} new (of {baseline_info.original_count} total)",
                 file=sys.stderr,
             )
 
-    # Apply enterprise policy (if configured)
+
     policy_file = getattr(args, "policy", None) or getattr(config, "policy_file", None)
     policy_result = None
     if policy_file:
@@ -338,12 +303,12 @@ def cmd(args: argparse.Namespace) -> int:
         policy_path = Path(policy_file)
         if policy_path.is_file():
             policy = Policy.from_file(policy_path)
-            # Collect license info from findings
+
             pkg_licenses: dict[str, str] = {}
             installed_pkgs: set[str] = set()
             from picosentry.scan.rules.utils import iter_node_modules, load_package_json
 
-            # Build inventory from actual installed packages, not just findings
+
             root_pkg = target / "package.json"
             if root_pkg.is_file():
                 root_data = load_package_json(root_pkg)
@@ -353,11 +318,11 @@ def cmd(args: argparse.Namespace) -> int:
                         installed_pkgs.add(root_name)
             for pkg_json_path, pkg_data in iter_node_modules(target):
                 pkg_name = pkg_data.get("name", pkg_json_path.parent.name)
-                # For scoped packages, reconstruct full name from directory when missing
+
                 if not pkg_name.startswith("@") and pkg_json_path.parent.name and pkg_json_path.parent.parent.name.startswith("@"):
                     pkg_name = f"{pkg_json_path.parent.parent.name}/{pkg_name}"
                 installed_pkgs.add(pkg_name)
-            # Extract licenses from findings
+
             for f in result.findings:
                 if f.rule_id == "L2-LICENSE-001" and "license =" in f.evidence:
                     lic_extract = f.evidence.split("license = ")[-1].strip("'\"")
@@ -365,10 +330,10 @@ def cmd(args: argparse.Namespace) -> int:
             policy_result = policy.apply(
                 result, target, package_licenses=pkg_licenses, installed_packages=installed_pkgs
             )
-            # Attach policy result to scan result for formatters
+
             result.policy_result = policy_result
 
-    # Format output
+
     if config.summary:
         output = _format_summary(result)
     elif config.quiet and config.format == "table":
@@ -388,14 +353,14 @@ def cmd(args: argparse.Namespace) -> int:
     else:
         output = format_table(result, color=not config.no_color)
 
-    # Write output
+
     if config.output:
         Path(config.output).write_text(output, encoding="utf-8")
         print(f"Output written to {config.output}")
     else:
         print(output)
 
-    # Verbose output — per-rule timing and scan details on stderr
+
     if args.verbose:
         print("\n--- Scan Details ---", file=sys.stderr)
         print(f"Engine: v{result.engine_version}", file=sys.stderr)
@@ -418,7 +383,7 @@ def cmd(args: argparse.Namespace) -> int:
                     pinch = _PINCH_LABELS.get(Severity(sev), sev)
                     print(f"  {sev:<10s} ({pinch}): {count}", file=sys.stderr)
 
-    # Baseline update — write new baseline with current findings added
+
     if config.baseline and config.baseline_update:
         baseline_path = Path(config.baseline)
         from picosentry.scan.models import ScanStats
@@ -435,7 +400,7 @@ def cmd(args: argparse.Namespace) -> int:
         baseline_path.write_text(updated_json, encoding="utf-8")
         print(f"Baseline updated: {baseline_path} ({len(pre_baseline_findings)} findings)", file=sys.stderr)
 
-    # Exit code
+
     from picosentry.scan.models import SEVERITY_ORDER
 
     fail_on = config.fail_on
@@ -451,22 +416,13 @@ def cmd(args: argparse.Namespace) -> int:
     return 0
 
 
-# ── Internal helpers used by `cmd` ─────────────────────────────────────────
-
-
 def _run_scan(
     args: argparse.Namespace,
     target: Path,
     file_config: PicoSentryConfig | None = None,
     merged_config: PicoSentryConfig | None = None,
 ) -> ScanResult:
-    """Run a single scan and return the ScanResult (no output formatting).
 
-    Applies severity overrides, ignore filters, and severity threshold.
-    Does NOT apply baseline filtering — the caller handles baseline
-    since it needs pre-baseline findings for --baseline-update.
-    """
-    # Use pre-merged config if provided, otherwise load and merge
     if merged_config is not None:
         config = merged_config
     else:
@@ -476,7 +432,7 @@ def _run_scan(
     corpus_dir = Path(config.corpus) if config.corpus else None
     engine = create_default_engine(corpus_dir=corpus_dir, advisory_db_path=config.advisory_db)
 
-    # Cross-platform timeout using multiprocessing (works on Windows, macOS, Linux)
+
     if args.timeout and args.timeout > 0:
         result_queue: multiprocessing.Queue = multiprocessing.Queue()
 
@@ -502,27 +458,27 @@ def _run_scan(
     else:
         result = engine.scan(target, rules=config.rules, advisory_db_path=config.advisory_db)
 
-    # Resolve effective policy via PolicyStack (global → org → repo → pipeline)
+
     effective_policy = _resolve_effective_policy(config=config)
     if effective_policy is not None:
-        # Apply policy deny_packages filter
+
         if hasattr(effective_policy, "deny_packages") and effective_policy.deny_packages:
             denied_set = set(effective_policy.deny_packages)
             result.apply_overrides(
                 [f for f in result.findings if f.package not in denied_set]
             )
-        # Apply policy deny_licenses filter
+
         if hasattr(effective_policy, "deny_licenses") and effective_policy.deny_licenses:
             denied_licenses = set(effective_policy.deny_licenses)
             result.apply_overrides(
                 [f for f in result.findings if not any(lic in denied_licenses for lic in getattr(f, "licenses", []))]
             )
 
-    # Apply severity overrides
+
     if config.severity_overrides:
         result.apply_overrides(config.apply_severity_overrides(result.findings))
 
-    # Apply ignore filters
+
     if config.ignore_packages or config.ignore_paths:
         result.apply_overrides(
             [
@@ -532,7 +488,7 @@ def _run_scan(
             ]
         )
 
-    # Severity filtering
+
     from picosentry.scan.models import SEVERITY_ORDER
 
     if config.severity_threshold:
@@ -542,7 +498,7 @@ def _run_scan(
             [f for f in result.findings if SEVERITY_ORDER.get(f.severity.value.lower(), 4) <= min_level]
         )
 
-    # Populate config and policy digests for enterprise evidence
+
     config_str = json.dumps(
         {k: v for k, v in sorted(config.__dict__.items()) if v is not None and v != [] and v != {} and v != ""},
         sort_keys=True,
@@ -569,12 +525,7 @@ def _run_scan(
 
 
 def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
-    """Run scan twice and verify SHA-256 determinism.
 
-    Delegates to ``guards.verify_determinism`` for the actual
-    comparison. Exit 0 if deterministic, 4 if not.
-    """
-    # Override format to json for deterministic comparison
     args.format = "json"
     args.output = None
     args.summary = False
@@ -584,15 +535,15 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
     print(f"Target: {target}", file=sys.stderr)
     print("Running scan twice and comparing SHA-256...", file=sys.stderr)
 
-    # First scan
+
     print("  Run 1...", file=sys.stderr)
     result_a = _run_scan(args, target)
 
-    # Second scan
+
     print("  Run 2...", file=sys.stderr)
     result_b = _run_scan(args, target)
 
-    # Compare using guards module
+
     is_match, hash_a, hash_b = verify_determinism(result_a, result_b)
 
     print("\n--- Determinism Verification ---", file=sys.stderr)
@@ -610,7 +561,7 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
         print("  This is a bug. Please report at:", file=sys.stderr)
         print("  https://github.com/KirkForge/PicoSentry/issues", file=sys.stderr)
 
-        # Write both JSONs to temp files for diff
+
         json_a = format_json(result_a, deterministic_output=True)
         json_b = format_json(result_b, deterministic_output=True)
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", prefix="picosentry_a_", delete=False) as fa:
@@ -622,7 +573,7 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
 
         print(f"  Diff: picosentry diff {path_a} {path_b}", file=sys.stderr)
 
-        # Show finding count diff
+
         if len(result_a.findings) != len(result_b.findings):
             print(f"  findings: {len(result_a.findings)} vs {len(result_b.findings)}", file=sys.stderr)
         else:
@@ -632,13 +583,6 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
 
 
 def _handle_validate(args: argparse.Namespace, target: Path) -> int:
-    """Run the validation harness against built-in fixtures.
-
-    Prints a per-rule precision/recall table and the summary line. Exit
-    0 if mean precision >= 0.95 and mean recall >= 0.80; exit 1
-    otherwise. The harness ignores the <target> argument — it uses its
-    own fixtures.
-    """
     output_path: Path | None = None
     if getattr(args, "output", None):
         output_path = Path(args.output)
@@ -650,7 +594,7 @@ def _handle_validate(args: argparse.Namespace, target: Path) -> int:
     advisory_db = getattr(args, "advisory_db", None)
     report = run_validation(output_path=output_path, advisory_db_path=advisory_db)
 
-    # Per-rule table (stdout, easy to grep/pipe)
+
     header = f"{'rule_id':<24} {'tp':>4} {'fp':>4} {'fn':>4} {'prec':>8} {'recall':>8}"
     print(header)
     print("-" * len(header))
@@ -662,7 +606,7 @@ def _handle_validate(args: argparse.Namespace, target: Path) -> int:
             f"{m.false_negatives:>4} {m.precision:>7.2%} {m.recall:>7.2%}"
         )
 
-    # Pass/fail summary. Thresholds are conservative.
+
     failed_fixtures = [r for r in report.fixture_results if r[1] == "FAIL"]
     precision_ok = report.mean_precision >= 0.95
     recall_ok = report.mean_recall >= 0.80

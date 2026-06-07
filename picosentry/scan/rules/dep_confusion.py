@@ -1,12 +1,3 @@
-"""
-Shared dependency confusion detection engine.
-
-Consolidated from 7 per-ecosystem files into one shared algorithm.
-Each ecosystem provides data (patterns, known-safe lists, parser functions)
-via an ECOSYSTEMS registry. The detection engine is identical for all.
-
-Pure function: (target_path, corpus_dir) -> List[Finding]
-"""
 from __future__ import annotations
 
 import logging
@@ -17,7 +8,7 @@ from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
 
-# Ecosystem utility imports
+
 from .cargo_utils import detect_cargo_project, detect_private_cargo_registry, get_cargo_dep_names, parse_cargo_toml
 from .go_utils import detect_go_project, detect_goproxy_private, get_go_dep_names, parse_go_mod
 from .maven_utils import (
@@ -45,8 +36,6 @@ logger = logging.getLogger("picosentry.dep_confusion")
 __all__ = ["detect_all_dep_confusion"]
 
 
-# ── Common regex patterns for internal-looking names ──────────────────────
-
 _INTERNAL_PREFIX_PATTERNS = [
     r"^internal-",
     r"^private-",
@@ -69,20 +58,8 @@ _INTERNAL_EXTRA_PATTERNS = [
 _INTERNAL_ALL_PATTERNS = _INTERNAL_PREFIX_PATTERNS + _INTERNAL_EXTRA_PATTERNS
 
 
-# ── Ecosystem configuration ────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class DepConfusionConfig:
-    """Configuration for one ecosystem's dependency confusion detection.
-
-    Each ecosystem provides its own:
-    - Project detection function
-    - Manifest parsing and dependency name extraction
-    - Private registry detection
-    - Name heuristics (what "looks internal")
-    - Finding metadata
-    """
 
     ecosystem: str
     rule_id: str
@@ -93,15 +70,12 @@ class DepConfusionConfig:
     check_single_segment: bool = False
     doc_url: str = "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
 
-    # ── Stored function references for this ecosystem ──────────────────────
-    # These are set per-ecosystem below since lambdas can't be in defaults.
 
     def __hash__(self):
         return hash(self.ecosystem)
 
 
 def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
-    """Shared internal-name heuristic. Works for most ecosystems."""
     if name in config.known_safe_names:
         return False
     for prefix in config.known_public_prefixes:
@@ -111,13 +85,11 @@ def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
         if re.search(pattern, name, re.IGNORECASE):
             return True
     if config.check_single_segment:
-        # Single-segment names (no dots) could be internal
+
         if "." not in name and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name):
             return True
     return False
 
-
-# ── Maven has unique group_id:artifact_id logic ──────────────────────────
 
 _MAVEN_PUBLIC_GROUP_PREFIXES: frozenset[str] = frozenset({
     "org.springframework", "com.fasterxml", "org.apache", "com.google",
@@ -141,13 +113,12 @@ _MAVEN_KNOWN_SAFE_ARTIFACTS: frozenset[str] = frozenset({
 
 
 def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
-    """Maven-specific: checks group_id AND artifact_id."""
     if artifact_id in _MAVEN_KNOWN_SAFE_ARTIFACTS:
         return False
     for pattern in _INTERNAL_ALL_PATTERNS:
         if re.search(pattern, artifact_id, re.IGNORECASE):
             return True
-    # Single-segment group IDs (no dots) without known public prefix
+
     if group_id and "." not in group_id and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", group_id):
         return True
     if group_id:
@@ -157,11 +128,7 @@ def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
     return False
 
 
-# ── Per-ecosystem package collection ─────────────────────────────────────
-
-
 def _collect_npm_deps(target: Path) -> set[str]:
-    """Collect dependency names from npm package.json."""
     deps: set[str] = set()
     root_pkg = target / "package.json"
     if not root_pkg.is_file():
@@ -204,7 +171,6 @@ def _collect_pypi_deps(target: Path) -> set[str]:
 
 
 def _collect_maven_deps(target: Path) -> list[tuple[str, str, str]]:
-    """Collect (group_id, artifact_id, version) tuples for Maven."""
     deps: list[tuple[str, str, str]] = []
     pom_data = parse_pom_xml(target)
     if pom_data:
@@ -218,7 +184,6 @@ def _collect_maven_deps(target: Path) -> list[tuple[str, str, str]]:
 
 
 def _collect_nuget_deps_fn(target: Path) -> list[tuple[str, str, str]]:
-    """Collect (package_id, version, source) tuples for NuGet."""
     return collect_nuget_deps(target)
 
 
@@ -229,11 +194,7 @@ def _collect_rubygems_deps(target: Path) -> set[str]:
     return set()
 
 
-# ── Private registry detection helpers ────────────────────────────────────
-
-
 def _npm_has_private_registry(target: Path) -> bool:
-    """Check .npmrc for a custom registry setting."""
     npmrc = target / ".npmrc"
     if npmrc.is_file():
         try:
@@ -246,8 +207,7 @@ def _npm_has_private_registry(target: Path) -> bool:
 
 
 def _pypi_has_private_index(target: Path) -> bool:
-    """Check pip.conf / .pypirc / pyproject.toml for private PyPI index."""
-    # Check pip.conf
+
     for pip_conf in (target / "pip.conf", target / "pip.ini", target / ".pip" / "pip.conf"):
         if pip_conf.is_file():
             try:
@@ -259,7 +219,7 @@ def _pypi_has_private_index(target: Path) -> bool:
             except OSError:
                 continue
 
-    # Check .pypirc
+
     pypirc = target / ".pypirc"
     if pypirc.is_file():
         try:
@@ -273,7 +233,7 @@ def _pypi_has_private_index(target: Path) -> bool:
         except Exception:
             pass
 
-    # Check pyproject.toml for [tool.poetry.source]
+
     project_data = load_pyproject_toml(target)
     if project_data:
         sources = project_data.get("tool", {}).get("poetry", {}).get("source", [])
@@ -285,16 +245,11 @@ def _pypi_has_private_index(target: Path) -> bool:
     return False
 
 
-# ── Finding construction per ecosystem ────────────────────────────────────
-
-# npm: special second pass for when private registry IS configured
 _NPMRC_REGISTRY_PATTERN = "registry="
 _NPM_INTERNAL_SCOPES = frozenset({"@internal/", "@private/"})
 
-# ── Pinned/git/path dep collection ────────────────────────────────────────
 
 def _get_npm_pinned_deps(target: Path) -> set[str]:
-    """Npm doesn't pin deps via replace/patch like other ecosystems."""
     return set()
 
 
@@ -325,21 +280,10 @@ def _get_maven_finding_file(target: Path, has_pom: bool) -> Path:
     return target / "build.gradle"
 
 
-# ── Main detection engine ─────────────────────────────────────────────────
-
-
 def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect dependency confusion vectors for all 7 ecosystems.
-
-    For each detected ecosystem, checks if internal-looking dependencies
-    are declared without a corresponding private registry configuration.
-
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # ── npm ───────────────────────────────────────────────────────────────
+
     pkg_path = target / "package.json"
     if pkg_path.is_file():
         pkg = load_package_json(pkg_path)
@@ -376,7 +320,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                             )
                         )
 
-                # Second pass: if private registry IS configured, check for unregistered scopes
+
                 if has_private:
                     for dep_name in sorted(all_deps):
                         if dep_name.startswith("@"):
@@ -406,7 +350,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                                     )
                                 )
 
-    # ── Go ────────────────────────────────────────────────────────────────
+
     if detect_go_project(target):
         go_deps = _collect_go_deps(target)
         if go_deps:
@@ -419,7 +363,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                 if _looks_internal_base(dep_path, go_config) and not has_private:
                     findings.append(_make_finding(go_config, dep_path, dep_path, target, "go.mod"))
 
-    # ── Cargo ─────────────────────────────────────────────────────────────
+
     if detect_cargo_project(target):
         cargo_deps = _collect_cargo_deps(target)
         if cargo_deps:
@@ -432,7 +376,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                 if _looks_internal_base(crate_name, cargo_config) and not has_private:
                     findings.append(_make_finding(cargo_config, crate_name, crate_name, target, "Cargo.toml"))
 
-    # ── PyPI ──────────────────────────────────────────────────────────────
+
     if detect_pypi_project(target):
         pypi_deps = _collect_pypi_deps(target)
         if pypi_deps:
@@ -443,7 +387,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                     manifest_file = "pyproject.toml" if (target / "pyproject.toml").exists() else str(target)
                     findings.append(_make_finding(pypi_config, dep_name, dep_name, target, manifest_file))
 
-    # ── Maven ─────────────────────────────────────────────────────────────
+
     maven_detected = detect_maven_project(target)
     if maven_detected:
         maven_deps = _collect_maven_deps(target)
@@ -481,7 +425,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                         )
                     )
 
-    # ── NuGet ─────────────────────────────────────────────────────────────
+
     if detect_nuget_project(target):
         nuget_deps = _collect_nuget_deps_fn(target)
         if nuget_deps:
@@ -493,7 +437,7 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                 if _looks_internal_base(pkg_id, nuget_config) and not has_private:
                     findings.append(_make_finding(nuget_config, pkg_id, pkg_id, target, source or "nuget.config"))
 
-    # ── RubyGems ──────────────────────────────────────────────────────────
+
     if detect_rubygems_project(target):
         gem_deps = _collect_rubygems_deps(target)
         if gem_deps:
@@ -508,8 +452,6 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
 
     return findings
 
-
-# ── Ecosystem configs ──────────────────────────────────────────────────────
 
 _GO_CONFIG = DepConfusionConfig(
     ecosystem="go",
@@ -588,11 +530,7 @@ _RUBYGEMS_CONFIG = DepConfusionConfig(
 )
 
 
-# ── Shared finding builder ────────────────────────────────────────────────
-
-
 def _make_finding(config: DepConfusionConfig, package_ref: str, dep_name: str, target: Path, manifest_file: str) -> Finding:
-    """Build a Finding with the shared template."""
     return Finding(
         rule_id=config.rule_id,
         severity=Severity.CRITICAL,
@@ -613,7 +551,6 @@ def _make_finding(config: DepConfusionConfig, package_ref: str, dep_name: str, t
 
 
 def _get_npm_internal_scopes() -> frozenset[str]:
-    """Get internal scopes from env override, falling back to defaults."""
     import os
     scopes = set(_NPM_INTERNAL_SCOPES)
     env = os.environ.get("PICOSENTRY_INTERNAL_SCOPES", "")

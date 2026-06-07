@@ -1,4 +1,3 @@
-"""Test plugin for PLUGIN-01 acceptance criteria."""
 import logging
 from typing import Any
 
@@ -7,7 +6,6 @@ from picosentry.serve.services.plugin_manager import PluginInterface
 logger = logging.getLogger("picoshogun.Plugin.Test")
 
 class TestHandler(PluginInterface):
-    """Minimal plugin that verifies hook dispatch works."""
 
     def initialize(self, config: dict[str, Any]) -> bool:
         logger.info("TestHandler initialized")

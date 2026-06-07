@@ -1,7 +1,3 @@
-"""Default policy template and organization-specific starters.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/scan/policy.py``.
-"""
 from __future__ import annotations
 
 import logging
@@ -12,7 +8,6 @@ logger = logging.getLogger("picosentry.policy")
 
 
 def default_policy_template() -> str:
-    """Return a YAML template for .picosentry-policy.yml."""
     return """# PicoSentry Enterprise Policy
 # Place alongside .picosentry.yml in your project root.
 # See docs for full schema reference.
@@ -68,14 +63,6 @@ waivers: []
 
 
 def policy_from_org(org_name: str) -> Policy:
-    """Create a recommended default policy for common organization types.
-
-    Args:
-        org_name: One of 'startup', 'enterprise', 'oss', 'government'.
-
-    Returns:
-        A pre-configured Policy with sensible defaults.
-    """
     defaults = {
         "startup": Policy(
             fail_on_severity="high",

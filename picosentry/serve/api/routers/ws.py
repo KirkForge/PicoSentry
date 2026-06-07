@@ -1,4 +1,3 @@
-"""WebSocket endpoint for real-time event streaming."""
 import json
 import logging
 
@@ -14,12 +13,6 @@ router = APIRouter()
 
 @router.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
-    """Real-time WebSocket for live events with optional token auth.
-
-    Clients can authenticate by:
-    1. Passing ?token=<jwt> in the WebSocket URL
-    2. Sending {"action": "auth", "token": "<jwt>"} after connecting
-    """
     user = None
     if token:
         user = auth_service.validate_token(token)

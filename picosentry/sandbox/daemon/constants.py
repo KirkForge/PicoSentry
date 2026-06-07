@@ -1,20 +1,10 @@
-"""PicoDome daemon constants.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-- API version path segment
-- CORS allow/deny policy
-- Enterprise mode flag (drives fail-closed behavior)
-"""
 from __future__ import annotations
 
 import os
 
-# ─── API version ────────────────────────────────────────────────────────────
 
 API_VERSION = "v1"
 
-# ─── CORS Configuration ──────────────────────────────────────────────────────
 
 CORS_ALLOW_ORIGINS = os.environ.get("PICODOME_CORS_ORIGINS", "").replace("\r", "").replace("\n", "")
 CORS_ALLOW_METHODS = "GET, POST, OPTIONS"
@@ -24,7 +14,7 @@ _CORS_ALLOW_ORIGINS_LIST = [o.strip() for o in CORS_ALLOW_ORIGINS.split(",") if 
 _CORS_DENY_BY_DEFAULT = not _CORS_ALLOW_ORIGINS_LIST and CORS_ALLOW_ORIGINS != "*"
 _ENTERPRISE_MODE = os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes")
 
-# F2: In enterprise mode, reject wildcard CORS origin
+
 if _ENTERPRISE_MODE and CORS_ALLOW_ORIGINS == "*":
     import logging
 

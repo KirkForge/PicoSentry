@@ -1,13 +1,3 @@
-"""Scanner rules — deterministic, offline, pure-function detectors.
-
-Each rule is a pure function: (target_path, corpus_dir) → List[Finding]
-No HTTP. No global state. No randomness. Same input = same output.
-
-Consolidated from 21 per-ecosystem files into 3 shared engines:
-- detect_all_dep_confusion — dependency confusion for all 7 ecosystems
-- detect_all_typosquat — typosquatting detection for all 7 ecosystems
-- detect_all_advisory_vulnerabilities — advisory check for all 7 ecosystems
-"""
 
 from .advisory_check import detect_all_advisory_vulnerabilities
 from .bundled_shadow import detect_bundled_shadows
@@ -57,10 +47,10 @@ __all__ = [
     "detect_worm_propagation",
 ]
 
-# Base documentation URL for PicoSentry rules
+
 _DOCS_BASE = "https://github.com/KirkForge/PicoSentry/blob/main/picosentry/docs/rules"
 
-# Rule metadata registry — description, default severity, category, helpUri
+
 RULE_INFO = {
     "L2-POST-001": {
         "name": "post_install",
@@ -223,7 +213,7 @@ RULE_INFO = {
         "category": "supply-chain",
         "helpUri": f"{_DOCS_BASE}/L2-NETEX-001.md",
     },
-    # ── Go rules ───────────────────────────────────────────────────────────
+
     "L2-GO-TYPO-001": {
         "name": "go_typosquat",
         "description": "Go module short names within edit distance <=2 of top Go packages",
@@ -245,7 +235,7 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-GO-ADV-001.md",
     },
-    # ── Cargo rules ─────────────────────────────────────────────────────────
+
     "L2-CARGO-TYPO-001": {
         "name": "cargo_typosquat",
         "description": "Crate names within edit distance <=2 of top Rust crates",
@@ -267,7 +257,7 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-CARGO-ADV-001.md",
     },
-    # ── PyPI rules ─────────────────────────────────────────────────────────
+
     "L2-PYPI-TYPO-001": {
         "name": "pypi_typosquat",
         "description": "Package names within edit distance <=2 of top PyPI packages",
@@ -345,7 +335,7 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-PYPI-ADV-001.md",
     },
-    # ── Maven rules ──────────────────────────────────────────────────────────
+
     "L2-MAVEN-TYPO-001": {
         "name": "maven_typosquat",
         "description": "Artifact IDs within edit distance <=2 of top Maven packages",
@@ -367,7 +357,7 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-MAVEN-ADV-001.md",
     },
-    # ── RubyGems rules ────────────────────────────────────────────────────────
+
     "L2-RUBYGEMS-TYPO-001": {
         "name": "rubygems_typosquat",
         "description": "Gem names within edit distance <=2 of top RubyGems packages",
@@ -389,7 +379,7 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-RUBYGEMS-ADV-001.md",
     },
-    # ── NuGet rules ──────────────────────────────────────────────────────────
+
     "L2-NUGET-TYPO-001": {
         "name": "nuget_typosquat",
         "description": "Package IDs within edit distance <=2 of top NuGet packages",
@@ -413,20 +403,10 @@ RULE_INFO = {
     },
 }
 
-# Total detector rules
+
 RULE_COUNT = len(RULE_INFO)
 
-# Rule-ID aliases — the canonical mapping for rules registered under
-# multiple rule_ids. A single detector function can fire under several
-# rule_ids to give consumers a finer-grained taxonomy without paying the
-# cost of running the detector multiple times. The mapping is exposed as
-# a constant so docs, the README, and the validation harness can refer
-# to one agreed-on explanation of why one function emits under many IDs.
-#
-# Convention: each list element is a tuple of (function_module_stem,
-# detector_function_name, [rule_ids]) — the engine's create_default_engine
-# is the source of truth for the actual `engine.register(...)` calls; this
-# constant is a *documentation* mirror that ships with the package.
+
 RULE_ID_ALIASES: dict[str, list[str]] = {
     "detect_obfuscation": [
         "L2-OBFS-001",  # primary: general obfuscation (eval, dynamic exec)
@@ -451,13 +431,6 @@ RULE_ID_ALIASES: dict[str, list[str]] = {
 
 
 def all_rule_ids() -> set[str]:
-    """Return the union of RULE_INFO keys and RULE_ID_ALIASES values.
-
-    Used by the validation harness and by the campaign auto-discovery
-    code to know the full set of rule IDs that can fire. Campaigns use
-    a separate L2-CAMP-* prefix and self-describe via iocs.json — they
-    are not part of this static catalog.
-    """
     ids: set[str] = set(RULE_INFO.keys())
     for alias_list in RULE_ID_ALIASES.values():
         ids.update(alias_list)

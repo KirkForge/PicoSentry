@@ -1,7 +1,3 @@
-"""`analyze` subcommand — run L4 analysis on L3 output JSON.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -38,7 +34,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Run L4 analysis on L3 output."""
     if not args.input or not args.input.exists():
         print("Error: --input file required and must exist", file=sys.stderr)
         return 1
@@ -46,7 +41,7 @@ def cmd(args: argparse.Namespace) -> int:
     with open(args.input) as f:
         data = json.load(f)
 
-    # Reconstruct SandboxResult from JSON
+
     from picosentry.sandbox.l3.models import SandboxEvent, Verdict
 
     events = [
@@ -79,19 +74,19 @@ def cmd(args: argparse.Namespace) -> int:
     deterministic = args.deterministic_output
     result = engine.analyze(profile, rules=args.rules, deterministic=deterministic)
 
-    # Run determinism guard check if in deterministic mode
+
     if deterministic:
         guard = DeterministicGuard()
         violations = guard.check(result)
         if violations:
             for v in violations:
                 print(f"DETERMINISM VIOLATION: {v}", file=sys.stderr)
-        # Also validate individual findings for determinism
+
         finding_violations = validate_findings_deterministic(result.findings)
         for v in finding_violations:
             print(f"DETERMINISM VIOLATION (findings): {v}", file=sys.stderr)
 
-    # Output
+
     if not args.quiet:
         _output(result, args)
 

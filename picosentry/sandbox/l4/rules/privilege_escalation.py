@@ -1,14 +1,8 @@
-"""L4 privilege escalation detector.
-
-Detects attempts to escalate privileges: setuid/setgid file creation,
-sudoers manipulation, shadow/passwd writes, chmod 4xxx, cron abuse,
-and capabilities manipulation.
-"""
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Paths that should never be written to by sandboxed code
+
 PRIV_ESC_PATHS: dict[str, Severity] = {
     "/etc/sudoers": Severity.CRITICAL,
     "/etc/sudoers.d/": Severity.CRITICAL,
@@ -23,7 +17,7 @@ PRIV_ESC_PATHS: dict[str, Severity] = {
     "/etc/ssh/sshd_config": Severity.HIGH,
 }
 
-# Executables commonly used for privilege escalation
+
 PRIV_ESC_BINARIES = {
     "sudo",
     "su",
@@ -37,7 +31,7 @@ PRIV_ESC_BINARIES = {
     "chage",
 }
 
-# chmod operations indicating setuid/setgid attempts
+
 SETUID_PATTERNS = ("chmod 4", "chmod 2", "chmod 6", "chmod 47", "chmod 27", "chmod 67")
 
 
@@ -45,10 +39,9 @@ def detect_privilege_escalation(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect privilege escalation attempts during sandboxed execution."""
     findings: list[Finding] = []
 
-    # L4-PRIVESC-001: Writes to privilege-critical paths
+
     for op in profile.fs_ops:
         if op.operation not in ("write", "create", "chmod", "chown", "delete"):
             continue
@@ -64,7 +57,7 @@ def detect_privilege_escalation(
                     )
                 )
 
-    # L4-PRIVESC-002: Spawning privilege-escalation binaries
+
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in PRIV_ESC_BINARIES:
@@ -78,7 +71,7 @@ def detect_privilege_escalation(
                 )
             )
 
-    # L4-PRIVESC-003: setuid/setgid chmod attempts
+
     for op in profile.fs_ops:
         if op.operation == "chmod":
             for pattern in SETUID_PATTERNS:
@@ -94,7 +87,7 @@ def detect_privilege_escalation(
                     )
                     break
 
-    # L4-PRIVESC-004: Capabilities manipulation
+
     cap_keywords = {"setcap", "getcap", "cap_setuid", "cap_net_raw", "cap_sys_admin", "cap_dac_override"}
     for spawn in profile.spawns:
         exe_lower = spawn.executable.lower()
@@ -110,7 +103,7 @@ def detect_privilege_escalation(
                 )
             )
 
-    # L4-PRIVESC-005: /etc/cron manipulation (persistence via cron)
+
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if op.operation in ("write", "create") and (

@@ -1,21 +1,3 @@
-"""Versioned policy store with provenance tracking.
-
-Each policy version records:
-- Who created/modified it (``author``)
-- When (``timestamp``)
-- Why (``change_description``)
-- A SHA-256 content hash for integrity verification
-- Optional Sigstore signature (future)
-
-The store supports:
-- Listing all versions of a policy
-- Diffing two versions
-- Rolling back to a previous version
-- Verifying integrity of all stored versions
-
-Storage: file-based, one JSON file per version under
-``~/.picodome/policies/<name>/v<version>.json``
-"""
 
 from __future__ import annotations
 
@@ -40,7 +22,6 @@ _DEFAULT_STORE_DIR = Path.home() / ".picodome" / "policies"
 
 @dataclass(frozen=True)
 class PolicyVersion:
-    """A versioned snapshot of a Policy with provenance metadata."""
 
     policy: Policy
     version: int
@@ -74,18 +55,6 @@ class PolicyVersion:
 
 
 class VersionedPolicyStore:
-    """File-based versioned policy store.
-
-    Directory structure::
-
-        ~/.picodome/policies/
-        ├── picodome-default/
-        │   ├── v1.json
-        │   ├── v2.json
-        │   └── latest -> v2.json  (symlink or metadata)
-        └── custom-policy/
-            └── v1.json
-    """
 
     def __init__(self, store_dir: Path | None = None) -> None:
         self._store_dir = store_dir or _DEFAULT_STORE_DIR
@@ -97,16 +66,11 @@ class VersionedPolicyStore:
         author: str,
         change_description: str = "",
     ) -> PolicyVersion:
-        """Save a new version of a policy.
-
-        Assigns the next version number and records provenance.
-        Returns the created PolicyVersion.
-        """
         name = policy.name
         policy_dir = self._store_dir / name
         policy_dir.mkdir(parents=True, exist_ok=True)
 
-        # Determine next version number
+
         existing = self._list_versions(name)
         next_version = max(v.version for v in existing) + 1 if existing else 1
 
@@ -132,7 +96,7 @@ class VersionedPolicyStore:
             os.unlink(tmp_path)
             raise
 
-        # Update latest pointer atomically
+
         latest_path = policy_dir / "latest.json"
         tmp_fd2, tmp_path2 = tempfile.mkstemp(suffix=".json", dir=policy_dir)
         try:
@@ -154,13 +118,12 @@ class VersionedPolicyStore:
         return pv
 
     def load(self, name: str, version: int | None = None) -> PolicyVersion | None:
-        """Load a policy version. None = latest."""
         if version is None:
-            # Read latest
+
             latest_path = self._store_dir / name / "latest.json"
             if latest_path.is_file():
                 return self._read_version_file(latest_path)
-            # Fallback: find highest version
+
             versions = self._list_versions(name)
             if versions:
                 return max(versions, key=lambda v: v.version)
@@ -172,11 +135,6 @@ class VersionedPolicyStore:
         return self._read_version_file(path)
 
     def rollback(self, name: str, version: int, author: str) -> PolicyVersion | None:
-        """Roll back to a previous version by re-saving it as a new version.
-
-        This creates a new version (not overwriting history) so the
-        rollback itself is auditable.
-        """
         target = self.load(name, version)
         if target is None:
             logger.warning("Rollback failed: policy '%s' v%d not found", name, version)
@@ -189,10 +147,6 @@ class VersionedPolicyStore:
         )
 
     def diff(self, name: str, version_a: int, version_b: int) -> dict[str, Any]:
-        """Diff two versions of a policy.
-
-        Returns a dict with added_rules, removed_rules, changed_rules.
-        """
         pv_a = self.load(name, version_a)
         pv_b = self.load(name, version_b)
 
@@ -225,7 +179,6 @@ class VersionedPolicyStore:
         }
 
     def list_policies(self) -> list[str]:
-        """List all policy names in the store."""
         if not self._store_dir.exists():
             return []
         return sorted(
@@ -233,11 +186,9 @@ class VersionedPolicyStore:
         )
 
     def list_versions(self, name: str) -> list[PolicyVersion]:
-        """List all versions of a policy."""
         return self._list_versions(name)
 
     def verify_integrity(self, name: str) -> list[str]:
-        """Verify content hash integrity for all versions."""
         violations: list[str] = []
         versions = self._list_versions(name)
 
@@ -251,10 +202,8 @@ class VersionedPolicyStore:
 
         return violations
 
-    # ── Internal ────────────────────────────────────────────────────────
 
     def _list_versions(self, name: str) -> list[PolicyVersion]:
-        """Internal: list versions from disk."""
         policy_dir = self._store_dir / name
         if not policy_dir.is_dir():
             return []
@@ -269,7 +218,6 @@ class VersionedPolicyStore:
         return versions
 
     def _read_version_file(self, path: Path) -> PolicyVersion | None:
-        """Read a PolicyVersion from a JSON file."""
         try:
             data = json.loads(path.read_text(encoding="utf-8"))
             return PolicyVersion.from_dict(data)
@@ -279,12 +227,8 @@ class VersionedPolicyStore:
 
     @staticmethod
     def _hash_policy(policy: Policy) -> str:
-        """SHA-256 hash of the policy's deterministic JSON representation."""
         data = policy.to_dict()
         return hashlib.sha256(json.dumps(data, sort_keys=True).encode()).hexdigest()
-
-
-# ─── Module-level singleton ────────────────────────────────────────────────
 
 
 _policy_store_lock = threading.Lock()
@@ -292,7 +236,6 @@ _policy_store: VersionedPolicyStore | None = None
 
 
 def get_policy_store() -> VersionedPolicyStore:
-    """Get the global policy store (lazy init)."""
     global _policy_store
     if _policy_store is None:
         with _policy_store_lock:

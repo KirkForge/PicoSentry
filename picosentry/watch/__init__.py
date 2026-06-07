@@ -1,4 +1,3 @@
-"""PicoWatch — LLM defender with telemetry."""
 
 __version__ = "2.0.9"
 

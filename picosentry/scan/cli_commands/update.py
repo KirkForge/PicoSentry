@@ -1,9 +1,3 @@
-"""`update` subcommand — download top-N npm packages for the typosquat corpus.
-
-This is the ONLY PicoSentry subcommand that makes network requests.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -29,11 +23,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Download latest top-N npm packages for the typosquat corpus.
-
-    The corpus is saved to the user data directory (not inside the
-    installed package), so it works without root/venv write access.
-    """
     top_n = args.top
     default_output = user_corpus_dir() / "npm_top_packages.json"
     output_path = Path(args.output) if args.output else default_output
@@ -74,7 +63,7 @@ def cmd(args: argparse.Namespace) -> int:
 
         packages = sorted(all_packages)[:top_n]
 
-        # Merge with existing corpus
+
         existing = set()
         if output_path.is_file():
             with contextlib.suppress(json.JSONDecodeError, OSError):
@@ -82,7 +71,7 @@ def cmd(args: argparse.Namespace) -> int:
 
         merged = sorted(existing | set(packages))
 
-        # Write
+
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(merged, indent=4, ensure_ascii=False), encoding="utf-8")
 
@@ -102,8 +91,6 @@ def cmd(args: argparse.Namespace) -> int:
         return 1
 
 
-# Back-compat: the historic name in the monolithic cli.py was
-# ``_cmd_update``; keep that import path working.
 _cmd_update = cmd
 
 __all__ = ["NAME", "_cmd_update", "add_arguments", "cmd"]

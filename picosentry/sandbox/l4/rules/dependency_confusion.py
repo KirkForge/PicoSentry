@@ -1,21 +1,15 @@
-"""L4 dependency confusion detector.
-
-Detects dependency confusion attacks: network calls to private/internal
-registries, attempts to publish packages, pip/npm install from suspicious
-URLs, and registry override attempts.
-"""
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Internal/private registry patterns that should not appear in sandboxed installs
+
 SUSPICIOUS_REGISTRY_HOSTS = {
     "npm.company", "npm.internal", "npm.local",
     "pypi.company", "pypi.internal", "pypi.local",
     "artifactory.internal", "nexus.internal", "gems.internal",
 }
 
-# Suspicious registry URLs in spawn arguments
+
 SUSPICIOUS_REGISTRY_ARG_PATTERNS = (
     "--registry=",
     "--registry ",
@@ -28,7 +22,7 @@ SUSPICIOUS_REGISTRY_ARG_PATTERNS = (
     "pip.conf",
 )
 
-# Publish commands that should never run during install
+
 PUBLISH_BINARIES = {
     "npm publish",
     "npm-deprecate",
@@ -38,7 +32,7 @@ PUBLISH_BINARIES = {
     "cargo publish",
 }
 
-# Suspicious URL schemes for package installation
+
 SUSPICIOUS_INSTALL_PATTERNS = (
     "git+http://",
     "git+https://github.com/",
@@ -54,10 +48,9 @@ def detect_dependency_confusion(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect dependency confusion and package hijacking attempts."""
     findings: list[Finding] = []
 
-    # L4-DEP-001: DNS queries to suspicious internal/private registries
+
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
         for pattern in SUSPICIOUS_REGISTRY_HOSTS:
@@ -72,7 +65,7 @@ def detect_dependency_confusion(
                     )
                 )
 
-        # Also flag .local and .internal TLDs (common in dependency confusion)
+
         if hostname_lower.endswith(".local") or hostname_lower.endswith(".internal"):
             findings.append(
                 Finding(
@@ -84,12 +77,12 @@ def detect_dependency_confusion(
                 )
             )
 
-    # L4-DEP-002: Package publish commands during install
+
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         all_args_str = " ".join(spawn.args).lower()
 
-        # Direct publish binary
+
         if exe_base in ("twine", "gem", "cargo"):
             if "upload" in all_args_str or "publish" in all_args_str:
                 findings.append(
@@ -102,7 +95,7 @@ def detect_dependency_confusion(
                     )
                 )
 
-        # npm publish
+
         if exe_base == "npm" and "publish" in all_args_str:
             findings.append(
                 Finding(
@@ -114,7 +107,7 @@ def detect_dependency_confusion(
                 )
             )
 
-    # L4-DEP-003: Suspicious pip/npm install from non-standard URLs
+
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         all_args_str = " ".join(spawn.args)
@@ -144,7 +137,7 @@ def detect_dependency_confusion(
                 )
             )
 
-    # L4-DEP-004: Registry override via environment/spawn args
+
     for spawn in profile.spawns:
         all_args_str = " ".join(spawn.args)
         for pattern in SUSPICIOUS_REGISTRY_ARG_PATTERNS:
@@ -159,12 +152,11 @@ def detect_dependency_confusion(
                     )
                 )
 
-    # L4-DEP-005: Network calls to non-standard registry ports
-    # Standard ports: 443 (HTTPS), 80 (HTTP), 22 (SSH/git)
+
     standard_ports = {0, 22, 80, 443}
     for call in profile.network_calls:
         if call.port not in standard_ports and call.port > 0:
-            # Only flag if it looks like a registry-like address
+
             addr_lower = call.address.lower()
             registry_keywords = ("pypi", "npmjs", "npm", "registry", "rubygems", "crates", "maven", "nuget", "packagist")
             if any(kw in addr_lower for kw in registry_keywords):
@@ -178,7 +170,7 @@ def detect_dependency_confusion(
                     )
                 )
 
-    # L4-DEP-006: .npmrc or pip.conf file access
+
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if op.operation in ("read", "write", "create"):

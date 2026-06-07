@@ -1,18 +1,3 @@
-"""PicoDomeHandler — HTTP request handler composing the mixins.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-The :class:`PicoDomeHandler` class is the composition of:
-
-- :class:`~picosentry.sandbox.daemon.handler_mixins.PicoDomeResponseMixin`
-- :class:`~picosentry.sandbox.daemon.handler_mixins.PicoDomeAuthMixin`
-- :class:`~picosentry.sandbox.daemon.handler_routes_get.PicoDomeGetRoutesMixin`
-- :class:`~picosentry.sandbox.daemon.handler_routes_post.PicoDomePostRoutesMixin`
-
-This file holds only the class-level state (class attributes for RBAC, job
-store, rate limiter, runtime counters) and the ``do_GET``/``do_POST``/
-``do_OPTIONS`` HTTP-method dispatchers.
-"""
 from __future__ import annotations
 
 import logging
@@ -47,21 +32,12 @@ class PicoDomeHandler(
     PicoDomePostRoutesMixin,
     BaseHTTPRequestHandler,
 ):
-    """HTTP request handler for the PicoDome daemon.
 
-    Composed from four mixins:
-    - ``PicoDomeResponseMixin`` — request ID, common headers, JSON responses
-    - ``PicoDomeAuthMixin``     — token, tenant, auth, RBAC, command validation
-    - ``PicoDomeGetRoutesMixin``  — GET endpoint handlers
-    - ``PicoDomePostRoutesMixin`` — POST endpoint handlers
-    """
-
-    # ── Request size limit ──────────────────────────────────────────────
 
     MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10 MB
     API_VERSION = API_VERSION  # exposed as self.API_VERSION for route mixins
 
-    # Set by the server at creation time
+
     rbac: RBAC = RBAC()
     auth: TokenAuth = TokenAuth(rbac=rbac)
     job_store: PersistentScanJobStore | ScanJobStore | SQLiteScanJobStore = PersistentScanJobStore()
@@ -71,10 +47,8 @@ class PicoDomeHandler(
     _scan_total_ms: int = 0
     _alert_count: int = 0
 
-    # ── HTTP method dispatchers ─────────────────────────────────────────
 
     def do_OPTIONS(self) -> None:
-        """Handle CORS preflight requests."""
         self.send_response(204)
         self._add_common_headers(self._generate_request_id())
         self.end_headers()

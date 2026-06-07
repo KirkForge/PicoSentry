@@ -1,4 +1,3 @@
-"""Job scheduler with cron-like expressions."""
 import json
 import logging
 import re
@@ -33,7 +32,6 @@ class ScheduledJob:
     last_status: str | None
 
 class JobScheduler:
-    """Job scheduler with cron expressions."""
 
     ALLOWED_COMMANDS: ClassVar[set[str]] = {"batch", "run", "report", "backup", "cleanup", "health_check"}
 
@@ -46,7 +44,6 @@ class JobScheduler:
         self._load_jobs()
 
     def _load_jobs(self):
-        """Load scheduled jobs from picosentry.serve.database."""
         rows = db.execute("SELECT * FROM scheduled_jobs")
         for row in rows:
             job = ScheduledJob(
@@ -64,11 +61,10 @@ class JobScheduler:
 
     def add_job(self, name: str, cron: str, command: str,
                 params: dict | None = None, enabled: bool = True) -> int:
-        """Add a new scheduled job."""
         if command not in self.ALLOWED_COMMANDS:
             raise ValueError(f"Invalid command: {command!r}. Must be one of {sorted(self.ALLOWED_COMMANDS)}")
 
-        # Sanitize params: only allow primitive JSON-safe types
+
         if params:
             for key, value in params.items():
                 if not isinstance(value, (str, int, float, bool, type(None))):
@@ -90,7 +86,6 @@ class JobScheduler:
         return job_id
 
     def remove_job(self, job_id: int) -> bool:
-        """Remove a scheduled job."""
         if job_id not in self.jobs:
             return False
 
@@ -101,7 +96,6 @@ class JobScheduler:
         return True
 
     def enable_job(self, job_id: int) -> bool:
-        """Enable a job."""
         if job_id not in self.jobs:
             return False
 
@@ -114,7 +108,6 @@ class JobScheduler:
         return True
 
     def disable_job(self, job_id: int) -> bool:
-        """Disable a job."""
         if job_id not in self.jobs:
             return False
 
@@ -123,9 +116,8 @@ class JobScheduler:
         return True
 
     def _get_next_run(self, cron_expression: str) -> datetime | None:
-        """Calculate next run time from cron expression."""
         if not HAS_CRONITER:
-            # Simple fallback: every N minutes
+
             match = re.match(r"every\s+(\d+)\s+(minute|hour|day)", cron_expression, re.IGNORECASE)
             if match:
                 val = int(match.group(1))
@@ -146,7 +138,6 @@ class JobScheduler:
             return None
 
     def _execute_job(self, job_id: int):
-        """Execute a scheduled job."""
         job = self.jobs.get(job_id)
         if not job:
             return
@@ -156,7 +147,7 @@ class JobScheduler:
         try:
             status = "failed"
 
-            # Reject unknown commands at execution time as well
+
             if job.command not in self.ALLOWED_COMMANDS:
                 logger.error("Rejected unknown command: %r", job.command)
                 db.execute_insert("""
@@ -169,7 +160,7 @@ class JobScheduler:
             if job.command == "batch":
                 import subprocess
                 category = str(job.params.get("category", "monitoring"))
-                # Reject categories with path separators or shell metacharacters
+
                 _unsafe_chars = set("/\\;&$`()" )
                 if any(c in _unsafe_chars for c in category) or "\n" in category or "\r" in category:
                     logger.error("Rejected unsafe category param: %r", category)
@@ -220,7 +211,7 @@ class JobScheduler:
                 status = "completed"
                 _output = f"Cleaned up {expired} expired API keys, rotated logs, purged audit entries"
 
-            # Update job status
+
             db.execute_insert("""
                 UPDATE scheduled_jobs
                 SET last_run = ?, last_status = ?
@@ -242,12 +233,11 @@ class JobScheduler:
             job.last_run = datetime.now()
             job.last_status = "failed"
 
-        # Schedule next run
+
         if self.running and job.enabled:
             self._schedule_job(job_id)
 
     def _schedule_job(self, job_id: int):
-        """Schedule next execution of a job."""
         job = self.jobs.get(job_id)
         if not job or not job.enabled:
             return
@@ -263,38 +253,34 @@ class JobScheduler:
                 """, (next_run, job_id))
 
     def start(self):
-        """Start the scheduler daemon."""
         if self.running:
             return
 
         self.running = True
 
-        # Schedule all enabled jobs
+
         for job_id in self.jobs:
             if self.jobs[job_id].enabled:
                 self._schedule_job(job_id)
 
-        # Start scheduler thread
+
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
         logger.info("Scheduler started with %s jobs", len(self.jobs))
 
     def _run(self):
-        """Run the scheduler loop."""
         while self.running:
             self.scheduler.run(blocking=False)
             time.sleep(1)
 
     def stop(self):
-        """Stop the scheduler."""
         self.running = False
         if self._thread:
             self._thread.join(timeout=5)
         logger.info("Scheduler stopped")
 
     def get_status(self) -> list[dict]:
-        """Get status of all jobs."""
         return [
             {
                 "id": j.id,
@@ -309,5 +295,5 @@ class JobScheduler:
             for j in self.jobs.values()
         ]
 
-# Global scheduler instance
+
 scheduler = JobScheduler()

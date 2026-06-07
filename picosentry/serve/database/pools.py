@@ -1,15 +1,3 @@
-"""Database connection pool implementations.
-
-SQLitePool — thread-local connection pool for SQLite (default, stable).
-PostgresPool — **EXPERIMENTAL STUB** — not implemented.
-
-The pool interface is defined in database.manager.ConnectionPool.
-Switch backends via config: PICOSHOGUN_DATABASE_BACKEND=postgres.
-
-⚠️ PostgresPool raises NotImplementedError. Only SQLite works today.
-   See https://github.com/KirkForge/PicoSentry/issues for Postgres
-   migration tracking. Contributions welcome.
-"""
 import logging
 import sqlite3
 import threading
@@ -22,14 +10,6 @@ logger = logging.getLogger("picoshogun.DB.Pool")
 
 
 class SQLitePool:
-    """Thread-local SQLite connection pool.
-
-    Each thread gets its own connection, created on first use.
-    WAL mode, synchronous, and auto-checkpoint are configured
-    from ``settings.database``.
-
-    This replaces the previous inline connection logic in DatabaseManager.
-    """
 
     param_style = "qmark"  # SQLite uses ? for parameters
 
@@ -40,7 +20,6 @@ class SQLitePool:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def acquire(self) -> sqlite3.Connection:
-        """Get a thread-local SQLite connection."""
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._local.conn = sqlite3.connect(
                 str(self.db_path),
@@ -59,18 +38,15 @@ class SQLitePool:
         return self._local.conn
 
     def release(self, conn: sqlite3.Connection) -> None:
-        """No-op for SQLite — thread-local connections are reused."""
         pass
 
     def close_all(self) -> None:
-        """Close the current thread's connection."""
         if hasattr(self._local, "conn") and self._local.conn:
             self._local.conn.close()
             self._local.conn = None
 
     @contextmanager
     def transaction(self):
-        """Context manager for database transactions."""
         conn = self.acquire()
         try:
             conn.execute("BEGIN")
@@ -81,11 +57,9 @@ class SQLitePool:
             raise
 
     def lock(self) -> threading.Lock:
-        """Return the thread-safety lock for write operations."""
         return self._lock
 
     def backup(self, dest_path: Path) -> None:
-        """Create a backup of the SQLite database to dest_path."""
         with self._lock:
             source = sqlite3.connect(str(self.db_path))
             dest = sqlite3.connect(str(dest_path))
@@ -95,20 +69,6 @@ class SQLitePool:
 
 
 class PostgresPool:
-    """PostgreSQL connection pool (stub for migration path).
-
-    To complete the Postgres migration:
-    1. Install psycopg (v3): ``pip install psycopg[binary]``
-    2. Set ``PICOSHOGUN_DATABASE_BACKEND=postgres``
-    3. Set ``PICOSHOGUN_DATABASE_URL=PICOSHOGUN_DATABASE_URL=<your-postgres-url>``
-    4. Implement the acquire/release/close_all methods below.
-    5. Adjust SQL in migrations and queries:
-       - Replace ``?`` params with ``%s``
-       - Replace ``AUTOINCREMENT`` with ``SERIAL`` or ``GENERATED ALWAYS AS IDENTITY``
-       - Replace ``strftime`` with ``TO_CHAR`` / ``EXTRACT``
-       - Replace ``julianday`` with Postgres date math
-       - Replace ``datetime('now', ...)`` with ``NOW() - INTERVAL '...'``
-    """
 
     param_style = "format"  # Postgres uses %s for parameters
 
@@ -142,17 +102,6 @@ class PostgresPool:
 
 
 def create_pool(backend: str | None = None, db_path: Path | None = None, url: str | None = None):
-    """Factory: create the appropriate connection pool based on config.
-
-    Args:
-        backend: Override backend ('sqlite' or 'postgres'). If None, reads
-                 from PICOSHOGUN_DATABASE_BACKEND env var (default: 'sqlite').
-        db_path: SQLite database path (for SQLite backend only).
-        url: Postgres connection URL (for Postgres backend only).
-
-    Returns:
-        SQLitePool or PostgresPool instance.
-    """
     effective_backend = backend or settings.database.backend
     if effective_backend == "postgres":
         return PostgresPool(url=url)

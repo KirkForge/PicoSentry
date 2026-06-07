@@ -1,11 +1,3 @@
-"""Redis-backed token bucket rate limiter — horizontal scale shared state.
-
-When running multiple PicoDome replicas, in-memory rate limit state
-is not shared. This Redis-backed limiter uses atomic Lua scripts
-to ensure consistent rate limiting across all replicas.
-
-Falls back to in-memory TokenBucketLimiter when Redis is unavailable.
-"""
 
 from __future__ import annotations
 
@@ -20,12 +12,7 @@ logger = logging.getLogger("picodome.ratelimit.redis")
 
 _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 
-# Lua script for atomic token bucket check-and-consume
-# KEYS[1] = bucket key
-# ARGV[1] = rate (tokens per second)
-# ARGV[2] = burst (max tokens)
-# ARGV[3] = tokens to consume
-# ARGV[4] = current timestamp
+
 _LUA_TOKEN_BUCKET = """
 local key = KEYS[1]
 local rate = tonumber(ARGV[1])
@@ -59,17 +46,6 @@ end
 
 
 class RedisTokenBucketLimiter:
-    """Redis-backed token bucket rate limiter for horizontal scaling.
-
-    Uses atomic Lua scripts to ensure consistent rate limiting
-    across all replicas sharing the same Redis instance.
-
-    Falls back to in-memory TokenBucketLimiter when Redis is unavailable.
-
-    Args:
-        config: Rate limit configuration.
-        redis_url: Redis connection URL.
-    """
 
     def __init__(
         self,
@@ -81,11 +57,10 @@ class RedisTokenBucketLimiter:
         self._client = None
         self._lua_script = None
         self._available = False
-        # Fallback limiter for when Redis is down
+
         self._fallback = TokenBucketLimiter(config=self._config)
 
     def _get_client(self):
-        """Lazy-init Redis client."""
         if self._client is not None:
             return self._client
 
@@ -109,24 +84,11 @@ class RedisTokenBucketLimiter:
 
     @property
     def available(self) -> bool:
-        """Check if Redis is available."""
         if self._client is None:
             self._get_client()
         return self._available
 
     def allow(self, actor: str, tokens: float = 1.0) -> bool:
-        """Check if a request from the given actor is allowed.
-
-        Uses Redis atomic Lua script when available, falls back
-        to in-memory limiter when not.
-
-        Args:
-            actor: Actor identifier (token, tenant:token, IP, etc.)
-            tokens: Number of tokens to consume.
-
-        Returns:
-            True if allowed, False if rate-limited.
-        """
         self._get_client()
 
         if not self._available:
@@ -135,7 +97,7 @@ class RedisTokenBucketLimiter:
         try:
             key = f"picodome:ratelimit:{actor}"
             now = time.time()
-            # _lua_script is set iff _available is True (see _get_client).
+
             lua_script = self._lua_script
             assert lua_script is not None
             result = lua_script(  # type: ignore[unreachable]
@@ -154,7 +116,6 @@ class RedisTokenBucketLimiter:
             return self._fallback.allow(actor=actor, tokens=tokens)
 
     def get_status(self, actor: str) -> dict[str, Any]:
-        """Get rate limit status for an actor."""
         if not self._available:
             return self._fallback.get_status(actor)
 
@@ -178,7 +139,6 @@ class RedisTokenBucketLimiter:
         return self._fallback.get_status(actor)
 
     def reset(self, actor: str | None = None) -> None:
-        """Reset rate limit state."""
         if not self._available:
             self._fallback.reset(actor)
             return
@@ -188,7 +148,7 @@ class RedisTokenBucketLimiter:
             if actor:
                 client.delete(f"picodome:ratelimit:{actor}")
             else:
-                # Delete all rate limit keys
+
                 for key in client.scan_iter("picodome:ratelimit:*"):
                     client.delete(key)
         except Exception:

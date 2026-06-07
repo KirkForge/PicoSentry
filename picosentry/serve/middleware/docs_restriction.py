@@ -1,4 +1,3 @@
-"""Docs restriction middleware — disables OpenAPI docs in production."""
 from typing import ClassVar
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -7,11 +6,6 @@ from starlette.responses import JSONResponse
 
 
 class DocsRestrictionMiddleware(BaseHTTPMiddleware):
-    """Block access to /docs and /redoc in production environments.
-
-    Allows access in development/staging for developer convenience.
-    Always allows /openapi.json for programmatic access if authenticated.
-    """
 
     DOCS_PATHS: ClassVar[set[str]] = {"/docs", "/docs/", "/redoc", "/redoc/"}
 

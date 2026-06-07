@@ -1,13 +1,3 @@
-"""PicoDome output formatters.
-
-Available formatters:
-- format_json: JSON output (deterministic mode available)
-- format_sarif: SARIF 2.1.0 output
-- format_table: Human-readable table with dome pinch labels
-- format_ml_context: Compact token-budgeted output for LLM context
-- format_github: GitHub Actions SARIF + markdown summary
-- format_cyclonedx: CycloneDX 1.5 SBOM format
-"""
 
 from picosentry.sandbox.formatters.cyclonedx import format_cyclonedx
 from picosentry.sandbox.formatters.github import format_github

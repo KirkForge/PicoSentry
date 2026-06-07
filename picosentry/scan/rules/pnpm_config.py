@@ -1,13 +1,3 @@
-"""
-L2-PNPM-001: Detect dangerous pnpm configurations.
-
-Flags:
-- dangerouslyAllowAllBuilds in .npmrc or package.json
-- onlyBuiltDependenciesFile without proper config
-- Missing .npmrc when pnpm-lock.yaml exists (no build policy)
-- pnpm overrides that bypass integrity
-- pnpm patchedDependencies that modify package code
-"""
 
 import contextlib
 import json
@@ -20,7 +10,6 @@ __all__ = ["detect_pnpm_config"]
 
 
 def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
-    """Scan for dangerous pnpm configurations."""
     findings: list[Finding] = []
 
     target = Path(target_path)
@@ -31,7 +20,7 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
     if not has_pnpm_lock:
         return findings
 
-    # Check package.json for pnpm config
+
     pkg_data = {}
     if pkg_path.exists():
         with contextlib.suppress(json.JSONDecodeError, UnicodeDecodeError):
@@ -41,7 +30,7 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
     pnpm_overrides = pnpm_config.get("overrides", {})
     pnpm_patches = pnpm_config.get("patchedDependencies", {})
 
-    # L2-PNPM-001a: dangerouslyAllowAllBuilds in .npmrc
+
     if has_npmrc:
         npmrc_path = target / ".npmrc"
         try:
@@ -72,7 +61,7 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                     )
                 )
 
-    # L2-PNPM-001b: dangerouslyAllowAllBuilds in package.json pnpm section
+
     if pnpm_config.get("dangerouslyAllowAllBuilds"):
         findings.append(
             Finding(
@@ -92,7 +81,7 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
             )
         )
 
-    # L2-PNPM-001c: pnpm-lock.yaml exists but no .npmrc (no build policy at all)
+
     if has_pnpm_lock and not has_npmrc:
         findings.append(
             Finding(
@@ -109,10 +98,10 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
             )
         )
 
-    # L2-PNPM-001d: pnpm overrides that shadow dependencies
+
     if pnpm_overrides:
         for override_key in pnpm_overrides:
-            # Overrides that point to different registries or versions bypass integrity
+
             override_val = pnpm_overrides[override_key]
             findings.append(
                 Finding(
@@ -129,7 +118,7 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                 )
             )
 
-    # L2-PNPM-001e: patchedDependencies (code modification)
+
     if pnpm_patches:
         findings.append(
             Finding(

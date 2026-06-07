@@ -1,23 +1,3 @@
-"""
-L2-WORM-001: Self-propagating worm detection.
-
-Detects npm supply-chain worm patterns — install scripts that clone,
-publish, or propagate the worm into new packages. Catches the Shai-Hulud
-worm family (2025-2026) and similar self-replicating postinstall attacks.
-
-Patterns detected:
-  - npm whoami / npm publish in install scripts (worm propagation)
-  - fs.writeFileSync to package.json (self-modification)
-  - glob scanning node_modules (propagation target discovery)
-  - curl/wget piped to shell (remote payload download+execute)
-  - node -e one-liners in install scripts (inline payload execution)
-  - Shai-Hulud 2.0 Bun payloads (setup_bun.js, bun_environment.js)
-  - GitHub repo creation/exfiltration (makeRepo, git config manipulation)
-  - Destructive fallback patterns (rm -rf ~, rm -rf $HOME)
-  - Workflow file manipulation (.github/workflows injection)
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -29,7 +9,7 @@ from .utils import load_package_json
 
 __all__ = ["detect_worm_propagation"]
 
-# Install-time script keys that execute code.
+
 INSTALL_SCRIPT_KEYS = (
     "install",
     "postinstall",
@@ -38,16 +18,16 @@ INSTALL_SCRIPT_KEYS = (
     "prepack",
 )
 
-# JS/TS extensions to scan for worm patterns in source files.
+
 JS_EXTENSIONS = {".js", ".mjs", ".cjs", ".ts", ".tsx"}
 
-# Max file size to scan (500 KB).
+
 MAX_FILE_BYTES = 512_000
 
-# Max files to scan per package.
+
 MAX_FILES_PER_PACKAGE = 200
 
-# Directories to skip during node_modules traversal.
+
 SKIP_DIRS = frozenset(
     {
         "dist",
@@ -68,111 +48,94 @@ SKIP_EXTENSIONS = frozenset(
     }
 )
 
-# ---- Worm propagation patterns in install scripts ----
 
-# npm publish/whoami — worm propagation: worm publishes new variants of itself
 WORM_NPM_PUBLISH = re.compile(
     r"\bnpm\s+(?:whoami|publish|token\s+list)\b",
     re.IGNORECASE,
 )
 
-# curl/wget piped to shell — remote payload download+execute (Shai-Hulud v1)
+
 REMOTE_PIPE_SHELL = re.compile(
     r"""(?:curl|wget|fetch)\s+.*[|\s]*(?:bash|sh|node)\b""",
     re.IGNORECASE,
 )
 
-# node -e one-liners — inline JS payload execution in install scripts
+
 NODE_EVAL_ONELINER = re.compile(
     r"""\bnode\s+-e\s+['"]""",
 )
 
-# Shai-Hulud 2.0 Bun payloads
+
 BUN_PAYLOAD = re.compile(
     r"\b(?:setup_bun|bun_environment)\.js\b",
 )
 
-# GitHub repo creation/exfiltration
+
 GITHUB_REPO_CREATION = re.compile(
     r"\bmakeRepo\b.*\bShai-Hulud\b|\bShai-Hulud\b",
     re.IGNORECASE,
 )
 
-# Git config manipulation — worm modifies git config to push to attacker repos
+
 GIT_CONFIG_MANIPULATION = re.compile(
     r"""\bgit\s+config\s+--unset\s+core\.bare\b""",
 )
 
-# Workflow file manipulation — worm injects .github/workflows
+
 WORKFLOW_INJECTION = re.compile(
     r"""\brm\s+-rf\s+.*\.github/workflows\b""",
 )
 
-# Destructive fallback — Shai-Hulud 2.0 wipes home directory on failure
+
 DESTRUCTIVE_FALLBACK = re.compile(
     r"""\brm\s+-rf\s+[~$]""",
 )
 
-# fs.writeFileSync to package.json — worm rewrites its own manifest
+
 SELF_MODIFY_PACKAGE = re.compile(
     r"""writeFileSync\s*\(.*package\.json""",
 )
 
-# glob scanning node_modules — worm discovers propagation targets
+
 GLOB_SCAN_NODE_MODULES = re.compile(
     r"""glob.*node_modules.*package\.json""",
 )
 
-# Bun runtime execution in an install/lifecycle script — TeamPCP / Mini Shai-Hulud
-# (May 2026 TanStack wave onward). Bun is used deliberately because it lacks the
-# Node --require hook interception most monitoring tools rely on, and payloads
-# depend on Bun-only APIs (Bun.gunzipSync) so they cannot run under plain Node.
-# Matches the *behavior* (bun run/x/exec of a script) rather than a fixed filename.
+
 BUN_RUN_EXEC = re.compile(
     r"""\bbun\s+(?:run|x|exec)\b""",
     re.IGNORECASE,
 )
 
-# Trailing forced-failure after a payload runs — `&& exit 1` / `|| exit 0` / `; exit 1`.
-# Mini Shai-Hulud appends `&& exit 1` so npm treats the (optional) dependency as
-# failed, hiding the install from casual inspection AFTER the payload has executed.
+
 SILENT_FAIL_AFTER_EXEC = re.compile(
     r"""(?:&&|\|\||;)\s*exit\s+\d""",
 )
 
-# Dependency spec resolving to a git/GitHub source rather than a registry version.
-# Matches `github:owner/repo#ref`, `git+https://...`, `git://...`, and bare
-# `owner/repo#commit` shorthand npm accepts. Git deps run lifecycle scripts at
-# install time and bypass published-version controls — the Mini Shai-Hulud vector.
+
 GIT_URL_DEP = re.compile(
     r"""(?:^github:|^git\+|^git://|^https?://[^\s]+\.git|^[\w.-]+/[\w.-]+#)""",
     re.IGNORECASE,
 )
 
-# ---- Source file patterns (scanned in JS/TS files) ----
 
-# Campaign identifiers
 CAMPAIGN_IDENTIFIERS = re.compile(
     r"""MUT-8694|mut-8964|s1ngularity.*Nx|Shai-Hulud|Sha1-Hulud|firedalazer""",
     re.IGNORECASE,
 )
 
-# CI secrets exfiltration — dumping the entire secrets context into a workflow
-# step output. Used by the Mini Shai-Hulud workflow-injection stage.
+
 CI_SECRETS_EXFIL = re.compile(
     r"""toJSON\s*\(\s*secrets\s*\)""",
     re.IGNORECASE,
 )
 
-# Bun-only decompression API in payload source. Mini Shai-Hulud payloads depend
-# on Bun.gunzipSync to unpack a gzipped second stage, so they cannot execute
-# under plain Node. Limited to (de)compression calls — NOT Bun.file/Bun.spawn,
-# which are common in legitimate Bun applications.
+
 BUN_ONLY_API = re.compile(
     r"""\bBun\.(?:gunzipSync|inflateSync)\b""",
 )
 
-# Self-propagation code patterns in source files
+
 SELF_PROPAGATION_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
     (
         "npm_publish",
@@ -287,7 +250,6 @@ SELF_PROPAGATION_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
 
 
 def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
-    """Check package.json scripts for worm propagation patterns."""
     findings: list[Finding] = []
     scripts = pkg.get("scripts", {})
     if not isinstance(scripts, dict):
@@ -297,12 +259,7 @@ def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
 
-    # ---- Manifest-shape check: git/GitHub dependency + a lifecycle script ----
-    # Mini Shai-Hulud (TanStack, May 2026) delivered its payload via an
-    # optionalDependencies entry resolving to a github: URL whose prepare script
-    # ran the payload. npm executes lifecycle scripts for git deps at install
-    # time, so this shape — git-resolved dep alongside ANY lifecycle script —
-    # is the distinctive delivery fingerprint and warrants a CRITICAL flag.
+
     has_lifecycle_script = any(k in scripts for k in INSTALL_SCRIPT_KEYS)
     for dep_field in ("dependencies", "optionalDependencies", "devDependencies", "peerDependencies"):
         deps = pkg.get(dep_field, {})
@@ -367,7 +324,6 @@ def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
 
 
 def _scan_source_for_worm(file_path: Path, pkg_label: str) -> list[Finding]:
-    """Scan a JS/TS source file for worm propagation patterns."""
     findings: list[Finding] = []
 
     if file_path.suffix in SKIP_EXTENSIONS:
@@ -412,7 +368,6 @@ def _scan_source_for_worm(file_path: Path, pkg_label: str) -> list[Finding]:
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:
-    """Scan JS/TS source files in a package directory for worm patterns."""
     file_count = 0
     for ext in JS_EXTENSIONS:
         for src_file in pkg_dir.rglob(f"*{ext}"):
@@ -427,15 +382,9 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
 
 
 def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect self-propagating worm patterns in npm packages.
-
-    Scans install scripts and source files for Shai-Hulud and similar
-    worm propagation patterns. No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
@@ -443,7 +392,7 @@ def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
             findings.extend(_scan_scripts_for_worm(pkg, root_pkg))
             _scan_package_sources(target, pkg.get("name", "root"), findings)
 
-    # node_modules packages
+
     nm = target / "node_modules"
     if nm.is_dir():
         for child in sorted(nm.iterdir()):
@@ -458,7 +407,7 @@ def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
                     findings.extend(_scan_scripts_for_worm(pkg, pkg_json))
                     _scan_package_sources(child, pkg_label, findings)
 
-            # Scoped packages
+
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):
                     if not scoped_child.is_dir():

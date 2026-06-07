@@ -1,4 +1,3 @@
-"""Orchestrator with async execution and health checks."""
 import json
 import logging
 import os
@@ -27,7 +26,7 @@ logger = logging.getLogger("picoshogun.Orchestrator")
 BASE_DIR = Path(__file__).parent.parent
 REGISTRY_PATH = BASE_DIR / "config" / "project_registry.json"
 
-# CLI entrypoints for Pico series tools
+
 PICO_CLI = {
     "picosentry": ["picosentry", "scan"],
     "picodome": ["picosentry", "sandbox", "run"],
@@ -35,7 +34,7 @@ PICO_CLI = {
     "picoshogun": ["picosentry", "health"],
 }
 
-# Map project IDs to correlation engine layers
+
 PROJECT_LAYER_MAP: dict[str, str] = {
     "picosentry": "scan",
     "picodome": "sandbox_l3",
@@ -59,7 +58,6 @@ class ProjectMeta:
     package: str = ""
 
 class EnhancedOrchestrator:  # rationale: async execution engine coordinating PicoSentry, PicoDome, PicoWatch
-    """Orchestrator with async execution, health checks, and metrics."""
 
     def __init__(self):
         self.registry: dict[str, ProjectMeta] = {}
@@ -71,7 +69,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         self._semaphore = threading.Semaphore(self._concurrent_limit)
         self._load_registry()
         self._init_projects_db()
-        # Subscribe correlation engine to run-completed events
+
         event_bus.subscribe(
             "project.run.completed",
             lambda evt: correlation_engine.on_run_completed(
@@ -91,7 +89,6 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             logger.info("Loaded %s projects from registry", len(self.registry))
 
     def _init_projects_db(self):
-        """Sync registry to database."""
         for pid, meta in self.registry.items():
             existing = db.execute_one(
                 "SELECT id FROM projects WHERE id = ?", (pid,)
@@ -122,7 +119,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             SELECT COUNT(*) as count FROM alerts WHERE sent = 0
         """)
 
-        # Determine system health
+
         health = "healthy"
         failed = (conn_stats["failed"] or 0) if conn_stats else 0
         completed = (conn_stats["completed"] or 0) if conn_stats else 0
@@ -172,7 +169,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         if not meta:
             return {"error": f"Unknown project: {project_id}"}
 
-        # Use Pico CLI entrypoint if available, fall back to package name
+
         cli_args = PICO_CLI.get(project_id, [meta.package or project_id])
         timeout = timeout or settings.orchestrator.default_timeout
 
@@ -181,7 +178,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
     def _execute_project(self, project_id: str, meta: ProjectMeta,
                         cli_args: list[str], timeout: int) -> dict[str, Any]:
-        # Record start
+
         run_id = db.execute_insert("""
             INSERT INTO project_runs (project_id, run_start, status)
             VALUES (?, ?, ?)
@@ -208,15 +205,15 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
             duration = time.time() - start_time
 
-            # Extract intelligence
+
             intel_data = self.intel.extract_from_output(project_id, result.stdout + result.stderr)
 
-            # Determine status
+
             if result.returncode == 0:
                 status = "completed"
             else:
                 status = "failed"
-                # Check retry policy
+
                 if settings.orchestrator.retry_failed:
                     retry_count = db.execute_one("""
                         SELECT COUNT(*) as c FROM project_runs
@@ -226,7 +223,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     if retry_count and retry_count["c"] < settings.orchestrator.retry_max:
                         logger.info("Will retry %s after %ss", project_id, settings.orchestrator.retry_delay)
 
-            # Update run record
+
             db.execute_insert("""
                 UPDATE project_runs
                 SET run_end = ?, status = ?, exit_code = ?,
@@ -240,10 +237,10 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 run_id
             ))
 
-            # Update project stats
+
             self._update_project_stats(project_id, status, duration)
 
-            # Record prometheus metrics
+
             metrics.project_run(project_id, duration, status)
 
             event_bus.publish(
@@ -260,11 +257,11 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 priority="high" if status == "failed" else "normal"
             )
 
-            # Feed intelligence
+
             for intel in intel_data:
                 self.intel.ingest(project_id, intel)
 
-            # Feed correlation engine
+
             layer = PROJECT_LAYER_MAP.get(project_id, "scan")
             correlated_events = []
             for intel in intel_data:
@@ -276,7 +273,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             if correlated_events:
                 correlation_engine.ingest_many(correlated_events)
 
-            # Fire alert on real failure (non-zero exit)
+
             if status == "failed":
                 self.alerts.send(
                     project_id, "project_failed", "high",
@@ -286,7 +283,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     metadata={"exit_code": result.returncode, "run_id": run_id, "intelligence_count": len(intel_data)}
                 )
 
-            # Dispatch to plugins
+
             plugin_manager.dispatch("project_complete",
                                     project_id=project_id,
                                     result={
@@ -370,7 +367,6 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             return {"error": str(e), "duration": duration}
 
     def _update_project_stats(self, project_id: str, status: str, duration: float):
-        """Update project running statistics."""
         stats = db.execute_one("""
             SELECT
                 COUNT(*) as total,
@@ -498,10 +494,9 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         } for row in rows]
 
     def get_health_checks(self) -> list[dict]:
-        """Run health checks on all components."""
         checks = []
 
-        # Database check
+
         start = time.time()
         try:
             db.execute("SELECT 1")
@@ -522,7 +517,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
-        # Disk space check
+
         try:
             stat = os.statvfs(str(BASE_DIR))
             free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
@@ -546,7 +541,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
-        # Registry check
+
         project_count = len(self.registry)
         checks.append({
             "component": "projects",
@@ -556,14 +551,14 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-        # Store health checks
+
         for check in checks:
             db.execute_insert("""
                 INSERT INTO health_checks (component, status, message, latency_ms)
                 VALUES (?, ?, ?, ?)
             """, (check["component"], check["status"], check["message"], check["latency_ms"]))
 
-        # SMTP / email check
+
         import smtplib
         start = time.time()
         try:
@@ -655,5 +650,5 @@ THREAT SCORE BREAKDOWN
             "correlations": self.get_correlations(project_id)
         }
 
-# Global instance
+
 orchestrator = EnhancedOrchestrator()

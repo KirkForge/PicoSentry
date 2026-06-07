@@ -1,8 +1,3 @@
-"""PicoWatch configuration.
-
-Reads from: CLI flags > environment variables > config file > defaults.
-Config file search order: ./picowatch.toml, ~/.config/picowatch/picowatch.toml, /etc/picowatch/picowatch.toml
-"""
 
 from __future__ import annotations
 
@@ -34,7 +29,6 @@ CONFIG_SEARCH_PATHS = [
 
 
 def _find_config_file() -> Path | None:
-    """Find the first existing config file in the search path."""
     for path in CONFIG_SEARCH_PATHS:
         if path.exists():
             return path
@@ -42,10 +36,6 @@ def _find_config_file() -> Path | None:
 
 
 def _load_toml_config(path: Path) -> dict[str, Any]:
-    """Load configuration from a TOML file.
-
-    Uses tomllib (Python 3.11+) with a fallback to tomli.
-    """
     try:
         import tomllib
     except ImportError:
@@ -64,7 +54,6 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
 
 @dataclass
 class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from PicoWatchConfig for injection (PR-02)
-    """L5 Prompt Guard configuration — extracted from PicoWatchConfig (PR-02)."""
 
     rules_dir: Path = field(default_factory=lambda: DEFAULT_RULES_DIR)
     threshold_block: float = DEFAULT_THRESHOLD_BLOCK
@@ -75,14 +64,12 @@ class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from Pi
 
 @dataclass
 class OutputGuardConfig:  # rationale: L6 output guard config, extracted from PicoWatchConfig (PR-02)
-    """L6 Output Guard configuration — extracted from PicoWatchConfig (PR-02)."""
 
     schema_dir: Path | None = None
 
 
 @dataclass
 class TelemetryConfig:
-    """L7 Telemetry configuration — extracted from PicoWatchConfig (PR-02)."""
 
     otel_endpoint: str | None = None
     audit_retention_days: int = DEFAULT_AUDIT_RETENTION_DAYS
@@ -90,7 +77,6 @@ class TelemetryConfig:
 
 @dataclass
 class ServerConfig:
-    """HTTP server configuration — extracted from PicoWatchConfig (PR-02)."""
 
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
@@ -102,24 +88,18 @@ class ServerConfig:
 
 @dataclass
 class PicoWatchConfig:  # rationale: composed config with injectable sub-configs for testing (PR-02)
-    """PicoWatch configuration — composes sub-configs (PR-02).
 
-    Sub-configs can be injected independently for testing.
-    Legacy flat fields are retained as aliases for backward compatibility.
-    Priority: CLI > env > file > defaults.
-    """
 
-    # Sub-configs (injectable for testing)
     prompt_guard: PromptGuardConfig = field(default_factory=PromptGuardConfig)
     output_guard: OutputGuardConfig = field(default_factory=OutputGuardConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
 
-    # Misc
+
     verify_determinism: bool = False
     verbose: bool = False
 
-    # Backward-compatible flat aliases — delegate to sub-configs
+
     @property
     def rules_dir(self) -> Path:
         return self.prompt_guard.rules_dir
@@ -233,12 +213,6 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.server.rate_limit_window = value
 
     def assert_secure(self) -> None:
-        """Enforce secure configuration in production.
-
-        Delegates to picosentry._core.config.assert_secure with PicoWatch-specific
-        custom checks (API key length, bind-without-auth).
-        Override with PICOWATCH_SKIP_SECURE_ASSERT=1 (NOT recommended).
-        """
         import os as _os
 
         if _os.environ.get("PICOWATCH_SKIP_SECURE_ASSERT") == "1":
@@ -259,7 +233,6 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         )
 
     def validate_secure(self) -> list[str]:
-        """Validate configuration and return list of security/config issues."""
         issues = []
 
         if self.api_key and len(self.api_key) < 32:
@@ -286,12 +259,7 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
 
     @classmethod
     def from_env(cls, config_path: Path | None = None) -> PicoWatchConfig:
-        """Load configuration from config file, then environment overrides.
 
-        Args:
-            config_path: Explicit config file path. If None, auto-discovers.
-        """
-        # Layer 1: Config file
         file_config: dict[str, object] = {}
         config_file_path = config_path
         if config_path and config_path.exists():
@@ -302,14 +270,14 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 file_config = _load_toml_config(discovered)
                 config_file_path = discovered
 
-        # Check config file permissions (ADR-008)
+
         if config_file_path:
             check_config_permissions()
 
-        # Extract the [picowatch] section if present, else use root
+
         picowatch_conf: dict[str, Any] = file_config.get("picowatch", file_config)  # type: ignore[assignment]
 
-        # Helper: env > file > default
+
         def _env_or_file(key: str, env_var: str, default: Any, cast: type = str) -> Any:
             val = os.environ.get(env_var)
             if val is not None:
@@ -319,7 +287,7 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 return cast(file_val) if not isinstance(file_val, cast) else file_val
             return default
 
-        # Layer 2: Environment variables override file values
+
         rules_dir_str = os.environ.get("PICOWATCH_RULES_DIR") or picowatch_conf.get("rules_dir")
         schema_dir_str = os.environ.get("PICOWATCH_SCHEMA_DIR") or picowatch_conf.get("schema_dir")
 
@@ -364,15 +332,13 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             ),
         )
 
-        # Validate environment variable ranges
+
         _validate_env_ranges(config)
 
         return config
 
 
-
 class _ApiKeyLengthCheck:
-    """PicoWatch-specific: API key must be >= 32 chars if set."""
 
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
@@ -388,7 +354,6 @@ class _ApiKeyLengthCheck:
 
 
 class _BindWithoutAuthCheck:
-    """PicoWatch-specific: binding 0.0.0.0 without API key is a security error."""
 
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
@@ -403,11 +368,6 @@ class _BindWithoutAuthCheck:
         return None
 
 def _validate_env_ranges(config: PicoWatchConfig) -> None:
-    """Validate that environment variable values are within acceptable ranges.
-
-    Logs warnings for out-of-range values but does not raise — production
-    should not crash on misconfiguration, only warn.
-    """
     import logging as _logging
     _logger = _logging.getLogger("picowatch.config")
 
@@ -443,10 +403,6 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
 
 
 def check_config_permissions() -> list[str]:
-    """Check config file permissions and warn about insecure settings (ADR-008).
-
-    Returns a list of warning messages for overly-permissive config files.
-    """
     import logging
     import stat
 
@@ -468,11 +424,11 @@ def check_config_permissions() -> list[str]:
                 )
                 warnings.append(msg)
                 logger.warning(msg)
-            # Check if api_key is in a world-readable file
+
             try:
                 content = path.read_text(encoding="utf-8")
-                # Only warn if api_key has an actual value, not just a comment.
-                # Strip TOML comments (# ...) before checking to avoid false positives.
+
+
                 lines = [line.split("#")[0].strip() for line in content.splitlines()]
                 has_real_api_key = any(
                     line.startswith("api_key") and "=" in line and line.split("=", 1)[1].strip()

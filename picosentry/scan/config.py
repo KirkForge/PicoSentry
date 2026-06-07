@@ -1,12 +1,3 @@
-"""
-PicoSentry configuration — .picosentry.yml file loader.
-
-Config file is optional. CLI flags override config file values.
-Search order: target_dir/.picosentry.yml → target_dir/.picosentry.yaml
-              → target_dir/picosentry.config.yml
-
-Deterministic: config file is part of scan inputs. Same config = same output.
-"""
 
 from __future__ import annotations
 
@@ -23,13 +14,13 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picosentry.config")
 
-# Supported config file names (in order of precedence)
+
 CONFIG_NAMES = [".picosentry.yml", ".picosentry.yaml", "picosentry.config.yml"]
 
-# Current config schema version
+
 CONFIG_VERSION = 1
 
-# Known config keys (whitelist). Unknown keys are rejected with a warning.
+
 KNOWN_KEYS = frozenset(
     {
         "version",
@@ -60,7 +51,7 @@ KNOWN_KEYS = frozenset(
     }
 )
 
-# Valid values for enum-like config fields
+
 VALID_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
 
 
@@ -68,13 +59,6 @@ _UNSET = object()
 
 
 class PicoSentryConfig:
-    """
-    Configuration loaded from .picosentry.yml or CLI flags.
-
-    Config file values are defaults; CLI flags override them.
-
-    Deterministic: same config file + same CLI flags = same effective config.
-    """
 
     def __init__(self) -> None:
         self.format: str = "table"
@@ -94,50 +78,42 @@ class PicoSentryConfig:
         self.sarif_file: str = "sarif.json"
         self.deterministic_output: bool = False
         self.log_format: str = "text"
-        # Config-file-only settings
+
         self.severity_overrides: dict[str, str] = {}  # rule_id → severity
         self.ignore_paths: list[str] = []  # glob patterns to skip
         self.ignore_packages: list[str] = []  # package names to skip
-        # Policy fields (from .picosentry-policy.yml or inline)
+
         self.policy_file: str | None = None  # path to policy file
         self.allow_licenses: list[str] = []  # SPDX license allow-list
         self.deny_licenses: list[str] = []  # SPDX license deny-list
         self.deny_packages: list[str] = []  # blocked packages
         self.waivers: list[dict] = []  # policy waivers
         self.fail_on_severity: str = "high"  # minimum severity to fail CI
-        # Daemon settings (from daemon: section in config or env vars)
+
         self.daemon: dict = {}
-        # Cache governance settings
+
         self.cache_max_entries: int = 0  # 0 = unlimited
         self.cache_max_size_mb: float = 0  # 0 = unlimited
         self.cache_ttl_seconds: int = 3600  # 1 hour
         self.cache_dir: str | None = None  # None = default (~/.cache/picosentry)
-        # Scan settings
+
         self.force_json: bool = False  # Force JSON output even for TTY
         self.incremental: bool = False  # Only scan changed files (incremental mode)
         self.jobs: int = 1  # Parallel scan jobs
-        # Update policy settings
+
         self.updates_enabled: bool = True  # False = hard-disable network updates
         self.updates_allowed_sources: list[str] = []  # allowlist of URLs
         self.updates_require_integrity: bool = True  # fail-closed on bad signatures
         self.corpus_require_signature: bool = True  # reject unsigned corpus packs (fail-closed default)
 
     def get_effective_policy(self) -> Policy | None:
-        """Build a Policy from this config, using the policy file as source of truth.
-
-        When a policy file is configured, its values take precedence over
-        the duplicated config fields (allow_licenses, deny_licenses,
-        deny_packages, waivers, fail_on_severity) to avoid field drift.
-
-        Returns None if no policy file and no policy-related config is set.
-        """
         from picosentry.scan.policy import Policy
-        # If a policy file is set, load it as the authoritative source
+
         if self.policy_file:
             policy_path = Path(self.policy_file)
             if policy_path.is_file():
                 return Policy.from_file(policy_path)
-        # Otherwise, build from config fields (backward compat)
+
         has_any = self.allow_licenses or self.deny_licenses or self.deny_packages or self.waivers
         if not has_any:
             return None
@@ -149,20 +125,10 @@ class PicoSentryConfig:
             waivers=self._build_waivers(),
         )
     def _build_waivers(self) -> list:
-        """Build Waiver objects from config waiver dicts.
-
-        Lazy-imports Waiver to avoid circular dependency at module level.
-        """
         from picosentry.scan.policy import Waiver
         return [Waiver(**w) for w in self.waivers] if self.waivers else []
 
     def assert_secure(self) -> None:
-        """Enforce secure configuration in production.
-
-        Delegates to picosentry._core.config.assert_secure with PicoSentry-specific
-        custom checks (corpus signature enforcement).
-        Override with PICOSENTRY_SKIP_SECURE_ASSERT=1 (NOT recommended).
-        """
         import os as _os
 
         if _os.environ.get("PICOSENTRY_SKIP_SECURE_ASSERT") == "1":
@@ -182,19 +148,8 @@ class PicoSentryConfig:
         )
 
     def merge_cli(self, args: Any) -> PicoSentryConfig:
-        """Merge CLI args into this config. CLI flags override config file values.
-
-        Uses None-sentinel pattern to detect explicitly-set CLI flags.
-        Optional args use default=None in argparse; when the user passes a flag,
-        argparse stores the explicit value (not None). We check is not None
-        to detect overrides. For store_true flags, we check truthiness.
-
-        This means: if a user explicitly passes --log-format text, it IS treated
-        as an override (because args.log_format will be "text", not None). This
-        is correct — explicit flags should override config even with same value.
-        """
         merged = PicoSentryConfig()
-        # Copy config file values
+
         merged.format = self.format
         merged.output = self.output
         merged.rules = self.rules
@@ -224,9 +179,7 @@ class PicoSentryConfig:
         if not hasattr(args, "format"):
             return merged
 
-        # Override with CLI args — compare against argparse defaults.
-        # Use getattr for safe access (tests may pass minimal Namespaces).
-        # Defaults as defined in cli.py add_argument() calls.
+
         if getattr(args, "format", None) is not None:
             merged.format = args.format
         if getattr(args, "output", None) is not None:
@@ -267,14 +220,6 @@ class PicoSentryConfig:
         return merged
 
     def apply_severity_overrides(self, findings: list) -> list:
-        """Apply severity overrides from config. Returns a NEW list of Findings.
-
-        Does NOT mutate the original Findings (they are frozen).
-        Each override creates a new Finding with the overridden severity.
-        Unknown rule IDs are silently ignored.
-
-        Deterministic: same config + same findings = same result.
-        """
         if not self.severity_overrides:
             return findings
 
@@ -308,14 +253,9 @@ class PicoSentryConfig:
         return overridden
 
     def should_ignore_package(self, package_name: str) -> bool:
-        """Check if a package should be ignored based on config."""
         return package_name in self.ignore_packages
 
     def should_ignore_path(self, file_path: str) -> bool:
-        """Check if a file path should be ignored based on config glob patterns.
-
-        Simple glob matching: * matches any sequence, ? matches single char.
-        """
         if not self.ignore_paths:
             return False
         from fnmatch import fnmatch
@@ -324,10 +264,6 @@ class PicoSentryConfig:
 
 
 def _validate_config_keys(data: dict, config_path: Path) -> None:
-    """Validate config keys against known keys and warn about unknown keys.
-
-    Prevents silent config rot (e.g., typo in key name like 'severity_overides').
-    """
     unknown = sorted(set(data.keys()) - KNOWN_KEYS)
     for key in unknown:
         logger.warning(
@@ -337,11 +273,6 @@ def _validate_config_keys(data: dict, config_path: Path) -> None:
             ", ".join(sorted(KNOWN_KEYS)),
         )
 
-
-# ── Environment Variable Overrides ───────────────────────────────────
-
-# Map of PICOSENTRY_* env vars to config attribute names.
-# Precedence: CLI args > env vars > config file > defaults
 
 _ENV_TO_ATTR = {
     "PICOSENTRY_FORMAT": "format",
@@ -373,28 +304,19 @@ _ENV_TO_ATTR = {
 
 
 def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
-    """Apply PICOSENTRY_* environment variable overrides to config.
-
-    Boolean values: "true", "1", "yes" → True; "false", "0", "no" → False.
-    Integer values: parsed as int (token_budget, jobs).
-    String values: used as-is (format, output, baseline, etc.).
-
-    Precedence: env vars override config file values.
-    CLI flags (applied after this) override env vars.
-    """
     for env_name, attr_name in _ENV_TO_ATTR.items():
         env_val = os.environ.get(env_name)
         if env_val is None or env_val == "":
             continue
 
-        # Parse by type
+
         lower = env_val.lower()
         if lower in ("true", "1", "yes"):
             setattr(config, attr_name, True)
         elif lower in ("false", "0", "no"):
             setattr(config, attr_name, False)
         else:
-            # Try float first (for cache_max_size_mb), then int, fall back to string
+
             try:
                 val = float(env_val)
                 if val == int(val) and "." not in env_val:
@@ -408,7 +330,6 @@ def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
 
 
 class _CorpusSignatureCheck:
-    """PicoSentry-specific: unsigned corpus packs in production are risky."""
 
     def __init__(self, config: PicoSentryConfig) -> None:
         self._config = config
@@ -426,14 +347,6 @@ class _CorpusSignatureCheck:
 
 
 def load_config(target_dir: Path) -> PicoSentryConfig:
-    """Load configuration from target directory.
-
-    Searches for .picosentry.yml, .picosentry.yaml, or picosentry.config.yml
-    in the target directory. Returns default config if no file found.
-    Unknown keys are warned about but do not cause a hard error.
-
-    Deterministic: same directory = same config (or default).
-    """
     config = PicoSentryConfig()
 
     config_path = _find_config(target_dir)
@@ -447,7 +360,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except ImportError:
-        # YAML not available — try JSON fallback
+
         try:
             import json
 
@@ -463,10 +376,10 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-    # Validate against known keys
+
     _validate_config_keys(data, config_path)
 
-    # Parse config fields
+
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(
             "Config version %s != expected %s, some fields may be ignored",
@@ -523,7 +436,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
     if "summary" in data:
         config.summary = bool(data["summary"])
     if "baseline" in data:
-        # Resolve relative paths against config file directory
+
         baseline_path = data["baseline"]
         if not Path(baseline_path).is_absolute():
             baseline_path = str(config_path.parent / baseline_path)
@@ -533,7 +446,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
     if "log_format" in data:
         config.log_format = data["log_format"]
 
-    # Config-file-only settings
+
     if "severity_overrides" in data:
         try:
             config.severity_overrides = {str(k): str(v) for k, v in data["severity_overrides"].items()}
@@ -550,14 +463,14 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         else:
             config.ignore_packages = [str(p) for p in data["ignore_packages"]]
 
-    # Load policy file if specified or found
+
     policy_path = None
     if data.get("policy"):
         policy_path = Path(data["policy"])
         if not policy_path.is_absolute():
             policy_path = config_path.parent / policy_path
     else:
-        # Auto-discover .picosentry-policy.yml next to config
+
         auto_policy = config_path.parent / ".picosentry-policy.yml"
         if auto_policy.is_file():
             policy_path = auto_policy
@@ -576,11 +489,11 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         except Exception:
             logger.warning("Failed to load policy file %s", policy_path)
 
-    # Load daemon section
+
     if "daemon" in data and isinstance(data["daemon"], dict):
         config.daemon = data["daemon"]
 
-    # Load cache governance settings
+
     if "cache" in data and isinstance(data["cache"], dict):
         cache_data = data["cache"]
         if "max_entries" in cache_data:
@@ -590,7 +503,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         if "ttl_seconds" in cache_data:
             config.cache_ttl_seconds = int(cache_data["ttl_seconds"])
 
-    # Load update policy settings
+
     if "updates" in data and isinstance(data["updates"], dict):
         updates_data = data["updates"]
         if "enabled" in updates_data:
@@ -606,11 +519,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
 
 def _find_config(target_dir: Path) -> Path | None:
-    """Search for config file in target directory.
-
-    Returns first match in precedence order:
-    .picosentry.yml → .picosentry.yaml → picosentry.config.yml
-    """
     for name in CONFIG_NAMES:
         candidate = target_dir / name
         if candidate.is_file():

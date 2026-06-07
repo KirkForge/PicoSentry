@@ -1,7 +1,3 @@
-"""String↔enum conversion helpers + build_event_from_intel.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/serve/services/correlation.py``.
-"""
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -12,7 +8,6 @@ from picosentry.serve.services.correlation.models import CorrelatedEvent
 
 
 def _severity_index(severity: Severity) -> int:
-    """Lower index = more severe."""
     order = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "INFO"]
     try:
         return order.index(severity.value)
@@ -21,7 +16,6 @@ def _severity_index(severity: Severity) -> int:
 
 
 def _confidence_index(confidence: Confidence) -> int:
-    """Lower index = more confident."""
     order = ["EXACT", "HIGH", "MEDIUM", "LOW"]
     try:
         return order.index(confidence.value)
@@ -30,7 +24,6 @@ def _confidence_index(confidence: Confidence) -> int:
 
 
 def _severity_from_str(value: str) -> Severity:
-    """Parse a severity string into a Severity enum, case-insensitively."""
     try:
         return Severity(value.upper())
     except ValueError:
@@ -38,7 +31,6 @@ def _severity_from_str(value: str) -> Severity:
 
 
 def _confidence_from_str(value: str | float) -> Confidence:
-    """Parse a confidence string or float into a Confidence enum."""
     if isinstance(value, (int, float)):
         if value >= 0.9:
             return Confidence.EXACT
@@ -59,27 +51,16 @@ def build_event_from_intel(
     run_id: str | None = None,
     layer: str = "scan",
 ) -> CorrelatedEvent | None:
-    """Build a CorrelatedEvent from an IntelligenceEngine intel dict.
-
-    Args:
-        intel: Intelligence dict from IntelligenceEngine.extract_from_output().
-        project_id: Source project identifier.
-        run_id: Optional orchestrator run ID.
-        layer: Source layer ('scan', 'sandbox_l3', 'sandbox_l4', 'watch').
-
-    Returns:
-        CorrelatedEvent if the intel dict is well-formed, else None.
-    """
     intel_type = intel.get("type", "")
     severity_str = intel.get("severity", "info")
     intel_data = intel.get("data", {})
     confidence_val = intel.get("confidence", 0.5)
 
-    # Skip metrics and other non-finding intel types
+
     if intel_type in ("metrics",):
         return None
 
-    # Build artifact_id from project or data fields
+
     project = intel_data.get("project", project_id)
     artifact_id = intel_data.get("package", project)
 

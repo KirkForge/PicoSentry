@@ -1,4 +1,3 @@
-"""L4 Behavioral Analysis — post-execution profiling and anomaly detection."""
 
 from picosentry.sandbox.l4.engine import L4Engine, analyze, create_default_engine
 from picosentry.sandbox.l4.models import (

@@ -1,16 +1,3 @@
-"""PicoDome gRPC Transport — optional high-throughput transport for daemon mode.
-
-This module provides gRPC client and server implementations as an alternative
-to the built-in HTTP daemon. gRPC is OPTIONAL — if ``grpcio`` is not installed,
-imports will not crash; the module degrades gracefully with a warning log.
-
-Design principles:
-  - gRPC is an opt-in transport, not the default.
-  - The existing HTTP daemon must work unchanged.
-  - All gRPC calls are audit-logged.
-  - TLS/mTLS support via the existing mTLS module.
-  - Lazy imports — grpcio is only loaded when actually needed.
-"""
 
 from __future__ import annotations
 
@@ -22,11 +9,6 @@ _GRPC_AVAILABLE: bool | None = None
 
 
 def is_grpc_available() -> bool:
-    """Check if grpcio is installed and importable.
-
-    Returns True if grpcio is available, False otherwise.
-    Caches the result after first check.
-    """
     global _GRPC_AVAILABLE
     if _GRPC_AVAILABLE is None:
         try:
@@ -45,8 +27,6 @@ __all__ = [
     "PicoDomeGRPCServer",
     "is_grpc_available",
 ]
-
-# Lazy imports — only resolve when accessed
 
 
 def __getattr__(name: str):

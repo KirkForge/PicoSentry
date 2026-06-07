@@ -1,4 +1,3 @@
-"""L4 timing anomaly detector."""
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
@@ -8,10 +7,9 @@ def detect_timing_anomalies(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect anomalous timing patterns."""
     findings: list[Finding] = []
 
-    # Check for unexpectedly fast execution (possible no-op or sandbox escape)
+
     if profile.total_runtime_ms < 5 and profile.exit_code == 0:
         findings.append(
             Finding(
@@ -23,7 +21,7 @@ def detect_timing_anomalies(
             )
         )
 
-    # Check for anomalous timing points
+
     for tp in profile.timing_points:
         if tp.elapsed_ms > 60000:  # >60s on a single operation
             findings.append(
@@ -36,7 +34,7 @@ def detect_timing_anomalies(
                 )
             )
 
-    # Compare against baseline if available
+
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 

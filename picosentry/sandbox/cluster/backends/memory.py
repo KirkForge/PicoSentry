@@ -1,9 +1,3 @@
-"""In-memory state backend (testing, single-node).
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cluster/manager.py``.
-
-Thread-safe via per-instance lock. All state is lost on process restart.
-"""
 from __future__ import annotations
 
 import threading
@@ -13,10 +7,6 @@ from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class MemoryStateBackend(StateBackend):
-    """In-memory state backend for single-node or testing.
-
-    All state is lost on process restart. Thread-safe via locks.
-    """
 
     def __init__(self) -> None:
         self._nodes: dict[str, ClusterNode] = {}

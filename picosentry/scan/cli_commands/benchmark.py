@@ -1,7 +1,3 @@
-"""`benchmark` subcommand — show detection quality metrics and known limitations.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -19,7 +15,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Show detection quality metrics."""
     from picosentry.scan.detection_quality import DetectionBenchmark
 
     bench = DetectionBenchmark()
@@ -89,7 +84,7 @@ def cmd(args: argparse.Namespace) -> int:
             )
         return 0
 
-    # Overall benchmark
+
     quality = bench.overall_quality()
     print("\nPicoSentry Detection Quality Benchmark")
     print("=" * 45)

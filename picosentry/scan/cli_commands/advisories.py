@@ -1,7 +1,3 @@
-"""`advisories` subcommand — manage the advisory database (fetch).
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +20,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage advisory database."""
     if not args.adv_action:
         print("Usage: picosentry advisories {fetch}")
         return 1
@@ -52,7 +47,6 @@ def cmd(args: argparse.Namespace) -> int:
     return 0
 
 
-# Back-compat alias
 _cmd_advisories = cmd
 
 __all__ = ["NAME", "_cmd_advisories", "add_arguments", "cmd"]

@@ -1,4 +1,3 @@
-"""PicoWatch CLI entry point."""
 
 from picosentry.watch.cli import main
 

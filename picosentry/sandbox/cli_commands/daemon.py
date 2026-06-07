@@ -1,7 +1,3 @@
-"""`daemon` subcommand — start PicoDome HTTP/gRPC daemon.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -39,7 +35,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Start the PicoDome daemon."""
     transport = getattr(args, "transport", "http")
 
     if transport == "grpc":
@@ -52,7 +47,7 @@ def cmd(args: argparse.Namespace) -> int:
         grpc_port = getattr(args, "grpc_port", 50051)
         host = args.host
 
-        # Check for mTLS config
+
         mtls_config = None
         try:
             from picosentry.sandbox.mtls.context import MTLSConfig
@@ -79,7 +74,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"gRPC daemon error: {e}", file=sys.stderr)
             return 1
     else:
-        # HTTP daemon (default)
+
         from picosentry.sandbox.daemon import PicoDomeDaemon
 
         store_backend = getattr(args, "store_backend", None) or "jsonl"
@@ -92,7 +87,7 @@ def cmd(args: argparse.Namespace) -> int:
             store_backend=store_backend,
         )
 
-        # Install signal handlers for graceful shutdown (foreground only)
+
         if not args.background:
             daemon.install_signal_handlers()
 

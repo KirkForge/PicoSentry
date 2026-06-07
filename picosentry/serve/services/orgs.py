@@ -1,4 +1,3 @@
-"""Organization model — multi-tenancy foundation."""
 import hashlib
 import secrets
 from datetime import datetime, timezone
@@ -8,13 +7,6 @@ from picosentry.serve.database.manager import db
 
 
 class Organization:
-    """
-    Multi-tenant workspace. Each org has:
-    - Isolated project data
-    - User seats
-    - Subscription tier
-    - Usage limits
-    """
 
     TIERS: ClassVar[dict[str, dict[str, Any]]] = {
         "free": {"users": 1, "projects": 3, "runs_per_day": 50, "storage_mb": 100},
@@ -25,7 +17,6 @@ class Organization:
 
     @staticmethod
     def create(name: str, slug: str, owner_user_id: int, tier: str = "free") -> int | None:
-        """Create new organization."""
         if db.execute_one("SELECT id FROM orgs WHERE slug = ?", (slug,)):
             return None
 
@@ -37,7 +28,7 @@ class Organization:
             VALUES (?, ?, ?, ?, ?, 1, ?)
         """, (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)))
 
-        # Add owner as member
+
         db.execute_insert("""
             INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
             VALUES (?, ?, 'admin', ?, ?)
@@ -47,7 +38,6 @@ class Organization:
 
     @staticmethod
     def get_by_api_key(api_key: str) -> dict[str, Any] | None:
-        """Lookup org by API key using SHA-256 hash comparison."""
         import hashlib
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
         row = db.execute_one("""
@@ -57,7 +47,6 @@ class Organization:
 
     @staticmethod
     def get_members(org_id: int) -> list[dict[str, Any]]:
-        """List org members with roles."""
         rows = db.execute("""
             SELECT u.id, u.username, u.email, u.last_login, ou.role, ou.joined_at
             FROM org_users ou
@@ -69,7 +58,6 @@ class Organization:
 
     @staticmethod
     def get_usage(org_id: int) -> dict[str, Any]:
-        """Current usage vs limits."""
         org = db.execute_one("SELECT * FROM orgs WHERE id = ?", (org_id,))
         if not org:
             return {}
@@ -77,21 +65,21 @@ class Organization:
         tier = org["tier"]
         limits = Organization.TIERS.get(tier, Organization.TIERS["free"])
 
-        # Count users
+
         user_row = db.execute_one(
             "SELECT COUNT(*) as c FROM org_users WHERE org_id = ?",
             (org_id,)
         )
         users = (user_row or {}).get("c") or 0
 
-        # Count projects
+
         project_row = db.execute_one(
             "SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?",
             (org_id,)
         )
         projects = (project_row or {}).get("c") or 0
 
-        # Count today's runs
+
         runs_today_row = db.execute_one("""
             SELECT COUNT(*) as c FROM project_runs
             WHERE org_id = ? AND DATE(run_start) = DATE('now')
@@ -108,19 +96,16 @@ class Organization:
 
     @staticmethod
     def can_create_project(org_id: int) -> bool:
-        """Check if org can create another project."""
         usage = Organization.get_usage(org_id)
         return usage.get("projects", {}).get("used", 0) < usage.get("projects", {}).get("limit", 0)
 
     @staticmethod
     def can_run(org_id: int) -> bool:
-        """Check if org has remaining run quota."""
         usage = Organization.get_usage(org_id)
         return usage.get("runs_today", {}).get("used", 0) < usage.get("runs_today", {}).get("limit", 0)
 
     @staticmethod
     def update_tier(org_id: int, new_tier: str) -> bool:
-        """Change subscription tier."""
         if new_tier not in Organization.TIERS:
             return False
         db.execute_insert(
@@ -131,7 +116,6 @@ class Organization:
 
     @staticmethod
     def list_orgs_for_user(user_id: int) -> list[dict[str, Any]]:
-        """All orgs where user is a member."""
         rows = db.execute("""
             SELECT o.*, ou.role as user_role
             FROM org_users ou
@@ -141,7 +125,7 @@ class Organization:
         """, (user_id,))
         return [dict(r) for r in rows]
 
-# Migration to add org tables
+
 ORG_MIGRATION = """
 CREATE TABLE IF NOT EXISTS orgs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

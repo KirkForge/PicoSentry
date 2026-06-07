@@ -1,4 +1,3 @@
-"""L4 baseline management — known-good behavioral profiles."""
 
 from __future__ import annotations
 
@@ -7,7 +6,7 @@ from pathlib import Path
 
 from picosentry.sandbox.l4.models import Baseline
 
-# Shipped baselines for common packages
+
 SHIPPED_BASELINES: dict[str, Baseline] = {
     "npm-install": Baseline(
         name="npm-install",
@@ -78,22 +77,18 @@ SHIPPED_BASELINES: dict[str, Baseline] = {
 
 
 def load_baseline(name: str) -> Baseline | None:
-    """Load a specific baseline by name."""
     return SHIPPED_BASELINES.get(name)
 
 
 def load_all_baselines() -> dict[str, Baseline]:
-    """Load all shipped baselines. Can be extended with custom baselines."""
     return dict(SHIPPED_BASELINES)
 
 
 def register_baseline(baseline: Baseline) -> None:
-    """Register a custom baseline at runtime."""
     SHIPPED_BASELINES[baseline.name] = baseline
 
 
 def load_baselines_from_path(path: Path) -> dict[str, Baseline]:
-    """Load custom baselines from a JSON file."""
     with open(path) as f:
         data = json.load(f)
 

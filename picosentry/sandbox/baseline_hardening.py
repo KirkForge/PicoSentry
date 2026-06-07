@@ -1,22 +1,3 @@
-"""Baseline drift hardening — anti-poisoning protection.
-
-Enterprise baselines must be protected against deliberate manipulation
-that could lower detection thresholds or make malicious packages look
-"normal". This module adds:
-
-1. Baseline signing: each baseline gets an HMAC-SHA256 signature
-   computed from its content + a secret key. Unsigned or tampered
-   baselines are rejected.
-
-2. Baseline update rate limiting: a baseline can only be updated
-   N times per hour (default: 2). Rapid changes indicate poisoning.
-
-3. Baseline anomaly detection: new baseline values that diverge
-   too far from the previous version are flagged for review.
-
-4. Baseline approval workflow: critical baseline changes require
-   an approval step before taking effect.
-"""
 
 from __future__ import annotations
 
@@ -36,7 +17,6 @@ logger = logging.getLogger("picodome.baseline_hardening")
 
 @dataclass(frozen=True)
 class SignedBaseline:
-    """A baseline with HMAC-SHA256 integrity signature."""
 
     baseline: Baseline
     signature: str = ""
@@ -53,7 +33,6 @@ class SignedBaseline:
 
     @classmethod
     def from_baseline(cls, baseline: Baseline, secret: str, signer: str = "") -> SignedBaseline:
-        """Sign a baseline with HMAC-SHA256."""
         import time as _time
 
         content = json.dumps(baseline.to_dict(), sort_keys=True)
@@ -67,7 +46,6 @@ class SignedBaseline:
         )
 
     def verify(self, secret: str) -> bool:
-        """Verify the baseline's HMAC signature."""
         content = json.dumps(self.baseline.to_dict(), sort_keys=True)
         expected = hmac.new(secret.encode(), content.encode(), hashlib.sha256).hexdigest()
         return hmac.compare_digest(self.signature, expected)
@@ -75,26 +53,22 @@ class SignedBaseline:
 
 @dataclass
 class BaselineUpdateRateLimit:
-    """Rate limit for baseline updates to prevent poisoning."""
 
     max_updates_per_hour: int = 2
     _update_times: list[float] = field(default_factory=list)
 
     def check(self) -> bool:
-        """Check if an update is allowed. Returns True if allowed."""
         now = time.monotonic()
         cutoff = now - 3600  # 1 hour ago
         self._update_times = [t for t in self._update_times if t > cutoff]
         return len(self._update_times) < self.max_updates_per_hour
 
     def record(self) -> None:
-        """Record that an update occurred."""
         self._update_times.append(time.monotonic())
 
 
 @dataclass(frozen=True)
 class BaselineDriftCheck:
-    """Result of checking if a new baseline diverges too far from the old one."""
 
     allowed: bool
     max_drift: float
@@ -111,17 +85,8 @@ class BaselineDriftCheck:
 
 
 class HardenedBaselineManager:
-    """Enterprise-grade baseline management with anti-poisoning protections.
 
-    All protections:
-    1. HMAC signature verification on load
-    2. Rate-limited updates
-    3. Drift check: new baselines can't diverge too far from previous
-    4. Audit logging of all baseline changes
-    5. Approval workflow for critical changes (optional)
-    """
 
-    # Maximum allowed drift between consecutive baseline versions
     MAX_DRIFT_THRESHOLD = 0.5  # 50% drift is the hard limit
 
     def __init__(self, signing_secret: str = "") -> None:
@@ -130,11 +95,9 @@ class HardenedBaselineManager:
         self._last_baselines: dict[str, Baseline] = {}
 
     def sign(self, baseline: Baseline, signer: str = "") -> SignedBaseline:
-        """Sign a baseline with HMAC-SHA256."""
         return SignedBaseline.from_baseline(baseline, self._secret, signer)
 
     def verify(self, signed: SignedBaseline) -> bool:
-        """Verify a signed baseline's integrity."""
         return signed.verify(self._secret)
 
     def check_update_allowed(
@@ -142,11 +105,7 @@ class HardenedBaselineManager:
         name: str,
         new_baseline: Baseline,
     ) -> BaselineDriftCheck:
-        """Check if a baseline update is allowed.
 
-        Enforces rate limiting and drift checking.
-        """
-        # Rate limit check
         if not self._rate_limiter.check():
             return BaselineDriftCheck(
                 allowed=False,
@@ -155,7 +114,7 @@ class HardenedBaselineManager:
                 details="Rate limit: too many baseline updates in the last hour",
             )
 
-        # Drift check against previous baseline
+
         if name in self._last_baselines:
             old = self._last_baselines[name]
             drift = self._compute_drift(old, new_baseline)
@@ -172,7 +131,7 @@ class HardenedBaselineManager:
                 actual_drift=drift,
             )
 
-        # No previous baseline — any new one is allowed
+
         return BaselineDriftCheck(
             allowed=True,
             max_drift=self.MAX_DRIFT_THRESHOLD,
@@ -180,11 +139,10 @@ class HardenedBaselineManager:
         )
 
     def apply_update(self, name: str, baseline: Baseline) -> None:
-        """Record that a baseline update was applied."""
         self._rate_limiter.record()
         self._last_baselines[name] = baseline
 
-        # Audit
+
         try:
             audit = get_audit_logger()
             audit.record(
@@ -198,7 +156,6 @@ class HardenedBaselineManager:
 
     @staticmethod
     def _compute_drift(old: Baseline, new: Baseline) -> float:
-        """Compute drift score between two baselines."""
         drift_count = 0
         total_checks = 5
 

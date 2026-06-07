@@ -1,7 +1,3 @@
-"""`scan-grpc` subcommand — scan via gRPC client.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -27,7 +23,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Scan via gRPC client."""
     from picosentry.sandbox.grpc_transport import is_grpc_available
 
     if not is_grpc_available():
@@ -41,7 +36,7 @@ def cmd(args: argparse.Namespace) -> int:
         print("Error: no command specified", file=sys.stderr)
         return 1
 
-    # Build mTLS config if cert paths provided
+
     mtls_config = None
     if args.tls_cert or args.tls_key or args.tls_ca:
         try:
@@ -72,7 +67,7 @@ def cmd(args: argparse.Namespace) -> int:
             cwd=args.cwd,
         )
 
-        # Output result
+
         if result.result_json:
             try:
                 data = json.loads(result.result_json)
@@ -88,7 +83,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print(f"L4 verdict: {result.l4_verdict}")
             print(f"Findings: {result.findings_count}")
 
-        # Exit code based on verdict
+
         bad_verdicts = {"DENY", "KILL", "MALICIOUS", "SUSPICIOUS"}
         if result.verdict in bad_verdicts:
             return 1

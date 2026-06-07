@@ -1,22 +1,3 @@
-"""
-Audit event logging for PicoSentry enterprise deployments.
-
-Emits structured JSONL audit events for security-relevant actions:
-corpus import/export, IoC mutations, cache operations, auth events,
-update operations, and policy changes.
-
-Design:
-- Append-only JSONL sink with configurable path
-- Rotation by size (default 10MB) with retention (default 90 days)
-- Forward-compatible: structured for SIEM/shipping
-- Zero network calls; purely local filesystem
-
-Usage:
-    from picosentry.scan.audit import audit, AuditEvent
-
-    audit("corpus.import", target="community-pack.json", outcome="success")
-    audit("ioc.register", target="malicious-pkg@1.0.0", actor="admin", metadata={"severity": "HIGH"})
-"""
 
 from __future__ import annotations
 
@@ -31,9 +12,7 @@ from typing import Any, TextIO
 
 logger = logging.getLogger("picosentry.audit")
 
-# ── Audit event schema ─────────────────────────────────────────────────
 
-# Well-known action names (extensible — callers can use any string)
 ACTIONS = frozenset(
     {
         "corpus.import",
@@ -57,7 +36,6 @@ ACTIONS = frozenset(
     }
 )
 
-# ── Default paths ──────────────────────────────────────────────────────
 
 DEFAULT_AUDIT_DIR = Path.home() / ".cache" / "picosentry"
 DEFAULT_AUDIT_FILE = "audit.jsonl"
@@ -67,17 +45,6 @@ DEFAULT_RETENTION_DAYS = 90
 
 @dataclass
 class AuditEvent:
-    """A structured audit event.
-
-    Attributes:
-        timestamp: ISO 8601 UTC timestamp.
-        action: Well-known action name (e.g. 'corpus.import').
-        actor: Identity of the actor (subject from auth, or 'system').
-        target: What was acted upon (e.g. pack name, IoC ID).
-        outcome: 'success' or 'failure'.
-        metadata: Additional key-value pairs.
-        request_id: Optional request ID for tracing.
-    """
 
     action: str
     target: str = ""
@@ -109,21 +76,7 @@ class AuditEvent:
         return json.dumps(self.to_dict(), sort_keys=True)
 
 
-# ── Audit sink ──────────────────────────────────────────────────────────
-
-
 class AuditSink:
-    """Append-only JSONL audit log with rotation and retention.
-
-    Thread-safe. Writes one JSON object per line to the audit file.
-    Rotates when the file exceeds max_size_bytes. Cleans up files
-    older than retention_days.
-
-    Args:
-        path: Path to the audit JSONL file.
-        max_size_bytes: Max file size before rotation (default: 10MB).
-        retention_days: Max age of rotated files in days (default: 90).
-    """
 
     def __init__(
         self,
@@ -138,11 +91,6 @@ class AuditSink:
         self._file_handle: TextIO | None = None
 
     def write(self, event: AuditEvent) -> None:
-        """Append an audit event to the JSONL file.
-
-        Thread-safe. Rotates if the file exceeds max_size_bytes.
-        Keeps the file handle open across writes to avoid repeated open/close.
-        """
         with self._lock:
             self._rotate_if_needed()
             self._cleanup_old_files()
@@ -151,7 +99,7 @@ class AuditSink:
             line = event.to_json() + "\n"
 
             try:
-                # Reuse file handle across writes (avoids repeated open/close)
+
                 if self._file_handle is None or self._file_handle.closed:
                     self._file_handle = open(self.path, "a", encoding="utf-8")  # noqa: SIM115
                 self._file_handle.write(line)
@@ -161,15 +109,13 @@ class AuditSink:
                 self._close_handle()
 
     def _close_handle(self) -> None:
-        """Close the open file handle, if any."""
         if self._file_handle and not self._file_handle.closed:
             with contextlib.suppress(OSError):
                 self._file_handle.close()
         self._file_handle = None
 
     def _rotate_if_needed(self) -> None:
-        """Rotate the audit file if it exceeds max_size_bytes."""
-        # Close handle before rotation so rename works on all platforms
+
         self._close_handle()
         if not self.path.exists():
             return
@@ -182,8 +128,7 @@ class AuditSink:
         if size < self.max_size_bytes:
             return
 
-        # Rotate: audit.jsonl -> audit.jsonl.1, etc.
-        # Find next available rotation number
+
         rot_num = 1
         while self.path.with_suffix(f".jsonl.{rot_num}").exists():
             rot_num += 1
@@ -196,7 +141,6 @@ class AuditSink:
             logger.error("Failed to rotate audit log: %s", e)
 
     def _cleanup_old_files(self) -> None:
-        """Remove rotated audit files older than retention_days."""
         if self.retention_days <= 0:
             return
 
@@ -211,15 +155,6 @@ class AuditSink:
                 pass
 
     def read(self, limit: int = 100, action: str = "") -> list[AuditEvent]:
-        """Read recent audit events from the log.
-
-        Args:
-            limit: Maximum number of events to return.
-            action: Filter by action name (empty = all).
-
-        Returns:
-            List of AuditEvent objects, most recent last.
-        """
         events: list[AuditEvent] = []
         if not self.path.exists():
             return events
@@ -253,14 +188,11 @@ class AuditSink:
         return events[-limit:]
 
 
-# ── Global sink ─────────────────────────────────────────────────────────
-
 _global_sink: AuditSink | None = None
 _sink_lock = threading.Lock()
 
 
 def get_audit_sink() -> AuditSink:
-    """Get or create the global audit sink."""
     global _global_sink
     with _sink_lock:
         if _global_sink is None:
@@ -273,7 +205,6 @@ def configure_audit_sink(
     max_size_bytes: int = DEFAULT_MAX_SIZE_BYTES,
     retention_days: int = DEFAULT_RETENTION_DAYS,
 ) -> AuditSink:
-    """Configure the global audit sink (call once at startup)."""
     global _global_sink
     with _sink_lock:
         _global_sink = AuditSink(
@@ -285,7 +216,6 @@ def configure_audit_sink(
 
 
 def reset_audit_sink() -> None:
-    """Reset the global audit sink (for testing)."""
     global _global_sink
     with _sink_lock:
         _global_sink = None
@@ -300,24 +230,6 @@ def audit(
     request_id: str = "",
     fail_closed: bool = False,
 ) -> AuditEvent:
-    """Emit an audit event to the global sink.
-
-    This is the primary API for audit logging throughout PicoSentry.
-
-    Args:
-        action: Well-known action name (e.g. 'corpus.import').
-        target: What was acted upon.
-        actor: Identity of the actor.
-        outcome: 'success' or 'failure'.
-        metadata: Additional key-value pairs.
-        request_id: Request ID for tracing.
-        fail_closed: If True, raise on write failure instead of silently
-            swallowing the error. Use for security-critical audit paths
-            where a missing audit record is worse than a crash.
-
-    Returns:
-        The AuditEvent that was emitted.
-    """
     event = AuditEvent(
         action=action,
         target=target,
@@ -334,7 +246,7 @@ def audit(
         if fail_closed:
             logger.critical("Failed to emit audit event (fail-closed): %s", e)
             raise
-        # Best-effort for non-critical paths: log but do not crash
+
         logger.error("Failed to emit audit event: %s", e)
 
     return event

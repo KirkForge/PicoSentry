@@ -1,7 +1,3 @@
-"""`metrics` subcommand — print current metrics as JSON or Prometheus.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -17,7 +13,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Print current metrics."""
     from picosentry.scan.metrics import get_metrics
 
     snapshot = get_metrics().snapshot()

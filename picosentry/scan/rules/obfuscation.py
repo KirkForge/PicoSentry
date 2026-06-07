@@ -1,11 +1,3 @@
-"""
-L2-OBFS-001 through 004: Obfuscated payload detection.
-
-Catches eval(), new Function(), hex strings, base64 exec, and unicode escapes
-that hide malicious intent in JavaScript/TypeScript packages.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -15,7 +7,7 @@ from pathlib import Path
 from ..models import Confidence, Finding, Severity
 
 __all__ = ["detect_obfuscation"]
-# Binary extensions to skip — no point regexing images or compiled files.
+
 SKIP_EXTENSIONS = frozenset(
     {
         ".png",
@@ -33,16 +25,16 @@ SKIP_EXTENSIONS = frozenset(
     }
 )
 
-# Maximum file size to scan (500 KB). Larger files are skipped.
+
 MAX_FILE_BYTES = 512_000
 
-# Max files to scan per package in node_modules (prevents O(n) rglob explosion)
+
 MAX_FILES_PER_PACKAGE = 200
 
-# JS/TS extensions to scan
+
 JS_EXTENSIONS = {".js", ".mjs", ".cjs", ".ts", ".tsx"}
 
-# Directories to skip during node_modules traversal
+
 SKIP_DIRS = frozenset(
     {
         "dist",
@@ -56,7 +48,6 @@ SKIP_DIRS = frozenset(
     }
 )
 
-# ---- Rule patterns ----
 
 EVAL_PATTERN: tuple = (
     "L2-OBFS-001",
@@ -103,7 +94,6 @@ PATTERNS: list[tuple] = [
 
 
 def _scan_file(file_path: Path) -> list[Finding]:
-    """Scan a single file for obfuscation patterns."""
     findings: list[Finding] = []
 
     if file_path.suffix in SKIP_EXTENSIONS:
@@ -122,7 +112,7 @@ def _scan_file(file_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-    # Derive package name from path
+
     parts = file_path.parts
     pkg_label = "unknown"
     if "node_modules" in parts:
@@ -157,28 +147,24 @@ def _scan_file(file_path: Path) -> list[Finding]:
 
 
 def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect obfuscated payloads in JS/TS files.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root source files
+
     if target.is_dir():
         for ext in JS_EXTENSIONS:
             for f in target.glob(f"*{ext}"):
                 findings.extend(_scan_file(f))
 
-        # node_modules — scan per-package with file budget and skip-dir filtering
+
         nm = target / "node_modules"
         if nm.is_dir():
             for child in sorted(nm.iterdir()):
                 if not child.is_dir() or child.name.startswith("."):
                     continue
 
-                # Each top-level directory (scoped or unscoped) gets its own budget
+
                 if child.name.startswith("@"):
-                    # Scoped package directory: @scope/
+
                     for scoped_child in sorted(child.iterdir()):
                         if not scoped_child.is_dir():
                             continue
@@ -197,7 +183,7 @@ def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
                             findings.extend(_scan_file(f))
                             file_count += 1
                 else:
-                    # Unscoped package directory
+
                     file_count = 0
                     for f in child.rglob("*"):
                         if f.is_symlink():

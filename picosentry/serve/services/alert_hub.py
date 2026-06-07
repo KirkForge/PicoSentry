@@ -1,4 +1,3 @@
-"""Alert hub with multi-channel delivery and deduplication."""
 import logging
 import threading
 from collections import defaultdict
@@ -17,7 +16,6 @@ from picosentry.serve.database.manager import db
 logger = logging.getLogger("picoshogun.Alerts")
 
 class AlertHub:
-    """Smart alerting with deduplication, escalation, and multi-channel delivery."""
 
     def __init__(self):
         self.recent_alerts = defaultdict(list)
@@ -28,23 +26,22 @@ class AlertHub:
     def send(self, project_id: str, alert_type: str, severity: str,
              message: str, channels: list[str] | None = None,
              metadata: dict | None = None) -> bool:
-        """Send alert with deduplication and multi-channel routing."""
 
         if channels is None:
             channels = self._get_default_channels()
 
-        # Deduplication check
+
         with self._lock:
             now = datetime.now(timezone.utc)
             key = f"{project_id}:{alert_type}"
 
-            # Clean old entries
+
             self.recent_alerts[key] = [
                 t for t in self.recent_alerts.get(key, [])
                 if (now - t).total_seconds() < self.cooldown_seconds * 2
             ]
 
-            # Check cooldown
+
             for prev in self.recent_alerts.get(key, []):
                 if (now - prev).total_seconds() < self.cooldown_seconds:
                     logger.debug("Alert suppressed: %s", key)
@@ -52,7 +49,7 @@ class AlertHub:
 
             self.recent_alerts[key].append(now)
 
-        # Store in DB
+
         alert_ids = []
         for channel in channels:
             alert_id = db.execute_insert("""
@@ -61,7 +58,7 @@ class AlertHub:
             """, (project_id, alert_type, severity, message, channel))
             alert_ids.append(alert_id)
 
-        # Deliver to channels
+
         success = False
         for i, channel in enumerate(channels):
             try:
@@ -74,14 +71,14 @@ class AlertHub:
                 elif channel == "syslog":
                     self._syslog_notify(project_id, severity, message)
 
-                # Mark as sent
+
                 db.execute("""
                     UPDATE alerts SET sent = 1 WHERE id = ?
                 """, (alert_ids[i],))
                 success = True
             except Exception as e:
                 logger.error("Alert delivery failed (%s): %s", channel, e)
-                # Increment retry count
+
                 db.execute("""
                     UPDATE alerts SET retry_count = retry_count + 1 WHERE id = ?
                 """, (alert_ids[i],))
@@ -90,7 +87,6 @@ class AlertHub:
         return success
 
     def _get_default_channels(self) -> list[str]:
-        """Determine default channels based on configuration."""
         channels = ["syslog"]  # Always log to syslog
 
         if settings.alerts.discord_webhook:
@@ -104,7 +100,6 @@ class AlertHub:
 
     def _discord_notify(self, project_id: str, severity: str, message: str,
                        metadata: dict | None = None):
-        """Send rich embed to Discord webhook."""
         if not HAS_REQUESTS or not settings.alerts.discord_webhook:
             return
 
@@ -151,7 +146,6 @@ class AlertHub:
 
     def _slack_notify(self, project_id: str, severity: str, message: str,
                      metadata: dict | None = None):
-        """Send formatted message to Slack webhook."""
         if not HAS_REQUESTS or not settings.alerts.slack_webhook:
             return
 
@@ -193,7 +187,6 @@ class AlertHub:
             logger.error("Slack webhook failed: %s", e)
 
     def _email_notify(self, project_id: str, severity: str, message: str):
-        """Send email notification via SMTP with TLS/auth support."""
         import smtplib
         from email.mime.text import MIMEText
 
@@ -215,7 +208,7 @@ Time: {datetime.now(timezone.utc).isoformat()}
             msg["From"] = settings.alerts.email_from or "picoshogun@localhost"
             msg["To"] = ", ".join(settings.alerts.email_to)
 
-            # Choose connection method: SSL direct or STARTTLS
+
             if settings.alerts.email_smtp_use_ssl:
                 server: smtplib.SMTP_SSL | smtplib.SMTP = smtplib.SMTP_SSL(
                     settings.alerts.email_smtp_host,
@@ -227,11 +220,11 @@ Time: {datetime.now(timezone.utc).isoformat()}
                     settings.alerts.email_smtp_port
                 )
 
-            # Upgrade to TLS if STARTTLS requested (no-op if already SSL)
+
             if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
                 server.starttls()
 
-            # Authenticate if credentials provided
+
             if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
                 server.login(
                     settings.alerts.email_smtp_user,
@@ -246,10 +239,9 @@ Time: {datetime.now(timezone.utc).isoformat()}
             logger.error("Email notification failed: %s", e)
 
     def _syslog_notify(self, project_id: str, severity: str, message: str):
-        """Log to syslog (Unix) or Python logging (Windows/cross-platform fallback)."""
         import sys
 
-        # Map PicoShogun severity to Python logging levels
+
         _logging_levels = {
             "critical": 50,   # logging.CRITICAL
             "high": 40,       # logging.ERROR
@@ -276,12 +268,11 @@ Time: {datetime.now(timezone.utc).isoformat()}
             except ImportError:
                 pass  # Fall through to logging fallback
 
-        # Fallback: use Python logging (works on all platforms)
+
         log_level = _logging_levels.get(severity, 20)
         logger.log(log_level, "PicoShogun[%s]: [%s] %s", project_id, severity.upper(), message[:500])
 
     def get_alert_stats(self, hours: int = 24) -> dict[str, Any]:
-        """Get alert statistics."""
         rows = db.execute("""
             SELECT
                 severity,

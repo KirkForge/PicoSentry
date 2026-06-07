@@ -1,7 +1,3 @@
-"""`audit` subcommand — query the audit log.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -24,7 +20,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Query the audit log."""
     from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
     audit = get_audit_logger()

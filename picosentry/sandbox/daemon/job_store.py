@@ -1,10 +1,3 @@
-"""In-memory scan job store.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-Matches the interface of :class:`PersistentScanJobStore` so the handler
-can treat both stores uniformly.
-"""
 from __future__ import annotations
 
 import time
@@ -12,7 +5,6 @@ from typing import Any
 
 
 class ScanJobStore:
-    """In-memory store of recent scan jobs (bounded)."""
 
     def __init__(self, max_jobs: int = 1000) -> None:
         self._jobs: dict[str, dict[str, Any]] = {}

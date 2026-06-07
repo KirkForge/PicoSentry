@@ -1,4 +1,3 @@
-"""Health, readiness, and status endpoints."""
 import logging
 from datetime import datetime, timezone
 
@@ -15,11 +14,8 @@ logger = logging.getLogger("picoshogun.health")
 router = APIRouter()
 
 
-
-
 @router.get("/", tags=["Health"], response_class=HTMLResponse)
 async def root():
-    """Landing page with version badge."""
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun</title></head>
 <body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
@@ -32,10 +28,9 @@ async def root():
 
 @router.get("/dashboard", tags=["Dashboard"], response_class=HTMLResponse)
 async def dashboard():
-    """SPA dashboard — serves the compiled frontend."""
     from pathlib import Path
     base = Path(__file__).resolve().parent.parent.parent / "front"
-    # Prefer compiled frontend (npm run build) over source index.html
+
     dashboard_path = base / "build" / "index.html"
     if not dashboard_path.exists():
         dashboard_path = base / "index.html"
@@ -53,7 +48,6 @@ async def dashboard():
 
 @router.get("/health", response_model=HealthReadiness, tags=["Health"])
 async def health_check():
-    """Composite health — readiness + individual component checks."""
     health = orchestrator.get_health_checks()
     overall = "healthy"
     if any(c["status"] == "critical" for c in health):
@@ -69,13 +63,11 @@ async def health_check():
 
 @router.get("/health/live", tags=["Health"])
 async def liveness_probe():
-    """Kubernetes liveness — always 200 if the process is alive."""
     return {"status": "alive"}
 
 
 @router.get("/health/ready", tags=["Health"])
 async def readiness_probe():
-    """Kubernetes readiness — checks DB connectivity."""
     try:
         from picosentry.serve.database.manager import db
         db.execute_one("SELECT 1")
@@ -87,7 +79,6 @@ async def readiness_probe():
 
 @router.get("/health/history", tags=["Health"])
 async def health_history(limit: int = 50, user: dict = Depends(get_current_user)):
-    """Historical health check results (requires auth)."""
     from picosentry.serve.database.manager import db as _db
     rows = _db.execute(
         "SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?",
@@ -98,7 +89,6 @@ async def health_history(limit: int = 50, user: dict = Depends(get_current_user)
 
 @router.get("/status", response_model=SystemStatus, tags=["Status"])
 async def get_status(user: dict = Depends(get_current_user)):
-    """System overview — projects, threats, alerts, uptime."""
     status_data = orchestrator.get_status()
     health = orchestrator.get_health_checks()
     threat_score = 0.0

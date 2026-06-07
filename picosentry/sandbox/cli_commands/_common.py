@@ -1,19 +1,3 @@
-"""Shared CLI helpers for PicoDome subcommands.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cli.py``.
-
-- ``_add_common_flags(parser)`` — repeated ``--deterministic-output``,
-  ``--exit-code``, ``--fail-on``, ``--quiet``, ``--summary``, ``--verbose``,
-  ``--log-format`` flags used by ``sandbox``, ``analyze``, and ``pipeline``.
-- ``_auto_detect_policy(command)`` — sniff the command's first token to pick
-  a node/python runtime policy.
-- ``_output(result, args)`` — dispatch to the chosen formatter.
-- ``_output_summary(result)`` / ``_output_summary_pipeline(sandbox, analysis)``
-  — one-liner outputs.
-- ``_compute_exit_code_*`` — translate results into exit codes.
-- ``_resolve_signing_key(args)`` — pull an HMAC key from CLI args, key file,
-  or env (used by ``sign-policy``).
-"""
 from __future__ import annotations
 
 import argparse
@@ -30,7 +14,7 @@ from picosentry.sandbox.formatters.table import format_table
 from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.models import AnalysisResult
 
-# Severity levels for --fail-on (lower = more severe)
+
 _SEVERITY_LEVELS = {
     "critical": 0,
     "high": 1,
@@ -39,12 +23,11 @@ _SEVERITY_LEVELS = {
     "info": 4,
 }
 
-# Exit codes that trigger --exit-code
+
 _BAD_VERDICTS = {"DENY", "KILL", "MALICIOUS", "SUSPICIOUS"}
 
 
 def _add_common_flags(parser: argparse.ArgumentParser) -> None:
-    """Add common flags to a subcommand parser."""
     parser.add_argument(
         "--deterministic-output",
         "-D",
@@ -87,12 +70,6 @@ def _add_common_flags(parser: argparse.ArgumentParser) -> None:
 
 
 def _auto_detect_policy(command: list[str]):
-    """Auto-detect runtime from command and return appropriate policy.
-
-    If the command looks like npm/node, return node policy.
-    If the command looks like pip/python, return python policy.
-    Otherwise return None (use default).
-    """
     from picosentry.sandbox.l3.policy import load_policy as _lp
 
     if not command:
@@ -111,7 +88,6 @@ def _auto_detect_policy(command: list[str]):
 
 
 def _output(result: Any, args: argparse.Namespace) -> None:
-    """Output a result in the requested format."""
     if args.summary:
         _output_summary(result)
         return
@@ -134,7 +110,6 @@ def _output(result: Any, args: argparse.Namespace) -> None:
 
 
 def _output_summary(result: Any) -> None:
-    """One-line summary output."""
     if isinstance(result, SandboxResult):
         verdict = result.overall_verdict.value
         events = len(result.events)
@@ -147,7 +122,6 @@ def _output_summary(result: Any) -> None:
 
 
 def _output_summary_pipeline(sandbox: SandboxResult, analysis: AnalysisResult) -> None:
-    """One-line summary for pipeline."""
     l3_verdict = sandbox.overall_verdict.value
     l4_verdict = analysis.overall_verdict.value
     events = len(sandbox.events)
@@ -157,29 +131,27 @@ def _output_summary_pipeline(sandbox: SandboxResult, analysis: AnalysisResult) -
 
 
 def _compute_exit_code_sandbox(result: SandboxResult, args: argparse.Namespace) -> int:
-    """Compute exit code for sandbox command based on flags."""
-    # --exit-code: exit 1 on bad verdicts
+
     if args.exit_code and result.overall_verdict.value in _BAD_VERDICTS:
         return 1
 
-    # --fail-on: check severity levels
+
     if args.fail_on:
         _SEVERITY_LEVELS.get(args.fail_on, 99)
-        # Sandbox events don't have severity, but DENY/KILL are bad
+
         if result.overall_verdict.value in ("DENY", "KILL"):
             return 1
 
-    # Default: exit 0 on ALLOW, 1 otherwise
+
     return 0 if result.overall_verdict.value == "ALLOW" else 1
 
 
 def _compute_exit_code_analysis(result: AnalysisResult, args: argparse.Namespace) -> int:
-    """Compute exit code for analyze command based on flags."""
-    # --exit-code: exit 1 on bad verdicts
+
     if args.exit_code and result.overall_verdict.value in _BAD_VERDICTS:
         return 1
 
-    # --fail-on: check severity levels
+
     if args.fail_on:
         threshold = _SEVERITY_LEVELS.get(args.fail_on, 99)
         for f in result.findings:
@@ -187,15 +159,14 @@ def _compute_exit_code_analysis(result: AnalysisResult, args: argparse.Namespace
             if finding_level <= threshold:
                 return 1
 
-    # Default: exit 0 on CLEAN, 1 otherwise
+
     return 0 if result.overall_verdict.value == "CLEAN" else 1
 
 
 def _compute_exit_code_pipeline(
     sandbox: SandboxResult, analysis: AnalysisResult, args: argparse.Namespace
 ) -> int:
-    """Compute exit code for pipeline command."""
-    # Check L4 verdict first (it's the final arbiter)
+
     if args.exit_code and analysis.overall_verdict.value in _BAD_VERDICTS:
         return 1
 
@@ -206,12 +177,11 @@ def _compute_exit_code_pipeline(
             if finding_level <= threshold:
                 return 1
 
-    # Default: exit 0 on CLEAN, 1 otherwise
+
     return 0 if analysis.overall_verdict.value == "CLEAN" else 1
 
 
 def _resolve_signing_key(args: argparse.Namespace) -> bytes | None:
-    """Resolve HMAC key from args, env, or key file."""
     if hasattr(args, "key") and args.key:
         try:
             return bytes.fromhex(args.key)
@@ -229,7 +199,7 @@ def _resolve_signing_key(args: argparse.Namespace) -> bytes | None:
             print("Error: key file must contain hex-encoded key", file=sys.stderr)
             return None
 
-    # Fall back to env
+
     from picosentry.sandbox.policy_versioned.signing import _load_key
 
     key = _load_key()

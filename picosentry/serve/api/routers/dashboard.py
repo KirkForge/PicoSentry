@@ -1,4 +1,3 @@
-"""Dashboard summary endpoint (API v1)."""
 import logging
 from datetime import datetime, timezone
 
@@ -13,11 +12,8 @@ logger = logging.getLogger("picoshogun.dashboard")
 router = APIRouter()
 
 
-
-
 @router.get("/dashboard/summary", tags=["Dashboard"])
 async def dashboard_summary(user: dict = Depends(get_current_user)):
-    """Aggregated dashboard data — single-call overview for the command centre."""
     status = orchestrator.get_status()
     health = orchestrator.get_health_checks()
     recent_projects = orchestrator.list_projects(limit=10)

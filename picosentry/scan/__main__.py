@@ -1,4 +1,3 @@
-"""Allow running PicoSentry CLI as: python -m picosentry"""
 
 from picosentry.scan.cli import main
 

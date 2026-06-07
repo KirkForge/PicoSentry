@@ -1,10 +1,3 @@
-"""PicoDomeHandler POST route handlers (mixin).
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/daemon/server.py``.
-
-All ``_handle_*`` methods dispatched by :meth:`PicoDomeHandler._handle_post`
-live here: scan submission and policy creation.
-"""
 from __future__ import annotations
 
 import hashlib
@@ -30,10 +23,9 @@ logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomePostRoutesMixin:
-    """POST route handlers: scan submission, policy creation."""
 
     def _handle_post(self) -> None:
-        # Request size limit
+
         content_length = self.headers.get("Content-Length")
         if content_length:
             try:
@@ -59,13 +51,12 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
     def _handle_submit_scan(self, token: str) -> None:
-        """Submit a sandbox scan job."""
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             if content_length > self.MAX_REQUEST_SIZE:
                 self._send_error(ErrorCodes.REQUEST_TOO_LARGE)
                 return
-            # Validate Content-Type for POST endpoints
+
             content_type = self.headers.get("Content-Type", "")
             if content_type and "application/json" not in content_type:
                 self._send_error(ErrorCodes.INVALID_JSON, detail=f"Expected application/json, got {content_type}")
@@ -81,10 +72,10 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.MISSING_COMMAND)
             return
 
-        # Command deny-list check
+
         deny_error = self._validate_command(command)
         if deny_error:
-            # Audit the command denial
+
             actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
             try:
                 audit = get_audit_logger()
@@ -106,12 +97,12 @@ class PicoDomePostRoutesMixin:
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
 
-        # Resolve tenant
+
         tenant_id = self._resolve_tenant(token)
 
         self.job_store.add(job_id, command, actor)
 
-        # Audit
+
         try:
             audit = get_audit_logger()
             audit.record(
@@ -125,7 +116,7 @@ class PicoDomePostRoutesMixin:
             pass
 
         try:
-            # Resolve policy
+
             policy_name = data.get("policy")
             if policy_name:
                 try:
@@ -136,10 +127,10 @@ class PicoDomePostRoutesMixin:
             else:
                 policy = default_policy()
 
-            # Resolve backend
+
             backend_name = data.get("backend", "auto")
             backend: SandboxBackend | None = None
-            # F14: Block subprocess backend in enterprise mode
+
             if _ENTERPRISE_MODE and backend_name == "subprocess":
                 self._send_error(ErrorCodes.ENTERPRISE_ENFORCEMENT, detail="subprocess backend is not allowed in enterprise mode")
                 return
@@ -165,7 +156,7 @@ class PicoDomePostRoutesMixin:
                     self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=str(e))
                     return
 
-            # Run sandbox
+
             sandbox_result = sandbox_run(
                 command=command,
                 policy=policy,
@@ -174,12 +165,12 @@ class PicoDomePostRoutesMixin:
                 deterministic=False,
             )
 
-            # Run L4 analysis
+
             engine = create_default_engine()
             profile = profile_from_sandbox_result(sandbox_result)
             analysis_result = engine.analyze(profile, deterministic=False)
 
-            # Build result
+
             result = {
                 "job_id": job_id,
                 "sandbox": sandbox_result.to_dict(deterministic=False),
@@ -202,12 +193,12 @@ class PicoDomePostRoutesMixin:
                 result=result,
             )
 
-            # Update metrics
+
             self._scan_count += 1
             self._scan_total_ms += sandbox_result.duration_ms
             self._alert_count += len(analysis_result.findings)
 
-            # Audit
+
             try:
                 audit = get_audit_logger()
                 audit.record(
@@ -220,7 +211,7 @@ class PicoDomePostRoutesMixin:
             except Exception:
                 pass
 
-            # Persist result
+
             try:
                 rm = get_retention_manager()
                 rm.save_scan_result(
@@ -243,7 +234,6 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.SCAN_FAILED, detail=str(e))
 
     def _handle_create_policy(self, token: str) -> None:
-        """Create or update a policy."""
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             content_type = self.headers.get("Content-Type", "")

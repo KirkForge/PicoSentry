@@ -1,13 +1,3 @@
-"""
-L2-IOC-001: Custom IoC (Indicator of Compromise) detection.
-
-Checks all installed packages against user-registered custom IoCs.
-Organizations can register their own supply-chain indicators without
-modifying the built-in corpus. Custom IoCs are merged at scan time
-and override built-in corpus entries on conflict.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -25,33 +15,23 @@ logger = logging.getLogger("picosentry.ioc_detection")
 
 
 def _semver_matches(version: str, constraint: str) -> bool:
-    """Check if a semver version satisfies a constraint.
-
-    Supports: exact match, ^x.y.z, ~x.y.z, >=x.y.z, <=x.y.z,
-    >x.y.z, <x.y.z, x.y.z - a.b.c (range).
-
-    Strips pre-release/build metadata before numeric comparison,
-    then verifies pre-release constraints per semver spec §11
-    (pre-release versions sort lower than their release counterpart).
-    Falls back to exact string match for non-semver versions.
-    """
     version = version.strip().lstrip("v")
     constraint = constraint.strip()
     import re
     _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:[-.]([a-zA-Z0-9._-]+))?(?:\+([a-zA-Z0-9._-]+))?")
 
-    # Exact match
+
     if version == constraint:
         return True
 
-    # Parse version into (major, minor, patch, pre_release_str)
+
     def _parse_ver(v: str) -> tuple[list[int] | None, str]:
         m = _SEMVER_RE.search(v)
         if m:
             parts = [int(m.group(1)), int(m.group(2)), int(m.group(3))]
             pre = m.group(4) or ""
             return parts, pre
-        # Fallback: split on first non-numeric
+
         nums = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", v)
         if nums:
             parts = [int(nums.group(1) or 0), int(nums.group(2) or 0), int(nums.group(3) or 0)]
@@ -62,9 +42,9 @@ def _semver_matches(version: str, constraint: str) -> bool:
     if v_parts is None:
         return version in constraint or constraint in version
 
-    # Helper: parse constraint version (strip pre-release from comparison base)
+
     def _parse_constraint(c: str) -> tuple[list[int] | None, str]:
-        # Strip leading operators
+
         m = _SEMVER_RE.search(c)
         if m:
             parts = [int(m.group(1)), int(m.group(2)), int(m.group(3))]
@@ -76,27 +56,25 @@ def _semver_matches(version: str, constraint: str) -> bool:
             return parts, ""
         return None, ""
 
-    # Pre-release comparison: pre-release versions sort lower than release
-    # per semver spec §11. 1.2.3-alpha < 1.2.3
+
     def _ver_cmp(a_parts: list[int], a_pre: str, b_parts: list[int], b_pre: str) -> int:
-        """Compare two parsed versions. Returns -1, 0, or 1."""
         if a_parts < b_parts:
             return -1
         if a_parts > b_parts:
             return 1
-        # Same major.minor.patch — compare pre-release
-        # No pre-release (release) > any pre-release
+
+
         if not a_pre and b_pre:
             return 1
         if a_pre and not b_pre:
             return -1
         if not a_pre and not b_pre:
             return 0
-        # Both have pre-release: compare identifiers left-to-right
+
         a_idents = a_pre.split(".")
         b_idents = b_pre.split(".")
         for ai, bi in zip(a_idents, b_idents, strict=False):
-            # Numeric identifiers < string identifiers
+
             a_num = ai.isdigit()
             b_num = bi.isdigit()
             if a_num and b_num:
@@ -119,13 +97,10 @@ def _semver_matches(version: str, constraint: str) -> bool:
             return 1
         return 0
 
-    # Pre-release must share the same major.minor.patch as the constraint
-    # to satisfy ^, ~, >= comparisons per semver spec.
-    # Example: ^1.2.3 does NOT match 1.2.3-alpha (pre-release of different version)
-    # But >=1.2.3-alpha DOES match 1.2.3-alpha and 1.2.3 (release > pre)
+
     try:
 
-        # ^x.y.z — compatible with x.y.z, >=x.y.z <(x+1).0.0
+
         if constraint.startswith("^"):
             c = constraint[1:]
             c_parts, c_pre = _parse_constraint(c)
@@ -133,17 +108,17 @@ def _semver_matches(version: str, constraint: str) -> bool:
                 return False
             cmp = _ver_cmp(v_parts, v_pre, c_parts, c_pre)
             if c_parts[0] == 0 and c_parts[1] == 0:
-                # ^0.0.z — >=0.0.z <0.0.(z+1), i.e. only matches 0.0.z exactly
-                # (no higher patch allowed within 0.0.* range)
+
+
                 return (v_parts[0] == 0 and v_parts[1] == 0 and v_parts[2] == c_parts[2])
             if c_parts[0] == 0:
-                # ^0.y.z (y>0) — >=0.y.z <0.(y+1).0
+
                 return (v_parts[0] == 0 and v_parts[1] == c_parts[1] and cmp >= 0
                         and v_parts[2] < 256)  # any patch within 0.y.*
-            # ^x.y.z (x>0) — >=x.y.z <(x+1).0.0
+
             return cmp >= 0 and v_parts[0] == c_parts[0]
 
-        # ~x.y.z — >=x.y.z <x.(y+1).0
+
         if constraint.startswith("~"):
             c = constraint[1:]
             c_parts, c_pre = _parse_constraint(c)
@@ -152,7 +127,7 @@ def _semver_matches(version: str, constraint: str) -> bool:
             cmp = _ver_cmp(v_parts, v_pre, c_parts, c_pre)
             return v_parts[0] == c_parts[0] and v_parts[1] == c_parts[1] and cmp >= 0
 
-        # >=, <=, >, <
+
         for op in (">=", "<=", ">", "<"):
             if constraint.startswith(op):
                 c = constraint[len(op) :]
@@ -169,7 +144,7 @@ def _semver_matches(version: str, constraint: str) -> bool:
                 if op == "<":
                     return cmp < 0
 
-        # Range: "1.0.0 - 2.0.0"
+
         if " - " in constraint:
             lo, hi = constraint.split(" - ", 1)
             lo_parts, lo_pre = _parse_constraint(lo)
@@ -183,7 +158,7 @@ def _semver_matches(version: str, constraint: str) -> bool:
     except (ValueError, IndexError):
         pass
 
-    # Fallback: substring match
+
     return version in constraint or constraint in version
 
 
@@ -194,7 +169,6 @@ def _check_package_against_iocs(
     pkg_json: Path,
     iocs: list[dict],
 ) -> list[Finding]:
-    """Check a single package against all registered IoCs."""
     findings: list[Finding] = []
 
     for ioc in iocs:
@@ -202,7 +176,7 @@ def _check_package_against_iocs(
         if not ioc_pkg or ioc_pkg != pkg_name:
             continue
 
-        # Semver-aware version matching
+
         version_range = ioc.get("version_range", "*")
         if version_range != "*" and not _semver_matches(pkg_version, version_range):
             continue
@@ -239,17 +213,9 @@ def _check_package_against_iocs(
 
 
 def detect_custom_iocs(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect packages matching user-registered custom IoCs.
-
-    Loads all IoCs (built-in + custom), then checks every installed
-    package against them. Custom IoCs override built-in on conflict.
-
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Load all IoCs once
+
     try:
         iocs = load_all_iocs()
     except (OSError, json.JSONDecodeError, ValueError) as e:
@@ -262,7 +228,7 @@ def detect_custom_iocs(target: Path, corpus_dir: Path) -> list[Finding]:
     if not iocs:
         return findings
 
-    # Check root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
@@ -272,7 +238,7 @@ def detect_custom_iocs(target: Path, corpus_dir: Path) -> list[Finding]:
             pkg_label = f"{pkg_name}@{pkg_version}"
             findings.extend(_check_package_against_iocs(pkg_name, pkg_version, pkg_label, root_pkg, iocs))
 
-    # Check all node_modules packages
+
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)
         pkg_version = pkg.get("version", "unknown")

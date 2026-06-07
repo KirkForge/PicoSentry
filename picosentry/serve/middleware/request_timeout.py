@@ -1,4 +1,3 @@
-"""Request timeout middleware — terminates requests that exceed a time limit."""
 import asyncio
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -7,10 +6,6 @@ from starlette.responses import JSONResponse
 
 
 class RequestTimeoutMiddleware(BaseHTTPMiddleware):
-    """Cancel request processing after a configurable timeout.
-
-    Default: 30 seconds. Returns 504 Gateway Timeout when exceeded.
-    """
 
     def __init__(self, app, timeout_seconds: int = 30):
         super().__init__(app)

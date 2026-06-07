@@ -1,7 +1,3 @@
-"""`policy` subcommand — manage enterprise policy bundles (fetch/push/init).
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -38,7 +34,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Manage enterprise policy bundles."""
     if not args.policy_action:
         print("Usage: picosentry policy {fetch|push|init}")
         return 1
@@ -96,7 +91,6 @@ def cmd(args: argparse.Namespace) -> int:
     return 0
 
 
-# Back-compat alias
 _cmd_policy = cmd
 
 __all__ = ["NAME", "_cmd_policy", "add_arguments", "cmd"]

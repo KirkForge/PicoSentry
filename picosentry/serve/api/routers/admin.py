@@ -1,4 +1,3 @@
-"""Backup, log management, audit, and event history endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -16,7 +15,6 @@ router = APIRouter()
 
 @router.post("/backup", tags=["Backup"])
 async def create_backup(user: dict = Depends(require_role("admin"))):
-    """Create a database backup (admin+ required)."""
     backup_mgr = BackupManager()
     result = backup_mgr.create_backup()
     return {"status": "backup_created", "path": result}
@@ -24,7 +22,6 @@ async def create_backup(user: dict = Depends(require_role("admin"))):
 
 @router.get("/backups", tags=["Backup"])
 async def list_backups(user: dict = Depends(get_current_user)):
-    """List available database backups."""
     backup_mgr = BackupManager()
     backups = backup_mgr.list_backups()
     return {"backups": backups}
@@ -32,13 +29,11 @@ async def list_backups(user: dict = Depends(get_current_user)):
 
 @router.get("/logs/stats", tags=["Logs"])
 async def get_log_stats(user: dict = Depends(get_current_user)):
-    """Get log rotation statistics."""
     return log_manager.get_stats()
 
 
 @router.post("/logs/rotate", tags=["Logs"])
 async def rotate_logs(user: dict = Depends(get_current_user)):
-    """Trigger log rotation."""
     log_manager.rotate()
     return {"status": "rotated"}
 
@@ -51,13 +46,11 @@ async def get_logs(
     limit: int = Query(100, ge=1, le=1000),
     user: dict = Depends(get_current_user),
 ):
-    """Query log entries with optional filtering."""
     return {"entries": log_manager.query(level=level, source=source, search=search, limit=limit)}
 
 
 @router.get("/audit/stats", tags=["Audit"])
 async def audit_stats(user: dict = Depends(get_current_user)):
-    """Get audit log statistics and retention policy."""
     return get_audit_stats()
 
 
@@ -67,11 +60,6 @@ async def purge_audit(
     dry_run: bool = False,
     user: dict = Depends(require_role("admin")),
 ):
-    """Purge audit logs older than retention period.
-
-    Admin-only. Default uses per-severity retention policy.
-    Set dry_run=true to preview what would be deleted.
-    """
     return purge_audit_logs(retention_days=retention_days, dry_run=dry_run)
 
 
@@ -81,7 +69,6 @@ async def get_event_history(
     limit: int = Query(100, ge=1, le=1000),
     user: dict = Depends(get_current_user),
 ):
-    """Query event bus history."""
     events = event_bus.get_history(event_type, limit)
     return [
         {

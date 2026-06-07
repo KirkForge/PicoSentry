@@ -1,7 +1,3 @@
-"""`init` subcommand — generate a .picosentry.yml config template.
-
-Extracted in v2.1.0 (refactor) from the monolithic ``picosentry/scan/cli.py``.
-"""
 from __future__ import annotations
 
 import argparse
@@ -26,7 +22,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    """Generate a .picosentry.yml configuration template."""
     target = Path(args.target).resolve()
 
     if not target.is_dir():
@@ -94,7 +89,7 @@ version: 1
     config_path.write_text(template, encoding="utf-8")
     print(f"Created {config_path}")
 
-    # Also generate policy template if requested or if --policy flag
+
     policy_path = target / ".picosentry-policy.yml"
     if not policy_path.exists() or args.force:
         from picosentry.scan.policy import default_policy_template

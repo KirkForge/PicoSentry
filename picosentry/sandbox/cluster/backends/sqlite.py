@@ -1,11 +1,3 @@
-"""SQLite-backed persistent state for cluster.
-
-Extracted in v2.1.0 (refactor) from ``picosentry/sandbox/cluster/manager.py``.
-
-Persistent SQLite backend for shared state across restarts. Uses WAL mode
-and a fresh connection per operation (avoids long-lived connection issues
-with multi-process access).
-"""
 from __future__ import annotations
 
 import json
@@ -17,11 +9,6 @@ from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class SQLiteStateBackend(StateBackend):
-    """SQLite-backed state for persistent shared state across restarts.
-
-    Uses a single database file for all cluster state.
-    Thread-safe via connection-per-operation with WAL mode.
-    """
 
     def __init__(self, db_path: Path | None = None) -> None:
         if db_path is None:

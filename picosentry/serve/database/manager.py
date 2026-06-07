@@ -1,4 +1,3 @@
-"""Database layer with migrations, connection pooling, and ORM-like interface."""
 import logging
 import sqlite3
 import threading
@@ -11,15 +10,11 @@ from picosentry.serve.config.settings import settings
 from picosentry.serve.database.pools import SQLitePool, create_pool
 
 
-# ─── Python 3.12+ datetime adapter ─────────────────────────────────────
-# Silence DeprecationWarning: default datetime adapter is deprecated
 def _adapt_datetime(dt):
-    """ISO 8601 adapter for Python 3.12+ sqlite3 datetime deprecation."""
     return dt.isoformat()
 
 
 def _convert_timestamp(val):
-    """Convert ISO 8601 timestamp string back to datetime."""
     if isinstance(val, bytes):
         val = val.decode()
     if val:
@@ -33,25 +28,15 @@ sqlite3.register_converter("TIMESTAMP", _convert_timestamp)
 logger = logging.getLogger("picoshogun.DB")
 
 
-# ─── Abstract connection interface for future Postgres migration ────────
 class ConnectionPool:
-    """Abstract interface for database connection pooling.
-
-    The current SQLite implementation uses thread-local connections.
-    For a Postgres migration, implement this interface with
-    ``asyncpg`` or ``psycopg`` connection pooling.
-    """
 
     def acquire(self):
-        """Get a connection from the pool."""
         raise NotImplementedError
 
     def release(self, conn):
-        """Return a connection to the pool."""
         raise NotImplementedError
 
     def close_all(self):
-        """Close all connections in the pool."""
         raise NotImplementedError
 
 
@@ -339,11 +324,6 @@ MIGRATIONS = [
 
 
 class DatabaseManager:
-    """Thread-safe database manager with connection pooling.
-
-    Uses SQLitePool by default. Switch to PostgresPool by setting
-    PICOSHOGUN_DATABASE_BACKEND=postgres and PICOSHOGUN_DATABASE_URL.
-    """
 
     def __init__(self, db_path: Path | None = None, backend: str | None = None):
         self._backend = backend or settings.database.backend
@@ -353,27 +333,19 @@ class DatabaseManager:
 
     @property
     def db_path(self) -> Path:
-        """Database path (SQLite only). Returns Path('') for other backends."""
         if isinstance(self._pool, SQLitePool):
             return self._pool.db_path
         return Path("")
 
     @property
     def backend(self) -> str:
-        """Active database backend ('sqlite' or 'postgres')."""
         return self._backend
 
     def _get_connection(self):
-        """Get a connection from the pool."""
         return self._pool.acquire()
 
     @contextmanager
     def transaction(self):
-        """Context manager for database transactions.
-
-        Yields the connection so callers can execute statements
-        directly on it (e.g. ``with db.transaction() as conn:``).
-        """
         conn = self._get_connection()
         try:
             conn.execute("BEGIN")
@@ -384,28 +356,16 @@ class DatabaseManager:
             raise
 
     def execute(self, sql: str, params: tuple = ()) -> list:
-        """Execute SQL and return results as a list of dicts.
-
-        The connection's ``row_factory`` is ``sqlite3.Row`` (set in
-        ``pools.py``), but most call sites in the serve layer expect a
-        dict-like API (``row['col']``, ``(row or {}).get('col')``).
-        ``sqlite3.Row`` doesn't implement ``.get()``, so we materialize
-        rows as plain dicts at this boundary. Bracket access works on
-        both, so this change is source-compatible with every existing
-        call site.
-        """
         with self._lock:
             conn = self._get_connection()
             cursor = conn.execute(sql, params)
             return [dict(r) for r in cursor.fetchall()]
 
     def execute_one(self, sql: str, params: tuple = ()) -> dict | None:
-        """Execute SQL and return first result as a dict (or ``None``)."""
         results = self.execute(sql, params)
         return results[0] if results else None
 
     def execute_insert(self, sql: str, params: tuple = ()) -> int:
-        """Execute INSERT and return last row ID."""
         with self._lock:
             conn = self._get_connection()
             cursor = conn.execute(sql, params)
@@ -413,27 +373,25 @@ class DatabaseManager:
             return cursor.lastrowid
 
     def _migrate_orgs_api_key_hash(self):
-        """Rename api_key column to api_key_hash if needed (migration 8)."""
-        # Check if orgs table exists
+
         try:
             cols = self.execute("PRAGMA table_info(orgs)")
             if not cols:
                 return  # Table doesn't exist yet
             col_names = [row["name"] for row in cols]
             if "api_key" in col_names and "api_key_hash" not in col_names:
-                # SQLite 3.25+ supports RENAME COLUMN
+
                 self.execute("ALTER TABLE orgs RENAME COLUMN api_key TO api_key_hash")
                 logger.info("Renamed orgs.api_key → orgs.api_key_hash")
             elif "api_key" in col_names and "api_key_hash" in col_names:
-                # Both columns exist (shouldn't happen) — drop the old one
-                # SQLite doesn't support DROP COLUMN before 3.35.0, so recreate
+
+
                 logger.warning("Both api_key and api_key_hash exist in orgs — skipping rename")
         except Exception as e:
-            # Fresh install or table doesn't exist — nothing to do
+
             logger.debug("orgs migration check skipped: %s", e)
 
     def _init_migrations(self):
-        """Initialize and run pending migrations."""
         self.execute("""
             CREATE TABLE IF NOT EXISTS schema_version (
                 version INTEGER PRIMARY KEY,
@@ -456,7 +414,7 @@ class DatabaseManager:
                         try:
                             self.execute(stmt + ";")
                         except Exception as e:
-                            # Allow idempotent migration: ignore duplicate column/index errors
+
                             err_str = str(e).lower()
                             if "duplicate column" in err_str or "already exists" in err_str:
                                 logger.debug("Migration idempotent skip: %s", e)
@@ -467,11 +425,10 @@ class DatabaseManager:
                     (migration.version, migration.name)
                 )
                 logger.info("Migration %s applied", migration.version)
-        # Post-migration: rename api_key column if needed
+
         self._migrate_orgs_api_key_hash()
 
     def backup(self) -> Path:
-        """Create a backup of the database (SQLite only)."""
         backup_dir = settings.database.backup_dir
         backup_dir.mkdir(parents=True, exist_ok=True)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -485,8 +442,7 @@ class DatabaseManager:
         return backup_path
 
     def close(self):
-        """Close all connections in the pool."""
         self._pool.close_all()
 
-# Global instance
+
 db = DatabaseManager()

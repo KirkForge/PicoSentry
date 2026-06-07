@@ -1,11 +1,3 @@
-"""
-L2-POST-001: Post-install script detection.
-
-Flags packages that declare install, postinstall, or preinstall scripts
-in their package.json. These are the #1 vector for supply chain attacks.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -15,7 +7,7 @@ from ..models import Confidence, Finding, Severity
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_post_install_scripts"]
-# Scripts that execute code at install time — the primary attack vector.
+
 DANGEROUS_SCRIPT_KEYS = (
     "install",
     "postinstall",
@@ -24,7 +16,7 @@ DANGEROUS_SCRIPT_KEYS = (
     "prepack",
 )
 
-# Commands that indicate network access or code execution capability.
+
 NETWORK_PATTERNS = (
     "curl",
     "wget",
@@ -38,7 +30,7 @@ NETWORK_PATTERNS = (
     "scp",
 )
 
-# Patterns indicating code execution capability (child_process, etc.)
+
 EXEC_PATTERNS = (
     "child_process",
     "require('child_process')",
@@ -52,7 +44,7 @@ EXEC_PATTERNS = (
     ".fork(",
 )
 
-# Commands that read credentials or sensitive files.
+
 CREDENTIAL_PATTERNS = (
     ".npmrc",
     ".aws/",
@@ -65,7 +57,6 @@ CREDENTIAL_PATTERNS = (
 
 
 def _scan_package_json(pkg_json: Path) -> list[Finding]:
-    """Scan a single package.json for dangerous install scripts."""
     findings: list[Finding] = []
     data = load_package_json(pkg_json)
     if not data:
@@ -84,7 +75,7 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
             script_value = scripts[key]
             severity = Severity.HIGH
 
-            # Escalate to CRITICAL if script does network access or reads creds
+
             script_lower = str(script_value).lower()
             has_network = any(p in script_lower for p in NETWORK_PATTERNS)
             has_creds = any(p in script_lower for p in CREDENTIAL_PATTERNS)
@@ -93,7 +84,7 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
             if has_network or has_creds or has_exec:
                 severity = Severity.CRITICAL
 
-            # Build remediation message based on what was detected
+
             risk_tags = []
             if has_network:
                 risk_tags.append("network access")
@@ -136,20 +127,14 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
 
 
 def detect_post_install_scripts(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect packages with install/postinstall/preinstall scripts.
-
-    Scans root package.json and every node_modules/*/package.json.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         findings.extend(_scan_package_json(root_pkg))
 
-    # node_modules packages
+
     for pkg_json, _pkg in iter_node_modules(target):
         findings.extend(_scan_package_json(pkg_json))
 

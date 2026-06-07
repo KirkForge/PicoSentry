@@ -1,4 +1,3 @@
-"""OpenTelemetry tracing & metrics integration for PicoShogun."""
 import logging
 import os
 
@@ -6,7 +5,6 @@ from picosentry.serve.config.version import __version__
 
 logger = logging.getLogger("picoshogun.Observability")
 
-# ── Tracer setup ─────────────────────────────────────────────────────
 
 _tracer_provider = None
 _meter_provider = None
@@ -14,11 +12,6 @@ _tracer = None
 _meter = None
 
 def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None) -> bool:
-    """Initialize OpenTelemetry tracing and metrics.
-
-    Returns True if OTEL is available and configured, False otherwise.
-    Gracefully degrades — if opentelemetry packages aren't installed, no-op.
-    """
     global _tracer_provider, _meter_provider, _tracer, _meter
 
     endpoint = endpoint or os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT")
@@ -33,10 +26,7 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        # OTLP exporters — prefer gRPC, fall back to HTTP. The exporter
-        # classes are imported in a helper so each branch binds a single
-        # class to one name (no rebind) and the downstream usage sites
-        # type-check without per-call ignores.
+
         OTLPSpanExporter, OTLPMetricExporter, use_grpc = _load_otlp_exporters()
 
         resource = Resource.create({
@@ -45,7 +35,7 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
             "deployment.environment": os.environ.get("PICOSHOGUN_ENV", os.environ.get("SHOGUN_ENV", "development")),
         })
 
-        # Tracing
+
         _tracer_provider = TracerProvider(resource=resource)
         if use_grpc:
             span_exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
@@ -55,7 +45,7 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
         trace.set_tracer_provider(_tracer_provider)
         _tracer = trace.get_tracer(service_name, __version__)
 
-        # Metrics — wired through PeriodicExportingMetricReader
+
         if use_grpc:
             _metric_exporter = OTLPMetricExporter(endpoint=endpoint, insecure=True)
         else:
@@ -79,21 +69,18 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
 
 
 def get_tracer():
-    """Get the OTEL tracer (or a no-op proxy)."""
     if _tracer is None:
         return NoOpTracer()
     return _tracer
 
 
 def get_meter():
-    """Get the OTEL meter (or a no-op proxy)."""
     if _meter is None:
         return NoOpMeter()
     return _meter
 
 
 class NoOpTracer:
-    """No-op tracer when OTEL is not configured."""
     def start_as_current_span(self, name, **kwargs):
         from contextlib import nullcontext
         return nullcontext(NoOpSpan())
@@ -103,7 +90,6 @@ class NoOpTracer:
 
 
 class NoOpSpan:
-    """No-op span."""
     def __enter__(self):
         return self
     def __exit__(self, *args):
@@ -121,18 +107,6 @@ class NoOpSpan:
 
 
 def _load_otlp_exporters():
-    """Load OTLP exporter classes, preferring gRPC transport.
-
-    Returns a ``(SpanExporterCls, MetricExporterCls, use_grpc)`` tuple.
-    Each exporter class is bound to a single name inside this helper
-    (no rebinding), so mypy type-checks the call sites in
-    ``init_telemetry`` without per-call ``# type: ignore`` comments.
-    The previous in-place ``try/except ImportError`` rebinding pattern
-    tripped the ``[assignment]`` / ``[unused-ignore]`` mismatch between
-    mypy versions (older mypy sees the real type conflict; newer mypy
-    with ``ignore_missing_imports = true`` sees the rebind as safe and
-    flags the suppression as unused).
-    """
     try:
         from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
             OTLPMetricExporter as GrpcMetricExporter,
@@ -152,7 +126,6 @@ def _load_otlp_exporters():
 
 
 class NoOpMeter:
-    """No-op meter when OTEL is not configured."""
     def create_counter(self, name, **kwargs):
         return NoOpInstrument()
 
@@ -167,7 +140,6 @@ class NoOpMeter:
 
 
 class NoOpInstrument:
-    """No-op instrument."""
     def add(self, amount, attributes=None):
         pass
     def record(self, amount, attributes=None):
@@ -176,10 +148,7 @@ class NoOpInstrument:
         pass
 
 
-# ── FastAPI middleware ────────────────────────────────────────────────
-
 def setup_fastapi_instrumentation(app):
-    """Add OTEL instrumentation to a FastAPI app. Gracefully no-ops if not configured."""
     try:
         from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
         FastAPIInstrumentor().instrument_app(app)
@@ -193,10 +162,7 @@ def setup_fastapi_instrumentation(app):
         return False
 
 
-# ── Convenience decorators ────────────────────────────────────────────
-
 def trace_span(name: str, attributes: dict | None = None):
-    """Decorator to trace a function call as an OTEL span."""
     def decorator(func):
         def wrapper(*args, **kwargs):
             tracer = get_tracer()
@@ -218,7 +184,6 @@ def trace_span(name: str, attributes: dict | None = None):
 
 
 def trace_async_span(name: str, attributes: dict | None = None):
-    """Decorator to trace an async function call as an OTEL span."""
     def decorator(func):
         async def wrapper(*args, **kwargs):
             tracer = get_tracer()

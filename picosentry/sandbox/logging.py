@@ -1,12 +1,3 @@
-"""
-PicoDome structured logging — JSON formatter for SIEM integration.
-
-Provides two formatters:
-- PicoDomeTextFormatter: Human-readable text (default)
-- PicoDomeJSONFormatter: Structured JSON for SIEM/log aggregation
-
-Controlled by --log-format and --verbose CLI flags.
-"""
 
 from __future__ import annotations
 
@@ -15,7 +6,7 @@ import logging
 import time
 from typing import Any, ClassVar
 
-# Module-level version for log output
+
 try:
     from picosentry.sandbox import __version__
 except ImportError:
@@ -23,26 +14,12 @@ except ImportError:
 
 
 class PicoDomeJSONFormatter(logging.Formatter):
-    """
-    Structured JSON formatter for SIEM/log aggregation systems.
-
-    Outputs one JSON object per line (NDJSON). Each log record includes:
-    - timestamp (ISO 8601 UTC)
-    - level (INFO, WARNING, ERROR, etc.)
-    - logger name
-    - message
-    - picodome_version
-    - Any extra fields passed via logger.info(..., extra={...})
-
-    Deterministic: timestamp uses UTC, no random IDs.
-    """
 
     def __init__(self, include_version: bool = True):
         super().__init__()
         self.include_version = include_version
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format a log record as a single-line JSON object."""
         entry: dict[str, Any] = {
             "timestamp": self._format_time(record),
             "level": record.levelname,
@@ -53,21 +30,20 @@ class PicoDomeJSONFormatter(logging.Formatter):
         if self.include_version:
             entry["picodome_version"] = __version__
 
-        # Include any extra fields
+
         if hasattr(record, "picodome_context") and isinstance(record.picodome_context, dict):
             entry.update(record.picodome_context)
 
-        # Include exception info if present
+
         if record.exc_info and record.exc_text is None:
             record.exc_text = self.formatException(record.exc_info)
         if record.exc_text:
             entry["exception"] = record.exc_text
 
-        # Deterministic key ordering
+
         return json.dumps(entry, sort_keys=True, default=str)
 
     def _format_time(self, record: logging.LogRecord) -> str:
-        """Format timestamp as ISO 8601 UTC."""
         try:
             return time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(record.created))
         except (AttributeError, OSError):
@@ -75,14 +51,8 @@ class PicoDomeJSONFormatter(logging.Formatter):
 
 
 class PicoDomeTextFormatter(logging.Formatter):
-    """
-    Human-readable text formatter for console output.
 
-    Format: [LEVEL] logger: message
-    With optional color codes (disabled by --no-color or PICODOME_NO_COLOR).
-    """
 
-    # ANSI color codes
     COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[36m",  # Cyan
         "INFO": "\033[32m",  # Green
@@ -93,11 +63,6 @@ class PicoDomeTextFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def __init__(self, use_color: bool = True, verbose: bool = False):
-        """
-        Args:
-            use_color: Whether to use ANSI color codes.
-            verbose: Whether to include logger name in output.
-        """
         if verbose:
             fmt = "[%(levelname)s] %(name)s: %(message)s"
         else:
@@ -107,7 +72,6 @@ class PicoDomeTextFormatter(logging.Formatter):
         self.verbose = verbose
 
     def format(self, record: logging.LogRecord) -> str:
-        """Format a log record with optional color codes."""
         message = super().format(record)
 
         if self.use_color:
@@ -124,29 +88,20 @@ def setup_logging(
     use_color: bool = True,
     verbose: bool = False,
 ) -> None:
-    """
-    Configure PicoDome logging.
-
-    Args:
-        level: Logging level (DEBUG, INFO, WARNING, ERROR, CRITICAL).
-        log_format: Output format — "text" (human-readable) or "json" (SIEM).
-        use_color: Whether to use ANSI color codes in text output.
-        verbose: Whether to include logger name in text output.
-    """
     root_logger = logging.getLogger("picodome")
 
-    # Clear existing handlers
+
     root_logger.handlers.clear()
 
-    # Set level
+
     numeric_level = getattr(logging, level.upper(), logging.WARNING)
     root_logger.setLevel(numeric_level)
 
-    # Create handler
+
     handler = logging.StreamHandler()
     handler.setLevel(numeric_level)
 
-    # Set formatter
+
     formatter: logging.Formatter
     if log_format == "json":
         formatter = PicoDomeJSONFormatter(include_version=True)
@@ -156,7 +111,7 @@ def setup_logging(
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
 
-    # Prevent propagation to root logger
+
     root_logger.propagate = False
 
 
@@ -167,21 +122,6 @@ def get_log_context(
     target: str | None = None,
     **kwargs: Any,
 ) -> dict[str, Any]:
-    """
-    Build a context dict for structured logging.
-
-    Use with logger.info("message", extra={"picodome_context": ctx}).
-
-    Args:
-        command: Command being sandboxed.
-        run_id: Unique run identifier.
-        policy: Policy name.
-        target: Target package/path being analyzed.
-        **kwargs: Additional context fields.
-
-    Returns:
-        Dict suitable for picodome_context extra field.
-    """
     ctx: dict[str, Any] = {}
 
     if command is not None:

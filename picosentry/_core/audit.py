@@ -1,12 +1,3 @@
-"""Shared audit primitives — vendored from pico-core.
-
-Provides the shared base types for audit logging:
-- AuditEvent: structured event schema (shared)
-- AuditSinkBase: abstract base for all sink implementations
-- NullSink: no-op sink for testing
-- HashChainedMixin: hash-chained audit log integrity
-- HMAC signing: message authentication for audit entries
-"""
 
 from __future__ import annotations
 
@@ -23,11 +14,7 @@ from typing import Any
 logger = logging.getLogger("picosentry._core.audit")
 
 
-# -- Event schema --------------------------------------------------------------
-
-
 class AuditEventType(str, Enum):
-    """Well-known audit event types shared across PicoSeries."""
 
     SCAN_START = "scan.start"
     SCAN_COMPLETE = "scan.complete"
@@ -43,20 +30,6 @@ class AuditEventType(str, Enum):
 
 @dataclass
 class AuditEvent:
-    """A structured audit event.
-
-    Shared across all PicoSeries codebases. Each codebase may add
-    domain-specific fields via metadata.
-
-    Attributes:
-        action: Well-known action name (e.g. 'scan.complete').
-        target: What was acted upon.
-        actor: Identity of the actor (subject from auth, or 'system').
-        outcome: 'success' or 'failure'.
-        metadata: Additional key-value pairs.
-        request_id: Optional request ID for tracing.
-        timestamp: ISO 8601 UTC timestamp.
-    """
 
     action: str
     target: str = ""
@@ -88,22 +61,7 @@ class AuditEvent:
         return json.dumps(self.to_dict(), sort_keys=True)
 
 
-# -- Sink base -----------------------------------------------------------------
-
-
 class AuditSinkBase(ABC):
-    """Abstract base for all audit sinks.
-
-    Subclasses must implement ``send(event)``. The base class tracks
-    basic statistics and provides a health check.
-
-    Lifecycle:
-        1. Instantiate with optional SinkConfig
-        2. ``start()`` — open connections / files
-        3. ``send(event)`` — called for each audit event
-        4. ``flush()`` — ensure buffered events are written
-        5. ``stop()`` — clean up resources
-    """
 
     def __init__(self) -> None:
         self._stats: dict[str, Any] = {
@@ -144,36 +102,21 @@ class AuditSinkBase(ABC):
 
 
 class NullSink(AuditSinkBase):
-    """No-op audit sink for testing and development."""
 
     def send(self, event: AuditEvent) -> None:
         self._record_success()
 
 
-# -- Hash-chained audit log ----------------------------------------------------
-
-
 class HashChainedMixin:
-    """Mixin for hash-chained audit log integrity.
-
-    Each event's JSON line includes a ``prev_hash`` field that chains
-    it to the previous event, making tampering detectable.
-
-    Used by PicoDome's AuditLogger and available for any PicoSeries
-    codebase that needs tamper-evident audit logs.
-    """
 
     def compute_event_hash(self, line: str) -> str:
-        """Compute SHA-256 hash of an audit log line."""
         return hashlib.sha256(line.encode("utf-8")).hexdigest()
 
     def chain_event(self, event_dict: dict[str, Any], prev_hash: str) -> dict[str, Any]:
-        """Add prev_hash to an event dict for hash chaining."""
         event_dict["prev_hash"] = prev_hash
         return event_dict
 
     def verify_chain(self, lines: list[str]) -> list[str]:
-        """Verify hash chain integrity. Returns list of violations."""
         violations: list[str] = []
         prev_hash = ""
 
@@ -199,19 +142,7 @@ class HashChainedMixin:
         return violations
 
 
-# -- HMAC signing --------------------------------------------------------------
-
-
 def sign_event(event_json: str, secret_key: str) -> str:
-    """HMAC-SHA256 sign an audit event JSON string.
-
-    Args:
-        event_json: JSON string of the event.
-        secret_key: HMAC key.
-
-    Returns:
-        Hex-encoded HMAC digest.
-    """
     return hmac.new(
         secret_key.encode("utf-8"),
         event_json.encode("utf-8"),
@@ -220,10 +151,6 @@ def sign_event(event_json: str, secret_key: str) -> str:
 
 
 def verify_event_signature(event_json: str, signature: str, secret_key: str) -> bool:
-    """Verify HMAC-SHA256 signature of an audit event.
-
-    Uses constant-time comparison to prevent timing attacks.
-    """
     expected = sign_event(event_json, secret_key)
     return hmac.compare_digest(expected, signature)
 

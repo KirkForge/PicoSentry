@@ -1,12 +1,3 @@
-"""
-L2-PROV-001: Provenance attestation detection.
-
-Flags packages that lack provenance attestations or signature verification.
-Provenance links a package to its source code build, making supply chain
-attacks harder. Packages without provenance are harder to trust.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
 
 from __future__ import annotations
 
@@ -16,7 +7,7 @@ from ..models import Confidence, Finding, Severity
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_provenance_issues"]
-# SLSA provenance fields in npm package.json
+
 PROVENANCE_FIELDS = (
     "provenance",
     "attestations",
@@ -25,15 +16,14 @@ PROVENANCE_FIELDS = (
     "_signatures",
 )
 
-# Integrity algorithms considered modern
+
 MODERN_INTEGRITY = ("sha512-", "sha384-", "sha256-")
 
-# Deprecated or weak integrity
+
 WEAK_INTEGRITY = ("sha1-", "md5-")
 
 
 def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
-    """Check a single package for provenance issues."""
     findings: list[Finding] = []
     pkg_name = pkg.get("name", pkg_json.parent.name)
     pkg_version = pkg.get("version", "unknown")
@@ -45,7 +35,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             has_provenance = True
             break
 
-    # Check repository field — packages without it can't have provenance
+
     repo = pkg.get("repository")
     if not repo:
         findings.append(
@@ -67,7 +57,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
     elif isinstance(repo, str) and "github.com" not in repo.lower():
-        # Simple string repo — can extract URL
+
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",
@@ -89,10 +79,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-    # Check for integrity in node_modules/.package-lock.json
-    # This is handled by lockfile_drift, but we can check package-level integrity
 
-    # Check if package has _integrity with weak algorithm
     integrity = pkg.get("_integrity", "")
     if integrity and isinstance(integrity, str) and any(integrity.startswith(algo) for algo in WEAK_INTEGRITY):
         findings.append(
@@ -114,9 +101,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-    # Check for missing _integrity entirely (in installed packages)
-    # This indicates the package may have been installed without verification
-    # Only flag in node_modules context (not root package.json)
+
     if not integrity and not pkg.get("_shasum") and "node_modules" in pkg_json.parts:
         findings.append(
             Finding(
@@ -137,10 +122,10 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-    # Flag packages without provenance that are in production dependencies
+
     if not has_provenance and "node_modules" in pkg_json.parts:
-        # Check if it's a direct dependency (not just transitive)
-        # We flag all as LOW — provenance is a new standard
+
+
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",
@@ -168,20 +153,16 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
 
 
 def detect_provenance_issues(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect provenance attestation issues — packages lacking source verification.
-    No network calls. Pure filesystem scan.
-    """
     findings: list[Finding] = []
 
-    # Root package.json
+
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_provenance(pkg, root_pkg))
 
-    # node_modules packages
+
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_provenance(pkg, pkg_json))
 

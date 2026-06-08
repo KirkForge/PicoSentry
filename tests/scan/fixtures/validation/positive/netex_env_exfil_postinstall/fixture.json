@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Netex variant: postinstall sends process.env over the network (fires L2-NETEX-001 via env_exfil_fetch). This is the generic exfiltration shape that the pattern env_exfil_fetch matches against install scripts.",
+  "expected_rule_ids": ["L2-NETEX-001"]
+}

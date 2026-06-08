@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package with a postinstall that compiles a catastrophic-backtracking regex (^(a+)+$) and runs it against user input — a ReDoS sink. Fires L2-POST-001 (lifecycle script). The regex-dos family is documented in the postinstall string for corpus coverage; there is no dedicated L2-REGEX-DOS rule today.",
+  "expected_rule_ids": ["L2-POST-001"]
+}

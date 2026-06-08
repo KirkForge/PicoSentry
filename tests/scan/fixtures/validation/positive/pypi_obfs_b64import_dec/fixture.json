@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PYPI OBFS bypass variant: __import__('base64').b64decode(...) — common in staged payloads (fires L2-PYPI-OBFS-002). The b64decode() token matches regardless of how base64 was obtained.",
+  "expected_rule_ids": ["L2-PYPI-OBFS-002"]
+}

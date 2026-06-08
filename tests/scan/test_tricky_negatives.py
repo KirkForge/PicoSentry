@@ -144,3 +144,21 @@ def test_tricky_npm_dual_license_clean() -> None:
     assert findings == [], (
         f"Expected clean (no findings) for permissive dual license, got: {findings}"
     )
+
+
+def test_tricky_pypi_obfs_exec_namespace_bypass_clean() -> None:
+    """``globals()['ex' + 'ec'](...)`` evades L2-PYPI-OBFS-001 (exec/eval).
+
+    The detector's EVAL_PATTERN matches the literal ``exec(`` / ``eval(``
+    token. Splitting the function name across a string concatenation
+    (or using ``getattr(__builtins__, 'ev'+'al')``, ``globals()['ex'+'ec']``,
+    etc.) is a real-world obfuscation pattern that defeats this regex.
+
+    An AST-based detector that resolves the call target before matching
+    would catch this. Until that lands, this fixture documents the
+    known limit and the test guards against it disappearing silently.
+    """
+    findings = _scan("pypi_obfs_exec_namespace_bypass")
+    assert findings == [], (
+        f"Expected clean (no findings) for exec() bypass via globals() string lookup, got: {findings}"
+    )

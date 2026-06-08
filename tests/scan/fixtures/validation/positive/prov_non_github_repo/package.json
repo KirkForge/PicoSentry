@@ -1,0 +1,6 @@
+{
+  "name": "anon-git-host",
+  "version": "1.0.0",
+  "license": "MIT",
+  "repository": "https://git.example-internal.com/org/pkg.git"
+}

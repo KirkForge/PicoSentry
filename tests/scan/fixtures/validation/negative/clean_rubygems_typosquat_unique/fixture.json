@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "Clean Ruby gem with a unique gem name (not in top-rubygems corpus) and a public-registry dep. Asserts the 3 L2-RUBYGEMS-* rules stay silent.",
+  "forbidden_rule_ids": [
+    "L2-RUBYGEMS-TYPO-001",
+    "L2-RUBYGEMS-DEPC-001",
+    "L2-RUBYGEMS-ADV-001"
+  ]
+}

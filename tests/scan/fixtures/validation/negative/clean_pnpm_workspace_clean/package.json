@@ -1,0 +1,15 @@
+{
+  "name": "clean-pnpm-workspace",
+  "version": "1.0.0",
+  "description": "Clean pnpm workspace root for L2-PNPM-001 FP contract.",
+  "license": "MIT",
+  "author": "Test Author <test@example.com>",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/clean-pnpm-workspace.git"
+  },
+  "private": true
+}

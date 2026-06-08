@@ -1,0 +1,21 @@
+{
+  "name": "node-ipc-fixture",
+  "version": "9.2.3",
+  "description": "Reproduction of a March-2022 supply-chain attack on the node-ipc package (do not use in production). The reproduction includes the historical payload file 'ssl-geosafe.js' as an empty file by that name; no real payload is shipped.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/node-ipc-fixture/node-ipc-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@node-ipc-fixture.example.com"},
+    {"name": "fixture-reviewer", "email": "reviewer@node-ipc-fixture.example.com"}
+  ],
+  "dependencies": {},
+  "scripts": {
+    "postinstall": "echo node-ipc-fixture: postinstall hook for detection testing only"
+  }
+}

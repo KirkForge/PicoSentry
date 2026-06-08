@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Transitive CVE variant: vulnerable serde 1.0.0 is reachable only via wrapper-crate (fires L2-CARGO-ADV-001). Cargo.lock has serde@1.0.0 as a transitive dep of wrapper-crate.",
+  "expected_rule_ids": ["L2-CARGO-ADV-001"]
+}

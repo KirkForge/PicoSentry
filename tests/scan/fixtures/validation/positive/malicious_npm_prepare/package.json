@@ -1,0 +1,9 @@
+{
+  "name": "prepare-fixture",
+  "version": "1.0.0",
+  "description": "Variant exercising the prepare lifecycle hook.",
+  "license": "MIT",
+  "scripts": {
+    "prepare": "tsc"
+  }
+}

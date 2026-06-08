@@ -1,0 +1,13 @@
+{
+  "label": "positive",
+  "description": "npm project with Buffer.from('...', 'base64') followed by eval() in the same file. Multi-rule fixture: L2-OBFS-001 (bare eval) + L2-OBFS-003 (b64+eval across lines). Strict mode + per-finding gates demonstrate the v2.1 schema extension on a multi-fire fixture.",
+  "expected_rule_ids": [
+    "L2-OBFS-001",
+    "L2-OBFS-003"
+  ],
+  "expected_findings": [
+    {"rule_id": "L2-OBFS-001", "package": "unknown", "file_contains": "index.js", "line": 3},
+    {"rule_id": "L2-OBFS-003", "package": "unknown", "file_contains": "index.js", "line": 2}
+  ],
+  "strict": true
+}

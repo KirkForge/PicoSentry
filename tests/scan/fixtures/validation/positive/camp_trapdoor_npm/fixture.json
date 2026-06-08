@@ -1,0 +1,12 @@
+{
+  "label": "positive",
+  "description": "Replicates the Trapdoor 2024 cross-ecosystem supply-chain attack (campaign P-2024-001). The package ships trap-core.js (a known payload filename for trapdoor-2024) and includes the campaign-marker string P-2024-001. The XOR key cargo-build-helper-2026 appears in the stager. Postinstall triggers L2-POST-001; reading ~/.aws/credentials triggers L2-CRED-001.",
+  "expected_rule_ids": [
+    "L2-CAMP-TRAPDOOR",
+    "L2-POST-001"
+  ],
+  "expected_findings": [
+    {"rule_id": "L2-CAMP-TRAPDOOR", "file_contains": "trap-core.js"}
+  ],
+  "strict": true
+}

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Go module 'internal-acme.example.com/billing' (fires L2-GO-DEPC-001). Variant using internal- prefix on a non-public host.",
+  "expected_rule_ids": ["L2-GO-DEPC-001"]
+}

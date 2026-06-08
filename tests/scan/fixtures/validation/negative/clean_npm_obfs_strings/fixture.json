@@ -1,0 +1,10 @@
+{
+  "label": "negative",
+  "description": "Clean npm project containing only string constants. Asserts the L2-OBFS-001..004 detectors do not over-match on innocent string literals like the alphabet.",
+  "forbidden_rule_ids": [
+    "L2-OBFS-001",
+    "L2-OBFS-002",
+    "L2-OBFS-003",
+    "L2-OBFS-004"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "name": "auth-consumer",
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@private/auth": "1.0.0"
+  }
+}

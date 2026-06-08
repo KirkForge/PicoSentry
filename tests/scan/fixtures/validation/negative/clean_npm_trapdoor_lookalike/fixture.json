@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm scanner project that parses other projects' CHANGELOG files to surface references to a known cross-ecosystem supply-chain incident. Must NOT fire the trapdoor campaign rule — the changelog text the tool is designed to search for lives in OTHER repos; this project itself contains no payload filenames and no XOR key string.",
+  "forbidden_rule_ids": ["L2-CAMP-TRAPDOOR"]
+}

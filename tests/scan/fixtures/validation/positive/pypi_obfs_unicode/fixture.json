@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PyPI project with chr()+chr() concatenation. Single-rule fixture for L2-PYPI-OBFS-004 (UNICODE_OBFUSCATION_PATTERN).",
+  "expected_rule_ids": ["L2-PYPI-OBFS-004"]
+}

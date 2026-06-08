@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "FORK variant: name with '-patched' suffix and a personal GitHub repo (fires L2-FORK-001). The '-patched' suffix is a common typosquat/fork pattern in the wild.",
+  "expected_rule_ids": ["L2-FORK-001"]
+}

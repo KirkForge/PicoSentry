@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package with install lifecycle script (fires L2-POST-001). The deprecated `install` hook runs on `npm install <pkg>` and is a less-monitored alternative to postinstall.",
+  "expected_rule_ids": ["L2-POST-001"]
+}

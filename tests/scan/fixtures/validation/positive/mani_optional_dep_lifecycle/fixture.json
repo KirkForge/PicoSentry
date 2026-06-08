@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "MANI-002 variant: optionalDependencies with a lifecycle script on a nested node_modules package (fires L2-MANI-002). The existing variant uses postinstall; this uses preinstall.",
+  "expected_rule_ids": ["L2-MANI-002"]
+}

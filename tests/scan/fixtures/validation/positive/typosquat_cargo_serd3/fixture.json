@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Cargo crate named 'serd3' — homoglyph: '3' for 'e' in 'serde' (top-100 cargo) (fires L2-CARGO-TYPO-001). Edit dist 1.",
+  "expected_rule_ids": ["L2-CARGO-TYPO-001"]
+}

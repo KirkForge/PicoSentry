@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean PyPI project that uses compile() to build a code object but does NOT pass it to exec/eval (only inspects its co_consts). Should NOT fire L2-PYPI-OBFS-001. The exec/eval is what makes compile() dangerous — compile()-alone is the standard-library way to parse Python source.",
+  "forbidden_rule_ids": ["L2-PYPI-OBFS-001"]
+}

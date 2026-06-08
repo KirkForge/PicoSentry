@@ -1,0 +1,9 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clean-pypi-obfs-full"
+version = "1.0.0"
+description = "Clean PyPI library used to assert the L2-PYPI-OBFS-* family stays silent."
+license = {text = "MIT"}

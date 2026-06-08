@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm dep @internal/billing (fires L2-DEPC-001). Variant using a different name under the @internal scope.",
+  "expected_rule_ids": ["L2-DEPC-001"]
+}

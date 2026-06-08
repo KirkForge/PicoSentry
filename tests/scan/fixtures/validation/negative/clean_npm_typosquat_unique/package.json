@@ -1,0 +1,14 @@
+{
+  "name": "zzz-marker-typosquat-negative",
+  "version": "1.0.0",
+  "description": "Clean npm fixture used to assert the FP contract for the TYPO and OBFS families.",
+  "license": "MIT",
+  "author": "Test Author <test@example.com>",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/zzz-marker-typosquat-negative.git"
+  }
+}

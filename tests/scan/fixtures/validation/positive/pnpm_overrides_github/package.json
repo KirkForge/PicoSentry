@@ -1,0 +1,10 @@
+{
+  "name": "pnpm-overrides-pkg",
+  "version": "1.0.0",
+  "license": "MIT",
+  "pnpm": {
+    "overrides": {
+      "left-pad": "github:example/left-pad-fork"
+    }
+  }
+}

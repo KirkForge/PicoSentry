@@ -1,0 +1,14 @@
+{
+  "label": "negative",
+  "description": "Clean PyPI library with no setup.py. Asserts all 7 L2-PYPI-OBFS-* rules AND L2-PYPI-POST-001 stay silent on a minimal pure-string library package.",
+  "forbidden_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-OBFS-002",
+    "L2-PYPI-OBFS-003",
+    "L2-PYPI-OBFS-004",
+    "L2-PYPI-OBFS-005",
+    "L2-PYPI-OBFS-006",
+    "L2-PYPI-OBFS-007",
+    "L2-PYPI-POST-001"
+  ]
+}

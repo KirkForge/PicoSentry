@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "Clean npm project that fetches from a public, non-suspicious HTTP endpoint. Asserts L2-NETEX-001, L2-CRED-001, L2-POST-001 stay silent on benign network calls.",
+  "forbidden_rule_ids": [
+    "L2-NETEX-001",
+    "L2-CRED-001",
+    "L2-POST-001"
+  ]
+}

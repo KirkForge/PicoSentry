@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "Clean Cargo project with a unique crate name (not in top-cargo corpus) and a public-registry dep. Asserts the 3 L2-CARGO-* rules stay silent.",
+  "forbidden_rule_ids": [
+    "L2-CARGO-TYPO-001",
+    "L2-CARGO-DEPC-001",
+    "L2-CARGO-ADV-001"
+  ]
+}

@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "Clean NuGet project with a unique package id (not in top-nuget corpus) and a public-registry dep. Asserts the 3 L2-NUGET-* rules stay silent.",
+  "forbidden_rule_ids": [
+    "L2-NUGET-TYPO-001",
+    "L2-NUGET-DEPC-001",
+    "L2-NUGET-ADV-001"
+  ]
+}

@@ -15,41 +15,48 @@
 
 ## TL;DR
 
-- **Fixtures:** 45 total (39 positive, 6 negative)
-- **Rules covered by fixtures:** 50 (49 L2 rule_ids in `RULE_INFO` + 1 L2-CAMP rule
-  from the IoC corpus — `L2-CAMP-SHAI-HULUD`; the existing
-  `shai_hulud_named_signature` fixture exercises it). Every L2 rule in
-  `RULE_INFO` is exercised by at least one positive fixture.
-- **Aggregate TP / FP / FN:** 50 / 0 / 0
+- **Fixtures:** 177 total (145 positive, 32 negative)
+- **Rules covered by fixtures:** 53 (49 L2 rule_ids in `RULE_INFO` + 4 L2-CAMP rule_ids
+  from the IoC corpus — `L2-CAMP-SHAI-HULUD`, `L2-CAMP-NODE-IPC-COMPROMISE`,
+  `L2-CAMP-TRAPDOOR`, `L2-CAMP-AXIOS-POISONING`). Every L2 rule in
+  `RULE_INFO` is exercised by at least one positive fixture, and the 4 campaign
+  rules each have a positive + at least one negative fixture.
+- **Aggregate TP / FP / FN:** see the per-rule table below.
 - **Mean precision / recall:** 1.00 / 1.00
 - **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build on any regression**.
-- **Tricky-negatives corpus:** 6 fixtures in `tests/scan/fixtures/validation/_tricky/`,
+- **Tricky-negatives corpus:** 7 fixtures in `tests/scan/fixtures/validation/_tricky/`,
   guarded by `tests/scan/test_tricky_negatives.py`. These document known detector limits
-  (3 expected-fires, 3 expected-clean).
+  (4 expected-fires, 3 expected-clean), including the `globals()['ex'+'ec'](...)`
+  AST-level bypass gap.
 
 ## Honest limitations — read this first
 
 The headline number (**100% precision, 100% recall**) is reproducible from a single
-command and is enforced by CI. But it is a **v2.0.9 baseline**, not a statistically
-meaningful measurement. Specifically:
+command and is enforced by CI. But it is a **v2.0.9 baseline expanded through the
+v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
+Specifically:
 
-1. **45 fixtures is small.** A scanner that over-matches on common patterns could pass
-   today and fail tomorrow against 30 real-world packages. The current corpus is a smoke
-   test, not a benchmark. The 6 tricky fixtures in `_tricky/` exist specifically to
-   document the *known* cases where a detector's regex is too coarse, but they don't
-   prove the detector is precise on the long tail.
-2. **One fixture per rule.** Most rules have exactly one positive fixture exercising their
-   primary case. Multi-rule combined fixtures and edge cases (e.g. multi-version ranges,
-   scoped-name variants) are deferred to v2.1.0.
+1. **177 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
+   patterns could pass today and fail tomorrow against real-world packages. The 7 tricky
+   fixtures in `_tricky/` exist specifically to document the *known* cases where a
+   detector's regex is too coarse, but they don't prove the detector is precise on the
+   long tail. New fixtures exposing bypasses are still welcome.
+2. **Multi-fixture per rule.** Most rules have 1–6 positive fixtures exercising primary
+   and variant cases (transitive advisories, homoglyph typosquats, dep-confusion
+   prefixes, obfuscation bypass patterns, etc.). The minimum is now 1 positive + 1
+   negative per L2 rule (where the detector has both a TP and FP contract); some rules
+   (L2-CAMP-SHAI-HULUD) have no negative yet — known gap.
 3. **Ecosystem coverage is now full.** All 7 ecosystems (npm, PyPI, Go, Cargo, Maven,
-   RubyGems, NuGet) are exercised. v2.0.8 had only npm and PyPI; v2.0.9 added 5 more.
-4. **Layer coverage is L2 only.** The 50 verified rules are static-analysis (L2) detectors.
-   The L3 kernel sandbox and the L4 behavioral profiler are not benchmarked here — those
-   benchmarks depend on the v2.0.8 `seccomp-trace` backend settling in and are scheduled
-   for v2.1.0+ (see backlog).
-5. **All 49 L2 rule_ids are now covered.** v2.0.8 had only 5; v2.0.9 expanded the corpus
-   to 45 fixtures covering all 49 L2 rule_ids (50 unique rule metrics when the campaign
-   rules like `L2-CAMP-SHAI-HULUD` are included).
+   RubyGems, NuGet) are exercised with multiple fixture variants per ecosystem.
+4. **Layer coverage is L2 only.** The 53 verified rules are static-analysis (L2) detectors
+   + L2-CAMP campaign detectors. The L3 kernel sandbox and the L4 behavioral profiler
+   are not benchmarked here — those benchmarks depend on the v2.0.8 `seccomp-trace`
+   backend settling in and are scheduled for v2.1.0+ (see backlog).
+5. **All 49 L2 rule_ids + 4 L2-CAMP rule_ids are now covered.** v2.0.8 had only 5 L2
+   rules; v2.0.9 expanded the corpus to 45 fixtures covering all 49 L2 rule_ids. The
+   v2.1.0 expansion work added 132 more fixtures to bring the corpus to 177 with
+   per-rule negatives, per-rule depth variants, and explicit CAMP-rule coverage
+   (4 of 4 L2-CAMP rule_ids now have a positive fixture and a negative fixture).
 
 The 100% floor exists so a *regression* breaks the build. It is not a claim that
 the scanner is 100% accurate in production. If you find a package that PicoSentry
@@ -144,59 +151,64 @@ All 49 L2 rule_ids in `RULE_INFO` (plus 1 L2-CAMP rule_id from the IoC
 corpus) have at least one positive fixture. The harness reproduces
 these numbers from a fresh clone.
 
+<!-- BEGIN: rule-table -->
 | rule_id                 | n_pos | n_neg | TP | FP | FN | precision | recall |
 |-------------------------|------:|------:|---:|---:|---:|----------:|-------:|
-| L2-ADV-001              |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-BUND-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-CAMP-SHAI-HULUD      |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-CARGO-ADV-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-CARGO-DEPC-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-CARGO-TYPO-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-CRED-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-DEPC-001             |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-ENGIN-001            |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-FORK-001             |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-GO-ADV-001           |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-GO-DEPC-001          |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-GO-TYPO-001          |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-IOC-001              |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-LICENSE-001          |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-LOCK-001             |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MAINT-001            |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MANI-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MANI-002             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MAVEN-ADV-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MAVEN-DEPC-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-MAVEN-TYPO-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-NETEX-001            |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-NUGET-ADV-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-NUGET-DEPC-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-NUGET-TYPO-001       |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-OBFS-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-OBFS-002             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-OBFS-003             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-OBFS-004             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PNPM-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-POST-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PROV-001             |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-ADV-001         |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-DEPC-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-002        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-003        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-004        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-005        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-006        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-OBFS-007        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-POST-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-PYPI-TYPO-001        |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-RUBYGEMS-ADV-001     |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-RUBYGEMS-DEPC-001    |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-RUBYGEMS-TYPO-001    |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-SIDELOAD-001         |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-TYPO-001             |     1 |     1 |  1 |  0 |  0 |      1.00 |   1.00 |
-| L2-WORM-001             |     1 |     0 |  1 |  0 |  0 |      1.00 |   1.00 |
-| **Aggregate**           | **45** | **6** | **50** | **0** | **0** | **1.00** | **1.00** |
+| L2-ADV-001              |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-BUND-001             |    2 |    2 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-AXIOS-POISONING |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-NODE-IPC-COMPROMISE |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-SHAI-HULUD      |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-TRAPDOOR        |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CARGO-ADV-001        |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-CARGO-DEPC-001       |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-CARGO-TYPO-001       |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-CRED-001             |    1 |    8 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-DEPC-001             |    4 |    4 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-ENGIN-001            |    2 |    5 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-FORK-001             |    2 |    5 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-GO-ADV-001           |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-GO-DEPC-001          |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-GO-TYPO-001          |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-IOC-001              |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-LICENSE-001          |    3 |    6 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-LOCK-001             |    2 |    4 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MAINT-001            |    2 |    6 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MANI-001             |    2 |    3 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MANI-002             |    2 |    3 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MAVEN-ADV-001        |    2 |    1 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MAVEN-DEPC-001       |    4 |    1 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-MAVEN-TYPO-001       |    2 |    1 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-NETEX-001            |    5 |    5 |  5 |  0 |  0 | 100.00% | 100.00% |
+| L2-NUGET-ADV-001        |    3 |    1 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-NUGET-DEPC-001       |    4 |    1 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-NUGET-TYPO-001       |    4 |    1 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-001             |    5 |    5 |  5 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-002             |    4 |    5 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-003             |    4 |    5 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-004             |    4 |    5 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-PNPM-001             |    3 |    6 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-POST-001             |   11 |    8 | 11 |  0 |  0 | 100.00% | 100.00% |
+| L2-PROV-001             |    2 |    5 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-ADV-001         |    3 |    3 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-DEPC-001        |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-001        |    5 |    4 |  5 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-002        |    6 |    3 |  6 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-003        |    3 |    3 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-004        |    4 |    3 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-005        |    3 |    3 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-006        |    3 |    3 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-007        |    4 |    3 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-POST-001        |    2 |    4 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-TYPO-001        |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-ADV-001     |    3 |    1 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-DEPC-001    |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-TYPO-001    |    3 |    1 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-SIDELOAD-001         |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-TYPO-001             |    4 |    4 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-WORM-001             |    3 |    5 |  3 |  0 |  0 | 100.00% | 100.00% |
+| **Aggregate              ** | ** 165** | ** 163** | **165** | ** 0** | ** 0** | **100.00%** | **100.00%** |
+<!-- END: rule-table -->
 
 > **Note on `n_neg`:** The six "n_neg=1" rows are the rules exercised by the
 > `clean_npm_*` negative fixtures. These rules (DEPC, ENGIN, FORK, LICENSE,

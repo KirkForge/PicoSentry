@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PyPI dep 'company-billing' (fires L2-PYPI-DEPC-001). Variant using company- prefix.",
+  "expected_rule_ids": ["L2-PYPI-DEPC-001"]
+}

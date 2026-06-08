@@ -69,6 +69,19 @@ jobs:
         run: pip install --no-cache-dir -e ".[dev,scan]"
       - name: Run scan tests
         run: python -m pytest tests/scan/ -v --tb=short
+      - name: Regenerate REPORT.json
+        # Refresh the checked-in report so the doc-drift gate below
+        # compares against the *current* corpus, not the last release.
+        run: picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
+      - name: Render per-rule table from REPORT.json
+        # Writes a fresh per-rule table into docs/BENCHMARKS.md between
+        # the BEGIN/END sentinels. Idempotent: a no-op run produces
+        # zero diff if the doc is already in sync.
+        run: python scripts/render_benchmarks.py
+      - name: Verify docs/BENCHMARKS.md is in sync
+        # Drift gate: if a fixture was added/changed/removed without
+        # re-rendering the doc, this step fails with the full diff.
+        run: git diff --exit-code docs/BENCHMARKS.md
 
   test-watch:
     runs-on: ubuntu-latest

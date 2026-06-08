@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "LOCK variant: package.json has deps and a malformed package-lock.json (fires L2-LOCK-001 via the 'cannot be parsed' branch). A corrupted lockfile is a real supply-chain risk — npm install will silently fall back to manifest resolution.",
+  "expected_rule_ids": ["L2-LOCK-001"]
+}

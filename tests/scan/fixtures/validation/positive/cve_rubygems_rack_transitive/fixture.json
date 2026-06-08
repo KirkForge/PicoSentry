@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Transitive CVE variant: vulnerable rack 2.0.6 reachable via wrapper gem (fires L2-RUBYGEMS-ADV-001). Gemfile.lock has wrapper-gem with rack 2.0.6 as a transitive.",
+  "expected_rule_ids": ["L2-RUBYGEMS-ADV-001"]
+}

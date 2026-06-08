@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PYPI OBFS bypass variant: binascii.unhexlify() + eval() (fires L2-PYPI-OBFS-007). unhexlify is in the regex's b64+exec pattern.",
+  "expected_rule_ids": ["L2-PYPI-OBFS-007"]
+}

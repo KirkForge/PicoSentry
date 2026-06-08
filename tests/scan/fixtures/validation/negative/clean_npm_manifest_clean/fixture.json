@@ -1,0 +1,10 @@
+{
+  "label": "negative",
+  "description": "Clean npm project with pinned, non-wildcard dependency versions, no optional deps with scripts, and a default public-registry config. Asserts L2-MANI-001, L2-MANI-002, L2-DEPC-001, L2-ADV-001 stay silent.",
+  "forbidden_rule_ids": [
+    "L2-MANI-001",
+    "L2-MANI-002",
+    "L2-DEPC-001",
+    "L2-ADV-001"
+  ]
+}

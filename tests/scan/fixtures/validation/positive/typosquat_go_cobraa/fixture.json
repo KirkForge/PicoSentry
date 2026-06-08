@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Go module named 'cobraa' — edit dist 1 from 'cobra' (top-100 go) (fires L2-GO-TYPO-001). Trailing extra a.",
+  "expected_rule_ids": ["L2-GO-TYPO-001"]
+}

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "pnpm project with a .pnpmfile.cjs overrides hook that performs a prototype-pollution pattern (mutating __proto__ on parsed JSON) AND a pnpm.overrides entry that overrides a popular dep. The .pnpmfile.cjs hook is the family-3 prototype-pollution sink; the overrides entry fires L2-PNPM-001 (which is the closest existing rule).",
+  "expected_rule_ids": ["L2-PNPM-001"]
+}

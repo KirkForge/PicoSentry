@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm project using real axios at a safe major version with a postinstall that fetches a static UI asset from a legitimate public CDN. Must NOT fire the axios poisoning campaign rule — the consumer is at a major version never flagged in the IoC list, and the project depends on no decoy crypto lib and ships no native DLL or persistence script.",
+  "forbidden_rule_ids": ["L2-CAMP-AXIOS-POISONING"]
+}

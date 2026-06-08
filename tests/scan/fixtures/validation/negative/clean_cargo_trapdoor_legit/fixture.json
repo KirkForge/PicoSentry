@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Rust crate that uses the Fernet encryption crate (which the Trapdoor 2024 payload also uses). Must NOT fire the trapdoor campaign rule — the crate has no payload filename, no campaign marker constant, and no XOR key string. This guards against an over-broad detector that flags Fernet-using crates.",
+  "forbidden_rule_ids": ["L2-CAMP-TRAPDOOR"]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "install-fixture",
+  "version": "1.0.0",
+  "description": "Variant exercising the install lifecycle hook.",
+  "license": "MIT",
+  "scripts": {
+    "install": "node-gyp rebuild"
+  }
+}

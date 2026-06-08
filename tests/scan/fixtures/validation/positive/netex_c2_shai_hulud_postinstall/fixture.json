@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Netex variant: postinstall references the Shai-Hulud C2 domain (fires L2-NETEX-001). The shai-hulud.cc domain is the canonical worm C2 sink and is matched by the C2_DOMAINS list.",
+  "expected_rule_ids": ["L2-NETEX-001"]
+}

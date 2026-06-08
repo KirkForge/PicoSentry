@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PyPI project with tool.poetry.scripts entry that calls subprocess (fires L2-PYPI-POST-001). Poetry install scripts run arbitrary commands and are an under-monitored surface compared to setup.py.",
+  "expected_rule_ids": ["L2-PYPI-POST-001"]
+}

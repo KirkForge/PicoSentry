@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Transitive CVE variant: vulnerable Newtonsoft.Json 13.0.1 reachable via wrapper NuGet dependency (fires L2-NUGET-ADV-001). packages.config pulls wrapper which transitively brings Newtonsoft.Json.",
+  "expected_rule_ids": ["L2-NUGET-ADV-001"]
+}

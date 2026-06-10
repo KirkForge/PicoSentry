@@ -1,13 +1,12 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 from typing import Any
 
 from picosentry.sandbox.formatters.cyclonedx import format_cyclonedx
 from picosentry.sandbox.formatters.github import format_github
-from picosentry.sandbox.formatters.json_fmt import format_json, format_pipeline_json
+from picosentry.sandbox.formatters.json_fmt import format_json
 from picosentry.sandbox.formatters.ml_context import format_ml_context
 from picosentry.sandbox.formatters.sarif import format_sarif
 from picosentry.sandbox.formatters.table import format_table
@@ -137,7 +136,6 @@ def _compute_exit_code_sandbox(result: SandboxResult, args: argparse.Namespace) 
 
 
     if args.fail_on:
-        _SEVERITY_LEVELS.get(args.fail_on, 99)
 
         if result.overall_verdict.value in ("DENY", "KILL"):
             return 1

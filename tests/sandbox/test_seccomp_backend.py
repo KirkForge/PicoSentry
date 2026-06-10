@@ -207,6 +207,18 @@ class TestSeccompBackendRuleAddReturn:
     now checked via the ``add_rule_safely`` wrapper.
     """
 
+    @pytest.fixture(autouse=True)
+    def _restore_picodome_propagation(self) -> None:
+        """Defensive: ``test_logging_extra.py::test_propagate_disabled``
+        sets ``picodome.propagate=False`` and never restores it. Pytest's
+        caplog handler is attached to the root logger, so records from
+        ``picodome.l3.seccomp_common`` (a child of ``picodome``) would
+        stop propagating to caplog after that test runs. Re-enable
+        propagation on the ``picodome`` parent before each test in this
+        class so the caplog-using tests below see their own records.
+        """
+        logging.getLogger("picodome").propagate = True
+
     def test_rule_add_eacces_logged_and_skipped(self, caplog: pytest.LogCaptureFixture) -> None:
         """``-EACCES`` means the rule's action matches the filter's default
         action (libseccomp refuses to add a redundant rule). The wrapper

@@ -4,7 +4,6 @@ import ctypes
 import logging
 import os
 import shutil
-import time
 import warnings
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
@@ -89,7 +88,6 @@ class SeccompTraceBackend(SandboxBackend):
         start_ms = _now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
-        unix_start_ms = int(time.time() * 1000)
 
         try:
             lib = ctypes.CDLL("libseccomp.so.2")
@@ -293,10 +291,12 @@ class SeccompTraceBackend(SandboxBackend):
         log_text: str,
         policy: Policy,
         start_ms: float,
-        unix_start_ms: int,
+        x86_64_nr_to_name: dict[int, str] | None = None,
     ) -> list[SandboxEvent]:
+        if x86_64_nr_to_name is None:
+            x86_64_nr_to_name = self._x86_64_nr_to_name
         return event_parser.parse_seccomp_log(
-            log_text, policy, start_ms, self._x86_64_nr_to_name
+            log_text, policy, start_ms, x86_64_nr_to_name
         )
 
     def _wait_with_timeout(

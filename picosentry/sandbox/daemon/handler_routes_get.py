@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 from picosentry.sandbox import __version__
@@ -11,12 +11,15 @@ from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.retention import get_retention_manager
 
+if TYPE_CHECKING:
+    from picosentry.sandbox.daemon.handler import PicoDomeHandler
+
 logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomeGetRoutesMixin:
 
-    def _handle_get(self) -> None:
+    def _handle_get(self: PicoDomeHandler) -> None:
 
         content_length = self.headers.get("Content-Length")
         if content_length:
@@ -96,7 +99,7 @@ class PicoDomeGetRoutesMixin:
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
-    def _handle_health(self) -> None:
+    def _handle_health(self: PicoDomeHandler) -> None:
         uptime = int(time.time() - self._start_time)
 
 
@@ -121,7 +124,7 @@ class PicoDomeGetRoutesMixin:
 
         self._send_json(health_data)
 
-    def _handle_ready(self) -> None:
+    def _handle_ready(self: PicoDomeHandler) -> None:
 
 
         try:
@@ -151,7 +154,7 @@ class PicoDomeGetRoutesMixin:
         except Exception as e:
             self._send_error(ErrorCodes.NOT_READY, detail=str(e))
 
-    def _handle_metrics(self) -> None:
+    def _handle_metrics(self: PicoDomeHandler) -> None:
         uptime = int(time.time() - self._start_time)
         avg_ms = self._scan_total_ms / max(self._scan_count, 1)
 
@@ -184,14 +187,14 @@ class PicoDomeGetRoutesMixin:
         self.end_headers()
         self.wfile.write(body)
 
-    def _handle_get_scan(self, job_id: str) -> None:
+    def _handle_get_scan(self: PicoDomeHandler, job_id: str) -> None:
         job = self.job_store.get(job_id)
         if job:
             self._send_json(job)
         else:
             self._send_error(ErrorCodes.SCAN_NOT_FOUND, detail=job_id)
 
-    def _handle_list_scans(self, query: dict) -> None:
+    def _handle_list_scans(self: PicoDomeHandler, query: dict) -> None:
         limit = int(query.get("limit", ["50"])[0])
         jobs = self.job_store.list_recent(limit=limit)
         self._send_json(
@@ -201,14 +204,14 @@ class PicoDomeGetRoutesMixin:
             }
         )
 
-    def _handle_list_policies(self) -> None:
+    def _handle_list_policies(self: PicoDomeHandler) -> None:
         from picosentry.sandbox.policy_versioned import get_policy_store
 
         store = get_policy_store()
         names = store.list_policies()
         self._send_json({"policies": names, "count": len(names)})
 
-    def _handle_get_policy(self, name: str) -> None:
+    def _handle_get_policy(self: PicoDomeHandler, name: str) -> None:
         from picosentry.sandbox.policy_versioned import get_policy_store
 
         store = get_policy_store()
@@ -218,7 +221,7 @@ class PicoDomeGetRoutesMixin:
         else:
             self._send_error(ErrorCodes.POLICY_NOT_FOUND, detail=name)
 
-    def _handle_list_baselines(self) -> None:
+    def _handle_list_baselines(self: PicoDomeHandler) -> None:
         from picosentry.sandbox.l4.baseline import load_all_baselines
 
         baselines = load_all_baselines()
@@ -229,7 +232,7 @@ class PicoDomeGetRoutesMixin:
             }
         )
 
-    def _handle_audit_query(self, query: dict) -> None:
+    def _handle_audit_query(self: PicoDomeHandler, query: dict) -> None:
         from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
         audit = get_audit_logger()
@@ -256,7 +259,7 @@ class PicoDomeGetRoutesMixin:
             }
         )
 
-    def _handle_list_tenants(self) -> None:
+    def _handle_list_tenants(self: PicoDomeHandler) -> None:
         from picosentry.sandbox.tenant import get_tenant_registry
 
         registry = get_tenant_registry()
@@ -275,13 +278,13 @@ class PicoDomeGetRoutesMixin:
             }
         )
 
-    def _handle_tls_config(self) -> None:
+    def _handle_tls_config(self: PicoDomeHandler) -> None:
         from picosentry.sandbox.mtls import get_tls_config_info
 
         config_info = get_tls_config_info()
         self._send_json(config_info)
 
-    def _handle_stats(self) -> None:
+    def _handle_stats(self: PicoDomeHandler) -> None:
         rm = get_retention_manager()
         storage = rm.get_storage_stats()
         audit = get_audit_logger()

@@ -214,3 +214,21 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "picosentry.scan.crypto"
 ignore_errors = true
+
+# The daemon HTTP handler is composed of multiple mixin classes
+# (PicoDomeResponseMixin, PicoDomeAuthMixin, PicoDomeGetRoutesMixin,
+# PicoDomePostRoutesMixin) that share state via the composite PicoDomeHandler
+# class in handler.py. Each mixin annotates `self: PicoDomeHandler` on its
+# methods so mypy can resolve cross-mixin attributes, but mypy's `misc`
+# override check fires because PicoDomeHandler is a *subtype* of each mixin
+# (not a supertype), and `self: PicoDomeHandler` reads as "this mixin method
+# has a self type that's wider than the mixin itself". Silencing `misc` here
+# lets the `attr-defined` checks — the ones that actually catch typos like
+# `self._send_josn(...)` — still fire.
+[[tool.mypy.overrides]]
+module = [
+    "picosentry.sandbox.daemon.handler_mixins",
+    "picosentry.sandbox.daemon.handler_routes_get",
+    "picosentry.sandbox.daemon.handler_routes_post",
+]
+disable_error_code = ["misc"]

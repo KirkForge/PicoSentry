@@ -4,10 +4,9 @@ import hashlib
 import json
 import logging
 import uuid
-from typing import Any, ClassVar
+from typing import TYPE_CHECKING, Any, ClassVar
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.auth import RBAC, TokenAuth
 from picosentry.sandbox.daemon.constants import (
     CORS_ALLOW_HEADERS,
     CORS_ALLOW_METHODS,
@@ -18,7 +17,9 @@ from picosentry.sandbox.daemon.constants import (
     _ENTERPRISE_MODE,
 )
 from picosentry.sandbox.errors import ErrorCode, ErrorCodes
-from picosentry.sandbox.ratelimit import TokenBucketLimiter
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")
 
@@ -28,13 +29,13 @@ class PicoDomeResponseMixin:
     def log_message(self, format, *args):
         logger.debug("HTTP %s", format % args)
 
-    def _generate_request_id(self) -> str:
+    def _generate_request_id(self: PicoDomeHandler) -> str:
         existing_id = self.headers.get("X-Request-ID", "")
         if existing_id and len(existing_id) <= 128:
             return existing_id
         return f"picodome-{uuid.uuid4().hex[:16]}"
 
-    def _add_common_headers(self, request_id: str) -> None:
+    def _add_common_headers(self: PicoDomeHandler, request_id: str) -> None:
         self.send_header("X-Request-ID", request_id)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
@@ -64,7 +65,7 @@ class PicoDomeResponseMixin:
         self.send_header("Access-Control-Max-Age", CORS_MAX_AGE)
         self.send_header("Access-Control-Expose-Headers", "X-Request-ID")
 
-    def _send_json(self, data: Any, status: int = 200) -> None:
+    def _send_json(self: PicoDomeHandler, data: Any, status: int = 200) -> None:
         body = json.dumps(data, sort_keys=True, default=str).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
@@ -76,7 +77,7 @@ class PicoDomeResponseMixin:
         self.wfile.write(body)
 
     def _send_error(
-        self,
+        self: PicoDomeHandler,
         status_or_code: int | ErrorCode,
         message_or_code: str | ErrorCode | None = None,
         detail: str | None = None,
@@ -191,7 +192,7 @@ class PicoDomeAuthMixin:
         "chattr",
     }
 
-    def _validate_command(self, command: list[str]) -> str | None:
+    def _validate_command(self: PicoDomeHandler, command: list[str]) -> str | None:
         if not command:
             return "Empty command"
         base = command[0]
@@ -207,13 +208,13 @@ class PicoDomeAuthMixin:
                 return f"Command '{base_name}' is denied by server policy"
         return None
 
-    def _get_token(self) -> str | None:
+    def _get_token(self: PicoDomeHandler) -> str | None:
         auth_header = self.headers.get("Authorization", "")
         if auth_header.startswith("Bearer "):
             return auth_header[7:].strip()
         return None
 
-    def _resolve_tenant(self, token: str | None) -> Any:
+    def _resolve_tenant(self: PicoDomeHandler, token: str | None) -> Any:
         from picosentry.sandbox.tenant import get_tenant_registry
 
         registry = get_tenant_registry()
@@ -230,7 +231,7 @@ class PicoDomeAuthMixin:
 
         return registry.resolve_tenant(token_hash, header_tenant=header_tenant)
 
-    def _require_auth(self) -> str | None:
+    def _require_auth(self: PicoDomeHandler) -> str | None:
         token = self._get_token()
 
         if not self.auth.is_configured:
@@ -306,7 +307,7 @@ class PicoDomeAuthMixin:
 
         return token
 
-    def _require_permission(self, permission: str) -> str | None:
+    def _require_permission(self: PicoDomeHandler, permission: str) -> str | None:
         token = self._require_auth()
         if token is None:
             return None

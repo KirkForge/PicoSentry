@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from importlib import import_module
-from typing import Any
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
@@ -19,12 +19,15 @@ from picosentry.sandbox.l4.engine import create_default_engine
 from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
 from picosentry.sandbox.retention import get_retention_manager
 
+if TYPE_CHECKING:
+    from picosentry.sandbox.daemon.handler import PicoDomeHandler
+
 logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomePostRoutesMixin:
 
-    def _handle_post(self) -> None:
+    def _handle_post(self: PicoDomeHandler) -> None:
 
         content_length = self.headers.get("Content-Length")
         if content_length:
@@ -50,7 +53,7 @@ class PicoDomePostRoutesMixin:
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
-    def _handle_submit_scan(self, token: str) -> None:
+    def _handle_submit_scan(self: PicoDomeHandler, token: str) -> None:
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             if content_length > self.MAX_REQUEST_SIZE:
@@ -233,7 +236,7 @@ class PicoDomePostRoutesMixin:
             logger.exception("Scan job %s failed", job_id)
             self._send_error(ErrorCodes.SCAN_FAILED, detail=str(e))
 
-    def _handle_create_policy(self, token: str) -> None:
+    def _handle_create_policy(self: PicoDomeHandler, token: str) -> None:
         try:
             content_length = int(self.headers.get("Content-Length", 0))
             content_type = self.headers.get("Content-Type", "")

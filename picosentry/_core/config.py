@@ -67,15 +67,51 @@ def assert_secure(
     violations: list[SecurityViolation] = []
     is_production = env in ("production", "staging")
 
+    # The default key the serve-mode settings module ships with, plus the
+    # other "obvious placeholder" strings that show up in tutorials and
+    # leaked config examples.  Any of these in the active secret key is a
+    # bug, in production OR development — there is no scenario where a
+    # code path that signs JWTs or hashes passwords should accept one of
+    # these.  ALLOW_INSECURE_SECRET=true is the explicit escape hatch for
+    # local dev work that hasn't picked a real key yet.
+    _WEAK_SECRET_DENYLIST = frozenset({
+        "",
+        "change-me-in-production",
+        "changeme",
+        "default",
+        "secret",
+        "password",
+        "please-change-me",
+        "your-secret-key",
+        "your-secret-key-here",
+    })
+    _MIN_SECRET_KEY_LENGTH = 32
 
-    if is_production and (not secret_key or secret_key in ("changeme", "default", "secret")):
-        violations.append(
-            SecurityViolation(
-                check="secret_key",
-                message="Secret key is empty or default in production",
-                severity="ERROR",
+    insecure_secret_override = os.environ.get("ALLOW_INSECURE_SECRET", "").lower() in ("true", "1", "yes")
+    if not insecure_secret_override:
+        if secret_key in _WEAK_SECRET_DENYLIST:
+            violations.append(
+                SecurityViolation(
+                    check="secret_key",
+                    message=(
+                        "Secret key is empty or uses a well-known placeholder. "
+                        "Set a real key via the SECRET_KEY env var, or "
+                        "ALLOW_INSECURE_SECRET=true for local dev only."
+                    ),
+                    severity="ERROR",
+                )
             )
-        )
+        elif len(secret_key) < _MIN_SECRET_KEY_LENGTH:
+            violations.append(
+                SecurityViolation(
+                    check="secret_key_length",
+                    message=(
+                        f"Secret key is {len(secret_key)} bytes; minimum is "
+                        f"{_MIN_SECRET_KEY_LENGTH}. Short keys are brute-forceable."
+                    ),
+                    severity="ERROR",
+                )
+            )
 
 
     if bind_host == "0.0.0.0":

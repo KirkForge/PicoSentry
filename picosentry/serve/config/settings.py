@@ -76,6 +76,20 @@ class SecurityConfig:
     ssl_cert_path: Path | None = None
     ssl_key_path: Path | None = None
 
+    # Workspace root for POST /scans.  The serve mode used to accept any
+    # server-local path as a scan target, which in a multi-tenant setup
+    # becomes filesystem probing + data disclosure through findings.  We
+    # now require scan targets to resolve inside this root.  ``None``
+    # means /scans is disabled entirely — operators must opt in by
+    # configuring the path.  Set PICOSHOGUN_SCANS_WORKSPACE_ROOT to
+    # enable it.  Default is "unset" so a fresh deploy does NOT silently
+    # accept arbitrary paths.
+    scans_workspace_root: Path | None = field(
+        default_factory=lambda: (
+            Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
+        )
+    )
+
     @classmethod
     def from_env(cls) -> "SecurityConfig":
         return cls()  # defaults already read from env via field default_factory

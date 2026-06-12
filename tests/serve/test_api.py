@@ -26,10 +26,14 @@ def client():
 def auth_token(client):
     """Get an auth token for authenticated requests."""
     with contextlib.suppress(Exception):
+        # RegisterRequest no longer accepts a client-supplied role; the
+        # user is always created as a viewer.  An admin/operator fixture
+        # for tests that need one lives in
+        # ``tests/serve/test_admin_role_seed.py`` (provisioned via the
+        # service layer, not the registration endpoint).
         client.post("/auth/register", json={
             "username": "pytest_user",
             "password": "testpassword123",
-            "role": "admin"
         })
 
     try:
@@ -237,7 +241,15 @@ class TestSecurityHeaders:
 
 
 class TestAuthEndpoints:
-    """Test registration and login endpoints."""
+    """Test registration and login endpoints.
+
+    Registration always creates a viewer.  ``RegisterRequest`` rejects
+    a client-supplied ``role`` field at the Pydantic layer
+    (``extra="forbid"``), and the handler hardcodes ``role="viewer"``
+    when calling ``auth_service.create_user``.  Tests in this class must
+    NOT send a ``role`` in the payload — that contract is verified by
+    ``test_register_rejects_client_supplied_role_*`` below.
+    """
 
     def test_register_new_user(self, client):
         import time
@@ -245,12 +257,13 @@ class TestAuthEndpoints:
         resp = client.post("/auth/register", json={
             "username": username,
             "password": "testpassword123",
-            "role": "viewer"
         })
         assert resp.status_code == 200
         data = resp.json()
         assert "user_id" in data
         assert data["username"] == username
+        # The handler always reports the role that was actually inserted.
+        assert data["role"] == "viewer"
 
     def test_register_duplicate_user(self, client):
         import time
@@ -258,12 +271,10 @@ class TestAuthEndpoints:
         client.post("/auth/register", json={
             "username": username,
             "password": "testpassword123",
-            "role": "viewer"
         })
         resp = client.post("/auth/register", json={
             "username": username,
             "password": "testpassword123",
-            "role": "viewer"
         })
         assert resp.status_code in (400, 409)
 
@@ -273,7 +284,6 @@ class TestAuthEndpoints:
         client.post("/auth/register", json={
             "username": username,
             "password": "testpassword123",
-            "role": "admin"
         })
         resp = client.post(f"/auth/login?username={username}&password=testpassword123")
         assert resp.status_code == 200
@@ -284,6 +294,56 @@ class TestAuthEndpoints:
     def test_login_invalid_credentials(self, client):
         resp = client.post("/auth/login?username=nonexistent&password=wrong")
         assert resp.status_code == 401
+
+    # ── Registration-role regression suite (P0 fix) ─────────────────────
+    # Registration must NOT accept a client-supplied role.  The Pydantic
+    # model uses ``extra="forbid"`` and the handler hardcodes
+    # ``role="viewer"``; the tests below pin both halves of that contract
+    # so a future "we should support self-elected admin" change has to
+    # consciously remove the regression.
+
+    @pytest.mark.parametrize("client_role", ["admin", "operator", "viewer", "Owner", "ADMIN", ""])
+    def test_register_rejects_client_supplied_role(self, client, client_role):
+        """A client-supplied role field, any value, must be rejected with 422.
+
+        This is the loud-failure path: ``RegisterRequest`` has
+        ``extra="forbid"``, so Pydantic returns 422 before the handler
+        ever runs.  Without this layer, a future regression that re-adds
+        the field would silently start creating elevated accounts.
+        """
+        import time
+        username = f"rolecheck_{client_role}_{int(time.time() * 1000)}"
+        resp = client.post("/auth/register", json={
+            "username": username,
+            "password": "testpassword123",
+            "role": client_role,
+        })
+        assert resp.status_code == 422, (
+            f"client_supplied role={client_role!r} should be rejected, got {resp.status_code}: {resp.text}"
+        )
+
+    def test_register_creates_viewer_in_db(self, client):
+        """A successful registration inserts role='viewer' regardless of any
+        client attempt.  This guards the handler-layer half of the fix:
+        even if the Pydantic model is loosened, the handler must still
+        hardcode ``role='viewer'`` for the registration path.
+        """
+        import time
+        from picosentry.serve.database.manager import db
+
+        username = f"dbcheck_{int(time.time() * 1000)}"
+        resp = client.post("/auth/register", json={
+            "username": username,
+            "password": "testpassword123",
+        })
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["role"] == "viewer"
+
+        row = db.execute_one("SELECT role FROM users WHERE username = ?", (username,))
+        assert row is not None
+        assert row["role"] == "viewer", (
+            f"DB row for {username!r} has role={row['role']!r}; expected 'viewer'"
+        )
 
 
 class TestSchedulerEndpoints:

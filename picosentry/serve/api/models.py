@@ -76,10 +76,16 @@ class HealthReadiness(BaseModel):
 
 
 class RegisterRequest(BaseModel):
+    # Role is intentionally NOT a request field.  Registration always
+    # creates a viewer; admin/operator promotion must happen through an
+    # authenticated admin-only path.  ``extra="forbid"`` makes any client
+    # that tries to send a ``role`` (or any other unknown field) get a 422
+    # response, so this contract is loud rather than silent.
+    model_config = {"extra": "forbid"}
+
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)
     email: str | None = Field(None)
-    role: str = Field("viewer", pattern="^(viewer|operator|admin)$")
 
 
 class WebhookCreateRequest(BaseModel):

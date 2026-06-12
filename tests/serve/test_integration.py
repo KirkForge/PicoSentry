@@ -64,15 +64,29 @@ def _auth_headers(token):
 
 
 def _register_and_login(client, role="admin", suffix=None):
-    """One-shot: register + login → token."""
+    """One-shot: create a user at the requested role + login → token.
+
+    The ``/auth/register`` endpoint creates viewers only (P0 fix); for
+    ``admin`` and ``operator`` we drop down to the service layer so the
+    integration tests can still exercise elevated paths.
+    """
     tag = suffix or int(time.time() * 1000)
     username = f"integ_{role}_{tag}"
     password = "IntegrationTest123!"
-    client.post("/auth/register", json={
-        "username": username,
-        "password": password,
-        "role": role,
-    })
+
+    if role == "viewer":
+        client.post("/auth/register", json={
+            "username": username,
+            "password": password,
+        })
+    else:
+        # Service-layer creation bypasses the registration endpoint
+        # for elevated roles.  This is the same code path the (future)
+        # admin-invite flow will use; the integration tests just
+        # exercise it now.
+        from picosentry.serve.services.auth import AuthService
+        AuthService().create_user(username, password, role=role)
+
     token = _login(client, username, password)
     return token, username
 
@@ -559,8 +573,9 @@ class TestAnomalyDetection:
 
 class TestPicoDomeEndpoints:
     def test_scan_endpoint_returns_200(self, client):
-        """Scan endpoint now runs the built-in scanner."""
-        token, _ = _register_and_login(client, role="viewer", suffix=int(time.time()*1000))
+        """Scan endpoint now runs the built-in scanner.  Operator role
+        is required (P0 fix); viewers are rejected with 403."""
+        token, _ = _register_and_login(client, role="operator", suffix=int(time.time()*1000))
         resp = client.post("/api/v1/scans", json={
             "target": "/tmp", "rules": None, "format": "json",
         }, headers=_auth_headers(token))

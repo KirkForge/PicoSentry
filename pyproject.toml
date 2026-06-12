@@ -77,6 +77,14 @@ otel = [
 sigstore = [
     "sigstore>=3.0",
 ]
+# gRPC transport (PicoDome daemon).  The generated protobuf stubs are
+# committed (scripts/regen_proto.sh) so this extra only needs the
+# runtime grpcio package, not grpcio-tools.  Pin to >=1.50 because
+# ``grpc.ServiceRpcHandlers`` (which our fallback used to call) was
+# removed in 1.50.
+grpc = [
+    "grpcio>=1.50",
+]
 # Everything
 all = [
     "picosentry[scan,watch-server,serve,otel,sigstore]",
@@ -132,6 +140,7 @@ picosentry = ["py.typed"]
 ]
 "picosentry.watch.rules" = ["prompt_injection/*.yaml", "prompt_injection/*.yml", "output_policy/*.yaml", "output_policy/*.yml"]
 "picosentry.sandbox" = ["py.typed", "docs/rules/*.md"]
+"picosentry.sandbox.grpc_transport.proto" = ["*.py", "*.proto"]
 "picosentry.serve" = ["config/*.json"]
 "picosentry.serve.plugins" = ["*/plugin.json", "*/*.py"]
 "picosentry.serve.front" = ["*.html", "*.css", "*.js", "*.svg", "*.png", "assets/*"]
@@ -202,8 +211,10 @@ warn_unreachable = true
 ignore_missing_imports = true
 exclude = ["build/", "dist/", ".venv/"]
 
-# gRPC proto stubs are runtime-generated (grpcio-tools). The static
-# type-checker can't see them, so we silence the resulting attr-defined errors.
+# gRPC proto stubs are committed (see scripts/regen_proto.sh) so the
+# transport module is importable on a stock `pip install`.  The
+# static type-checker still can't see them reliably across all
+# grpcio versions, so we silence the resulting attr-defined errors.
 [[tool.mypy.overrides]]
 module = "picosentry.sandbox.grpc_transport.*"
 ignore_errors = true

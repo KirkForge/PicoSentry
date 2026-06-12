@@ -282,6 +282,19 @@ class _DictProxy:
 
 
 def add_servicer_manually(servicer, server):
+    """Fallback servicer registration when the generated pb2_grpc
+    stubs are unavailable (e.g. the grpcio version on the target host
+    doesn't match the version the stubs were generated against, or
+    someone deleted the stubs out from under the install).
+
+    The modern grpcio API replaced ``grpc.ServiceRpcHandlers`` (which
+    was removed) with ``grpc.method_handlers_generic_handler``.  This
+    function uses the modern API so the fallback is actually live.
+
+    Note: identity passthrough deserializers/serializers mean callers
+    send raw protobuf bytes, not dicts.  The generated stubs use the
+    real protobuf codecs — prefer the stub path when available.
+    """
     import grpc
 
     service_name = "picodome.PicoDomeService"
@@ -309,5 +322,5 @@ def add_servicer_manually(servicer, server):
         ),
     }
 
-    handler = grpc.ServiceRpcHandlers(service_name, rpc_method_handlers)
+    handler = grpc.method_handlers_generic_handler(service_name, rpc_method_handlers)
     server.add_generic_rpc_handlers((handler,))

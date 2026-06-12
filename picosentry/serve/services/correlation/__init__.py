@@ -20,11 +20,11 @@ from picosentry.serve.services.correlation.models import (
 correlation_engine = CorrelationEngine()
 
 __all__ = [
+    "PHASE_WEIGHTS",
     "CorrelatedEvent",
     "CorrelationEngine",
     "KillChainPhase",
     "KillChainTimeline",
-    "PHASE_WEIGHTS",
     "_confidence_from_str",
     "_confidence_index",
     "_severity_from_str",

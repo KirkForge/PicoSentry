@@ -94,6 +94,7 @@ async def lifespan(app: FastAPI):
     from picosentry.serve.services.correlation import (
         correlation_engine,
     )
+    from picosentry.serve.services.correlation.engine import CorrelationEngine
     from picosentry.serve.services.orchestrator import PICO_CLI
     from picosentry.serve.services.webhooks import webhook_manager
 
@@ -101,11 +102,11 @@ async def lifespan(app: FastAPI):
     try:
         from picosentry.serve.database.manager import db
         db.execute("SELECT 1 FROM correlation_events LIMIT 1")
-        correlation_engine.PERSIST_ENABLED = True
+        CorrelationEngine.PERSIST_ENABLED = True
         loaded = correlation_engine.load_events()
         logger.info("Correlation persistence ready — loaded %d event(s)", loaded)
     except Exception:
-        correlation_engine.PERSIST_ENABLED = False
+        CorrelationEngine.PERSIST_ENABLED = False
         logger.info("Correlation persistence not available (run migrations first)")
 
 

@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 import threading
 from collections import defaultdict
-from typing import Any, Callable, ClassVar
+from typing import Any, ClassVar
+from collections.abc import Callable
 
 from picosentry._core.models import Confidence, Severity
 from picosentry.serve.services.correlation.helpers import (
@@ -335,8 +336,8 @@ class CorrelationEngine:
             "watch": "LLM Watch / Prompt Defense",
         }
         layer_coverage = [
-            {"layer": l, "label": layer_names.get(l, l)}
-            for l in sorted(layers_used)
+            {"layer": layer, "label": layer_names.get(layer, layer)}
+            for layer in sorted(layers_used)
         ]
 
 

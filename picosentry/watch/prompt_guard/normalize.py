@@ -155,9 +155,6 @@ class Normalizer:
 
         return result
 
-    def detect_encodings(self, text: str) -> str:
-        return text
-
     def decode_base64(self, text: str) -> list[str]:
         decoded = []
         for match in self._BASE64.finditer(text):

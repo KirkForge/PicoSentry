@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Any
 
 POLICY_VERSION = 1
 KNOWN_POLICY_KEYS = frozenset(

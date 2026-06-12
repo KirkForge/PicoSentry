@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import time
 from http.server import BaseHTTPRequestHandler
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING
 
 from picosentry.sandbox.auth import RBAC, TokenAuth
 from picosentry.sandbox.daemon.constants import API_VERSION

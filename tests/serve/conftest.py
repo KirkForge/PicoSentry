@@ -16,6 +16,11 @@ os.environ["PICOSHOGUN_SECRET_KEY"] = "test-key-for-pytest-at-least-32-bytes!"
 # the test environment — these tests are end-to-end auth flows and need to be
 # able to provision fresh users per test.
 os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
+# The /scans endpoint is gated on PICOSHOGUN_SCANS_WORKSPACE_ROOT.  The
+# test corpus uses /tmp as a safe workspace — it's writable, the tests
+# are short-lived, and /tmp is the directory the test_integration suite
+# was already passing.  Production must configure this explicitly.
+os.environ.setdefault("PICOSHOGUN_SCANS_WORKSPACE_ROOT", "/tmp")
 
 
 def _find_and_clear_rate_limiter(app):

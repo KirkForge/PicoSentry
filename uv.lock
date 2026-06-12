@@ -1359,6 +1359,9 @@ dev = [
     { name = "twine" },
     { name = "types-pyyaml" },
 ]
+grpc = [
+    { name = "grpcio" },
+]
 otel = [
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
@@ -1390,6 +1393,7 @@ requires-dist = [
     { name = "croniter", marker = "extra == 'serve'", specifier = ">=1.0.0" },
     { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.104.0" },
     { name = "fastapi", marker = "extra == 'watch-server'", specifier = ">=0.100" },
+    { name = "grpcio", marker = "extra == 'grpc'", specifier = ">=1.50" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.24" },
     { name = "jsonschema", marker = "extra == 'dev'", specifier = ">=4.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.0" },
@@ -1414,7 +1418,7 @@ requires-dist = [
     { name = "uvicorn", marker = "extra == 'watch-server'", specifier = ">=0.23" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'serve'", specifier = ">=0.24.0" },
 ]
-provides-extras = ["scan", "watch-server", "serve", "otel", "sigstore", "all", "dev"]
+provides-extras = ["scan", "watch-server", "serve", "otel", "sigstore", "grpc", "all", "dev"]
 
 [[package]]
 name = "platformdirs"

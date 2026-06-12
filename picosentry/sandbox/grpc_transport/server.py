@@ -85,10 +85,9 @@ class PicoDomeGRPCServer:
 
             logger.warning(
                 "Compiled protobuf stubs not found. "
-                "Run: python -m grpc_tools.protoc -I src/picodome/grpc_transport/proto "
-                "--python_out=src/picodome/grpc_transport/proto "
-                "--grpc_python_out=src/picodome/grpc_transport/proto "
-                "src/picodome/grpc_transport/proto/picodome.proto"
+                "Regenerate with scripts/regen_proto.sh "
+                "(or: python -m grpc_tools.protoc -I . --python_out=. --grpc_python_out=. picodome.proto "
+                "from picosentry/sandbox/grpc_transport/proto/)."
             )
 
             from picosentry.sandbox.grpc_transport._servicer import add_servicer_manually

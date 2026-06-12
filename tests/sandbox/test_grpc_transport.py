@@ -778,3 +778,132 @@ class TestGRPCClientRetry:
             result = asyncio.get_event_loop().run_until_complete(client.scan_async(command=["echo", "hello"]))
             assert result.verdict == "ALLOW"
             client.scan.assert_called_once()
+
+
+# ─── Tests: End-to-end gRPC round-trip (skipped without grpcio) ──────────────
+
+
+class TestEndToEndGRPC:
+    """Regression tests for the two long-broken gRPC pieces:
+
+    1. The compiled protobuf stubs (``picodome_pb2`` / ``picodome_pb2_grpc``)
+       used to be missing from the repo.  The transport module imported
+       them and the import would fail at server start.
+    2. ``add_servicer_manually`` used to call
+       ``grpc.ServiceRpcHandlers(...)``, which was removed from grpcio
+       in 1.50.  The fallback path blew up immediately.
+
+    These tests boot a real gRPC server, make a real RPC over a real
+    channel, and assert the round-trip works.  Both failure modes
+    would have been caught by this test.
+
+    Skipped if grpcio isn't installed — they're not part of the
+    default test env (grpcio is a picosentry[grpc] extra).
+    """
+
+    @pytest.fixture
+    def grpc_available(self):
+        from picosentry.sandbox.grpc_transport import is_grpc_available
+
+        if not is_grpc_available():
+            pytest.skip("grpcio not installed; install picosentry[grpc] to run this test")
+        return True
+
+    def _free_port(self) -> int:
+        import socket
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("", 0))
+            return s.getsockname()[1]
+        finally:
+            s.close()
+
+    def test_generated_stubs_importable(self, grpc_available):
+        """The shipped picodome_pb2 / picodome_pb2_grpc modules must
+        actually be importable.  This catches a regression where the
+        proto file is committed but the generated stubs aren't."""
+        from picosentry.sandbox.grpc_transport.proto import picodome_pb2, picodome_pb2_grpc
+
+        assert hasattr(picodome_pb2, "ScanRequest")
+        assert hasattr(picodome_pb2, "HealthCheckRequest")
+        assert hasattr(picodome_pb2_grpc, "PicoDomeServiceServicer")
+        assert hasattr(picodome_pb2_grpc, "add_PicoDomeServiceServicer_to_server")
+
+    def test_generated_pb2_grpc_uses_relative_import(self, grpc_available):
+        """grpc_tools.protoc emits ``import picodome_pb2 as ...`` (flat),
+        which doesn't resolve when picodome_pb2_grpc is loaded as a
+        submodule of a regular package.  The committed stubs (and the
+        regen script) must rewrite this to a relative import."""
+        from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc
+
+        src = __import__("inspect").getsource(picodome_pb2_grpc)
+        assert "from . import picodome_pb2" in src, (
+            "picodome_pb2_grpc.py must use a relative import for picodome_pb2 "
+            "so the package loads as a regular package (not via sys.path hacks). "
+            "Re-run scripts/regen_proto.sh."
+        )
+
+    def test_real_server_real_rpc_round_trip(self, grpc_available):
+        """Boot a real gRPC server, register the generated servicer,
+        make a real Health RPC, and confirm we get back the standard
+        UNIMPLEMENTED error (because we registered an empty servicer).
+        The point is that the wire-up works, not the business logic."""
+        from concurrent.futures import ThreadPoolExecutor
+
+        import grpc
+        from picosentry.sandbox.grpc_transport.proto import picodome_pb2, picodome_pb2_grpc
+
+        server = grpc.server(ThreadPoolExecutor(max_workers=2))
+        picodome_pb2_grpc.add_PicoDomeServiceServicer_to_server(
+            picodome_pb2_grpc.PicoDomeServiceServicer(),
+            server,
+        )
+        port = self._free_port()
+        server.add_insecure_port(f"127.0.0.1:{port}")
+        server.start()
+        try:
+            channel = grpc.insecure_channel(f"127.0.0.1:{port}")
+            try:
+                stub = picodome_pb2_grpc.PicoDomeServiceStub(channel)
+                with pytest.raises(grpc.RpcError) as exc_info:
+                    stub.Health(picodome_pb2.HealthCheckRequest(), timeout=2.0)
+                # Empty servicer responds with UNIMPLEMENTED; that's
+                # the proof the wire format and method dispatch are
+                # both healthy.
+                assert exc_info.value.code() == grpc.StatusCode.UNIMPLEMENTED
+            finally:
+                channel.close()
+        finally:
+            server.stop(0)
+
+    def test_add_servicer_manually_uses_modern_api(self, grpc_available):
+        """The fallback registration path (used when the generated
+        pb2_grpc import fails) must use ``method_handlers_generic_handler``,
+        not the removed ``ServiceRpcHandlers``."""
+        import ast
+
+        from picosentry.sandbox.grpc_transport import _servicer
+
+        # Inspect the AST rather than grepping the source — the
+        # docstring legitimately mentions ServiceRpcHandlers as the
+        # API being replaced, and we don't want to ban that.
+        tree = ast.parse(__import__("inspect").getsource(_servicer.add_servicer_manually))
+        func = tree.body[0]
+        # The function body is everything between the (optional)
+        # docstring and the end of the function.  Concatenate the
+        # AST dump of every statement after the docstring.
+        body = func.body
+        if (
+            body
+            and isinstance(body[0], ast.Expr)
+            and isinstance(body[0].value, ast.Constant)
+            and isinstance(body[0].value.value, str)
+        ):
+            body = body[1:]
+        joined = "\n".join(ast.dump(stmt) for stmt in body)
+        assert "ServiceRpcHandlers" not in joined, (
+            "add_servicer_manually body still references the removed "
+            "grpc.ServiceRpcHandlers API; the fallback will crash at runtime."
+        )
+        assert "method_handlers_generic_handler" in joined

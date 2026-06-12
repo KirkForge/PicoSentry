@@ -12,4 +12,7 @@ router = APIRouter()
 
 @router.get("/plugins", tags=["Plugins"])
 async def list_plugins(user: dict = Depends(get_current_user)):
-    return {"plugins": plugin_manager.get_status()}
+    return {
+        "plugins": plugin_manager.get_status(),
+        "dirs": plugin_manager.resolved_dirs(),
+    }

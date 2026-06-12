@@ -140,6 +140,26 @@ class OrchestratorConfig:
     def from_env(cls) -> "OrchestratorConfig":
         return cls()  # defaults already read from env via field default_factory
 
+
+def _env_plugin_dirs() -> list[Path]:
+    """Parse PICOSHOGUN_PLUGIN_DIR (comma-separated) into a list of Path."""
+    raw = _env("PLUGIN_DIR", "").strip()
+    if not raw:
+        return []
+    return [Path(p.strip()) for p in raw.split(",") if p.strip()]
+
+
+@dataclass
+class PluginsConfig:
+    """User-supplied plugin directories. The bundled
+    picosentry/serve/plugins/ is always scanned; this is for extras.
+    """
+    plugin_dirs: list[Path] = field(default_factory=_env_plugin_dirs)
+
+    @classmethod
+    def from_env(cls) -> "PluginsConfig":
+        return cls()  # defaults already read from env via field default_factory
+
 class _SslCertCheck:
 
     def __init__(self, settings: "Settings") -> None:
@@ -180,6 +200,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     logging: LoggingConfig = field(default_factory=LoggingConfig)
     alerts: AlertConfig = field(default_factory=AlertConfig)
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
+    plugins: PluginsConfig = field(default_factory=PluginsConfig)
 
     def is_production(self) -> bool:
         return self.env == "production"
@@ -241,6 +262,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
             logging=LoggingConfig(),
             alerts=AlertConfig.from_env(),
             orchestrator=OrchestratorConfig.from_env(),
+            plugins=PluginsConfig.from_env(),
         )
 
     @classmethod

@@ -136,11 +136,39 @@ The v2.0.12 post-release review flagged a batch of issues. Closed:
   no-op. Each fix is in its own commit; see the v2.0.12 review doc
   for the before/after.
 
+### Fixed — Plugin auto-load (P1 → fixed)
+
+`PluginManager` was hardcoded to scan the bundled
+`picosentry/serve/plugins/` directory. A wheel-installed user had no
+way to add their own plugin without `pip install -e`'ing the source
+tree. Three changes:
+
+- **User plugin dirs are now first-class.** The manager accepts an
+  `extra_plugin_dirs` argument, reads the `PICOSHOGUN_PLUGIN_DIR`
+  env var (comma-separated), and auto-discovers
+  `~/.picosentry/plugins/` if it exists. Discovery order: explicit
+  `plugin_dir` arg > extra dirs (CLI / env / user default) > bundled.
+  Duplicates (by realpath) are collapsed.
+- **Dead `import plugins as _plugins_pkg` branch removed.** The
+  previous code tried to import a top-level `plugins` package that
+  is never shipped; the canonical resolution is now
+  `os.path.join(<services_dir>, "../plugins")`, which works in both
+  the dev tree and a wheel install.
+- **`picosentry serve --plugin-dir <path>` is repeatable.** The
+  flag accumulates; multiple `--plugin-dir` flags are merged with
+  the env var and the bundled dir, and the resolved list is
+  surfaced in the `GET /plugins` response as a new `dirs` field.
+  A new `plugin_manager.reload(extra_dirs)` method makes the
+  re-discovery idempotent: already-loaded plugins are not
+  re-instantiated, new plugins are loaded.
+- **Test coverage added.** New file
+  `tests/serve/test_plugin_auto_load.py` (7 tests) covers the
+  default load, the `extra_plugin_dirs` path, the env-var path,
+  `reload()` idempotency, realpath dedup, and the `/plugins`
+  router contract. Full serve suite: 243 passed.
+
 ### Not yet fixed (P1 — deferred)
 
-- **Plugin auto-load**: directory-walk plugin discovery is wired but
-  the discovery path is not exposed in the runtime. Users must
-  currently register plugins by hand. Tracked for v2.0.13.
 - **Benchmark overclaim + campaign overmatching**: detection rate and
   campaign-fp-rate numbers in `docs/BENCHMARKS.md` and the README
   were overclaimed. The 100% precision/recall line in the README is

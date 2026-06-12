@@ -248,6 +248,16 @@ def main(argv: list[str] | None = None) -> None:
     serve_parser.add_argument("--port", type=int, default=8765)
     serve_parser.add_argument("--reload", action="store_true", help="Enable hot reload")
     serve_parser.add_argument("--workers", type=int, default=1)
+    serve_parser.add_argument(
+        "--plugin-dir",
+        action="append",
+        default=[],
+        dest="plugin_dirs",
+        metavar="PATH",
+        help="Additional plugin directory to scan (repeatable). The bundled "
+             "picosentry/serve/plugins/ is always scanned; this adds extras. "
+             "Takes precedence over the PICOSHOGUN_PLUGIN_DIR env var.",
+    )
 
 
     subparsers.add_parser("version", help="Show version and exit")
@@ -592,11 +602,36 @@ def _handle_serve(args: argparse.Namespace) -> None:
     if args.workers:
         os.environ["PICOSHOGUN_API_WORKERS"] = str(args.workers)
 
+    # Plugin dirs: CLI flag list wins over the env var. We join into the
+    # same comma-separated format `PICOSHOGUN_PLUGIN_DIR` expects so
+    # that any subprocess workers (uvicorn with --workers > 1) see the
+    # same list as the parent process. The plugin_manager singleton
+    # was already constructed at module import time, so we also call
+    # `reload()` to fold the extra dirs in immediately.
+    plugin_dirs = list(getattr(args, "plugin_dirs", []) or [])
+    if plugin_dirs:
+        existing = os.environ.get("PICOSHOGUN_PLUGIN_DIR", "").strip()
+        merged = [p for p in (existing.split(",") if existing else []) if p]
+        merged.extend(plugin_dirs)
+        os.environ["PICOSHOGUN_PLUGIN_DIR"] = ",".join(merged)
+
     serve_main = _import_or_warn(
         lambda: __import__("picosentry.serve.api.server", fromlist=["main"]).main,
         extra="serve",
         what="the 'serve' subcommand (API server + dashboard)",
     )
+
+    # Re-discover plugins with the CLI dirs (the singleton was
+    # constructed at module import time, before the env var was set).
+    # Done before `serve_main()` so the /plugins router sees the new
+    # plugins when the server first starts.
+    if plugin_dirs:
+        try:
+            from picosentry.serve.services.plugin_manager import plugin_manager
+            plugin_manager.reload(plugin_dirs)
+        except ImportError:
+            pass  # serve extra not installed; nothing to do
+
     serve_main()
 
 

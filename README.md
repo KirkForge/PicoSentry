@@ -241,6 +241,58 @@ picosentry health
 
 ---
 
+## Plugins (serve mode)
+
+The `picosentry serve` runtime discovers plugins from three places, in
+priority order:
+
+1. **`--plugin-dir PATH`** (repeatable) on the `serve` subcommand.
+2. **`PICOSHOGUN_PLUGIN_DIR`** env var (comma-separated list of paths).
+3. **`~/.picosentry/plugins/`** if it exists.
+
+The bundled `picosentry/serve/plugins/` (which ships `test_plugin` and
+`discord_notifier`) is always scanned last. Each plugin lives in its
+own subdirectory containing `plugin.json` (manifest) and a Python
+entry-point module. Manifests are validated against
+`picosentry/serve/services/plugin_manager.py:REQUIRED_MANIFEST_FIELDS`
+and may be Ed25519-signed — the `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1`
+env var turns signature verification from a warning into a hard refusal
+to load.
+
+```bash
+# Install a plugin in your user-level directory:
+mkdir -p ~/.picosentry/plugins/my-plugin
+cat > ~/.picosentry/plugins/my-plugin/plugin.json <<'EOF'
+{
+  "name": "my_plugin",
+  "version": "0.1.0",
+  "author": "you",
+  "description": "on-alert hook example",
+  "entry_point": "my_plugin",
+  "hooks": ["alert"]
+}
+EOF
+cat > ~/.picosentry/plugins/my-plugin/my_plugin.py <<'EOF'
+from picosentry.serve.services.plugin_manager import PluginInterface
+
+class MyPlugin(PluginInterface):
+    def initialize(self, config): return True
+    def on_alert(self, alert): return alert
+EOF
+
+# Or pass it on the command line:
+picosentry serve --plugin-dir /opt/picosentry-plugins
+
+# Or set the env var (takes a comma-separated list):
+PICOSHOGUN_PLUGIN_DIR=/srv/plugs:/opt/picosentry-plugins picosentry serve
+```
+
+The `GET /plugins` endpoint returns the resolved directory list in a
+`dirs` field alongside the loaded plugin status, so you can verify
+discovery worked without checking the logs.
+
+---
+
 ## Design principles
 
 - **Deterministic**: same inputs + same policy = same SHA-256 output. No randomness,

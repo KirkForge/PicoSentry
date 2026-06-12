@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from typing import Any
 
 from picosentry._core.models import Confidence, Severity
 from picosentry.serve.services.correlation.models import (
@@ -47,7 +46,7 @@ def generate_narrative(
 
 
     layer_labels = [
-        _LAYER_NAMES.get(l, l) for l in sorted(layers_observed)
+        _LAYER_NAMES.get(layer, layer) for layer in sorted(layers_observed)
     ]
     severity_label = max_severity.value.title()
     confidence_label = max_confidence.value.title()

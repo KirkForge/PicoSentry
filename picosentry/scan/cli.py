@@ -4,7 +4,6 @@ import argparse
 import logging
 import sys
 
-from picosentry.scan import __version__
 from picosentry.scan.cli_commands import (
     benchmark,
     cache,

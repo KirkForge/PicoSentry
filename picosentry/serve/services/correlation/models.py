@@ -156,7 +156,7 @@ class KillChainTimeline:
     """Overall chain confidence."""
 
     chain_score: float = 0.0
-    """Composite score 0.0–1.0."""
+    """Composite score 0.0-1.0."""
 
     narrative: str = ""
     """AI-generated attack story (empty in Phase 1)."""
@@ -182,11 +182,11 @@ class KillChainTimeline:
 
 
 __all__ = [
-    "CorrelatedEvent",
-    "KillChainPhase",
-    "KillChainTimeline",
     "LAYER_PHASE_MAP",
     "PHASE_WEIGHTS",
     "RULE_PHASE_OVERRIDES",
     "SEVERITY_WEIGHTS",
+    "CorrelatedEvent",
+    "KillChainPhase",
+    "KillChainTimeline",
 ]

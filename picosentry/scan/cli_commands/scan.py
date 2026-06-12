@@ -3,11 +3,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import logging
 import multiprocessing
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any
 
 from picosentry.scan import __version__
 from picosentry.scan.config import PicoSentryConfig, load_config
@@ -27,9 +27,7 @@ from picosentry.scan.validation import run_validation
 NAME = "scan"
 
 
-import logging as _logging
-
-logger = _logging.getLogger(__name__)
+logger = logging.getLogger(__name__)
 
 
 class ScanTimeout(Exception):

@@ -53,7 +53,7 @@ def _check_minisign() -> bool:
             _HAS_MINISIGN = result.returncode is not None
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             try:
-                import minimin  # noqa: F401
+                import minisign  # noqa: F401
 
                 _HAS_MINISIGN = True
             except ImportError:
@@ -167,7 +167,7 @@ def sign_content_sigstore(content: bytes) -> SignatureBundle:
 def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -> SignatureBundle:
     if not _check_minisign():
         raise ImportError(
-            "minisign is required for minisign signing. Install with: apt install minisign  or  pip install minimin"
+            "minisign is required for minisign signing. Install with: apt install minisign  or  pip install minisign"
         )
 
     import base64

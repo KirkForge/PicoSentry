@@ -45,7 +45,7 @@ def classify_syscall(name: str) -> tuple[str, str]:
 
 def parse_seccomp_log(
     log_text: str,
-    policy: "Policy",
+    policy: Policy,
     start_ms: float,
     x86_64_nr_to_name: dict[int, str] | None = None,
 ) -> list[SandboxEvent]:

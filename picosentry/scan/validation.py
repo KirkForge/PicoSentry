@@ -6,6 +6,7 @@ import logging
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 logger = logging.getLogger("picosentry.validation")
 
@@ -76,9 +77,7 @@ def _matches_finding(
         return False
     if assertion.evidence_contains and assertion.evidence_contains not in finding.evidence:
         return False
-    if assertion.line is not None and finding.line != assertion.line:
-        return False
-    return True
+    return not (assertion.line is not None and finding.line != assertion.line)
 
 
 def _as_finding_assertion(raw: object) -> FindingAssertion:
@@ -309,10 +308,11 @@ def _metrics_from_fixtures(
 
         fired_ids = {f.rule_id for f in result.findings}
         findings = result.findings
+        failures: list[str] = []
         if spec.label == "positive":
 
             missing = sorted(set(spec.expected_rule_ids) - fired_ids)
-            failures: list[str] = [f"missing:{m}" for m in missing]
+            failures = [f"missing:{m}" for m in missing]
 
 
             for rid in spec.expected_rule_ids:
@@ -333,15 +333,19 @@ def _metrics_from_fixtures(
 
             # Opt-in: per-finding gates. expected_findings entries must
             # match at least one finding; unexpected_findings entries
-            # must match no finding. Deduped by fingerprint so the same
-            # finding doesn't satisfy multiple assertions.
+            # must match no finding. For expected_findings we dedupe by
+            # fingerprint so the same finding doesn't satisfy multiple
+            # assertions (one-to-one expected→actual mapping); for
+            # unexpected_findings we deliberately do NOT dedupe, since
+            # the semantics is "any finding matching = assertion fails"
+            # and a single finding could legitimately violate several
+            # unexpected assertions.
             seen: set = set()
             for ef in spec.expected_findings:
                 if not any(_matches_finding(f, ef, seen=seen) for f in findings):
                     failures.append(f"expected_finding_absent:{ef.rule_id}")
-            seen.clear()
             for uf in spec.unexpected_findings:
-                if any(_matches_finding(f, uf, seen=seen) for f in findings):
+                if any(_matches_finding(f, uf) for f in findings):
                     failures.append(f"unexpected_finding_present:{uf.rule_id}")
 
             outcome = "PASS" if not failures else "FAIL"
@@ -349,7 +353,6 @@ def _metrics_from_fixtures(
         else:  # negative
 
             unexpected = sorted(fired_ids)
-            failures: list[str] = []
             for rid in unexpected:
                 _bump(rid, fp=1)
             if unexpected:

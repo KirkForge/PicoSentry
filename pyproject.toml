@@ -87,7 +87,7 @@ grpc = [
 ]
 # Everything
 all = [
-    "picosentry[scan,watch-server,serve,otel,sigstore]",
+    "picosentry[scan,watch-server,serve,otel,sigstore,grpc]",
 ]
 dev = [
     "pytest>=7.0",

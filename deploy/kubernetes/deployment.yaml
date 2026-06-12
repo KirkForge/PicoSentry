@@ -31,9 +31,24 @@ spec:
         - name: picodome
           image: kirkforge/picodome:v2.0.12
           imagePullPolicy: IfNotPresent
+          # Start the sandbox daemon with both transports available.
+          # The daemon CLI accepts --transport=grpc to switch to gRPC;
+          # the HTTP transport runs on --port (default 8443) and gRPC
+          # on --grpc-port (default 50051).  See
+          # deploy/helm/picodome/values.yaml `grpc.enabled` for the
+          # opt-in pattern.
+          args:
+            - "daemon"
+            - "--host=0.0.0.0"
+            - "--port=8443"
+            - "--transport=grpc"
+            - "--grpc-port=50051"
           ports:
             - name: http
               containerPort: 8443
+              protocol: TCP
+            - name: grpc
+              containerPort: 50051
               protocol: TCP
           env:
             - name: PICODOME_DAEMON_HOST
@@ -108,6 +123,26 @@ spec:
     - name: http
       port: 8443
       targetPort: http
+      protocol: TCP
+  selector:
+    app: picodome
+---
+# gRPC transport Service.  The pod's container is launched with
+# `--transport=grpc --grpc-port=50051` (see the Deployment above) so
+# the gRPC server is reachable on 50051 alongside the HTTP API on 8443.
+# Delete this Service if you only need the HTTP transport.
+apiVersion: v1
+kind: Service
+metadata:
+  name: picodome-grpc
+  labels:
+    app: picodome
+spec:
+  type: ClusterIP
+  ports:
+    - name: grpc
+      port: 50051
+      targetPort: grpc
       protocol: TCP
   selector:
     app: picodome

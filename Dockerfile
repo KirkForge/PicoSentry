@@ -73,8 +73,13 @@ WORKDIR /home/picosentry
 # `python -m build` produced from pyproject.toml. To pin to a specific version,
 # override this line in a derived Dockerfile.
 COPY --from=builder /build/dist/*.whl /tmp/
+# [all,grpc] — `all` covers the four subcommands (scan/watch/serve + otel/sigstore),
+# `grpc` is opt-in in pyproject but is needed here so the gRPC transport
+# (`picosentry sandbox daemon --transport=grpc --grpc-port=50051`) actually
+# starts in the official image.  See deploy/helm/picodome/values.yaml
+# `grpc.enabled` for the deployment-side switch.
 RUN WHEEL=$(ls /tmp/picosentry-*-py3-none-any.whl | head -n1) && \
-    pip install --no-cache-dir "${WHEEL}[all]" && \
+    pip install --no-cache-dir "${WHEEL}[all,grpc]" && \
     rm -f /tmp/picosentry-*-py3-none-any.whl
 
 # Verify installation
@@ -83,8 +88,9 @@ RUN picosentry --version && picosentry health
 # Ports:
 #   8765 — serve (API server / dashboard)
 #   8766 — watch HTTP daemon
-#   8443 — sandbox daemon
-EXPOSE 8765 8766 8443
+#   8443 — sandbox daemon (HTTP transport; default)
+#   50051 — sandbox daemon (gRPC transport; opt-in via deploy/helm/picodome `grpc.enabled=true`)
+EXPOSE 8765 8766 8443 50051
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

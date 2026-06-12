@@ -263,6 +263,35 @@ def main(argv: list[str] | None = None) -> None:
     diff_parser.add_argument("path_b", type=str, help="Second scan result")
     diff_parser.add_argument("--verbose", action="store_true", help="Show detailed diff")
 
+    daemon_parser = subparsers.add_parser(
+        "daemon",
+        help="Start PicoDome sandbox daemon (HTTP API + optional gRPC transport)",
+    )
+    daemon_parser.add_argument("--host", default="127.0.0.1", help="HTTP bind address (default: 127.0.0.1)")
+    daemon_parser.add_argument("--port", type=int, default=8443, help="HTTP bind port (default: 8443)")
+    daemon_parser.add_argument("--background", action="store_true", help="Run in background")
+    daemon_parser.add_argument(
+        "--transport",
+        choices=["http", "grpc"],
+        default="http",
+        help="Transport protocol: http (default) or grpc",
+    )
+    daemon_parser.add_argument(
+        "--grpc-port", type=int, default=50051, help="gRPC port (default: 50051, only used with --transport grpc)"
+    )
+    daemon_parser.add_argument(
+        "--store-backend",
+        choices=["jsonl", "sqlite"],
+        default=None,
+        help="Job store backend: jsonl (default) or sqlite",
+    )
+    daemon_parser.add_argument(
+        "--metrics-port",
+        type=int,
+        default=None,
+        help="Separate port for /metrics endpoint (default: same as API port)",
+    )
+
     args = parser.parse_args(argv)
 
 
@@ -304,6 +333,10 @@ def main(argv: list[str] | None = None) -> None:
         exit_code = _handle_update()
     elif args.command == "diff":
         _handle_diff(args)
+    elif args.command == "daemon":
+        _emit_maturity_warning("sandbox")
+        from picosentry.sandbox.cli_commands import daemon as _daemon_mod
+        _daemon_mod.cmd(args)
     elif args.command == "version":
         _show_version()
     else:

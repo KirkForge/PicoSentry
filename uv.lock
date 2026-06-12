@@ -1335,6 +1335,7 @@ dependencies = [
 all = [
     { name = "croniter" },
     { name = "fastapi" },
+    { name = "grpcio" },
     { name = "opentelemetry-api" },
     { name = "opentelemetry-exporter-otlp" },
     { name = "opentelemetry-sdk" },
@@ -1401,7 +1402,7 @@ requires-dist = [
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'otel'", specifier = ">=1.20" },
     { name = "opentelemetry-sdk", marker = "extra == 'otel'", specifier = ">=1.20" },
     { name = "passlib", extras = ["bcrypt"], marker = "extra == 'serve'", specifier = ">=1.7.4" },
-    { name = "picosentry", extras = ["scan", "watch-server", "serve", "otel", "sigstore"], marker = "extra == 'all'" },
+    { name = "picosentry", extras = ["scan", "watch-server", "serve", "otel", "sigstore", "grpc"], marker = "extra == 'all'" },
     { name = "pydantic", marker = "extra == 'serve'", specifier = ">=2.0.0" },
     { name = "pyjwt", marker = "extra == 'serve'", specifier = ">=2.8.0" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=7.0" },

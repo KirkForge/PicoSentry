@@ -23,7 +23,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Component | Status | Notes |
 |-----------|--------|-------|
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline |
-| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC transport experimental |
+| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC transport (opt-in) — protobuf stubs are committed, `grpcio>=1.50` is the `[grpc]` extra, `picosentry daemon --transport=grpc --grpc-port=50051` boots a real gRPC server end-to-end in the official image |
 | `picosentry watch` | **Beta** | Prompt-injection detection works; HTTP server experimental |
 | `picosentry serve` | **Experimental** | API server + dashboard in active development |
 | Cross-layer correlation | **Experimental** | Links findings across layers |
@@ -178,7 +178,47 @@ extras (see [install options](#install-options) below).
 | `pip install picosentry[watch-server]` | + FastAPI + uvicorn for watch HTTP daemon |
 | `pip install picosentry[otel]` | + OpenTelemetry tracing |
 | `pip install picosentry[sigstore]` | + Sigstore signing support |
-| `pip install picosentry[all]` | Everything |
+| `pip install picosentry[grpc]` | + `grpcio>=1.50` for the sandbox gRPC transport (committed protobuf stubs are included in the wheel, no `grpc_tools` required) |
+| `pip install picosentry[all]` | Everything (including `[grpc]`) |
+
+---
+
+### Sandbox gRPC transport (opt-in)
+
+The sandbox daemon can serve over gRPC instead of HTTP. Install the
+extra, then start the daemon with `--transport=grpc`:
+
+```bash
+pip install 'picosentry[grpc]'
+
+# Start the daemon (port 50051 by default; pass --grpc-port to change)
+picosentry daemon --host=0.0.0.0 --port=8443 --transport=grpc --grpc-port=50051
+```
+
+The generated protobuf stubs (`picodome_pb2.py`, `picodome_pb2_grpc.py`)
+are committed under `picosentry/sandbox/grpc_transport/proto/` and
+ship in the wheel, so a client only needs `grpcio` to talk to the
+daemon. Regenerate the stubs with `scripts/regen_proto.sh` after
+editing `picodome.proto`.
+
+For Kubernetes: `deploy/kubernetes/deployment.yaml` boots the daemon
+with gRPC enabled by default and ships a `picodome-grpc` Service on
+port 50051. For Helm, the equivalent is opt-in:
+
+```yaml
+# values.yaml
+grpc:
+  enabled: true
+  port: 50051
+```
+
+```bash
+helm install picodome deploy/helm/picodome/ --set grpc.enabled=true
+```
+
+The gRPC service exposes `Scan`, `Health`, `GetPolicy`, and
+`QueryAudit` RPCs — see `picosentry/sandbox/grpc_transport/proto/picodome.proto`
+for the full schema.
 
 ---
 

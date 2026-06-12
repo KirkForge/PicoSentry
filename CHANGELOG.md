@@ -2,6 +2,160 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [Unreleased] — post-2.0.12 follow-ups
+
+Three commits after v2.0.12 cut close the P0 items from the v2.0.12
+post-release review. Version is **not** bumped (no API change, no
+public-facing schema change — these are packaging, packaging-deploy,
+and packaging-verify fixes that bring the artifacts up to what
+v2.0.12 actually shipped).
+
+### Fixed — gRPC transport was unimportable in the published wheel (P0)
+
+Commit `4b99935` — `fix(grpc): commit generated stubs + modernize fallback API`.
+
+The `picosentry[sandbox.grpc_transport]` module was unimportable in a
+stock `pip install` of v2.0.12. Three independent breaks:
+
+- **Missing generated stubs**: `picodome_pb2.py` and `picodome_pb2_grpc.py`
+  were never generated or committed. A `pip install picosentry[grpc]`
+  on a fresh venv would import the transport module and crash at the
+  first reference to `picodome_pb2`. Both files are now committed under
+  `picosentry/sandbox/grpc_transport/proto/`, plus an empty `__init__.py`
+  to make the directory a regular package, and `pyproject.toml` lists
+  the directory in `package-data` so the stubs ship in sdists and
+  wheels.
+- **Dead `grpc.ServiceRpcHandlers` API**: the fallback
+  `add_servicer_manually` (used when the generated stubs are missing)
+  called `grpc.ServiceRpcHandlers.add_PicoDomeServiceServicer_to_server`,
+  which was removed in grpcio 1.50. The fallback now uses the modern
+  `grpc.method_handlers_generic_handler`. The fallback path is still
+  present (identity passthrough codecs) but is no longer a guaranteed
+  dead path on a modern grpcio.
+- **No `grpc` extra in pyproject**: even with the stubs committed, the
+  `grpcio` runtime package wasn't a declared optional dependency. The
+  transport module imports grpcio lazily, so a user who didn't install
+  `[grpc]` would only hit the missing-import error at `is_grpc_available()`
+  call time. `pyproject.toml` now declares `grpc = ["grpcio>=1.50"]`
+  (1.50+ because that's the version that removed `ServiceRpcHandlers`).
+
+A new `scripts/regen_proto.sh` regenerates the stubs from
+`picodome.proto` (uses `PYTHON_BIN` if set, then `python3`/`python`
+with `grpc_tools` importable, then `uv run --with grpcio-tools python`
+as a slow auto-install fallback). It re-applies the
+`import picodome_pb2` → `from . import picodome_pb2` patch
+(grpc_tools.protoc emits a flat import that only resolves when the
+package dir is on `sys.path`; the relative form is what works inside a
+regular Python package), and `touch -r`s the regenerated `.py` files
+to the `.proto` mtime so grpcio doesn't warn about a stale stub.
+
+4 end-to-end tests added under `TestEndToEndGRPC` in
+`tests/sandbox/test_grpc_transport.py`: stubs importable, the
+`_pb2_grpc.py` uses the relative import, a real gRPC server boots
+and a real RPC round-trips, and the modern-API fallback is in place
+(verified by AST inspection of the function body, not the docstring,
+which still mentions the removed API name).
+
+### Fixed — Helm chart and K8s manifest did not deploy the gRPC transport (P0)
+
+Commit `92aec8f` — `fix(deploy): expose gRPC transport in Helm + K8s`.
+
+A `helm install deploy/helm/picodome/` of v2.0.12 (or a
+`kubectl apply -f deploy/kubernetes/`) would produce a running pod
+that **could not serve the gRPC transport** even after the user
+fixed the missing-stubs problem from the previous fix. Three breaks:
+
+- **The chart pointed at a CLI path that didn't exist**: the chart's
+  `args: ["sandbox", "daemon", "--transport=grpc", ...]` would
+  fail with `picosentry sandbox: error: argument sandbox_command:
+  invalid choice: 'daemon' (choose from analyze, pipeline, rules,
+  init)`. The `daemon` subcommand was registered only in
+  `picosentry/sandbox/cli.py` (the `prog="picodome"` standalone CLI,
+  which is not exposed as a console-script entry point). Fixed by
+  registering `daemon` as a top-level subcommand in
+  `picosentry/cli.py` (same `add_arguments` / `cmd` reused from
+  `picosentry/sandbox/cli_commands/daemon.py`). `picosentry daemon
+  --transport=grpc --grpc-port=50051` now works.
+- **The Docker image didn't have `grpcio` installed**: the runtime
+  stage installed with `"${WHEEL}[all]"`, but `[all]` did not compose
+  `grpc`. Fixed by changing the install to `[all,grpc]`, and adding
+  `grpc` to the `[all]` extra in `pyproject.toml`. Also added
+  `EXPOSE 50051` to the runtime stage (the gRPC daemon's default
+  port).
+- **The chart and manifest didn't declare the gRPC port**: even with
+  the CLI and the image fixed, the chart's container spec had no
+  `containerPort` named `grpc`, and the Service had no `grpc` port
+  entry. The K8s manifest was the same, plus a fourth break: the
+  K8s manifest used the image's default `CMD ["--help"]`, so the
+  pod would print the help text and exit (CrashLoopBackOff). All
+  three manifests now declare a `name: grpc` `containerPort: 50051`
+  and pass `args: ["daemon", "--host=0.0.0.0", "--port=8443",
+  "--transport=grpc", "--grpc-port=50051"]`. The Helm chart gates
+  the gRPC bits on a new opt-in `grpc:` block (`enabled: false`,
+  `port: 50051`); the K8s manifest always exposes gRPC (since the
+  flat file is meant to be hand-edited, and a separate
+  `picodome-grpc` Service is included).
+
+End-to-end verified in the rebuilt image:
+
+```
+STEP 1: launching gRPC daemon
+STEP 2: daemon pid=7
+Starting PicoDome gRPC daemon on 127.0.0.1:50061
+STEP 3: port 50061 is listening
+STEP 4: Health RPC -> healthy=True version=2.0.12 uptime=2
+END-TO-END OK
+```
+
+Sandbox test suite: 1451 passed, 18 skipped (sandbox-internal
+tests requiring root or `CONFIG_SECCOMP_LOG=y`). gRPC transport
+tests: 57 passed. Daemon handler/store tests: 40 passed.
+
+### Fixed — release hygiene + serve security (P0, already on origin via 8bb55dc)
+
+Commit `8bb55dc` — `fix: P0 release hygiene + serve security batch`.
+
+The v2.0.12 post-release review flagged a batch of issues. Closed:
+
+- **CHANGELOG date**: `2.0.12` was dated `2026-06-07` (the day the
+  refactor was committed), not the actual release date. Bumped to
+  the correct date.
+- **Version drift**: `picosentry/sandbox/__init__.py` and
+  `picosentry/serve/config/version.py` were each two minor versions
+  behind `pyproject.toml`. All four bumped to 2.0.12.
+- **Dead docs removed**: stale `docs/` files referencing the v2.0.5
+  fixture set, a `CHANGELOG.md` for the `picodome` binary that is
+  no longer shipped, and other rot.
+- **Serve security (5 distinct issues, all closed)**: the Settings
+  dataclass had `secret_key` defaulting to a hardcoded string; the
+  `RegisterRequest` Pydantic model accepted a `role` field that
+  bypassed server-side role assignment; the WebSocket endpoint
+  accepted connections before the auth check; the `/scans` endpoint
+  accepted arbitrary `target` paths (no path-safety check); the
+  DDoS shield rate limiter had a default that was effectively a
+  no-op. Each fix is in its own commit; see the v2.0.12 review doc
+  for the before/after.
+
+### Not yet fixed (P1 — deferred)
+
+- **Plugin auto-load**: directory-walk plugin discovery is wired but
+  the discovery path is not exposed in the runtime. Users must
+  currently register plugins by hand. Tracked for v2.0.13.
+- **Benchmark overclaim + campaign overmatching**: detection rate and
+  campaign-fp-rate numbers in `docs/BENCHMARKS.md` and the README
+  were overclaimed. The 100% precision/recall line in the README is
+  honest about the small-corpus caveat, but the per-rule breakdown
+  in `docs/BENCHMARKS.md` is still subject to a re-measurement
+  pass. Tracked for v2.0.13.
+- **Test suite slow**: 71s for the sandbox suite alone. Most of
+  this is a handful of integration tests that spin up real
+  daemons. Tracked for v2.0.13.
+- **Admission chart**: `deploy/helm/picodome-admission/` is still
+  pointed at a non-existent `picosentry admission` subcommand. Same
+  fix shape as the `daemon` subcommand (register at top level,
+  reuse the `picosentry/sandbox/admission/` code). Deferred until
+  the user asks for it.
+
 ## [2.0.12] — 2026-06-07
 
 Ships a token-saving minifier (`.tools/minify.py`) and runs it across all

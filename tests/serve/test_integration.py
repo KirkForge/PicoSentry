@@ -572,12 +572,22 @@ class TestAnomalyDetection:
 # ── PicoDome endpoints (previously stubs, now real) ─────────────────────
 
 class TestPicoDomeEndpoints:
-    def test_scan_endpoint_returns_200(self, client):
-        """Scan endpoint now runs the built-in scanner.  Operator role
-        is required (P0 fix); viewers are rejected with 403."""
+    def test_scan_endpoint_returns_200(self, client, tmp_path):
+        """Scan endpoint runs the built-in scanner end-to-end.  Operator
+        role is required (P0 fix); viewers are rejected with 403.
+
+        We point at an empty directory under the configured workspace
+        rather than ``/tmp`` itself.  A real ``/tmp`` on a developer
+        box has ~1000+ files and the built-in scanner takes ~25 s on
+        it — which exceeds TestClient's default httpx timeout and
+        masks the endpoint contract this test is supposed to pin.
+        An empty target is scanned in milliseconds and exercises the
+        same request → engine → response path."""
+        target = tmp_path / "scan_target"
+        target.mkdir()
         token, _ = _register_and_login(client, role="operator", suffix=int(time.time()*1000))
         resp = client.post("/api/v1/scans", json={
-            "target": "/tmp", "rules": None, "format": "json",
+            "target": str(target), "rules": None, "format": "json",
         }, headers=_auth_headers(token))
         assert resp.status_code == 200
         data = resp.json()

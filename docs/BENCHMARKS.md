@@ -15,14 +15,17 @@
 
 ## TL;DR
 
-- **Fixtures:** 177 total (145 positive, 32 negative)
+- **Fixtures:** 178 total (145 positive, 33 negative)
 - **Rules covered by fixtures:** 53 (49 L2 rule_ids in `RULE_INFO` + 4 L2-CAMP rule_ids
   from the IoC corpus — `L2-CAMP-SHAI-HULUD`, `L2-CAMP-NODE-IPC-COMPROMISE`,
   `L2-CAMP-TRAPDOOR`, `L2-CAMP-AXIOS-POISONING`). Every L2 rule in
   `RULE_INFO` is exercised by at least one positive fixture, and the 4 campaign
   rules each have a positive + at least one negative fixture.
 - **Aggregate TP / FP / FN:** see the per-rule table below.
-- **Mean precision / recall:** 1.00 / 1.00
+- **Mean precision / recall:** 1.00 / 1.00. The mean is over all 53 rules; rules
+  marked with `⁂` in the per-rule table have 0 negative fixtures and their precision
+  value is vacuous (the denominator `TP + FP` collapses to `TP`). See the table
+  footnote for the full definition.
 - **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build on any regression**.
 - **Tricky-negatives corpus:** 7 fixtures in `tests/scan/fixtures/validation/_tricky/`,
   guarded by `tests/scan/test_tricky_negatives.py`. These document known detector limits
@@ -36,7 +39,7 @@ command and is enforced by CI. But it is a **v2.0.9 baseline expanded through th
 v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
 Specifically:
 
-1. **177 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
+1. **178 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
    patterns could pass today and fail tomorrow against real-world packages. The 7 tricky
    fixtures in `_tricky/` exist specifically to document the *known* cases where a
    detector's regex is too coarse, but they don't prove the detector is precise on the
@@ -44,8 +47,8 @@ Specifically:
 2. **Multi-fixture per rule.** Most rules have 1–6 positive fixtures exercising primary
    and variant cases (transitive advisories, homoglyph typosquats, dep-confusion
    prefixes, obfuscation bypass patterns, etc.). The minimum is now 1 positive + 1
-   negative per L2 rule (where the detector has both a TP and FP contract); some rules
-   (L2-CAMP-SHAI-HULUD) have no negative yet — known gap.
+   negative per L2 rule (where the detector has both a TP and FP contract); every rule
+   in the per-rule table below has at least one negative fixture.
 3. **Ecosystem coverage is now full.** All 7 ecosystems (npm, PyPI, Go, Cargo, Maven,
    RubyGems, NuGet) are exercised with multiple fixture variants per ecosystem.
 4. **Layer coverage is L2 only.** The 53 verified rules are static-analysis (L2) detectors
@@ -158,7 +161,7 @@ these numbers from a fresh clone.
 | L2-BUND-001             |    2 |    2 |  2 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-AXIOS-POISONING |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-NODE-IPC-COMPROMISE |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-CAMP-SHAI-HULUD      |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-SHAI-HULUD      |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-TRAPDOOR        |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CARGO-ADV-001        |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
 | L2-CARGO-DEPC-001       |    4 |    2 |  4 |  0 |  0 | 100.00% | 100.00% |
@@ -207,13 +210,25 @@ these numbers from a fresh clone.
 | L2-SIDELOAD-001         |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-TYPO-001             |    4 |    4 |  4 |  0 |  0 | 100.00% | 100.00% |
 | L2-WORM-001             |    3 |    5 |  3 |  0 |  0 | 100.00% | 100.00% |
-| **Aggregate              ** | ** 165** | ** 163** | **165** | ** 0** | ** 0** | **100.00%** | **100.00%** |
+| **Aggregate              ** | ** 165** | ** 164** | **165** | ** 0** | ** 0** | **100.00%** | **100.00%** |
 <!-- END: rule-table -->
 
 > **Note on `n_neg`:** The six "n_neg=1" rows are the rules exercised by the
 > `clean_npm_*` negative fixtures. These rules (DEPC, ENGIN, FORK, LICENSE,
 > LOCK, MAINT, PROV, TYPO) are checked against a *fully filled-in* clean
 > `package.json` to confirm they don't over-fire on legitimate projects.
+
+> **Vacuous precision (⁂):** A rule marked with `⁂` in the table has at
+> least one positive fixture but **zero negative fixtures**. Its reported
+> `precision` column is vacuous (the denominator `TP + FP` collapses to
+> `TP`, which is `1` by construction). The `⁂` marker is rendered
+> automatically by `scripts/render_benchmarks.py` whenever a rule
+> regresses to this state; a clean Bun-friendly npm consumer fixture
+> (`clean_npm_shai_hulud_legit`) was added in v2.0.13 to give
+> `L2-CAMP-SHAI-HULUD` its first negative and close this gap. If a row
+> picks up the marker in a future release, the right fix is to add a
+> negative fixture for that rule under
+> `tests/scan/fixtures/validation/negative/`, not to relax the CI floor.
 
 ---
 
@@ -236,11 +251,16 @@ These are the acceptance criteria for the next release. Each is something
 the corpus can be measured against, not aspirational language.
 
 - [ ] ≥ 30 fixtures per rule (positive + negative combined), for **every** rule in
-      the [per-rule table](#per-rule-results-v209). v2.0.9 sits at 1 fixture per rule.
+      the [per-rule table](#per-rule-results-v209). v2.0.9 minimum is 1 positive
+      fixture per rule; mean coverage is ~3 positives + ~3 negatives per rule
+      across the 53 rules in the table.
 - [ ] ≥ 5 "tricky negative" fixtures per rule category. v2.0.9 ships 6 total.
 - [ ] Aggregate precision ≥ 0.95 across all rules. v2.0.9 sits at 1.00.
 - [ ] Aggregate recall ≥ 0.90 across all rules. v2.0.9 sits at 1.00.
 - [ ] No single rule below precision = 0.85 or recall = 0.80.
+- [ ] No `⁂` markers in the per-rule table (i.e. every rule has at least one
+      positive *and* one negative fixture, so all `precision` claims are
+      measured rather than vacuous). v2.0.9 has 0 markers as of v2.0.13.
 
 When these are met, the floor in `test_validation_passes_at_100_percent_on_current_fixtures`
 will be relaxed to the 0.95 / 0.80 advisory thresholds from the CLI.

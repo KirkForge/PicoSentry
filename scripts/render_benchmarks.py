@@ -49,8 +49,13 @@ def main() -> int:
     rows: list[str] = []
     for m in sorted(rms, key=lambda m: m["rule_id"]):
         c = coverage.get(m["rule_id"], {"n_pos": 0, "n_neg": 0})
+        # Vacuous-precision marker: rule has at least one positive
+        # fixture but zero negative fixtures, so the precision column
+        # is meaningless (the denominator TP+FP reduces to TP). The
+        # matching footnote in docs/BENCHMARKS.md explains the marker.
+        marker = " ⁂" if c["n_pos"] > 0 and c["n_neg"] == 0 else ""
         rows.append(
-            f"| {m['rule_id']:<23} | {c['n_pos']:>4} | {c['n_neg']:>4} | "
+            f"| {m['rule_id']:<23}{marker} | {c['n_pos']:>4} | {c['n_neg']:>4} | "
             f"{m['true_positives']:>2} | {m['false_positives']:>2} | "
             f"{m['false_negatives']:>2} | {m['precision']:>7.2%} | "
             f"{m['recall']:>7.2%} |"

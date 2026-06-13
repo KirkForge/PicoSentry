@@ -26,6 +26,16 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         "API server, dashboard, and orchestration are in active development. "
         "Do not expose to untrusted networks without additional review.",
     ),
+    "daemon": (
+        "BETA",
+        "Sandbox daemon (HTTP API + optional gRPC). Works but may have rough edges; "
+        "seccomp-bpf backend is Linux-only.",
+    ),
+    "admission": (
+        "BETA",
+        "K8s admission webhook server. Validates pod security contexts and "
+        "optionally scans container images via the daemon.",
+    ),
 }
 
 
@@ -122,21 +132,20 @@ def main(argv: list[str] | None = None) -> None:
         if sub_cmd == "analyze":
             _handle_sandbox_subcommand(
                 argparse.Namespace(
-                    sandbox_command="analyze",
-                    input=argv[2] if len(argv) > 2 else None,
+                    cmd=[sub_cmd, *argv[2:]],  # cmd[0] is the subcommand name
+                    input=argv[2] if len(argv) > 2 and not argv[2].startswith("-") else None,
                 )
             )
         elif sub_cmd == "pipeline":
             _handle_sandbox_subcommand(
                 argparse.Namespace(
-                    sandbox_command="pipeline",
-                    command=argv[2:],
+                    cmd=[sub_cmd, *argv[2:]],
                 )
             )
         elif sub_cmd == "rules":
-            _handle_sandbox_subcommand(argparse.Namespace(sandbox_command="rules"))
+            _handle_sandbox_subcommand(argparse.Namespace(cmd=[sub_cmd]))
         elif sub_cmd == "init":
-            _handle_sandbox_subcommand(argparse.Namespace(sandbox_command="init"))
+            _handle_sandbox_subcommand(argparse.Namespace(cmd=[sub_cmd]))
         return
 
     parser = argparse.ArgumentParser(
@@ -179,7 +188,11 @@ def main(argv: list[str] | None = None) -> None:
 
 
     sandbox_parser = subparsers.add_parser("sandbox", help="Runtime sandbox and behavioral analysis")
-    sandbox_parser.add_argument("command", nargs="*", type=str, help="Command to run under sandbox")
+    # Named "cmd" (not "command") to avoid colliding with the top-level
+    # subparser's dest="command".  argparse stores both under args.<dest>,
+    # and the subparser's value ("sandbox") would overwrite the positional's
+    # list if they shared the same dest name.
+    sandbox_parser.add_argument("cmd", nargs="*", type=str, help="Command to run under sandbox")
     sandbox_parser.add_argument("--format", choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"], default="table")
     sandbox_parser.add_argument("--deterministic-output", "-D", action="store_true", help="Enable deterministic output")
     sandbox_parser.add_argument("--exit-code", action="store_true", help="Exit non-zero on findings")
@@ -215,14 +228,10 @@ def main(argv: list[str] | None = None) -> None:
     )
     sandbox_parser.add_argument("--policy", type=str, default=None, help="Path to sandbox policy file")
     sandbox_parser.add_argument("--timeout", type=int, default=None, help="Sandbox timeout in seconds")
-
-    sandbox_sub = sandbox_parser.add_subparsers(dest="sandbox_command")
-    analyze_p = sandbox_sub.add_parser("analyze", help="Run L4 behavioral analysis on sandbox output")
-    analyze_p.add_argument("input", type=str, help="Sandbox result JSON to analyze")
-    pipeline_p = sandbox_sub.add_parser("pipeline", help="Run full L3+L4 pipeline on a command")
-    pipeline_p.add_argument("command", nargs="+", type=str, help="Command to sandbox and analyze")
-    _ = sandbox_sub.add_parser("rules", help="List available L4 detector rules")
-    _ = sandbox_sub.add_parser("init", help="Initialize sandbox configuration")
+    # --input is used by the `analyze` subcommand (routed manually in
+    # _handle_sandbox).  It's harmless on the top-level sandbox parser
+    # because it's only consumed when the first positional is "analyze".
+    sandbox_parser.add_argument("--input", type=str, default=None, help=argparse.SUPPRESS)
 
 
     watch_parser = subparsers.add_parser("watch", help="LLM prompt injection detection and output validation")
@@ -302,6 +311,48 @@ def main(argv: list[str] | None = None) -> None:
         help="Separate port for /metrics endpoint (default: same as API port)",
     )
 
+    # -- admission subcommand -------------------------------------------------
+    admission_parser = subparsers.add_parser(
+        "admission",
+        help="Start PicoDome K8s admission webhook server (TLS required)",
+    )
+    admission_parser.add_argument(
+        "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)"
+    )
+    admission_parser.add_argument(
+        "--port", type=int, default=8443, help="Bind port (default: 8443)"
+    )
+    admission_parser.add_argument(
+        "--cert-file",
+        required=True,
+        help="Path to TLS certificate file (PEM, required — K8s requires TLS)",
+    )
+    admission_parser.add_argument(
+        "--key-file",
+        required=True,
+        help="Path to TLS private key file (PEM, required — K8s requires TLS)",
+    )
+    admission_parser.add_argument(
+        "--background", action="store_true", help="Run in background"
+    )
+    admission_parser.add_argument(
+        "--scan-enabled",
+        action="store_true",
+        default=None,
+        help="Enable container image scanning via the daemon",
+    )
+    admission_parser.add_argument(
+        "--scan-min-severity",
+        choices=["info", "low", "medium", "high", "critical"],
+        default="high",
+        help="Minimum severity for image-scan blocking (default: high)",
+    )
+    admission_parser.add_argument(
+        "--daemon-url",
+        default=None,
+        help="PicoDome daemon URL for image scanning (default: http://127.0.0.1:8443)",
+    )
+
     args = parser.parse_args(argv)
 
 
@@ -344,9 +395,13 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "diff":
         _handle_diff(args)
     elif args.command == "daemon":
-        _emit_maturity_warning("sandbox")
+        _emit_maturity_warning("daemon")
         from picosentry.sandbox.cli_commands import daemon as _daemon_mod
-        _daemon_mod.cmd(args)
+        exit_code = _daemon_mod.cmd(args)
+    elif args.command == "admission":
+        _emit_maturity_warning("admission")
+        from picosentry.sandbox.cli_commands import admission as _admission_mod
+        exit_code = _admission_mod.cmd(args)
     elif args.command == "version":
         _show_version()
     else:
@@ -498,15 +553,25 @@ def _handle_scan_subcommand(args: argparse.Namespace) -> None:
 
 
 def _handle_sandbox(args: argparse.Namespace) -> None:
-    if hasattr(args, "sandbox_command") and args.sandbox_command:
+    # Manual subcommand routing.  We removed the argparse subparser
+    # because it conflicted with the `cmd` positional (nargs="*"):
+    # argparse tried to match the first positional against subparser
+    # choices and rejected anything that wasn't analyze/pipeline/rules/init.
+    # Now we check the first positional ourselves.
+    _KNOWN_SUBCOMMANDS = {"analyze", "pipeline", "rules", "init"}
+
+    if args.cmd and args.cmd[0] in _KNOWN_SUBCOMMANDS:
         _handle_sandbox_subcommand(args)
         return
 
     from picosentry.sandbox.cli import main as sandbox_main
 
-    sandbox_argv: list[str] = []
-    if args.command:
-        sandbox_argv.extend(args.command)
+    # Prepend "sandbox" — the sandbox CLI's own subcommand that actually
+    # runs commands under the sandbox.  Without it, sandbox_main() would
+    # see "echo" as its subcommand and reject it.
+    sandbox_argv: list[str] = ["sandbox"]
+    if args.cmd:
+        sandbox_argv.extend(args.cmd)
     if args.format:
         sandbox_argv.extend(["--format", args.format])
     if args.deterministic_output:
@@ -538,13 +603,21 @@ def _handle_sandbox(args: argparse.Namespace) -> None:
 def _handle_sandbox_subcommand(args: argparse.Namespace) -> None:
     from picosentry.sandbox.cli import main as sandbox_main
 
-    if args.sandbox_command == "analyze":
-        sandbox_main(argv=["analyze", "--input", args.input])
-    elif args.sandbox_command == "pipeline":
-        sandbox_main(argv=["pipeline", *args.command])
-    elif args.sandbox_command == "rules":
+    sub_cmd = args.cmd[0]  # first positional is the subcommand name
+    rest = args.cmd[1:]    # remaining positionals are the subcommand's args
+
+    if sub_cmd == "analyze":
+        # --input can come from --input flag or from the second positional
+        input_path = getattr(args, "input", None) or (rest[0] if rest else None)
+        if input_path:
+            sandbox_main(argv=["analyze", "--input", input_path])
+        else:
+            sandbox_main(argv=["analyze"])
+    elif sub_cmd == "pipeline":
+        sandbox_main(argv=["pipeline", *rest])
+    elif sub_cmd == "rules":
         sandbox_main(argv=["rules"])
-    elif args.sandbox_command == "init":
+    elif sub_cmd == "init":
         sandbox_main(argv=["init"])
 
 

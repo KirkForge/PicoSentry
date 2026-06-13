@@ -22,20 +22,25 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline |
-| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC transport (opt-in) — protobuf stubs are committed, `grpcio>=1.50` is the `[grpc]` extra, `picosentry daemon --transport=grpc --grpc-port=50051` boots a real gRPC server end-to-end in the official image |
-| `picosentry watch` | **Beta** | Prompt-injection detection works; HTTP server experimental |
-| `picosentry serve` | **Experimental** | API server + dashboard in active development |
-| Cross-layer correlation | **Experimental** | Links findings across layers |
-| Plugin system | **Beta** | Loads and dispatches; signature verify works |
-| Postgres backend | **Stub** | SQLite only; migration not started |
-| Cluster mode | **Experimental** | Single-node verified; multi-node gossip untested |
-| Detection benchmarks | **Stable** | 178 fixtures (145 positive, 33 negative), 49 L2 rule_ids + 4 L2-CAMP rule_ids, 100% precision/recall on the CI floor (small corpus, see "Honest limitations" in that document); see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) |
-| Corpus marketplace | **Stub** | Export/import CLI commands not wired |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 178 fixtures |
+| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
+| `picosentry watch` | **Beta** | Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server |
+| `picosentry serve` | **Experimental** | API server, dashboard, RBAC, multi-tenant — not reviewed for untrusted networks |
+| `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
+| `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning |
+| `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
+| Cross-layer correlation | **Experimental** | Links findings across scan + sandbox + watch layers |
+| Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
+| Postgres backend | **Beta** | psycopg2 implementation done; migrations are SQLite DDL — needs separate PG schema |
+| Cluster mode | **Experimental** | Gossip primitives + HTTP endpoints exist; 7 multi-node tests pass; no auto-sync loop yet |
+| Detection benchmarks | **Stable** | 178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations) |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.13` on Docker Hub; all 4 components healthy; non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.0.13 published |
 
-The scanner is the stable product. The kernel sandbox is beta enforcement-only today;
-it kills disallowed syscalls but does not yet emit a per-syscall trace (see "What it
-does NOT do" below).
+The scanner is the stable product. Everything else is beta or experimental —
+read the notes column honestly. "Beta" means it works but hasn't been
+battle-tested in production. "Experimental" means it runs but hasn't had a
+security review — don't expose it to untrusted networks.
 
 ---
 
@@ -43,14 +48,18 @@ does NOT do" below).
 
 - **Records per-syscall traces from the kernel sandbox** (opt-in via
   `--backend=seccomp-trace` on `picosentry sandbox`; requires Linux + libseccomp +
-  `CONFIG_SECCOMP_LOG=y`). Default `--backend=auto` continues to use the
-  enforcement-only `seccomp-bpf` backend. Path/address arguments on events are
-  not yet captured (v2.0.9 plan: `PTRACE_SECCOMP` or `SECCOMP_RET_USER_NOTIF`).
+  `CONFIG_SECCOMP_LOG=y`). Path/address arguments on events are not yet captured.
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
-- **Does not run cluster mode in production.** Single-node only; multi-node gossip
-  is untested.
-- **Does not have a real Postgres backend.** SQLite only.
+- **Does not run cluster mode automatically.** Gossip primitives and HTTP endpoints
+  exist (GET/POST `/api/v1/cluster/snapshot`) but there's no periodic peer-sync
+  loop yet — you'd have to script the polling yourself.
+- **Postgres backend is implemented but not live-tested.** The code has a real
+  psycopg2 connection pool, but migrations are SQLite-specific DDL and it's never
+  been connected to a real Postgres instance.
+- **Admission controller is not tested against a real K8s cluster.** The code
+  exists and the CLI works, but it hasn't seen a real API server.
+- **Docker image is single-arch (amd64 only).** No arm64 build.
 - **Has published detection-benchmark data** in
   [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.13 corpus is 178
   fixtures (145 positive, 33 negative) / 49 L2 rule_ids + 4 L2-CAMP rule_ids
@@ -63,8 +72,7 @@ does NOT do" below).
   corpus (`[scan]` extra); offline-only operation pulls from the local corpus
   snapshot.
 
-If a feature is in `experimental.py` as Stub or Experimental, treat it as not
-shipped.
+If a feature is listed as Experimental above, treat it as not production-ready.
 
 ---
 

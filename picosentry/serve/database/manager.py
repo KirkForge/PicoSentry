@@ -348,18 +348,44 @@ class DatabaseManager:
     def transaction(self):
         conn = self._get_connection()
         try:
-            conn.execute("BEGIN")
+            if isinstance(self._pool, SQLitePool):
+                conn.execute("BEGIN")
+            # Postgres connections have autocommit=False, so transactions
+            # are implicit — no explicit BEGIN needed.
             yield conn
             conn.commit()
         except Exception:
             conn.rollback()
             raise
 
+    def _cursor(self, conn, sql: str, params: tuple = ()):
+        """Execute SQL and return cursor, handling backend differences.
+        SQLite: conn.execute() returns cursor directly.
+        Postgres: needs cursor = conn.cursor(); cursor.execute().
+        """
+        if isinstance(self._pool, SQLitePool):
+            return conn.execute(sql, params)
+        else:
+            cursor = conn.cursor()
+            cursor.execute(sql, params)
+            return cursor
+
+    def _row_to_dict(self, row, cursor) -> dict:
+        """Convert a fetched row to dict, handling backend differences.
+        SQLite Row objects are already dict-like.  Postgres returns tuples.
+        """
+        if isinstance(self._pool, SQLitePool):
+            return dict(row)
+        else:
+            cols = [desc[0] for desc in cursor.description] if cursor.description else []
+            return dict(zip(cols, row))
+
     def execute(self, sql: str, params: tuple = ()) -> list:
         with self._lock:
             conn = self._get_connection()
-            cursor = conn.execute(sql, params)
-            return [dict(r) for r in cursor.fetchall()]
+            cursor = self._cursor(conn, sql, params)
+            rows = cursor.fetchall()
+            return [self._row_to_dict(r, cursor) for r in rows]
 
     def execute_one(self, sql: str, params: tuple = ()) -> dict | None:
         results = self.execute(sql, params)
@@ -368,9 +394,16 @@ class DatabaseManager:
     def execute_insert(self, sql: str, params: tuple = ()) -> int:
         with self._lock:
             conn = self._get_connection()
-            cursor = conn.execute(sql, params)
+            cursor = self._cursor(conn, sql, params)
             conn.commit()
-            return cursor.lastrowid
+            if isinstance(self._pool, SQLitePool):
+                return cursor.lastrowid
+            else:
+                # Postgres: try RETURNING id, fall back to cursor.lastrowid
+                try:
+                    return cursor.fetchone()[0] if cursor.description else 0
+                except Exception:
+                    return 0
 
     def _migrate_orgs_api_key_hash(self):
 

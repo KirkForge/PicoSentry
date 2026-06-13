@@ -1216,3 +1216,112 @@ class TestGossipMerge:
         assert len(state_a.list_nodes()) == 2
         scans = state_a._backend.load_all_scans()
         assert any(s.scan_id == "gs1" and s.status == "completed" for s in scans)
+
+
+# ─── Gossip loop tests ──────────────────────────────────────────────────────
+
+
+class TestGossipLoop:
+    """Tests for the periodic gossip loop that exchanges state via HTTP."""
+
+    def test_fetch_and_merge_adds_new_nodes(self, monkeypatch):
+        """_fetch_and_merge_peer should add a peer's nodes to local state."""
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
+        mgr._running = True
+        mgr._state.add_node(ClusterNode(
+            node_id="self-node", address="127.0.0.1", port=8443,
+        ))
+
+        # Mock the HTTP response
+        peer_snapshot = {
+            "nodes": [
+                {"node_id": "peer-a", "address": "10.0.0.2", "port": 8443,
+                 "status": "online", "last_heartbeat": "2026-06-13T12:00:00Z", "load": 0},
+                {"node_id": "peer-b", "address": "10.0.0.3", "port": 8443,
+                 "status": "online", "last_heartbeat": "2026-06-13T12:00:00Z", "load": 2},
+            ],
+            "scans": [],
+            "leader_id": "peer-a",
+        }
+
+        def mock_urlopen(req, timeout=None):
+            class MockResponse:
+                def read(self):
+                    import json
+                    return json.dumps(peer_snapshot).encode()
+            return MockResponse()
+
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            mock_urlopen,
+        )
+
+        peer = ClusterNode(node_id="peer-a", address="10.0.0.2", port=8443)
+        mgr._fetch_and_merge_peer(peer)
+
+        nodes = mgr.state.list_nodes()
+        assert len(nodes) == 3  # self + peer-a + peer-b
+        assert any(n.node_id == "peer-b" for n in nodes)
+        assert mgr.state.get_leader_id() == "peer-a"
+
+    def test_fetch_and_merge_skips_invalid_response(self, monkeypatch):
+        """Non-dict responses should be silently skipped."""
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
+        mgr._running = True
+        mgr._state.add_node(ClusterNode(
+            node_id="self-node", address="127.0.0.1", port=8443,
+        ))
+
+        def mock_urlopen(req, timeout=None):
+            class MockResponse:
+                def read(self):
+                    return b'"not a dict"'
+            return MockResponse()
+
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            mock_urlopen,
+        )
+
+        peer = ClusterNode(node_id="peer-x", address="10.0.0.99", port=8443)
+        mgr._fetch_and_merge_peer(peer)
+
+        # Should still only have self-node (invalid response skipped)
+        assert len(mgr.state.list_nodes()) == 1
+
+    def test_gossip_loop_stops_with_manager(self):
+        """The gossip thread should exit when the manager stops."""
+        import time
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(
+            address="127.0.0.1", port=8443, node_id="test-node",
+            heartbeat_interval=1,
+        )
+        mgr._state.add_node(ClusterNode(
+            node_id="test-node", address="127.0.0.1", port=8443,
+        ))
+
+        # Start just the gossip loop manually (don't want heartbeat/health threads)
+        import threading
+        mgr._running = True
+        mgr._gossip_thread = threading.Thread(
+            target=mgr._gossip_loop, daemon=True, name="test-gossip",
+        )
+        mgr._gossip_thread.start()
+
+        assert mgr._gossip_thread.is_alive()
+
+        # Stop should terminate the thread
+        mgr._running = False
+        mgr._stop_event.set()
+        mgr._gossip_thread.join(timeout=5.0)
+
+        assert not mgr._gossip_thread.is_alive()

@@ -62,6 +62,7 @@ class ClusterManager:
         self._running = False
         self._heartbeat_thread: threading.Thread | None = None
         self._health_check_thread: threading.Thread | None = None
+        self._gossip_thread: threading.Thread | None = None
         self._stop_event: threading.Event = threading.Event()
 
     @property
@@ -117,6 +118,14 @@ class ClusterManager:
         self._health_check_thread.start()
 
 
+        self._gossip_thread = threading.Thread(
+            target=self._gossip_loop,
+            daemon=True,
+            name="picodome-cluster-gossip",
+        )
+        self._gossip_thread.start()
+
+
         try:
             audit = get_audit_logger()
             audit.record(
@@ -151,7 +160,7 @@ class ClusterManager:
             self._state.update_node(node)
 
 
-        for thread in (self._heartbeat_thread, self._health_check_thread):
+        for thread in (self._heartbeat_thread, self._health_check_thread, self._gossip_thread):
             if thread is not None and thread.is_alive():
                 thread.join(timeout=5.0)
 
@@ -339,6 +348,58 @@ class ClusterManager:
                     int(elapsed),
                 )
                 self.handle_node_failure(node.node_id)
+
+    def _gossip_loop(self) -> None:
+        """Periodically exchange cluster state with peers via HTTP.
+
+        Every ``heartbeat_interval * 3`` seconds, this loop:
+        1. Finds all ONLINE peers (excluding self)
+        2. GETs their /api/v1/cluster/snapshot
+        3. Merges the returned snapshot into local state
+
+        This is what turns the gossip primitives into an actual
+        self-converging cluster without a central coordinator.
+        """
+        # Run less frequently than heartbeats — gossip is heavier (HTTP call).
+        gossip_interval = self._heartbeat_interval * 3
+
+        while self._running:
+            try:
+                peers = [
+                    n for n in self._state.list_nodes(status=NodeStatus.ONLINE)
+                    if n.node_id != self._node_id
+                ]
+                for peer in peers:
+                    try:
+                        self._fetch_and_merge_peer(peer)
+                    except Exception as e:
+                        logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
+            except Exception as e:
+                logger.error("Gossip loop error: %s", e)
+
+            self._stop_event.wait(timeout=gossip_interval)
+
+    def _fetch_and_merge_peer(self, peer: ClusterNode) -> None:
+        """Fetch snapshot from a single peer and merge it into local state."""
+        import json
+        from urllib.request import Request, urlopen
+
+        url = f"http://{peer.address}:{peer.port}/api/v1/cluster/snapshot"
+        req = Request(url, headers={"Accept": "application/json"})
+        resp = urlopen(req, timeout=5.0)
+        snapshot = json.loads(resp.read())
+
+        if not isinstance(snapshot, dict):
+            logger.debug("Peer %s returned invalid snapshot", peer.node_id)
+            return
+
+        self.merge_peer_state(snapshot)
+        logger.debug(
+            "Gossip: merged state from %s (%d nodes, %d scans)",
+            peer.node_id,
+            len(snapshot.get("nodes", [])),
+            len(snapshot.get("scans", [])),
+        )
 
 
 __all__ = ["ClusterManager", "_parse_iso_timestamp"]

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77.0.3", "wheel"]
+requires = ["setuptools>=68,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,8 +7,7 @@ name = "picosentry"
 version = "2.0.13"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
-license = "BUSL-1.1"
-license-files = ["LICENSE*", "COMMERCIAL-LICENSE.md"]
+license = {text = "BUSL-1.1"}
 requires-python = ">=3.10"
 authors = [{name = "Henrik Kirk", email = "kirk@kirkforge.dev"}]
 maintainers = [{name = "KirkForge", email = "kirk@kirkforge.dev"}]
@@ -243,3 +242,4 @@ module = [
     "picosentry.sandbox.daemon.handler_routes_post",
 ]
 disable_error_code = ["misc"]
+

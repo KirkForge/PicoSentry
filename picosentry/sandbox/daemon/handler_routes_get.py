@@ -96,6 +96,10 @@ class PicoDomeGetRoutesMixin:
             token = self._require_permission("scan:read")
             if token:
                 self._handle_stats()
+        elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
+            token = self._require_permission("scan:read")
+            if token:
+                self._handle_cluster_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
@@ -303,6 +307,30 @@ class PicoDomeGetRoutesMixin:
             stats_data["audit"] = audit_stats
 
         self._send_json(stats_data)
+
+    def _handle_cluster_snapshot(self: PicoDomeHandler) -> None:
+        """GET /api/v1/cluster/snapshot — return full cluster state for gossip.
+
+        Cluster nodes call this endpoint on their peers to discover nodes,
+        scan assignments, and the current leader.  The caller merges the
+        returned snapshot via POST /api/v1/cluster/snapshot.
+        """
+        try:
+            from picosentry.sandbox.cluster.manager import get_cluster_manager
+
+            mgr = get_cluster_manager()
+            if not mgr.is_running:
+                self._send_json({
+                    "cluster": "inactive",
+                    "detail": "Cluster manager is not running on this node",
+                })
+                return
+
+            snapshot = mgr.state.get_state_snapshot()
+            self._send_json(snapshot)
+        except Exception as exc:
+            logger.exception("Failed to get cluster snapshot: %s", exc)
+            self._send_error(500, "cluster snapshot unavailable")
 
 
 __all__ = ["PicoDomeGetRoutesMixin"]

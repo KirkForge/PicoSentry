@@ -30,7 +30,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Plugin system | **Beta** | Loads and dispatches; signature verify works |
 | Postgres backend | **Stub** | SQLite only; migration not started |
 | Cluster mode | **Experimental** | Single-node verified; multi-node gossip untested |
-| Detection benchmarks | **Stable** | 45 fixtures, 49 L2 rule_ids + 1 L2-CAMP rule, 100% precision/recall; small corpus (see "Honest limitations" in that document); see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) |
+| Detection benchmarks | **Stable** | 178 fixtures (145 positive, 33 negative), 49 L2 rule_ids + 4 L2-CAMP rule_ids, 100% precision/recall on the CI floor (small corpus, see "Honest limitations" in that document); see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) |
 | Corpus marketplace | **Stub** | Export/import CLI commands not wired |
 
 The scanner is the stable product. The kernel sandbox is beta enforcement-only today;
@@ -52,10 +52,11 @@ does NOT do" below).
   is untested.
 - **Does not have a real Postgres backend.** SQLite only.
 - **Has published detection-benchmark data** in
-  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The 2.0.9 baseline is 45
-  fixtures / 49 L2 rule_ids (plus 1 L2-CAMP rule) / 100% precision /
-  100% recall. The corpus is small — 1 fixture per rule, mostly
-  hand-crafted — so the 100% number is a smoke test, not a
+  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.13 corpus is 178
+  fixtures (145 positive, 33 negative) / 49 L2 rule_ids + 4 L2-CAMP rule_ids
+  / 100% precision / 100% recall. The corpus is small (mean ~3
+  positives + ~3 negatives per rule across 53 rules) and the fixtures are
+  mostly hand-crafted, so the 100% number is a smoke test, not a
   statistically meaningful measurement. See "Honest limitations" in
   that document for what the numbers do and don't prove.
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV

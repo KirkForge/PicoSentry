@@ -2,13 +2,74 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
-## [Unreleased] — post-2.0.12 follow-ups
+## [2.0.13] — 2026-06-13
 
-Three commits after v2.0.12 cut close the P0 items from the v2.0.12
-post-release review. Version is **not** bumped (no API change, no
-public-facing schema change — these are packaging, packaging-deploy,
-and packaging-verify fixes that bring the artifacts up to what
-v2.0.12 actually shipped).
+### Enterprise Beta — admission controller + sandbox fix + benchmark honesty
+
+The v2.0.12 post-release review flagged a batch of P0/P1 items. The
+P0 items (release hygiene, serve security, gRPC transport, Helm/K8s
+staleness) were closed in the three post-2.0.12 commits. v2.0.13
+closes the remaining Enterprise Beta gaps and fixes a sandbox CLI
+bug that made `picosentry sandbox <command>` unusable with flags.
+
+**Admission controller CLI (CRITICAL):** The
+`picosentry/sandbox/admission/` module shipped a full K8s admission
+webhook server (`AdmissionWebhookServer` with TLS,
+`PodSecurityValidator`, `ImageScanner`) but had no CLI entry point.
+The Helm chart `deploy/helm/picodome-admission/` expected
+`args: ["admission", ...]` which would crash-loop. Fixed by:
+- New `picosentry/sandbox/cli_commands/admission.py` (follows the
+  `daemon.py` pattern)
+- `admission` subparser in `cli.py` with `--host`, `--port`,
+  `--cert-file` (required), `--key-file` (required), `--background`,
+  `--scan-enabled`, `--scan-min-severity`, `--daemon-url`
+- `admission` added to `_COMMAND_MATURITY` as BETA
+- Exit-code capture fixed for both `daemon` and `admission`
+  (was discarding the return value)
+
+**Sandbox CLI argparse collision (CRITICAL):** `picosentry sandbox
+echo hello` and `picosentry sandbox --backend=subprocess echo hello`
+both failed with "invalid choice: 'echo'". Three root causes:
+- **Dest collision**: top-level subparser `dest="command"` and
+  sandbox positional `"command"` both wrote to `args.command`;
+  the subparser's value overwrote the positional's list.
+  Fixed by renaming the positional to `"cmd"`.
+- **Subparser conflict**: the sandbox subparser (`analyze/pipeline/
+  rules/init`) rejected arbitrary commands. Fixed by removing the
+  argparse subparser and doing manual routing in `_handle_sandbox()`
+  based on `args.cmd[0]`.
+- **Missing "sandbox" prefix**: `_handle_sandbox` forwards to
+  `sandbox_main()` which has its own `sandbox` subcommand. Fixed by
+  prepending `"sandbox"` to argv.
+
+**Benchmark overclaim (P1 → fixed):** The per-rule table in
+`docs/BENCHMARKS.md` reported "100% precision" for rules with zero
+negative fixtures — vacuous because the denominator `TP + FP`
+collapses to `TP`. Three changes:
+- Vacuous-precision marker (`⁂`) on the per-rule table, rendered
+  automatically by `scripts/render_benchmarks.py`
+- New `clean_npm_shai_hulud_legit` negative fixture for
+  `L2-CAMP-SHAI-HULUD` (Bun-friendly npm project)
+- Stale counts corrected in README + BENCHMARKS.md: 178 fixtures
+  (145 pos / 33 neg), 49 L2 rule_ids + 4 L2-CAMP rule_ids
+
+**DDoS rate limit (P1 — verified complete):** `DDoSShieldMiddleware`
+with health-path exemption, per-path burst buckets, and global
+bucket. 6 dedicated tests in `tests/serve/test_ddos_health_exempt.py`.
+
+**Stale image tag (MEDIUM):** `deploy/kubernetes/deployment.yaml`
+bumped from `kirkforge/picodome:v2.0.12` to `v2.0.13` with a
+local-build comment.
+
+**Version bump:** All `__version__` strings bumped 2.0.12 → 2.0.13
+(pyproject.toml, picosentry/__init__.py, _core, sandbox, watch,
+scan, serve/config/version.py, deploy/helm/picodome/Chart.yaml).
+
+### Still deferred to v2.0.14+
+- Test suite slow: 71s for sandbox suite alone
+- `kirkforge/picodome` image not published to Docker Hub
+- Postgres backend migration not started
+- Multi-node cluster gossip untested
 
 ### Fixed — gRPC transport was unimportable in the published wheel (P0)
 
@@ -167,14 +228,44 @@ tree. Three changes:
   `reload()` idempotency, realpath dedup, and the `/plugins`
   router contract. Full serve suite: 243 passed.
 
-### Not yet fixed (P1 — deferred)
+### Fixed — Benchmark overclaim + campaign overmatching (P1 → fixed)
 
-- **Benchmark overclaim + campaign overmatching**: detection rate and
-  campaign-fp-rate numbers in `docs/BENCHMARKS.md` and the README
-  were overclaimed. The 100% precision/recall line in the README is
-  honest about the small-corpus caveat, but the per-rule breakdown
-  in `docs/BENCHMARKS.md` is still subject to a re-measurement
-  pass. Tracked for v2.0.13.
+The per-rule table in `docs/BENCHMARKS.md` was reporting
+"100% precision" for rules with zero negative fixtures. That number
+is vacuous — the denominator `TP + FP` collapses to `TP` (which is
+always `1` for any rule with a positive fixture), so the value
+measures nothing. The TL;DR "Mean precision / recall: 1.00 / 1.00"
+was also reported without acknowledging vacuous rows. Three
+changes close the gap:
+
+- **Vacuous-precision marker (`⁂`) on the per-rule table.** When a
+  rule has `n_pos > 0` and `n_neg == 0`, `scripts/render_benchmarks.py`
+  appends a `⁂` to the `rule_id` cell. The matching footnote in
+  `docs/BENCHMARKS.md` defines the marker. As of this release, zero
+  rules carry the marker.
+- **`L2-CAMP-SHAI-HULUD` now has a Bun-friendly negative fixture.**
+  `tests/scan/fixtures/validation/negative/clean_npm_shai_hulud_legit/`
+  is a 3-file npm project (`package.json`, `README.md`, `src/index.js`)
+  that exercises the L2-CAMP-SHAI-HULUD detector's edge cases (Bun
+  runtime mentions, no postinstall, no compromised-package deps)
+  without tripping the named-signature, payload-filename, or
+  compromised-package matchers. The new row shows
+  `n_pos=1, n_neg=1, TP=1, FP=0, FN=0` — a measured, no-longer-
+  vacuous precision claim.
+- **Stale counts in the README + BENCHMARKS.md corrected.** The
+  README "Status" table now reads "178 fixtures (145 positive, 33
+  negative), 49 L2 rule_ids + 4 L2-CAMP rule_ids". The
+  `v2.1.0 expansion target` section's "v2.0.9 sits at 1 fixture per
+  rule" claim is corrected to "v2.0.9 minimum is 1 positive fixture
+  per rule; mean is ~3 positives + ~3 negatives per rule across 53
+  rules". The `⁂` marker is added to the v2.1.0 expansion
+  acceptance criteria (zero `⁂` markers = all rules have at least
+  one negative).
+
+Validation harness: 178 fixtures (145 pos / 33 neg), mean
+precision 1.00, mean recall 1.00, 0 failures.
+
+### Not yet fixed (P1 — deferred)
 - **Test suite slow**: 71s for the sandbox suite alone. Most of
   this is a handful of integration tests that spin up real
   daemons. Tracked for v2.0.13.

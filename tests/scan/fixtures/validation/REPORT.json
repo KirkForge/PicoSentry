@@ -822,6 +822,11 @@
     },
     {
       "details": [],
+      "fixture": "clean_npm_shai_hulud_legit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "clean_npm_trapdoor_lookalike",
       "outcome": "PASS"
     },
@@ -1314,7 +1319,7 @@
       "true_positives": 3
     }
   ],
-  "total_fixtures": 177,
-  "total_negative": 32,
+  "total_fixtures": 178,
+  "total_negative": 33,
   "total_positive": 145
 }

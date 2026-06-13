@@ -50,6 +50,10 @@ class PicoDomePostRoutesMixin:
             token = self._require_permission("policy:write")
             if token:
                 self._handle_create_policy(token)
+        elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
+            token = self._require_permission("scan:write")
+            if token:
+                self._handle_cluster_merge_snapshot(token)
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
@@ -261,6 +265,56 @@ class PicoDomePostRoutesMixin:
             self._send_json(pv.to_dict(), status=201)
         except Exception as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
+
+    def _handle_cluster_merge_snapshot(self: PicoDomeHandler, token: str) -> None:
+        """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
+
+        Called by cluster peers to gossip their state to this node.
+        Body must be a JSON snapshot as produced by GET /api/v1/cluster/snapshot.
+        Merging follows last-writer-wins for nodes and status-priority for scans.
+        """
+        try:
+            content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > self.MAX_REQUEST_SIZE:
+                self._send_error(ErrorCodes.REQUEST_TOO_LARGE)
+                return
+
+            body = self.rfile.read(content_length)
+            snapshot = json.loads(body)
+
+            if not isinstance(snapshot, dict):
+                self._send_error(400, "snapshot must be a JSON object")
+                return
+
+            from picosentry.sandbox.cluster.manager import get_cluster_manager
+
+            mgr = get_cluster_manager()
+            if not mgr.is_running:
+                self._send_error(409, "cluster manager is not running on this node")
+                return
+
+            before_nodes = len(mgr.state.list_nodes())
+            mgr.state.merge_state(snapshot)
+            after_nodes = len(mgr.state.list_nodes())
+
+            audit = get_audit_logger()
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor=f"cluster-gossip",
+                detail=f"Merged peer snapshot: {before_nodes}→{after_nodes} nodes",
+            )
+
+            self._send_json({
+                "status": "merged",
+                "nodes_before": before_nodes,
+                "nodes_after": after_nodes,
+                "leader_id": mgr.state.get_leader_id(),
+            })
+        except json.JSONDecodeError:
+            self._send_error(400, "invalid JSON body")
+        except Exception as exc:
+            logger.exception("Cluster snapshot merge failed: %s", exc)
+            self._send_error(500, "cluster merge failed")
 
 
 __all__ = ["PicoDomePostRoutesMixin"]

@@ -36,6 +36,10 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         "K8s admission webhook server. Validates pod security contexts and "
         "optionally scans container images via the daemon.",
     ),
+    "corpus": (
+        "BETA",
+        "Corpus marketplace — export, import, validate, sign, and list IoC packs.",
+    ),
 }
 
 
@@ -353,6 +357,12 @@ def main(argv: list[str] | None = None) -> None:
         help="PicoDome daemon URL for image scanning (default: http://127.0.0.1:8443)",
     )
 
+    # -- corpus subcommand ----------------------------------------------------
+    # Delegates to picosentry/scan/cli_commands/corpus.py via add_arguments().
+    # The corpus module has its own sub-subparsers (export/import/validate/list/sign).
+    from picosentry.scan.cli_commands import corpus as _corpus_mod
+    _corpus_mod.add_arguments(subparsers)
+
     args = parser.parse_args(argv)
 
 
@@ -402,6 +412,10 @@ def main(argv: list[str] | None = None) -> None:
         _emit_maturity_warning("admission")
         from picosentry.sandbox.cli_commands import admission as _admission_mod
         exit_code = _admission_mod.cmd(args)
+    elif args.command == "corpus":
+        _emit_maturity_warning("corpus")
+        from picosentry.scan.cli_commands import corpus as _corpus_mod
+        exit_code = _corpus_mod.cmd(args)
     elif args.command == "version":
         _show_version()
     else:

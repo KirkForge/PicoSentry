@@ -73,31 +73,47 @@ class PostgresPool:
     param_style = "format"  # Postgres uses %s for parameters
 
     def __init__(self, url: str | None = None):
-        self._url = url or "postgresql://localhost:5432/picoshogun"
-        logger.warning(
-            "PostgresPool initialized but not yet implemented. "
-            "Set PICOSHOGUN_DATABASE_BACKEND=sqlite to use the default backend. "
-            "Postgres support requires psycopg or asyncpg. "
-            "See database/pools.py for migration instructions."
-        )
+        self._url = url or settings.database.url or "postgresql://localhost:5432/picoshogun"
+        self._local = threading.local()
+        self._lock = threading.Lock()
+        self._psycopg2 = None
+
+    def _ensure_psycopg2(self):
+        if self._psycopg2 is not None:
+            return
+        try:
+            import psycopg2 as pg
+            import psycopg2.extras
+            self._psycopg2 = pg
+            self._extras = psycopg2.extras
+        except ImportError:
+            raise ImportError(
+                "Postgres backend requires psycopg2. Install with: "
+                "pip install psycopg2-binary\n"
+                "Or switch to SQLite: export PICOSHOGUN_DATABASE_BACKEND=sqlite"
+            )
 
     def acquire(self):
-        raise NotImplementedError(
-            "PostgresPool.acquire() not implemented. "
-            "Install psycopg and implement connection pooling, or use "
-            "PICOSHOGUN_DATABASE_BACKEND=sqlite."
-        )
+        self._ensure_psycopg2()
+        if not hasattr(self._local, "conn") or self._local.conn is None or self._local.conn.closed:
+            self._local.conn = self._psycopg2.connect(self._url)
+            self._local.conn.autocommit = False
+        return self._local.conn
 
-    def release(self, conn):
-        raise NotImplementedError(
-            "PostgresPool.release() not implemented. "
-            "Use PICOSHOGUN_DATABASE_BACKEND=sqlite."
-        )
+    def release(self, conn) -> None:
+        pass  # Per-thread connection; closed in close_all()
 
-    def close_all(self):
-        raise NotImplementedError(
-            "PostgresPool.close_all() not implemented. "
-            "Use PICOSHOGUN_DATABASE_BACKEND=sqlite."
+    def close_all(self) -> None:
+        if hasattr(self._local, "conn") and self._local.conn and not self._local.conn.closed:
+            self._local.conn.close()
+            self._local.conn = None
+
+    def lock(self) -> threading.Lock:
+        return self._lock
+
+    def backup(self, dest_path: Path) -> None:
+        logger.warning(
+            "Backup is not supported for Postgres backend. Use pg_dump manually."
         )
 
 

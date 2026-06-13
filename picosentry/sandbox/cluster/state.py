@@ -183,9 +183,11 @@ class ClusterState:
                         self._backend.save_scan(remote_scan)
 
 
-            remote_leader = snapshot.get("leader_id")
-            if remote_leader:
-                self._backend.set_leader_id(remote_leader)
+            # Re-elect after merge so all nodes converge on the same leader
+            # (lowest online node_id).  Accepting the remote leader_id
+            # directly would cause oscillation when three+ peers exchange
+            # snapshots in different orders.
+            self.elect_leader()
 
         logger.info(
             "Merged state snapshot from peer (%d nodes, %d scans)",

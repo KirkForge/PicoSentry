@@ -92,7 +92,7 @@ class TestTenantId:
     def test_frozen(self):
         tid = TenantId("team-alpha")
         with pytest.raises(AttributeError):
-            tid.value = "changed"  # type: ignore
+            tid.value = "changed"
 
 
 class TestTenantContext:
@@ -123,7 +123,7 @@ class TestTenantContext:
     def test_frozen(self):
         ctx = TenantContext(tenant_id=TenantId("alpha"))
         with pytest.raises(AttributeError):
-            ctx.display_name = "changed"  # type: ignore
+            ctx.display_name = "changed"
 
 
 class TestDefaultTenant:

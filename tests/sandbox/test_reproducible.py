@@ -355,7 +355,7 @@ class TestReproducibleBuild:
         """ReproducibleBuild should be frozen (immutable)."""
         rb = ReproducibleBuild()
         with pytest.raises(AttributeError):
-            rb.source_date_epoch = 999  # type: ignore
+            rb.source_date_epoch = 999
 
 
 # ─── generate_build_manifest tests ─────────────────────────────────────────────

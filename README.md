@@ -32,7 +32,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Cross-layer correlation | **Experimental** | Links findings across scan + sandbox + watch layers |
 | Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
 | Postgres backend | **Beta** | psycopg2 implementation done; migrations are SQLite DDL — needs separate PG schema |
-| Cluster mode | **Experimental** | Gossip primitives + HTTP endpoints exist; 7 multi-node tests pass; no auto-sync loop yet |
+| Cluster mode | **Experimental** | Gossip HTTP endpoints + periodic auto-sync loop; 7+ multi-node tests pass |
 | Detection benchmarks | **Stable** | 178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.13` on Docker Hub; all 4 components healthy; non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.13 published |
@@ -51,9 +51,9 @@ security review — don't expose it to untrusted networks.
   `CONFIG_SECCOMP_LOG=y`). Path/address arguments on events are not yet captured.
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
-- **Does not run cluster mode automatically.** Gossip primitives and HTTP endpoints
-  exist (GET/POST `/api/v1/cluster/snapshot`) but there's no periodic peer-sync
-  loop yet — you'd have to script the polling yourself.
+- **Cluster mode is experimental and not production-ready.** Gossip HTTP endpoints
+  and a periodic peer-sync loop exist, but multi-node convergence has not been
+  battle-tested outside of the test suite.
 - **Postgres backend is implemented but not live-tested.** The code has a real
   psycopg2 connection pool, but migrations are SQLite-specific DDL and it's never
   been connected to a real Postgres instance.

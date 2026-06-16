@@ -14,7 +14,7 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
 
     # Health and readiness probes are called by load balancers and
     # Kubernetes liveness/readiness checks on a tight schedule (often
-    # every 1–5 s).  If the shield 429s them, the LB will mark the pod
+    # every 1–5 s).  If the shield 429s them, the LB will mark the pod  # noqa: RUF003
     # unhealthy and rotate it out — which makes the shield cause the
     # very outage it's trying to prevent.  These paths bypass the
     # global and per-path buckets entirely.
@@ -40,10 +40,10 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         We do not match ``/health-history`` or other lookalikes — the
         verdict's concern is the load-balancer probes, not arbitrary
         health-flavoured URLs."""
-        for prefix in cls.HEALTH_PATHS:
-            if path == prefix or path.startswith(prefix + "/"):
-                return True
-        return False
+        return any(
+            path == prefix or path.startswith(prefix + "/")
+            for prefix in cls.HEALTH_PATHS
+        )
 
     async def dispatch(self, request: Request, call_next):
         if not self.enabled:

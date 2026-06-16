@@ -93,6 +93,7 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
     "pytest-timeout>=2.0",
+    "pytest-xdist>=3.0",
     "httpx>=0.24",
     "ruff>=0.8",
     "mypy>=1.0",
@@ -194,7 +195,10 @@ ignore = [
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
 "picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
 "picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
+"tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
+"tests/scan/fixtures/validation/positive/pypi_obfs_marshal_load/_evil.py" = ["SIM115"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -242,4 +246,9 @@ module = [
     "picosentry.sandbox.daemon.handler_routes_post",
 ]
 disable_error_code = ["misc"]
+
+[dependency-groups]
+dev = [
+    "pytest-xdist>=3.8.0",
+]
 

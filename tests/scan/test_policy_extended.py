@@ -17,7 +17,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock
 
-from picosentry.scan.models import Confidence, Finding, Severity
+from picosentry.scan.models import Severity
 from picosentry.scan.policy import (
     POLICY_VERSION,
     Policy,
@@ -33,7 +33,7 @@ from picosentry.scan.policy import (
 
 # ── Helpers ──
 
-from tests.scan.conftest import make_finding as _make_finding  # noqa: E402
+from tests.scan.conftest import make_finding as _make_finding
 
 
 def _make_scan_result(findings=None):

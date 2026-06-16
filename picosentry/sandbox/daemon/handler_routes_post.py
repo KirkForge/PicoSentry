@@ -25,6 +25,16 @@ if TYPE_CHECKING:
 logger = logging.getLogger("picodome.daemon")
 
 
+# Maps daemon API ``backend`` values to the fully-qualified backend class.
+# This is a single source of truth so tests can verify the paths stay valid
+# and the typo that once used the old ``picodome`` namespace cannot recur.
+_DAEMON_BACKEND_MAP: dict[str, str] = {
+    "subprocess": "picosentry.sandbox.l3.backends.subprocess_backend:SubprocessBackend",
+    "seccomp-bpf": "picosentry.sandbox.l3.backends.seccomp_backend:SeccompBackend",
+    "seatbelt": "picosentry.sandbox.l3.backends.seatbelt_backend:SeatbeltBackend",
+}
+
+
 class PicoDomePostRoutesMixin:
 
     def _handle_post(self: PicoDomeHandler) -> None:
@@ -99,7 +109,6 @@ class PicoDomePostRoutesMixin:
             return
 
         timeout = data.get("timeout", 30.0)
-        data.get("policy")
 
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
@@ -142,12 +151,7 @@ class PicoDomePostRoutesMixin:
                 self._send_error(ErrorCodes.ENTERPRISE_ENFORCEMENT, detail="subprocess backend is not allowed in enterprise mode")
                 return
             if backend_name != "auto":
-                backend_map = {
-                    "subprocess": "picodome.l3.backends.subprocess_backend:SubprocessBackend",
-                    "seccomp-bpf": "picodome.l3.backends.seccomp_backend:SeccompBackend",
-                    "seatbelt": "picodome.l3.backends.seatbelt_backend:SeatbeltBackend",
-                }
-                cls_path = backend_map.get(backend_name)
+                cls_path = _DAEMON_BACKEND_MAP.get(backend_name)
                 if cls_path is None:
                     self._send_error(ErrorCodes.INVALID_BACKEND, detail=backend_name)
                     return
@@ -299,8 +303,8 @@ class PicoDomePostRoutesMixin:
 
             audit = get_audit_logger()
             audit.record(
-                event_type=AuditEventType.SCAN_START,
-                actor=f"cluster-gossip",
+                event_type=AuditEventType.CLUSTER_GOSSIP,
+                actor="cluster-gossip",
                 detail=f"Merged peer snapshot: {before_nodes}→{after_nodes} nodes",
             )
 

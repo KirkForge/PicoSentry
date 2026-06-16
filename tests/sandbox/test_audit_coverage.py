@@ -99,6 +99,7 @@ class TestAuditEventTypeCoverage:
         AuditEventType.DATA_RETENTION_CLEANUP: "picosentry.sandbox.retention.manager",
         AuditEventType.DATA_EXPORT: "picosentry.sandbox.retention.manager",
         AuditEventType.DATA_DELETE: "picosentry.sandbox.retention.manager",
+        AuditEventType.CLUSTER_GOSSIP: "picosentry.sandbox.daemon.server._handle_cluster_merge_snapshot",
     }
 
     def test_all_event_types_have_emit_location(self):

@@ -223,7 +223,11 @@ class ClusterManager:
             logger.warning("Heartbeat from unknown node: %s", node_id)
             return None
 
-        node.status = NodeStatus(status) if isinstance(status, str) else status
+        try:
+            node.status = NodeStatus(status) if isinstance(status, str) else status
+        except ValueError:
+            logger.warning("Invalid heartbeat status '%s' from node %s", status, node_id)
+            return None
         node.last_heartbeat = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         node.load = load
         self._state.update_node(node)
@@ -386,8 +390,8 @@ class ClusterManager:
 
         url = f"http://{peer.address}:{peer.port}/api/v1/cluster/snapshot"
         req = Request(url, headers={"Accept": "application/json"})
-        resp = urlopen(req, timeout=5.0)
-        snapshot = json.loads(resp.read())
+        with urlopen(req, timeout=5.0) as resp:
+            snapshot = json.loads(resp.read())
 
         if not isinstance(snapshot, dict):
             logger.debug("Peer %s returned invalid snapshot", peer.node_id)

@@ -5,9 +5,9 @@ import pydantic
 from pydantic import BaseModel, Field
 
 try:
-    from pydantic import Extra
+    from pydantic import Extra  # type: ignore[attr-defined,unused-ignore]
 except ImportError:
-    Extra = None  # Pydantic v2 removed the Extra enum
+    Extra = None  # type: ignore[assignment,misc]
 
 
 class ProjectRunRequest(BaseModel):

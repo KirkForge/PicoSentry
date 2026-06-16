@@ -29,7 +29,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning |
 | `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
-| Cross-layer correlation | **Experimental** | Links findings across scan + sandbox + watch layers |
+| Cross-layer correlation | **Beta** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested |
 | Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
 | Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |

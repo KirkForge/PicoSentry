@@ -58,8 +58,8 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ),
     ComponentStatus(
         name="Cross-layer correlation",
-        status="Experimental",
-        notes="Links findings across scan + sandbox + watch layers",
+        status="Beta",
+        notes="Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested",
     ),
     ComponentStatus(
         name="Plugin system",

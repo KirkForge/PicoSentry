@@ -51,14 +51,22 @@ class ClusterManager:
         heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL,
         heartbeat_timeout: int = DEFAULT_HEARTBEAT_TIMEOUT,
         max_missed_heartbeats: int = DEFAULT_MAX_MISSED_HEARTBEATS,
+        cluster_token: str = "",
+        tls_cert_path: str = "",
+        tls_key_path: str = "",
+        tls_ca_path: str = "",
     ) -> None:
         self._address = address
         self._port = port
         self._node_id = node_id or ClusterNode.generate_id()
-        self._state = ClusterState(backend)
+        self._state = ClusterState(backend, cluster_token=cluster_token)
         self._heartbeat_interval = heartbeat_interval
         self._heartbeat_timeout = heartbeat_timeout
         self._max_missed_heartbeats = max_missed_heartbeats
+        self._cluster_token = cluster_token
+        self._tls_cert_path = tls_cert_path
+        self._tls_key_path = tls_key_path
+        self._tls_ca_path = tls_ca_path
         self._running = False
         self._heartbeat_thread: threading.Thread | None = None
         self._health_check_thread: threading.Thread | None = None
@@ -76,6 +84,18 @@ class ClusterManager:
     @property
     def is_running(self) -> bool:
         return self._running
+
+    @property
+    def cluster_token(self) -> str:
+        return self._cluster_token
+
+    @property
+    def address(self) -> str:
+        return self._address
+
+    @property
+    def port(self) -> int:
+        return self._port
 
 
     def start(self) -> None:
@@ -354,7 +374,7 @@ class ClusterManager:
                 self.handle_node_failure(node.node_id)
 
     def _gossip_loop(self) -> None:
-        """Periodically exchange cluster state with peers via HTTP.
+        """Periodically exchange cluster state with peers via HTTP(S).
 
         Every ``heartbeat_interval * 3`` seconds, this loop:
         1. Finds all ONLINE peers (excluding self)
@@ -386,11 +406,39 @@ class ClusterManager:
     def _fetch_and_merge_peer(self, peer: ClusterNode) -> None:
         """Fetch snapshot from a single peer and merge it into local state."""
         import json
+        import ssl
         from urllib.request import Request, urlopen
 
-        url = f"http://{peer.address}:{peer.port}/api/v1/cluster/snapshot"
-        req = Request(url, headers={"Accept": "application/json"})
-        with urlopen(req, timeout=5.0) as resp:
+        scheme = "https" if self._tls_ca_path or self._tls_cert_path else "http"
+        # Honor an explicit scheme already present in the peer address.
+        if peer.address.startswith(("http://", "https://")):
+            base_url = f"{peer.address}:{peer.port}/api/v1/cluster/snapshot"
+        else:
+            base_url = f"{scheme}://{peer.address}:{peer.port}/api/v1/cluster/snapshot"
+
+        headers: dict[str, str] = {"Accept": "application/json"}
+        if self._cluster_token:
+            headers["X-Cluster-Token"] = self._cluster_token
+
+        req = Request(base_url, headers=headers)
+
+        kwargs: dict[str, Any] = {"timeout": 5.0}
+        if scheme == "https":
+            ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
+            try:
+                ctx.minimum_version = ssl.TLSVersion.TLSv1_2
+            except AttributeError:
+                pass
+            if self._tls_ca_path:
+                ctx.load_verify_locations(cafile=self._tls_ca_path)
+            else:
+                ctx.load_default_certs()
+            if self._tls_cert_path and self._tls_key_path:
+                ctx.load_cert_chain(certfile=self._tls_cert_path, keyfile=self._tls_key_path)
+            ctx.check_hostname = False
+            kwargs["context"] = ctx
+
+        with urlopen(req, **kwargs) as resp:
             snapshot = json.loads(resp.read())
 
         if not isinstance(snapshot, dict):

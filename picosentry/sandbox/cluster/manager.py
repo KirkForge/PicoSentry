@@ -44,6 +44,10 @@ def setup_cluster_manager(
     heartbeat_interval: int = DEFAULT_HEARTBEAT_INTERVAL,
     heartbeat_timeout: int = DEFAULT_HEARTBEAT_TIMEOUT,
     max_missed_heartbeats: int = DEFAULT_MAX_MISSED_HEARTBEATS,
+    cluster_token: str = "",
+    tls_cert_path: str = "",
+    tls_key_path: str = "",
+    tls_ca_path: str = "",
 ) -> ClusterManager:
     global _cluster_manager
     _cluster_manager = ClusterManager(
@@ -54,6 +58,10 @@ def setup_cluster_manager(
         heartbeat_interval=heartbeat_interval,
         heartbeat_timeout=heartbeat_timeout,
         max_missed_heartbeats=max_missed_heartbeats,
+        cluster_token=cluster_token,
+        tls_cert_path=tls_cert_path,
+        tls_key_path=tls_key_path,
+        tls_ca_path=tls_ca_path,
     )
     return _cluster_manager
 

@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from importlib import import_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
@@ -23,6 +23,29 @@ if TYPE_CHECKING:
     from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")
+
+
+def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
+    """Verify X-Cluster-Token header matches the configured cluster token."""
+    expected = mgr.state.cluster_token
+    if not expected:
+        return True
+    provided = self.headers.get("X-Cluster-Token", "")
+    if provided != expected:
+        actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16] if provided else "anonymous"
+        try:
+            audit = get_audit_logger()
+            audit.record(
+                event_type=AuditEventType.AUTH_FAILURE,
+                actor=actor,
+                detail="Cluster token mismatch",
+                target=self.path,
+            )
+        except Exception:
+            pass
+        self._send_error(403, "cluster token mismatch")
+        return False
+    return True
 
 
 # Maps daemon API ``backend`` values to the fully-qualified backend class.
@@ -295,6 +318,9 @@ class PicoDomePostRoutesMixin:
             mgr = get_cluster_manager()
             if not mgr.is_running:
                 self._send_error(409, "cluster manager is not running on this node")
+                return
+
+            if not _check_cluster_token(self, mgr):
                 return
 
             before_nodes = len(mgr.state.list_nodes())

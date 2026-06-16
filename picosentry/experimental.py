@@ -38,8 +38,8 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ),
     ComponentStatus(
         name="`picosentry serve`",
-        status="Experimental",
-        notes="API server, dashboard, RBAC, multi-tenant — not reviewed for untrusted networks",
+        status="Beta",
+        notes="API server, dashboard, RBAC, multi-tenant — security review + regression tests in place",
     ),
     ComponentStatus(
         name="`picosentry daemon`",
@@ -69,12 +69,12 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Postgres backend",
         status="Beta",
-        notes="psycopg2 implementation done; migrations are SQLite DDL — needs separate PG schema",
+        notes="psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers",
     ),
     ComponentStatus(
         name="Cluster mode",
-        status="Experimental",
-        notes="Gossip HTTP endpoints + periodic auto-sync loop; 7+ multi-node tests pass",
+        status="Beta",
+        notes="Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test",
     ),
     ComponentStatus(
         name="Detection benchmarks",
@@ -84,7 +84,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Docker image",
         status="Stable",
-        notes="`kirkforge/picodome:v2.0.13` on Docker Hub; all 4 components healthy; non-root user",
+        notes="`kirkforge/picodome:v2.0.13` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
     ),
     ComponentStatus(
         name="PyPI package",

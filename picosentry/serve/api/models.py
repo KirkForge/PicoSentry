@@ -1,7 +1,13 @@
 from datetime import datetime
 from typing import Any
 
+import pydantic
 from pydantic import BaseModel, Field
+
+try:
+    from pydantic import Extra
+except ImportError:
+    Extra = None  # Pydantic v2 removed the Extra enum
 
 
 class ProjectRunRequest(BaseModel):
@@ -81,7 +87,15 @@ class RegisterRequest(BaseModel):
     # authenticated admin-only path.  ``extra="forbid"`` makes any client
     # that tries to send a ``role`` (or any other unknown field) get a 422
     # response, so this contract is loud rather than silent.
-    model_config = {"extra": "forbid"}
+    #
+    # The config is expressed differently for Pydantic v1 (``Config.extra``)
+    # and v2 (``model_config``) so tests pass regardless of which version is
+    # installed.
+    if pydantic.VERSION.startswith("1."):
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
 
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)

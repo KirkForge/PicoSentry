@@ -54,8 +54,8 @@ class APIConfig:
     reload: bool = False
     cors_origins: list[str] = field(default_factory=_parse_cors_origins)
     api_prefix: str = "/api/v1"
-    docs_url: str = "/docs"
-    redoc_url: str = "/redoc"
+    docs_url: str = field(default_factory=lambda: _env("DOCS_URL", "/docs"))
+    redoc_url: str = field(default_factory=lambda: _env("REDOC_URL", "/redoc"))
 
     @classmethod
     def from_env(cls) -> "APIConfig":

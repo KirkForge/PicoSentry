@@ -27,7 +27,7 @@ from picosentry.serve.api.routers import (
 )
 from picosentry.serve.api.routers import scheduler as scheduler_router
 from picosentry.serve.config.logging_config import configure_logging
-from picosentry.serve.config.settings import settings
+from picosentry.serve.config.settings import _env_bool, settings
 from picosentry.serve.config.version import __version__
 from picosentry.serve.database.manager import db
 from picosentry.serve.middleware.audit import AuditMiddleware
@@ -231,12 +231,19 @@ async def lifespan(app: FastAPI):
     logger.info("All background services stopped")
 
 
+# In production, API docs are disabled unless the operator explicitly sets
+# PICOSHOGUN_DOCS_URL or PICOSHOGUN_REDOC_URL.  FastAPI's docs_url=None
+# prevents OpenAPI schema generation, which is the safest default for an
+# untrusted-network deployment.
+_docs_url = settings.api.docs_url if not settings.is_production() or _env_bool("DOCS_ENABLED") else None
+_redoc_url = settings.api.redoc_url if not settings.is_production() or _env_bool("DOCS_ENABLED") else None
+
 app = FastAPI(
     title="PicoShogun Command Centre API",
     description="Command centre for the Pico Security Series",
     version=__version__,
-    docs_url=settings.api.docs_url,
-    redoc_url=settings.api.redoc_url,
+    docs_url=_docs_url,
+    redoc_url=_redoc_url,
     lifespan=lifespan,
 )
 

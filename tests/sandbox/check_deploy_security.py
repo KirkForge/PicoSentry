@@ -43,6 +43,34 @@ class Finding(NamedTuple):
     line: int | None = None
 
 
+# Dev-bypass environment variables that are safe for local development but must
+# never be enabled in a production deployment.
+_DEV_BYPASS_ENV_VARS: tuple[tuple[str, str, str], ...] = (
+    ("PICODOME_DEV_MODE", "CRITICAL", "disables authentication"),
+    ("PICODOME_TLS_DEV", "HIGH", "uses self-signed TLS certificates"),
+    ("PICODOME_SKIP_SECURE_ASSERT", "HIGH", "disables daemon secure-boot checks"),
+    ("PICOSHOGUN_SKIP_SECURE_ASSERT", "HIGH", "disables serve secure-boot checks"),
+    ("PICOWATCH_SKIP_SECURE_ASSERT", "HIGH", "disables watch secure-boot checks"),
+)
+
+# Preserve the original short check names for the two variables that existing
+# tests and consumers already reference.
+_DEV_BYPASS_CHECK_PREFIX: dict[str, str] = {
+    "PICODOME_DEV_MODE": "dev-mode",
+    "PICODOME_TLS_DEV": "tls-dev",
+}
+
+
+def _env_var_enabled_in_line(var: str, line: str, lines: list[str], i: int) -> bool:
+    """Return True if `var` is set to 1 on this line or the next value line."""
+    if var not in line:
+        return False
+    return bool(
+        re.search(rf"{re.escape(var)}.*1", line)
+        or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
+    )
+
+
 def _load_yaml_file(path: Path) -> dict | list | None:
     """Load a YAML file, falling back to basic parsing if PyYAML unavailable."""
     try:
@@ -103,36 +131,15 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
     lines = _read_file_lines(deploy_path)
 
     for i, line in enumerate(lines, 1):
-        # DEV_MODE enabled (matches PICODOME_DEV_MODE with "1" on same or next line)
-        if "PICODOME_DEV_MODE" in line:
-            # Check if "1" is on the same line
-            if (
-                re.search(r"PICODOME_DEV_MODE.*1", line)
-                or (i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-            ):
+        # Dev-bypass env vars enabled in the manifest
+        for var, severity, reason in _DEV_BYPASS_ENV_VARS:
+            if _env_var_enabled_in_line(var, line, lines, i):
+                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
                 findings.append(
                     Finding(
-                        "CRITICAL",
-                        "dev-mode-k8s",
-                        "PICODOME_DEV_MODE=1 found in K8s deployment — disables authentication",
-                        str(deploy_path),
-                        i,
-                    )
-                )
-
-        # TLS dev mode
-        if "PICODOME_TLS_DEV" in line:
-            if (
-                re.search(r"PICODOME_TLS_DEV.*1", line)
-                or (i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-            ):
-                findings.append(
-                    Finding(
-                        "HIGH",
-                        "tls-dev-k8s",
-                        "PICODOME_TLS_DEV=1 found in K8s deployment — uses self-signed certs",
+                        severity,
+                        f"{prefix}-k8s",
+                        f"{var}=1 found in K8s deployment — {reason}",
                         str(deploy_path),
                         i,
                     )
@@ -351,35 +358,17 @@ def check_helm_templates(findings: list[Finding]) -> None:
         lines = _read_file_lines(tpl_path)
 
         for i, line in enumerate(lines, 1):
-            # Dev mode in templates (name and value may be on separate lines)
-            if "PICODOME_DEV_MODE" in line and "comment" not in line.lower():
-                if (
-                    re.search(r"PICODOME_DEV_MODE.*1", line)
-                    or (i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-                ):
+            # Dev-bypass env vars enabled in templates
+            for var, severity, reason in _DEV_BYPASS_ENV_VARS:
+                if var not in line or "comment" in line.lower():
+                    continue
+                if _env_var_enabled_in_line(var, line, lines, i):
+                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
                     findings.append(
                         Finding(
-                            "CRITICAL",
-                            "dev-mode-template",
-                            f"PICODOME_DEV_MODE=1 in template: {line.strip()}",
-                            str(tpl_path),
-                            i,
-                        )
-                    )
-
-            # TLS dev mode in templates
-            if "PICODOME_TLS_DEV" in line and "comment" not in line.lower():
-                if (
-                    re.search(r"PICODOME_TLS_DEV.*1", line)
-                    or (i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-                ):
-                    findings.append(
-                        Finding(
-                            "HIGH",
-                            "tls-dev-template",
-                            f"PICODOME_TLS_DEV=1 in template: {line.strip()}",
+                            severity,
+                            f"{prefix}-template",
+                            f"{var}=1 in template: {line.strip()}",
                             str(tpl_path),
                             i,
                         )

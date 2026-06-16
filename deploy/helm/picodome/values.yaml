@@ -23,6 +23,12 @@ grpc:
 enterprise:
   enabled: true
 
+security:
+  # Run an init container before the main pod that refuses to start if any
+  # dev-bypass environment variables are set. Disable only for explicit
+  # development Helm installs — never in production.
+  blockDevBypasses: true
+
 # Policy signing configuration
 # Sign policies with HMAC-SHA256 and verify on load.
 # In K8s, create a Secret and mount it as a file:

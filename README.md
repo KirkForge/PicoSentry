@@ -55,9 +55,9 @@ security review — don't expose it to untrusted networks.
   and supports optional mTLS; a 3-node integration test exercises leader election,
   token enforcement, and scan redistribution. It has not been battle-tested in a
   real multi-host deployment.
-- **Postgres backend is implemented but not live-tested against a real
-  server.** Runtime DML, connection pooling, and DDL auto-translation are in
-  place, but it has not been exercised end-to-end with a live PostgreSQL instance.
+- **Postgres backend is Beta.** It includes a live integration test for
+  connection pooling, runtime placeholder translation, and DDL
+  auto-translation, but it has not been battle-tested at scale.
 - **Admission controller is not tested against a real K8s cluster.** The code
   exists and the CLI works, but it hasn't seen a real API server.
 - **Has published detection-benchmark data** in

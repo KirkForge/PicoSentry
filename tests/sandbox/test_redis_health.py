@@ -73,7 +73,7 @@ class TestRedisConfig:
     def test_frozen(self):
         config = RedisConfig()
         with pytest.raises(AttributeError):
-            config.url = "changed"  # type: ignore
+            config.url = "changed"
 
 
 class TestRedisHealthCheck:

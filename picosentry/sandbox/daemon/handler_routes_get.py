@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import hashlib
 import logging
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
 
 from picosentry.sandbox import __version__
-from picosentry.sandbox.audit import get_audit_logger
+from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.retention import get_retention_manager
@@ -15,6 +16,29 @@ if TYPE_CHECKING:
     from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")
+
+
+def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
+    """Verify X-Cluster-Token header matches the configured cluster token."""
+    expected = mgr.state.cluster_token
+    if not expected:
+        return True
+    provided = self.headers.get("X-Cluster-Token", "")
+    if provided != expected:
+        actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16] if provided else "anonymous"
+        try:
+            audit = get_audit_logger()
+            audit.record(
+                event_type=AuditEventType.AUTH_FAILURE,
+                actor=actor,
+                detail="Cluster token mismatch",
+                target=self.path,
+            )
+        except Exception:
+            pass
+        self._send_error(403, "cluster token mismatch")
+        return False
+    return True
 
 
 class PicoDomeGetRoutesMixin:
@@ -324,6 +348,9 @@ class PicoDomeGetRoutesMixin:
                     "cluster": "inactive",
                     "detail": "Cluster manager is not running on this node",
                 })
+                return
+
+            if not _check_cluster_token(self, mgr):
                 return
 
             snapshot = mgr.state.get_state_snapshot()

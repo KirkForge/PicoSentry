@@ -25,16 +25,16 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 178 fixtures |
 | `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
 | `picosentry watch` | **Beta** | Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server |
-| `picosentry serve` | **Experimental** | API server, dashboard, RBAC, multi-tenant — not reviewed for untrusted networks |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning |
 | `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
 | Cross-layer correlation | **Experimental** | Links findings across scan + sandbox + watch layers |
 | Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
-| Postgres backend | **Beta** | psycopg2 implementation done; migrations are SQLite DDL — needs separate PG schema |
-| Cluster mode | **Experimental** | Gossip HTTP endpoints + periodic auto-sync loop; 7+ multi-node tests pass |
+| Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
+| Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations) |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.13` on Docker Hub; all 4 components healthy; non-root user |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.13` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.13 published |
 
 The scanner is the stable product. Everything else is beta or experimental —
@@ -51,15 +51,15 @@ security review — don't expose it to untrusted networks.
   `CONFIG_SECCOMP_LOG=y`). Path/address arguments on events are not yet captured.
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
-- **Cluster mode is experimental and not production-ready.** Gossip HTTP endpoints
-  and a periodic peer-sync loop exist, but multi-node convergence has not been
-  battle-tested outside of the test suite.
-- **Postgres backend is implemented but not live-tested.** The code has a real
-  psycopg2 connection pool, but migrations are SQLite-specific DDL and it's never
-  been connected to a real Postgres instance.
+- **Cluster mode is beta.** Gossip over HTTP(S) requires a shared cluster token
+  and supports optional mTLS; a 3-node integration test exercises leader election,
+  token enforcement, and scan redistribution. It has not been battle-tested in a
+  real multi-host deployment.
+- **Postgres backend is implemented but not live-tested against a real
+  server.** Runtime DML, connection pooling, and DDL auto-translation are in
+  place, but it has not been exercised end-to-end with a live PostgreSQL instance.
 - **Admission controller is not tested against a real K8s cluster.** The code
   exists and the CLI works, but it hasn't seen a real API server.
-- **Docker image is single-arch (amd64 only).** No arm64 build.
 - **Has published detection-benchmark data** in
   [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.13 corpus is 178
   fixtures (145 positive, 33 negative) / 49 L2 rule_ids + 4 L2-CAMP rule_ids
@@ -244,7 +244,7 @@ picosentry scan --diff scan-a.json scan-b.json  # compare two scans
 picosentry scan --fail-on high ./project        # exit non-zero on HIGH+
 picosentry sandbox echo "hello"                 # beta — kernel-level enforcement
 picosentry watch scan-prompt --text "..."       # beta — LLM prompt guard
-picosentry serve --port 8765                    # experimental — API + dashboard
+picosentry serve --port 8765                    # beta — API + dashboard
 picosentry health
 ```
 
@@ -322,7 +322,7 @@ picosentry/
     scan/           supply-chain scanner (CLI: `picosentry scan`)
     sandbox/        runtime kernel-sandbox (CLI: `picosentry sandbox`, beta)
     watch/          LLM prompt/output guard (CLI: `picosentry watch`, beta)
-    serve/          API server + dashboard (CLI: `picosentry serve`, experimental)
+    serve/          API server + dashboard (CLI: `picosentry serve`, beta)
     experimental.py feature-maturity tracking
 examples/
     pypi-obfuscated-setup/    reproducible malicious PyPI fixture

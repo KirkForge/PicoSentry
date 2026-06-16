@@ -1113,7 +1113,7 @@ class TestTenantDataIsolation:
         token_a, _ = _register_and_login(client, role="admin", suffix=tag)
         slug_a = f"tenant-upgrade-a-{tag}"
         resp = client.post("/orgs", json={"name": "Tenant Upgrade A", "slug": slug_a}, headers=_auth_headers(token_a))
-        org_a_id = resp.json()["id"]  # noqa: F841 — needed for clarity
+        _ = resp.json()["id"]
 
         token_b, _ = _register_and_login(client, role="admin", suffix=tag + 1)
         slug_b = f"tenant-upgrade-b-{tag}"

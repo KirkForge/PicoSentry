@@ -46,7 +46,8 @@ class ClusterState:
         return sorted(nodes, key=lambda n: n.node_id)
 
     def update_node(self, node: ClusterNode) -> None:
-        self._backend.save_node(node)
+        with self._lock:
+            self._backend.save_node(node)
 
 
     def add_scan(self, scan: ScanRequest) -> None:

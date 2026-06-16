@@ -43,7 +43,7 @@ from picosentry.sandbox.l3.models import (
     PolicyRule,
     RuleTarget,
     SyscallAction,
-)  # noqa: I001
+)
 
 
 # ─── TestSeccompBackendForkOrdering (Bug #1) ─────────────────────────────

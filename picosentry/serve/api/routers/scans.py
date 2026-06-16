@@ -50,7 +50,7 @@ async def create_scan(
         raise HTTPException(
             status_code=403,
             detail="Target path is outside the configured scan workspace",
-        )
+        ) from None
 
     if not target.exists():
         raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")

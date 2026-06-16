@@ -1141,8 +1141,10 @@ class TestGossipMerge:
         n3 = ClusterNode(node_id="node-c", address="10.0.0.3")
 
         state_a.add_node(n1)
-        state_b.add_node(n1); state_b.add_node(n2)
-        state_c.add_node(n2); state_c.add_node(n3)
+        state_b.add_node(n1)
+        state_b.add_node(n2)
+        state_c.add_node(n2)
+        state_c.add_node(n3)
 
         # All elect independently
         state_a.elect_leader()
@@ -1154,9 +1156,12 @@ class TestGossipMerge:
         snap_b = state_b.get_state_snapshot()
         snap_c = state_c.get_state_snapshot()
 
-        state_a.merge_state(snap_b); state_a.merge_state(snap_c)
-        state_b.merge_state(snap_a); state_b.merge_state(snap_c)
-        state_c.merge_state(snap_a); state_c.merge_state(snap_b)
+        state_a.merge_state(snap_b)
+        state_a.merge_state(snap_c)
+        state_b.merge_state(snap_a)
+        state_b.merge_state(snap_c)
+        state_c.merge_state(snap_a)
+        state_c.merge_state(snap_b)
 
         assert state_a.get_leader_id() == "node-a"
         assert state_b.get_leader_id() == "node-a"
@@ -1204,7 +1209,8 @@ class TestGossipMerge:
         n1 = ClusterNode(node_id="sqlite-g1", address="10.0.0.1", load=0)
         n2 = ClusterNode(node_id="sqlite-g2", address="10.0.0.2", load=2)
         state_a.add_node(n1)
-        state_b.add_node(n1); state_b.add_node(n2)
+        state_b.add_node(n1)
+        state_b.add_node(n2)
 
         s1 = ScanRequest(scan_id="gs1", command=["echo", "gossip"], status="completed")
         state_b.add_scan(s1)
@@ -1252,6 +1258,12 @@ class TestGossipLoop:
                 def read(self):
                     import json
                     return json.dumps(peer_snapshot).encode()
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
             return MockResponse()
 
         monkeypatch.setattr(
@@ -1282,6 +1294,12 @@ class TestGossipLoop:
             class MockResponse:
                 def read(self):
                     return b'"not a dict"'
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
             return MockResponse()
 
         monkeypatch.setattr(
@@ -1297,7 +1315,6 @@ class TestGossipLoop:
 
     def test_gossip_loop_stops_with_manager(self):
         """The gossip thread should exit when the manager stops."""
-        import time
         from picosentry.sandbox.cluster.orchestrator import ClusterManager
         from picosentry.sandbox.cluster.models import ClusterNode
 

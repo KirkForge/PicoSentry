@@ -18,10 +18,8 @@ After the fix:
   running in a wheel install).
 - The /plugins router surfaces the resolved dirs in the response.
 """
-import importlib
 import json
 import os
-import sys
 from pathlib import Path
 
 import pytest

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+from importlib import import_module
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -286,3 +287,24 @@ class TestDaemonLifecycle:
         daemon._metrics_server = None
         daemon._sinks = []
         daemon.stop()  # should not raise
+
+
+class TestDaemonBackendMap:
+    """Regression tests for the daemon scan backend resolver.
+
+    The handler once pointed the backend map at the old ``picodome`` namespace,
+    so explicit ``backend`` selections always failed. These tests ensure the
+    map stays in sync with the real backend classes in ``picosentry.sandbox``.
+    """
+
+    def test_daemon_backend_map_classes_are_importable(self):
+        from picosentry.sandbox.daemon.handler_routes_post import _DAEMON_BACKEND_MAP
+        from picosentry.sandbox.l3.backends.base import SandboxBackend
+
+        for backend_name, cls_path in _DAEMON_BACKEND_MAP.items():
+            module_path, cls_name = cls_path.rsplit(":", 1)
+            module = import_module(module_path)
+            backend_cls = getattr(module, cls_name)
+            assert issubclass(backend_cls, SandboxBackend), (
+                f"{backend_name} backend {cls_path} is not a SandboxBackend subclass"
+            )

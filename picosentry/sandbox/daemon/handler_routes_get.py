@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import time
@@ -267,10 +268,8 @@ class PicoDomeGetRoutesMixin:
 
         event_type = None
         if "event_type" in query:
-            try:
+            with contextlib.suppress(ValueError):
                 event_type = AuditEventType(query["event_type"][0])
-            except ValueError:
-                pass
 
         events = audit.query(
             event_type=event_type,

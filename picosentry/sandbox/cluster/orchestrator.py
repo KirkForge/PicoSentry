@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
@@ -425,10 +426,8 @@ class ClusterManager:
         kwargs: dict[str, Any] = {"timeout": 5.0}
         if scheme == "https":
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            try:
+            with contextlib.suppress(AttributeError):
                 ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-            except AttributeError:
-                pass
             if self._tls_ca_path:
                 ctx.load_verify_locations(cafile=self._tls_ca_path)
             else:

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -57,10 +58,8 @@ def wait_with_timeout(
             break
 
     for fd in [out_fd, err_fd]:
-        try:
+        with contextlib.suppress(OSError):
             os.set_blocking(fd, False)
-        except OSError:
-            pass
         try:
             while True:
                 data = os.read(fd, 65536)

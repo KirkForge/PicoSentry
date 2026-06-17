@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import atexit
+import contextlib
 import logging
 import os
 import shutil
@@ -74,10 +75,8 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
 
 
-    try:
+    with contextlib.suppress(AttributeError):
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-    except AttributeError:
-        pass
 
 
     try:
@@ -108,10 +107,8 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
     ctx.options |= ssl.OP_NO_COMPRESSION
 
 
-    try:
+    with contextlib.suppress(AttributeError):
         ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
-    except AttributeError:
-        pass
 
     logger.info(
         "mTLS SSL context created: verify_client=%s min_version=%s",

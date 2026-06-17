@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -122,10 +123,8 @@ class SeccompTraceBackend(SandboxBackend):
                 os.close(out_w)
                 os.close(err_w)
                 if cwd:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.chdir(cwd)
-                    except OSError:
-                        pass
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)
                 if ret != 0:

@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -383,10 +384,8 @@ class PicoDomeGRPCClient:
 
     def close(self) -> None:
         if self._channel is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._channel.close()
-            except Exception:
-                pass
             self._channel = None
             self._stub = None
 

@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -196,10 +197,8 @@ class RedisScanJobStore:
         job: dict[str, Any] = dict(data)
 
         if "command" in job and isinstance(job["command"], str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 job["command"] = json.loads(job["command"])
-            except json.JSONDecodeError:
-                pass
 
         for field in ("completed_at", "result", "error"):
             if job.get(field) == "":

@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -214,10 +215,8 @@ class PicoDomeServicer:
 
             et = None
             if event_type:
-                try:
+                with contextlib.suppress(ValueError):
                     et = AuditEventType(event_type)
-                except ValueError:
-                    pass
 
             events = audit.query(
                 event_type=et,

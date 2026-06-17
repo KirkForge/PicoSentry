@@ -302,7 +302,7 @@ def detect_private_maven_repository(target: Path) -> bool:
 
     pom_data = parse_pom_xml(target)
     if pom_data:
-        for repo_id, repo_url in pom_data.get("repositories", []):
+        for _repo_id, repo_url in pom_data.get("repositories", []):
             if repo_url and not _is_public_repo_url(repo_url):
                 return True
 

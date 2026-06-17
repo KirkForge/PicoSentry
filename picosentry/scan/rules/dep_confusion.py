@@ -389,7 +389,7 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
         maven_deps = _collect_maven_deps(target)
         if maven_deps:
             has_private = detect_private_maven_repository(target)
-            for group_id, artifact_id, version in sorted(maven_deps):
+            for group_id, artifact_id, _version in sorted(maven_deps):
                 if not group_id or not artifact_id:
                     continue
                 if _looks_internal_maven(group_id, artifact_id) and not has_private:
@@ -427,7 +427,7 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
         if nuget_deps:
             has_private = detect_private_nuget_source(target)
             nuget_config = _NUGET_CONFIG
-            for pkg_id, version, source in nuget_deps:
+            for pkg_id, _version, source in nuget_deps:
                 if not pkg_id:
                     continue
                 if _looks_internal_base(pkg_id, nuget_config) and not has_private:

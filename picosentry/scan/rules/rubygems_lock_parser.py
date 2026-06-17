@@ -23,7 +23,7 @@ def parse_gemfile_for_lock(path: Path) -> list[tuple[str, str, str]]:
         return []
 
     results: list[tuple[str, str, str]] = []
-    for gem_name, version, source_type in gemfile_data.get("dependencies", []):
+    for gem_name, version, _source_type in gemfile_data.get("dependencies", []):
         if gem_name:
             results.append((gem_name, version, "Gemfile"))
 

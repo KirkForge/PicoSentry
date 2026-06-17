@@ -57,7 +57,7 @@ def _persist_events_impl(engine) -> int:
     sql = _events_insert_sql()
     count = 0
     with engine._lock:
-        for artifact_id, events in list(engine._events.items()):
+        for _artifact_id, events in list(engine._events.items()):
             for event in events:
                 dedup_key = _dedup_key(event)
 

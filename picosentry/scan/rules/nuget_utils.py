@@ -135,7 +135,7 @@ def parse_nuget_lock(target: Path) -> list[dict] | None:
 
 
     deps_section = data.get("dependencies", {})
-    for project_name, project_info in deps_section.items():
+    for _project_name, project_info in deps_section.items():
         project_deps = project_info.get("dependencies", {})
         for pkg_name, pkg_info in project_deps.items():
             packages.append({
@@ -184,12 +184,12 @@ def get_nuget_dep_names(nuget_data: dict | list) -> set[str]:
     names: set[str] = set()
 
     if isinstance(nuget_data, dict):
-        for pkg_id, version in nuget_data.get("package_references", []):
+        for pkg_id, _version in nuget_data.get("package_references", []):
             if pkg_id:
                 names.add(pkg_id)
 
     elif isinstance(nuget_data, list):
-        for pkg_id, version in nuget_data:
+        for pkg_id, _version in nuget_data:
             if pkg_id:
                 names.add(pkg_id)
 
@@ -228,7 +228,7 @@ def detect_private_nuget_source(target: Path) -> bool:
                 return True
 
 
-        for clear_elem in root.findall(".//clear"):
+        for _clear_elem in root.findall(".//clear"):
             return True
 
 

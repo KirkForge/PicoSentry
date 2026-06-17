@@ -197,7 +197,7 @@ def parse_gemfile_lock(target: Path) -> list[dict] | None:
 def get_rubygems_dep_names(gemfile_data: dict) -> set[str]:
     names: set[str] = set()
 
-    for gem_name, version, source_type in gemfile_data.get("dependencies", []):
+    for gem_name, _version, _source_type in gemfile_data.get("dependencies", []):
         if gem_name:
             names.add(gem_name)
 

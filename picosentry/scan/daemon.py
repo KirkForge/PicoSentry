@@ -280,7 +280,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             output = format_json(result)
             self._send_json(200, _json.loads(output) if isinstance(output, str) else output, request_id, start_time)
         except Exception as e:
-            logger.error("Scan failed: %s", e, exc_info=True)
+            logger.exception("Scan failed")
             self._send_json(500, {"error": str(e), "request_id": request_id}, request_id, start_time)
 
     def _handle_health(self, request_id: str = "", start_time: float | None = None) -> None:

@@ -134,9 +134,8 @@ def _detect_ecosystem(target: Path) -> str | None:
                 if any(f.name == marker for f in target.iterdir() if f.is_file()):
                     return ecosystem
         # Also detect by glob for extensions that are strong ecosystem signals.
-        if ecosystem == "nuget":
-            if any(target.glob("*.csproj")) or any(target.glob("*.nuspec")):
-                return "nuget"
+        if ecosystem == "nuget" and (any(target.glob("*.csproj")) or any(target.glob("*.nuspec"))):
+            return "nuget"
     return None
 
 

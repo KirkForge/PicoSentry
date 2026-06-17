@@ -83,17 +83,16 @@ def detect_dependency_confusion(
         all_args_str = " ".join(spawn.args).lower()
 
 
-        if exe_base in ("twine", "gem", "cargo"):
-            if "upload" in all_args_str or "publish" in all_args_str:
-                findings.append(
-                    Finding(
-                        rule_id="L4-DEP-002",
-                        severity=Severity.CRITICAL,
-                        message=f"Package publish command during install: {spawn.executable} {' '.join(spawn.args[:5])}",
-                        location=spawn.executable,
-                        evidence={"executable": spawn.executable, "args": spawn.args[:5]},
-                    )
+        if exe_base in ("twine", "gem", "cargo") and ("upload" in all_args_str or "publish" in all_args_str):
+            findings.append(
+                Finding(
+                    rule_id="L4-DEP-002",
+                    severity=Severity.CRITICAL,
+                    message=f"Package publish command during install: {spawn.executable} {' '.join(spawn.args[:5])}",
+                    location=spawn.executable,
+                    evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
+            )
 
 
         if exe_base == "npm" and "publish" in all_args_str:

@@ -53,8 +53,8 @@ def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any
             stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
         if stack.layers():
             return stack.effective_policy()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Could not resolve effective policy: %s", exc)
     return None
 
 logger = logging.getLogger("picosentry.engine")

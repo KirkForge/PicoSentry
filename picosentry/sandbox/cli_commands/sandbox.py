@@ -55,7 +55,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 def cmd(args: argparse.Namespace) -> int:
 
-    if args.command and args.command[0] == '--':
+    if args.command and args.command[0] == "--":
         args.command = args.command[1:]
     if not args.command:
         print("Error: no command specified", file=sys.stderr)

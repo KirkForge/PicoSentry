@@ -248,6 +248,14 @@ ignore_errors = true
 module = "picosentry.scan.crypto"
 ignore_errors = true
 
+# OpenTelemetry is an optional extra; the installed package's partial type
+# stubs don't expose the `trace` attribute reliably across versions.  The file
+# gates all OTel usage behind an import check and a feature flag, so silencing
+# the type checker here is safe.
+[[tool.mypy.overrides]]
+module = "picosentry.sandbox.tracing"
+disable_error_code = ["attr-defined"]
+
 # The daemon HTTP handler is composed of multiple mixin classes
 # (PicoDomeResponseMixin, PicoDomeAuthMixin, PicoDomeGetRoutesMixin,
 # PicoDomePostRoutesMixin) that share state via the composite PicoDomeHandler

@@ -53,7 +53,7 @@ def cmd(args: argparse.Namespace) -> int:
         print("Edit this file to configure central policy and advisory URLs for your organization.")
         return 0
 
-    elif args.policy_action == "fetch":
+    if args.policy_action == "fetch":
         from picosentry.scan.management import fetch_policy
 
         output = Path(args.output)
@@ -73,7 +73,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
         return 0
 
-    elif args.policy_action == "push":
+    if args.policy_action == "push":
         from picosentry.scan.management import push_policy
 
         policy_path = Path(args.file)

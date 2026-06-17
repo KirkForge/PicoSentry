@@ -395,9 +395,8 @@ def check_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
         return check_token_auth(headers, config)
 
     if config.mode == "oidc":
-        result = check_oidc_auth(headers, config)
+        return check_oidc_auth(headers, config)
 
-        return result
 
     return AuthResult.denied(f"Unknown auth mode: {config.mode}")
 

@@ -4,6 +4,7 @@ Verifies that all 4 components (_core, scan, sandbox, watch, serve)
 interoperate correctly under the single namespace.
 """
 from __future__ import annotations
+import contextlib
 
 
 class TestSharedVerdictEnum:
@@ -362,10 +363,8 @@ class TestCacheHmacQuietSuppression:
         # Invoke the CLI main with --quiet
         from picosentry.cli import main
 
-        try:
+        with contextlib.suppress(SystemExit):
             main(["scan", "examples/pypi-obfuscated-setup", "--quiet"])
-        except SystemExit:
-            pass
 
         # After main returns, PICOSENTRY_QUIET should have been set
         # (we use setdefault so it stays set after, even if scan CLI clobbered it)

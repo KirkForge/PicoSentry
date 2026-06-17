@@ -51,12 +51,11 @@ def _parse_npm_label(label: str) -> tuple[str, str]:
         name = label[:last_at]
         version = label[last_at + 1 :]
         return (name, version)
-    else:
 
-        parts = label.split("@", 1)
-        if len(parts) == 2:
-            return (parts[0], parts[1])
-        return (label, "")
+    parts = label.split("@", 1)
+    if len(parts) == 2:
+        return (parts[0], parts[1])
+    return (label, "")
 
 
 @dataclass

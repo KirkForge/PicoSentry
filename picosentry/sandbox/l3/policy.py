@@ -386,10 +386,8 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
     for rule in policy.rules:
-        if rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC):
-            if not rule.paths and rule.action == SyscallAction.ALLOW:
-
-                pass
+        if rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC) and not rule.paths and rule.action == SyscallAction.ALLOW:
+            pass
 
 
     if policy.default_action.value not in valid_actions:

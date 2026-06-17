@@ -90,5 +90,4 @@ def _truncate_to_budget(text: str, token_budget: int) -> str:
     if len(text) <= max_chars:
         return text
 
-    truncated = text[: max_chars - 3] + "..."
-    return truncated
+    return text[: max_chars - 3] + "..."

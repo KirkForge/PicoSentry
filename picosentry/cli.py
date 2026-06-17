@@ -743,9 +743,8 @@ def _handle_health() -> int:
     if all_ok:
         print("All components healthy.")
         return 0
-    else:
-        print("Some components failed to load.")
-        return 1
+    print("Some components failed to load.")
+    return 1
 
 
 def _handle_init(args: argparse.Namespace) -> int:

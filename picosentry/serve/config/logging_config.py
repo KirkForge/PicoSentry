@@ -39,9 +39,8 @@ class JSONFormatter(logging.Formatter):
 
         if self.structured:
             return json.dumps(entry, default=str)
-        else:
 
-            return f"{entry['timestamp']} | {entry['level']:<8} | {entry['logger']} | {entry['message']}"
+        return f"{entry['timestamp']} | {entry['level']:<8} | {entry['logger']} | {entry['message']}"
 
 
 def configure_logging(

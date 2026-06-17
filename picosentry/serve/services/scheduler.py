@@ -125,9 +125,9 @@ class JobScheduler:
                 now = datetime.now()
                 if unit == "minute":
                     return now + timedelta(minutes=val)
-                elif unit == "hour":
+                if unit == "hour":
                     return now + timedelta(hours=val)
-                elif unit == "day":
+                if unit == "day":
                     return now + timedelta(days=val)
             return None
 

@@ -184,11 +184,11 @@ def _default_sandbox_commands(project: ProjectInfo) -> list[list[str]]:
             ["npm", "install", "--dry-run"],
             ["npm", "test"],
         ]
-    elif project.project_type == "python":
+    if project.project_type == "python":
         return [
             ["pip", "install", "--dry-run", "."],
         ]
-    elif project.project_type == "mixed":
+    if project.project_type == "mixed":
         return [
             ["npm", "install", "--dry-run"],
             ["pip", "install", "--dry-run", "."],

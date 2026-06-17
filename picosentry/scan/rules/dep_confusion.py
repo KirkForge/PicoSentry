@@ -227,9 +227,8 @@ def _pypi_has_private_index(target: Path) -> bool:
             config = configparser.ConfigParser()
             config.read_string(pypirc.read_text(encoding="utf-8"))
             for section in config.sections():
-                if section != "distutils" and config.has_option(section, "repository"):
-                    if "pypi.org" not in config.get(section, "repository"):
-                        return True
+                if section != "distutils" and config.has_option(section, "repository") and "pypi.org" not in config.get(section, "repository"):
+                    return True
         except Exception:
             pass
 

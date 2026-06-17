@@ -272,9 +272,8 @@ def verify_content_sigstore(
                 offline,
             )
             return True
-        else:
-            logger.warning("Sigstore verification failed: %s", result)
-            return False
+        logger.warning("Sigstore verification failed: %s", result)
+        return False
 
     except sigstore.errors.VerificationError as e:
         logger.error("Sigstore verification error: %s", e)
@@ -316,9 +315,8 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
         if result.returncode == 0:
             logger.info("minisign verification succeeded")
             return True
-        else:
-            logger.warning("minisign verification failed: %s", result.stderr.strip())
-            return False
+        logger.warning("minisign verification failed: %s", result.stderr.strip())
+        return False
 
     finally:
         Path(content_path).unlink(missing_ok=True)
@@ -338,14 +336,13 @@ def verify_content(
             signature_bundle.raw_signature,
             offline=offline,
         )
-    elif signature_bundle.provider == "minisign":
+    if signature_bundle.provider == "minisign":
         return verify_content_minisign(
             content,
             signature_bundle.raw_signature,
             public_key,
         )
-    else:
-        raise ValueError(f"Unknown signature provider: {signature_bundle.provider}")
+    raise ValueError(f"Unknown signature provider: {signature_bundle.provider}")
 
 
 def sign_json_bundle(

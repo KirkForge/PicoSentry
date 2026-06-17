@@ -83,8 +83,7 @@ class ClusterState:
 
             if scan.assigned_node is not None:
 
-                node = self._backend.load_node(scan.assigned_node)
-                return node
+                return self._backend.load_node(scan.assigned_node)
 
 
             online_nodes = [n for n in self._backend.load_all_nodes() if n.status == NodeStatus.ONLINE]

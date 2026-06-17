@@ -324,8 +324,7 @@ class RekorNotary(AuditNotary):
                         return uuids[0]
 
                     return str(uuid.uuid4())
-                else:
-                    raise NotaryConnectionError(f"Rekor returned status {resp.status}")
+                raise NotaryConnectionError(f"Rekor returned status {resp.status}")
         except NotaryError:
             raise
         except urllib.error.URLError as exc:

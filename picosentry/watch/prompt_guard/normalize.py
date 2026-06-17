@@ -56,8 +56,7 @@ class Normalizer:
         result = self.collapse_separator_punctuation(result)
         result = self.normalize_whitespace(result)
         result = self.strip_comments(result)
-        result = self.deobfuscate_markdown(result)
-        return result
+        return self.deobfuscate_markdown(result)
 
     def decode_and_rescan(self, text: str) -> list[str]:
         decoded_texts: list[str] = []
@@ -177,10 +176,8 @@ class Normalizer:
     def strip_comments(self, text: str) -> str:
         result = self._HTML_COMMENT.sub("", text)
         result = self._C_COMMENT.sub("", result)
-        result = self._LINE_COMMENT.sub("", result)
-        return result
+        return self._LINE_COMMENT.sub("", result)
 
     def deobfuscate_markdown(self, text: str) -> str:
 
-        result = "".join(ch for ch in text if ch not in self._ZERO_WIDTH)
-        return result
+        return "".join(ch for ch in text if ch not in self._ZERO_WIDTH)

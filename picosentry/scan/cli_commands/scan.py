@@ -554,30 +554,29 @@ def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
         print(f"  findings: {len(result_a.findings)}", file=sys.stderr)
         print(f"  duration: {result_a.stats.duration_ms}ms / {result_b.stats.duration_ms}ms", file=sys.stderr)
         return 0
+    print("\n✗ DETERMINISM VIOLATION — scans differ", file=sys.stderr)
+    print("  This is a bug. Please report at:", file=sys.stderr)
+    print("  https://github.com/KirkForge/PicoSentry/issues", file=sys.stderr)
+
+
+    json_a = format_json(result_a, deterministic_output=True)
+    json_b = format_json(result_b, deterministic_output=True)
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", prefix="picosentry_a_", delete=False) as fa:
+        fa.write(json_a)
+        path_a = fa.name
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".json", prefix="picosentry_b_", delete=False) as fb:
+        fb.write(json_b)
+        path_b = fb.name
+
+    print(f"  Diff: picosentry diff {path_a} {path_b}", file=sys.stderr)
+
+
+    if len(result_a.findings) != len(result_b.findings):
+        print(f"  findings: {len(result_a.findings)} vs {len(result_b.findings)}", file=sys.stderr)
     else:
-        print("\n✗ DETERMINISM VIOLATION — scans differ", file=sys.stderr)
-        print("  This is a bug. Please report at:", file=sys.stderr)
-        print("  https://github.com/KirkForge/PicoSentry/issues", file=sys.stderr)
+        print(f"  findings: {len(result_a.findings)} (same count, different content)", file=sys.stderr)
 
-
-        json_a = format_json(result_a, deterministic_output=True)
-        json_b = format_json(result_b, deterministic_output=True)
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", prefix="picosentry_a_", delete=False) as fa:
-            fa.write(json_a)
-            path_a = fa.name
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", prefix="picosentry_b_", delete=False) as fb:
-            fb.write(json_b)
-            path_b = fb.name
-
-        print(f"  Diff: picosentry diff {path_a} {path_b}", file=sys.stderr)
-
-
-        if len(result_a.findings) != len(result_b.findings):
-            print(f"  findings: {len(result_a.findings)} vs {len(result_b.findings)}", file=sys.stderr)
-        else:
-            print(f"  findings: {len(result_a.findings)} (same count, different content)", file=sys.stderr)
-
-        return 4
+    return 4
 
 
 def _handle_validate(args: argparse.Namespace, target: Path) -> int:

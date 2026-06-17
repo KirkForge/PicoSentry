@@ -81,7 +81,7 @@ def _auto_detect_policy(command: list[str]):
 
     if exe in node_commands:
         return _lp(name="node")
-    elif exe in python_commands:
+    if exe in python_commands:
         return _lp(name="python")
     return None
 

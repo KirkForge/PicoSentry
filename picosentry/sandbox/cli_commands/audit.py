@@ -31,9 +31,8 @@ def cmd(args: argparse.Namespace) -> int:
             for v in violations:
                 print(f"  - {v}")
             return 1
-        else:
-            print("✓ Audit log chain integrity verified")
-            return 0
+        print("✓ Audit log chain integrity verified")
+        return 0
 
     if args.stats:
         stats = audit.get_stats()

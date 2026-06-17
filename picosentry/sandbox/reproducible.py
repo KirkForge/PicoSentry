@@ -51,11 +51,10 @@ class ReproducibleBuild:
         return dict(sorted(d.items()))
 
     def env_vars(self) -> dict[str, str]:
-        env = {
+        return {
             "SOURCE_DATE_EPOCH": str(self.source_date_epoch),
             "PYTHONHASHSEED": str(self.python_hash_seed),
         }
-        return env
 
     def pip_install_args(self) -> list[str]:
         args = []

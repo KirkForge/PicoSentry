@@ -169,8 +169,7 @@ class AnomalyDetector:
                 if not filtered:
                     return None
                 return filtered[-1].value
-            else:
-                return metric_list[-1].value
+            return metric_list[-1].value
 
     def _get_health_value(self) -> float:
         try:
@@ -190,7 +189,7 @@ class AnomalyDetector:
             statuses = list(latest_by_component.values())
             if any(s == "critical" for s in statuses):
                 return 2.0
-            elif any(s in ("warning", "degraded", "disabled") for s in statuses):
+            if any(s in ("warning", "degraded", "disabled") for s in statuses):
                 return 1.0
             return 0.0
         except Exception:

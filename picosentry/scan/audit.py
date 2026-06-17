@@ -105,7 +105,7 @@ class AuditSink:
                 self._file_handle.write(line)
                 self._file_handle.flush()
             except OSError as e:
-                logger.error("Failed to write audit event: %s", e)
+                logger.exception("Failed to write audit event: %s", e)
                 self._close_handle()
 
     def _close_handle(self) -> None:
@@ -138,7 +138,7 @@ class AuditSink:
             self.path.rename(rotated)
             logger.info("Rotated audit log to %s", rotated)
         except OSError as e:
-            logger.error("Failed to rotate audit log: %s", e)
+            logger.exception("Failed to rotate audit log: %s", e)
 
     def _cleanup_old_files(self) -> None:
         if self.retention_days <= 0:
@@ -247,6 +247,6 @@ def audit(
             logger.critical("Failed to emit audit event (fail-closed): %s", e)
             raise
 
-        logger.error("Failed to emit audit event: %s", e)
+        logger.exception("Failed to emit audit event: %s", e)
 
     return event

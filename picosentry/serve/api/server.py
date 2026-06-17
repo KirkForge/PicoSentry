@@ -130,7 +130,7 @@ async def lifespan(app: FastAPI):
                 },
             )
         except Exception as exc:
-            logger.error("Chain escalation alert failed: %s", exc)
+            logger.exception("Chain escalation alert failed: %s", exc)
 
     def _chain_escalated_webhook(chain):
         try:
@@ -144,7 +144,7 @@ async def lifespan(app: FastAPI):
                 },
             )
         except Exception as exc:
-            logger.error("Chain escalation webhook failed: %s", exc)
+            logger.exception("Chain escalation webhook failed: %s", exc)
 
     correlation_engine.on_chain_escalated(_chain_escalated_alert)
     correlation_engine.on_chain_escalated(_chain_escalated_webhook)
@@ -251,7 +251,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     logger.error(
         "Unhandled exception on %s %s [request_id=%s]: %s",
         request.method, request.url.path, request_id, exc,
-        exc_info=True,
+        exc_info=exc,
     )
     return JSONResponse(
         status_code=500,

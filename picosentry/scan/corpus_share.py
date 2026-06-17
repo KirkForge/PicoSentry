@@ -159,7 +159,7 @@ def export_corpus_pack(
         except ImportError as e:
             logger.warning("Cryptographic signing skipped: %s", e)
         except Exception as e:
-            logger.error("Cryptographic signing failed: %s", e)
+            logger.exception("Cryptographic signing failed: %s", e)
 
     output_path.write_text(pack.to_json() + "\n", encoding="utf-8")
     logger.info("Exported %d IoCs to %s", len(pack.iocs), output_path)

@@ -284,7 +284,7 @@ def scan_workspace(
                 project_ok = False
                 error_msg = f"{rel}: {e}"
                 result.errors.append(error_msg)
-                logger.error("  %s: FAILED — %s", rel, e)
+                logger.exception("  %s: FAILED — %s", rel, e)
 
         result.projects[str(project.path)] = project
         if project_ok:

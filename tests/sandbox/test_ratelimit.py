@@ -128,7 +128,7 @@ class TestJobQueue:
         q = JobQueue(max_size=10)
         job = q.enqueue(command=["echo", "test"], actor="u1")
         q.dequeue(timeout=1.0)
-        q.fail(job.job_id, error="timeout")
+        q.fail(job.job_id)
         j = q.get(job.job_id)
         assert j.status == "failed"
 

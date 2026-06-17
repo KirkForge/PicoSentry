@@ -355,7 +355,7 @@ class CorpusGovernance:
         audit("corpus.remove_source", target=name, outcome="not_found")
         return False
 
-    def freshness_report(self, max_age_days: int = 30) -> FreshnessReport:
+    def freshness_report(self) -> FreshnessReport:
         return FreshnessReport(sources=list(self._sources.values()))
 
     def report_false_positive(self, report: FalsePositiveReport) -> None:

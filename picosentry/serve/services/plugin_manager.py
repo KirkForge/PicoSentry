@@ -169,7 +169,7 @@ class PluginManager:
         self._load_plugins()
 
     @staticmethod
-    def _validate_manifest(meta: dict, manifest_path: str) -> list[str]:
+    def _validate_manifest(meta: dict) -> list[str]:
         issues: list[str] = []
 
 
@@ -272,7 +272,7 @@ class PluginManager:
                     with open(manifest_path) as f:
                         meta = json.load(f)
 
-                    issues = self._validate_manifest(meta, manifest_path)
+                    issues = self._validate_manifest(meta)
                     if issues:
                         logger.error("Plugin '%s' manifest validation failed: %s", entry, '; '.join(issues))
                         continue

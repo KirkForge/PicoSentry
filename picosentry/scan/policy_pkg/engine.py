@@ -214,7 +214,7 @@ class Policy:
 
         return violations
 
-    def check_requirements(self, target: Path, scan_result: Any) -> list[PolicyViolation]:
+    def check_requirements(self, target: Path) -> list[PolicyViolation]:
         violations: list[PolicyViolation] = []
 
         if self.require_lockfile:
@@ -302,7 +302,7 @@ class Policy:
             violations.extend(self.check_packages(installed_packages))
 
 
-        violations.extend(self.check_requirements(target, scan_result))
+        violations.extend(self.check_requirements(target))
 
 
         expired = [w.id for w in self.waivers if w.is_expired()]

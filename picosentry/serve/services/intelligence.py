@@ -171,7 +171,7 @@ class IntelligenceEngine:
         stripped = before.lstrip()
         return stripped.startswith(("import ", "from ", "require(", "include(", "#include"))
 
-    def _is_inside_quotes(self, text: str, match_start: int, match_end: int) -> bool:
+    def _is_inside_quotes(self, text: str, match_start: int) -> bool:
         before = text[:match_start]
 
         i = len(before) - 1
@@ -288,7 +288,7 @@ class IntelligenceEngine:
                     continue
 
 
-                if self._is_inside_quotes(output, start, end):
+                if self._is_inside_quotes(output, start):
                     continue
 
 

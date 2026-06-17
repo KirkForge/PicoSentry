@@ -249,10 +249,6 @@ _NPMRC_REGISTRY_PATTERN = "registry="
 _NPM_INTERNAL_SCOPES = frozenset({"@internal/", "@private/"})
 
 
-def _get_npm_pinned_deps(target: Path) -> set[str]:
-    return set()
-
-
 def _get_go_pinned_deps(target: Path) -> set[str]:
     go_mod_data = parse_go_mod(target)
     if go_mod_data:

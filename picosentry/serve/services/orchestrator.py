@@ -174,10 +174,9 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         timeout = timeout or settings.orchestrator.default_timeout
 
         with self._semaphore:
-            return self._execute_project(project_id, meta, cli_args, timeout)
+            return self._execute_project(project_id, cli_args, timeout)
 
-    def _execute_project(self, project_id: str, meta: ProjectMeta,
-                        cli_args: list[str], timeout: int) -> dict[str, Any]:
+    def _execute_project(self, project_id: str, cli_args: list[str], timeout: int) -> dict[str, Any]:
 
         run_id = db.execute_insert("""
             INSERT INTO project_runs (project_id, run_start, status)
@@ -238,7 +237,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             ))
 
 
-            self._update_project_stats(project_id, status, duration)
+            self._update_project_stats(project_id)
 
 
             metrics.project_run(project_id, duration, status)
@@ -366,7 +365,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
             return {"error": str(e), "duration": duration}
 
-    def _update_project_stats(self, project_id: str, status: str, duration: float):
+    def _update_project_stats(self, project_id: str):
         stats = db.execute_one("""
             SELECT
                 COUNT(*) as total,

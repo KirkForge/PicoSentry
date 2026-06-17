@@ -481,7 +481,6 @@ class ScanEngine:
 def create_default_engine(
     corpus_dir: Path | None = None,
     advisory_db_path: str | None = None,
-    ecosystems: list[str] | None = None,
 ) -> ScanEngine:
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows

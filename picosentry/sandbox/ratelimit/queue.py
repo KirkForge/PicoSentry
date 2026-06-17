@@ -134,7 +134,7 @@ class JobQueue:
                     self._completed[job_id] = result
                 self._stats["completed"] += 1
 
-    def fail(self, job_id: str, error: str = "") -> None:
+    def fail(self, job_id: str) -> None:
         with self._lock:
             if job_id in self._jobs:
                 self._jobs[job_id].status = "failed"

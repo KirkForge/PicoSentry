@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -152,10 +153,8 @@ class SeccompBackend(SandboxBackend):
 
 
                 if cwd:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.chdir(cwd)
-                    except OSError:
-                        pass
 
 
                 ret = lib.seccomp_load(ctx)
@@ -352,10 +351,8 @@ class SeccompBackend(SandboxBackend):
 
 
         for fd in [out_fd, err_fd]:
-            try:
+            with contextlib.suppress(OSError):
                 os.set_blocking(fd, False)
-            except OSError:
-                pass
             try:
                 while True:
                     data = os.read(fd, 65536)

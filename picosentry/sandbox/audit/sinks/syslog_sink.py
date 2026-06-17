@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import logging
 import socket
 import time
@@ -83,10 +84,8 @@ class SyslogSink(AuditSink):
 
     def stop(self) -> None:
         if self._sock:
-            try:
+            with contextlib.suppress(OSError):
                 self._sock.close()
-            except OSError:
-                pass
             self._sock = None
 
 

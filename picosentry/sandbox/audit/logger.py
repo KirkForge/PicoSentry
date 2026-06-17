@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import gzip
 import hashlib
 import json
@@ -316,10 +317,8 @@ class AuditLogger:
 
     def remove_sink(self, sink: Any) -> None:
         if sink in self._sinks:
-            try:
+            with contextlib.suppress(Exception):
                 sink.stop()
-            except Exception:
-                pass
             self._sinks.remove(sink)
 
 
@@ -332,10 +331,8 @@ class AuditLogger:
             f.write(line + "\n")
 
 
-        try:
+        with contextlib.suppress(OSError):
             self._log_path.chmod(0o600)
-        except OSError:
-            pass
 
     def _rotate(self) -> None:
 

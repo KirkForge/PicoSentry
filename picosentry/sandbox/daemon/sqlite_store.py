@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -240,10 +241,8 @@ class SQLiteScanJobStore:
         d = dict(row)
 
         if "command" in d and isinstance(d["command"], str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 d["command"] = json.loads(d["command"])
-            except json.JSONDecodeError:
-                pass
 
         for field in ("completed_at", "result", "error"):
             if d.get(field) == "":

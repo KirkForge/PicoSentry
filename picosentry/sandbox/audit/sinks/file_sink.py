@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import gzip
 import logging
 import shutil
@@ -47,18 +48,14 @@ class FileSink(AuditSink):
     def stop(self) -> None:
         self.flush()
         if self._fh is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._fh.close()
-            except OSError:
-                pass
             self._fh = None
 
     def flush(self) -> None:
         if self._fh is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._fh.flush()
-            except OSError:
-                pass
 
 
     def send(self, event: AuditEvent) -> None:
@@ -103,9 +100,7 @@ class FileSink(AuditSink):
 
 
         if self._fh is not None:
-            try:
+            with contextlib.suppress(OSError):
                 self._fh.close()
-            except OSError:
-                pass
             self._fh = None
         self._file_path.write_text("", encoding="utf-8")

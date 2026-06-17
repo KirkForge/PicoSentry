@@ -1,6 +1,7 @@
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import threading
@@ -133,10 +134,8 @@ class PersistentScanJobStore:
             logger.info("Compacted job store: %d → %d jobs", len(jobs), len(sorted_jobs))
         except OSError as e:
             logger.warning("Failed to compact job store: %s", e)
-            try:
+            with contextlib.suppress(OSError):
                 tmp_file.unlink()
-            except OSError:
-                pass
 
         self._jobs = {j["job_id"]: j for j in sorted_jobs}
 
@@ -204,7 +203,5 @@ class PersistentScanJobStore:
             tmp_file.replace(self._store_file)
         except OSError as e:
             logger.warning("Failed to rewrite job store: %s", e)
-            try:
+            with contextlib.suppress(OSError):
                 tmp_file.unlink()
-            except OSError:
-                pass

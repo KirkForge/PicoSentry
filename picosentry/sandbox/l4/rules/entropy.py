@@ -2,13 +2,12 @@
 import math
 from collections import Counter
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 def detect_entropy_anomalies(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 

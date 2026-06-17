@@ -1,5 +1,5 @@
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -54,7 +54,6 @@ MINING_DNS_PATTERNS = (
 
 def detect_crypto_mining(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 

@@ -1,5 +1,5 @@
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -26,7 +26,6 @@ CRITICAL_DELETE_PATHS = {
 
 def detect_filesystem_anomalies(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 

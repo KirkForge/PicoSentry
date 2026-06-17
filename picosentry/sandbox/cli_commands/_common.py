@@ -162,7 +162,7 @@ def _compute_exit_code_analysis(result: AnalysisResult, args: argparse.Namespace
 
 
 def _compute_exit_code_pipeline(
-    sandbox: SandboxResult, analysis: AnalysisResult, args: argparse.Namespace
+    analysis: AnalysisResult, args: argparse.Namespace
 ) -> int:
 
     if args.exit_code and analysis.overall_verdict.value in _BAD_VERDICTS:

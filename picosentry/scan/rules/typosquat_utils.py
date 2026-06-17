@@ -38,24 +38,6 @@ _KEYBOARD_ADJ: dict[str, set[str]] = {
 }
 
 
-_HOMOGLYPHS: dict[str, str] = {
-    "0": "o",
-    "1": "l",
-    "2": "z",
-    "3": "e",
-    "4": "a",
-    "5": "s",
-    "6": "g",
-    "7": "t",
-    "8": "b",
-    "9": "p",
-    "@": "a",
-    "$": "s",
-    "!": "i",
-    "+": "t",
-}
-
-
 def edit_distance(a: str, b: str) -> int:
     if len(a) < len(b):
         a, b = b, a
@@ -103,34 +85,6 @@ def _is_keyboard_adjacent(a: str, b: str) -> bool:
     if al == bl:
         return False
     return bl in _KEYBOARD_ADJ.get(al, set()) or al in _KEYBOARD_ADJ.get(bl, set())
-
-
-def homoglyph_score(name: str) -> float:
-    if not name:
-        return 0.0
-
-    suspicious_count = 0
-    for ch in name:
-        if ch in _HOMOGLYPHS:
-            suspicious_count += 1
-
-        if ord(ch) > 127 and ch.isalpha():
-            suspicious_count += 2  # Heavier weight for non-ASCII
-
-    return min(suspicious_count / max(len(name), 1), 1.0)
-
-
-def scope_confusion_score(name: str) -> float:
-    if name.startswith("@"):
-        return 0.0  # Already scoped, not a confusion vector
-
-
-    for sep in ("-", "_", "."):
-        parts = name.split(sep)
-        if len(parts) >= 2 and len(parts[0]) <= 20 and all(c.isalnum() for c in parts[0]):
-            return 0.5
-
-    return 0.0
 
 
 def check_typosquat(

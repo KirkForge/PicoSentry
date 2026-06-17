@@ -272,7 +272,7 @@ def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:
 
     for line in lines:
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-"):
+        if not line or line.startswith(("#", "-")):
             continue
 
 

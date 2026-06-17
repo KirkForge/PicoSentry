@@ -170,7 +170,7 @@ def detect_goproxy_private(target: Path) -> bool:
                 line = line.strip()
                 if line.startswith("GOPROXY=") and "proxy.golang.org" not in line and "direct" not in line:
                     return True
-                if line.startswith("GONOSUMDB=") or line.startswith("GONOSUMCHECK="):
+                if line.startswith(("GONOSUMDB=", "GONOSUMCHECK=")):
                     return True
                 if line.startswith("GOPRIVATE="):
                     return True

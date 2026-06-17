@@ -205,7 +205,7 @@ def parse_gradle_build(target: Path) -> dict | None:
         stripped = line.strip()
 
 
-        if not stripped or stripped.startswith("//") or stripped.startswith("#"):
+        if not stripped or stripped.startswith(("//", "#")):
             continue
 
 

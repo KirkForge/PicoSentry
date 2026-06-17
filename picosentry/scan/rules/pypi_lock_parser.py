@@ -24,7 +24,7 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
 
     for line in text.splitlines():
         line = line.strip()
-        if not line or line.startswith("#") or line.startswith("-"):
+        if not line or line.startswith(("#", "-")):
             continue
 
 

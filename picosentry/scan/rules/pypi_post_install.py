@@ -79,7 +79,7 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
         stripped = line.strip()
 
 
-        if stripped.startswith("#") or stripped.startswith(('"""', "'''", '"', "'")):
+        if stripped.startswith(("#", '"""', "'''", '"', "'")):
             continue
 
         for pattern in EXEC_PATTERNS:

@@ -107,9 +107,7 @@ def detect_privilege_escalation(
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if op.operation in ("write", "create") and (
-            "/etc/cron" in path_lower
-            or path_lower.startswith("/var/spool/cron")
-            or path_lower.startswith("/var/cron")
+            "/etc/cron" in path_lower or path_lower.startswith(("/var/spool/cron", "/var/cron"))
         ):
             findings.append(
                 Finding(

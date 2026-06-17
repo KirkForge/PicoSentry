@@ -80,9 +80,10 @@ class Organization:
         projects = (project_row or {}).get("c") or 0
 
 
-        runs_today_row = db.execute_one("""
+        today_col = db.dialect.date_column("run_start")
+        runs_today_row = db.execute_one(f"""
             SELECT COUNT(*) as c FROM project_runs
-            WHERE org_id = ? AND DATE(run_start) = DATE('now')
+            WHERE org_id = ? AND {today_col} = {db.dialect.date_now()}
         """, (org_id,))
         runs_today = runs_today_row["c"] if runs_today_row else 0
 

@@ -12,7 +12,7 @@ def _validate_findings_deterministic(findings: list) -> list:
 
     uuid_pat = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
     ts_pat = re.compile(r"\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}")
-    errors = []
+    errors: list[str] = []
     for f in findings:
         d = f.to_dict()
         for key, val in d.items():

@@ -16,6 +16,10 @@
 # Build:
 #   docker build -t picosentry:latest .
 #
+# Multi-arch build (requires buildx + binfmt for arm64 emulation on amd64):
+#   docker buildx bake --push
+#   ./scripts/build_docker_multiarch.sh --push
+#
 # Run:
 #   docker run --rm -v $(pwd):/scan picosentry scan /scan
 #   docker run --rm picosentry sandbox echo "hello"
@@ -23,7 +27,10 @@
 # =============================================================================
 
 # ── Stage 1: Builder ─────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS builder
+
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -42,6 +49,8 @@ RUN python -m build --wheel
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
+
+ARG TARGETPLATFORM
 
 LABEL org.opencontainers.image.title="PicoSentry"
 LABEL org.opencontainers.image.description="Local supply-chain scanner with kernel-sandbox enforcement (beta). See experimental.py for component maturity."

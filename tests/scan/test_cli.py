@@ -7,7 +7,6 @@ Tests the command-line interface and SARIF output format.
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 

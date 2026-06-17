@@ -14,9 +14,8 @@ contract for the bypass.
 
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
-import pytest
 from starlette.applications import Starlette
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -35,7 +34,7 @@ def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShie
     async def catch_all(request: Request) -> JSONResponse:
         return JSONResponse({"path": request.url.path})
 
-    routes = list(extra_routes) + [Route("/{full_path:path}", catch_all, methods=["GET"])]
+    routes = [*extra_routes, Route("/{full_path:path}", catch_all, methods=["GET"])]
     app = Starlette(routes=routes)
 
     # Build the middleware manually so we can hold a reference to it.

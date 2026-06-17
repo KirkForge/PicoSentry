@@ -18,12 +18,8 @@ from picosentry.scan.cli import (
     main,
 )
 from picosentry.scan.config import PicoSentryConfig, load_config
-from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
+from picosentry.scan.models import ScanResult
 
-from tests.scan.conftest import (
-    make_finding as _make_finding,
-    make_scan_result as _make_result,
-)
 
 
 class TestDaemonCommand:

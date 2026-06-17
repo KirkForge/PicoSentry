@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 
 NAME = "cluster"
@@ -28,6 +29,26 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     cluster_join.add_argument(
         "--heartbeat-timeout", type=int, default=30, help="Heartbeat timeout in seconds (default: 30)"
     )
+    cluster_join.add_argument(
+        "--cluster-token",
+        default=os.environ.get("PICODOME_CLUSTER_TOKEN", ""),
+        help="Shared secret required for gossip membership (also PICODOME_CLUSTER_TOKEN env)",
+    )
+    cluster_join.add_argument(
+        "--tls-cert",
+        default=os.environ.get("PICODOME_CLUSTER_TLS_CERT", ""),
+        help="Client certificate path for TLS/mTLS gossip (also PICODOME_CLUSTER_TLS_CERT env)",
+    )
+    cluster_join.add_argument(
+        "--tls-key",
+        default=os.environ.get("PICODOME_CLUSTER_TLS_KEY", ""),
+        help="Client private key path for TLS/mTLS gossip (also PICODOME_CLUSTER_TLS_KEY env)",
+    )
+    cluster_join.add_argument(
+        "--tls-ca",
+        default=os.environ.get("PICODOME_CLUSTER_TLS_CA", ""),
+        help="CA bundle path to verify peer certificates (also PICODOME_CLUSTER_TLS_CA env)",
+    )
 
 
     cluster_status = cluster_sub.add_parser("status", help="Show cluster node status")
@@ -41,11 +62,12 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 def cmd(args: argparse.Namespace) -> int:
     from picosentry.sandbox.cluster import (
-        ClusterManager,
         ClusterNode,
         MemoryStateBackend,
         NodeStatus,
         SQLiteStateBackend,
+        get_cluster_manager,
+        setup_cluster_manager,
     )
 
     action = getattr(args, "cluster_action", None)
@@ -67,13 +89,17 @@ def cmd(args: argparse.Namespace) -> int:
 
         backend = MemoryStateBackend() if args.backend == "memory" else SQLiteStateBackend()
 
-        manager = ClusterManager(
+        manager = setup_cluster_manager(
             address="127.0.0.1",
             port=args.port,
             node_id=args.node_id,
             backend=backend,
             heartbeat_interval=args.heartbeat_interval,
             heartbeat_timeout=args.heartbeat_timeout,
+            cluster_token=args.cluster_token,
+            tls_cert_path=args.tls_cert,
+            tls_key_path=args.tls_key,
+            tls_ca_path=args.tls_ca,
         )
         manager.start()
 
@@ -97,17 +123,15 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"  Leader: {status['leader_id'] or 'none'}")
         print(f"  Nodes: {status['nodes_online']} online, {status['nodes_total']} total")
         print(f"  Backend: {args.backend}")
+        if args.cluster_token:
+            print("  Cluster token: configured")
+        if args.tls_ca or (args.tls_cert and args.tls_key):
+            print("  Gossip TLS: configured")
         return 0
 
     elif action == "status":
 
-        try:
-            from picosentry.sandbox.cluster.manager import _cluster_manager
-
-            manager = _cluster_manager or ClusterManager()
-        except Exception:
-            manager = ClusterManager()
-
+        manager = get_cluster_manager()
         status = manager.get_status()
 
         if args.format == "json":
@@ -141,13 +165,7 @@ def cmd(args: argparse.Namespace) -> int:
         return 0
 
     elif action == "leave":
-        try:
-            from picosentry.sandbox.cluster.manager import _cluster_manager
-
-            manager = _cluster_manager or ClusterManager()
-        except Exception:
-            manager = ClusterManager()
-
+        manager = get_cluster_manager()
         manager.stop()
         print(f"✓ Left cluster (node {manager.node_id})")
         return 0

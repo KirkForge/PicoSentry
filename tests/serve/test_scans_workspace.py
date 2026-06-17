@@ -22,7 +22,6 @@ opt out of.
 
 from __future__ import annotations
 
-import os
 import time
 import uuid
 from typing import Any
@@ -99,17 +98,17 @@ def test_operator_inside_workspace_returns_200(
     monkeypatch.setattr(settings.security, "scans_workspace_root", workspace)
 
     # Stub the engine so we don't actually run a 26s scan.
-    from picosentry.scan.engine import create_default_engine
 
     target_str = str(target)
 
     class _StubResult:
-        scan_id = "stub-scan"
-        started_at = "2026-06-12T00:00:00Z"
-        target = target_str
-        engine_version = "0.0.0-stub"
-        findings: list = []
-        stats = type("S", (), {"to_dict": staticmethod(lambda: {})})()
+        def __init__(self) -> None:
+            self.scan_id = "stub-scan"
+            self.started_at = "2026-06-12T00:00:00Z"
+            self.target = target_str
+            self.engine_version = "0.0.0-stub"
+            self.findings: list = []
+            self.stats = type("S", (), {"to_dict": staticmethod(lambda: {})})()
 
     class _StubEngine:
         def scan(self, *args, **kwargs):

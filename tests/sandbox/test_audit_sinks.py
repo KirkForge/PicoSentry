@@ -52,7 +52,7 @@ class TestSinkConfig:
     def test_frozen(self):
         cfg = SinkConfig()
         with pytest.raises(FrozenInstanceError):
-            cfg.enabled = False  # type: ignore[misc]
+            cfg.enabled = False
 
     def test_equality(self):
         a = SinkConfig()

@@ -6,7 +6,7 @@ import logging
 import time
 import uuid
 from importlib import import_module
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
@@ -23,6 +23,39 @@ if TYPE_CHECKING:
     from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")
+
+
+def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
+    """Verify X-Cluster-Token header matches the configured cluster token."""
+    expected = mgr.state.cluster_token
+    if not expected:
+        return True
+    provided = self.headers.get("X-Cluster-Token", "")
+    if provided != expected:
+        actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16] if provided else "anonymous"
+        try:
+            audit = get_audit_logger()
+            audit.record(
+                event_type=AuditEventType.AUTH_FAILURE,
+                actor=actor,
+                detail="Cluster token mismatch",
+                target=self.path,
+            )
+        except Exception:
+            pass
+        self._send_error(403, "cluster token mismatch")
+        return False
+    return True
+
+
+# Maps daemon API ``backend`` values to the fully-qualified backend class.
+# This is a single source of truth so tests can verify the paths stay valid
+# and the typo that once used the old ``picodome`` namespace cannot recur.
+_DAEMON_BACKEND_MAP: dict[str, str] = {
+    "subprocess": "picosentry.sandbox.l3.backends.subprocess_backend:SubprocessBackend",
+    "seccomp-bpf": "picosentry.sandbox.l3.backends.seccomp_backend:SeccompBackend",
+    "seatbelt": "picosentry.sandbox.l3.backends.seatbelt_backend:SeatbeltBackend",
+}
 
 
 class PicoDomePostRoutesMixin:
@@ -99,7 +132,6 @@ class PicoDomePostRoutesMixin:
             return
 
         timeout = data.get("timeout", 30.0)
-        data.get("policy")
 
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
@@ -142,12 +174,7 @@ class PicoDomePostRoutesMixin:
                 self._send_error(ErrorCodes.ENTERPRISE_ENFORCEMENT, detail="subprocess backend is not allowed in enterprise mode")
                 return
             if backend_name != "auto":
-                backend_map = {
-                    "subprocess": "picodome.l3.backends.subprocess_backend:SubprocessBackend",
-                    "seccomp-bpf": "picodome.l3.backends.seccomp_backend:SeccompBackend",
-                    "seatbelt": "picodome.l3.backends.seatbelt_backend:SeatbeltBackend",
-                }
-                cls_path = backend_map.get(backend_name)
+                cls_path = _DAEMON_BACKEND_MAP.get(backend_name)
                 if cls_path is None:
                     self._send_error(ErrorCodes.INVALID_BACKEND, detail=backend_name)
                     return
@@ -293,14 +320,17 @@ class PicoDomePostRoutesMixin:
                 self._send_error(409, "cluster manager is not running on this node")
                 return
 
+            if not _check_cluster_token(self, mgr):
+                return
+
             before_nodes = len(mgr.state.list_nodes())
             mgr.state.merge_state(snapshot)
             after_nodes = len(mgr.state.list_nodes())
 
             audit = get_audit_logger()
             audit.record(
-                event_type=AuditEventType.SCAN_START,
-                actor=f"cluster-gossip",
+                event_type=AuditEventType.CLUSTER_GOSSIP,
+                actor="cluster-gossip",
                 detail=f"Merged peer snapshot: {before_nodes}→{after_nodes} nodes",
             )
 

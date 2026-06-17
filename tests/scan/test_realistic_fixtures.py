@@ -13,7 +13,6 @@ These tests validate that PicoSentry handles real-world project structures:
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 

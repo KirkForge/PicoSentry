@@ -486,6 +486,7 @@ def create_default_engine(
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
+    from .rules.dangerous_build_hooks import detect_dangerous_build_hooks
     from .rules.dep_confusion import detect_all_dep_confusion
     from .rules.engine import detect_engine_issues
     from .rules.fork_drift import detect_fork_drift
@@ -523,6 +524,7 @@ def create_default_engine(
     engine.register("L2-CRED-001", detect_credential_reading)
     engine.register("L2-LOCK-001", detect_lockfile_drift)
     engine.register("L2-BUND-001", detect_bundled_shadows)
+    engine.register("L2-BUILD-001", detect_dangerous_build_hooks)
     engine.register("L2-PROV-001", detect_provenance_issues)
     engine.register("L2-MAINT-001", detect_maintainer_changes)
     engine.register("L2-PNPM-001", detect_pnpm_config)

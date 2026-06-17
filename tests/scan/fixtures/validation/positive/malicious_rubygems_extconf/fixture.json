@@ -1,0 +1,6 @@
+{
+  "label": "positive",
+  "description": "RubyGem with a malicious extconf.rb that downloads a native payload during build and reads RUBYGEMS_API_KEY. Fires L2-BUILD-001.",
+  "expected_rule_ids": ["L2-BUILD-001"],
+  "strict": true
+}

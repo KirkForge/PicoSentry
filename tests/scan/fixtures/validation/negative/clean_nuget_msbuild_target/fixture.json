@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean NuGet project with no custom MSBuild targets or init scripts. L2-BUILD-001 must stay silent.",
+  "forbidden_rule_ids": ["L2-BUILD-001"]
+}

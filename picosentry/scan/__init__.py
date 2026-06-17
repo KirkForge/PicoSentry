@@ -12,7 +12,7 @@ from .models import (
     load_baseline,
 )
 
-__version__ = "2.0.13"
+__version__ = "2.0.14"
 __all__ = [
     "BaselineResult",
     "Confidence",

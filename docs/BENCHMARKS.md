@@ -1,9 +1,9 @@
 # PicoSentry — Detection Quality Benchmarks
 
-> **Version:** 2.0.9 (2026-06-06)
+> **Version:** 2.0.14 (2026-06-16)
 >
 > **Reproducible from a fresh clone:** `picosentry scan --validate` (see [Reproduction](#reproduction) below).
-> **Updated on every minor release.** The numbers in this document are the v2.0.9 baseline;
+> **Updated on every minor release.** The numbers in this document are the v2.0.14 baseline;
 > the next release is expected to expand the fixture corpus (see [v2.1.0 expansion target](#v210-expansion-target)).
 >
 > **A checked-in JSON dump of the latest run lives at**
@@ -15,14 +15,14 @@
 
 ## TL;DR
 
-- **Fixtures:** 178 total (145 positive, 33 negative)
-- **Rules covered by fixtures:** 53 (49 L2 rule_ids in `RULE_INFO` + 4 L2-CAMP rule_ids
+- **Fixtures:** 188 total (150 positive, 38 negative)
+- **Rules covered by fixtures:** 54 (50 L2 rule_ids in `RULE_INFO` + 4 L2-CAMP rule_ids
   from the IoC corpus — `L2-CAMP-SHAI-HULUD`, `L2-CAMP-NODE-IPC-COMPROMISE`,
   `L2-CAMP-TRAPDOOR`, `L2-CAMP-AXIOS-POISONING`). Every L2 rule in
   `RULE_INFO` is exercised by at least one positive fixture, and the 4 campaign
   rules each have a positive + at least one negative fixture.
 - **Aggregate TP / FP / FN:** see the per-rule table below.
-- **Mean precision / recall:** 1.00 / 1.00. The mean is over all 53 rules; rules
+- **Mean precision / recall:** 1.00 / 1.00. The mean is over all 54 rules; rules
   marked with `⁂` in the per-rule table have 0 negative fixtures and their precision
   value is vacuous (the denominator `TP + FP` collapses to `TP`). See the table
   footnote for the full definition.
@@ -35,11 +35,11 @@
 ## Honest limitations — read this first
 
 The headline number (**100% precision, 100% recall**) is reproducible from a single
-command and is enforced by CI. But it is a **v2.0.9 baseline expanded through the
+command and is enforced by CI. But it is a **v2.0.14 baseline expanded through the
 v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
 Specifically:
 
-1. **178 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
+1. **188 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
    patterns could pass today and fail tomorrow against real-world packages. The 7 tricky
    fixtures in `_tricky/` exist specifically to document the *known* cases where a
    detector's regex is too coarse, but they don't prove the detector is precise on the
@@ -51,15 +51,16 @@ Specifically:
    in the per-rule table below has at least one negative fixture.
 3. **Ecosystem coverage is now full.** All 7 ecosystems (npm, PyPI, Go, Cargo, Maven,
    RubyGems, NuGet) are exercised with multiple fixture variants per ecosystem.
-4. **Layer coverage is L2 only.** The 53 verified rules are static-analysis (L2) detectors
+4. **Layer coverage is L2 only.** The 54 verified rules are static-analysis (L2) detectors
    + L2-CAMP campaign detectors. The L3 kernel sandbox and the L4 behavioral profiler
    are not benchmarked here — those benchmarks depend on the v2.0.8 `seccomp-trace`
    backend settling in and are scheduled for v2.1.0+ (see backlog).
-5. **All 49 L2 rule_ids + 4 L2-CAMP rule_ids are now covered.** v2.0.8 had only 5 L2
-   rules; v2.0.9 expanded the corpus to 45 fixtures covering all 49 L2 rule_ids. The
-   v2.1.0 expansion work added 132 more fixtures to bring the corpus to 177 with
-   per-rule negatives, per-rule depth variants, and explicit CAMP-rule coverage
-   (4 of 4 L2-CAMP rule_ids now have a positive fixture and a negative fixture).
+5. **All 50 L2 rule_ids + 4 L2-CAMP rule_ids are now covered.** v2.0.8 had only 5 L2
+   rules; v2.0.9 expanded the corpus to 45 fixtures covering the first 49 L2 rule_ids.
+   v2.0.14 added 143 more fixtures to bring the corpus to 188 with per-rule negatives,
+   per-rule depth variants, the new L2-BUILD-001 cross-ecosystem build-hook detector,
+   and explicit CAMP-rule coverage (4 of 4 L2-CAMP rule_ids now have a positive
+   fixture and a negative fixture).
 
 The 100% floor exists so a *regression* breaks the build. It is not a claim that
 the scanner is 100% accurate in production. If you find a package that PicoSentry
@@ -148,9 +149,9 @@ disappearing after a refactor.
 
 ---
 
-## Per-rule results (v2.0.9)
+## Per-rule results (v2.0.14)
 
-All 49 L2 rule_ids in `RULE_INFO` (plus 1 L2-CAMP rule_id from the IoC
+All 50 L2 rule_ids in `RULE_INFO` (plus 4 L2-CAMP rule_ids from the IoC
 corpus) have at least one positive fixture. The harness reproduces
 these numbers from a fresh clone.
 
@@ -158,9 +159,10 @@ these numbers from a fresh clone.
 | rule_id                 | n_pos | n_neg | TP | FP | FN | precision | recall |
 |-------------------------|------:|------:|---:|---:|---:|----------:|-------:|
 | L2-ADV-001              |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-BUILD-001            |    5 |    5 |  5 |  0 |  0 | 100.00% | 100.00% |
 | L2-BUND-001             |    2 |    2 |  2 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-AXIOS-POISONING |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-CAMP-NODE-IPC-COMPROMISE |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-NODE-IPC-COMPROMISE|    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-SHAI-HULUD      |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-TRAPDOOR        |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CARGO-ADV-001        |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
@@ -210,7 +212,8 @@ these numbers from a fresh clone.
 | L2-SIDELOAD-001         |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-TYPO-001             |    4 |    4 |  4 |  0 |  0 | 100.00% | 100.00% |
 | L2-WORM-001             |    3 |    5 |  3 |  0 |  0 | 100.00% | 100.00% |
-| **Aggregate              ** | ** 165** | ** 164** | **165** | ** 0** | ** 0** | **100.00%** | **100.00%** |
+| **Aggregate** | **170** | **169** | **170** | ** 0** | ** 0** | **100.00%** | **100.00%** |
+
 <!-- END: rule-table -->
 
 > **Note on `n_neg`:** The six "n_neg=1" rows are the rules exercised by the

@@ -10,33 +10,6 @@ from typing import Any, Protocol, runtime_checkable
 logger = logging.getLogger("picosentry._core.config")
 
 
-def from_env(key: str, default: str | None = None, required: bool = False) -> str | None:
-    value = os.environ.get(key)
-    if value is not None:
-        return value
-    if required:
-        raise ValueError(f"Required environment variable {key} is not set")
-    return default
-
-
-def from_env_int(key: str, default: int = 0) -> int:
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        logger.warning("Invalid integer for %s=%r, using default %d", key, value, default)
-        return default
-
-
-def from_env_bool(key: str, default: bool = False) -> bool:
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    return value.strip().lower() in ("true", "1", "yes")
-
-
 @dataclass(frozen=True)
 class SecurityViolation:
 
@@ -180,7 +153,4 @@ __all__ = [
     "SecureBootCheck",
     "SecurityViolation",
     "assert_secure",
-    "from_env",
-    "from_env_bool",
-    "from_env_int",
 ]

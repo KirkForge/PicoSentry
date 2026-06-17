@@ -43,13 +43,7 @@ class PolicyBase(ABC):
         return json.dumps(self.to_dict(), sort_keys=True, indent=indent)
 
 
-def content_hash(data: dict[str, Any]) -> str:
-    canonical = json.dumps(data, sort_keys=True, separators=(",", ":"))
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
 __all__ = [
     "PolicyBase",
     "PolicyVersion",
-    "content_hash",
 ]

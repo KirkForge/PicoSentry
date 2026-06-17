@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import logging
 import time
@@ -142,25 +141,10 @@ class HashChainedMixin:
         return violations
 
 
-def sign_event(event_json: str, secret_key: str) -> str:
-    return hmac.new(
-        secret_key.encode("utf-8"),
-        event_json.encode("utf-8"),
-        hashlib.sha256,
-    ).hexdigest()
-
-
-def verify_event_signature(event_json: str, signature: str, secret_key: str) -> bool:
-    expected = sign_event(event_json, secret_key)
-    return hmac.compare_digest(expected, signature)
-
-
 __all__ = [
     "AuditEvent",
     "AuditEventType",
     "AuditSinkBase",
     "HashChainedMixin",
     "NullSink",
-    "sign_event",
-    "verify_event_signature",
 ]

@@ -290,8 +290,8 @@ class AnomalyDetector:
         while self._running:
             try:
                 self._run_check_cycle()
-            except Exception as e:
-                logger.error("Anomaly detection cycle failed: %s", e, exc_info=True)
+            except Exception:
+                logger.exception("Anomaly detection cycle failed")
             time.sleep(self._check_interval)
 
     def start(self):

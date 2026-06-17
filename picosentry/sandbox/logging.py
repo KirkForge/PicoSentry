@@ -63,10 +63,7 @@ class PicoDomeTextFormatter(logging.Formatter):
     RESET = "\033[0m"
 
     def __init__(self, use_color: bool = True, verbose: bool = False):
-        if verbose:
-            fmt = "[%(levelname)s] %(name)s: %(message)s"
-        else:
-            fmt = "[%(levelname)s] %(message)s"
+        fmt = "[%(levelname)s] %(name)s: %(message)s" if verbose else "[%(levelname)s] %(message)s"
         super().__init__(fmt=fmt)
         self.use_color = use_color
         self.verbose = verbose

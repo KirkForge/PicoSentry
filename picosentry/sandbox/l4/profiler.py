@@ -89,22 +89,13 @@ def profile_from_sandbox_result(result: SandboxResult) -> BehavioralProfile:
     has_events = bool(result.events)
 
 
-    if has_events:
-        network_calls = _extract_network_from_events(result.events)
-    else:
-        network_calls = _extract_network_calls(combined)
+    network_calls = _extract_network_from_events(result.events) if has_events else _extract_network_calls(combined)
 
 
-    if has_events:
-        fs_ops = _extract_fs_from_events(result.events)
-    else:
-        fs_ops = _extract_file_operations(combined)
+    fs_ops = _extract_fs_from_events(result.events) if has_events else _extract_file_operations(combined)
 
 
-    if has_events:
-        spawns = _extract_spawns_from_events(result.events)
-    else:
-        spawns = _extract_spawns(combined)
+    spawns = _extract_spawns_from_events(result.events) if has_events else _extract_spawns(combined)
 
 
     dns_queries = _extract_dns_queries(combined)

@@ -30,7 +30,7 @@ class NetworkCall:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -47,7 +47,7 @@ class DnsQuery:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -68,7 +68,7 @@ class FileOperation:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -89,7 +89,7 @@ class ProcessSpawn:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -106,7 +106,7 @@ class TimingPoint:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -139,7 +139,7 @@ class BehavioralProfile:
         }
         if not deterministic:
             d["total_runtime_ms"] = self.total_runtime_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)

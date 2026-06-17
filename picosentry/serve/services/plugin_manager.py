@@ -421,7 +421,7 @@ class PluginManager:
             try:
                 health = plugin.health_check()
                 status[name] = {
-                    "metadata": {k: v for k, v in self.metadata[name].__dict__.items()},
+                    "metadata": dict(self.metadata[name].__dict__.items()),
                     "health": health,
                 }
             except Exception as e:

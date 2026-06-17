@@ -57,7 +57,7 @@ class ScanStats:
         }
         if not deterministic:
             d["duration_ms"] = self.duration_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @runtime_checkable

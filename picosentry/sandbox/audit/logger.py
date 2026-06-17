@@ -78,7 +78,7 @@ class AuditEvent:
             "target": self.target,
             "timestamp": self.timestamp,
         }
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
     def to_json_line(self) -> str:
         return json.dumps(self.to_dict(), sort_keys=True, default=str)

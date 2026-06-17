@@ -58,7 +58,7 @@ def cmd(args: argparse.Namespace) -> int:
         if not metrics:
             print(f"No metrics found for rule {rule_id}")
             return 1
-        for _, m in metrics.items():
+        for m in metrics.values():
             print(f"Rule:       {m.rule_id}")
             print(f"Family:     {m.rule_family}")
             print(f"Precision:  {m.precision:.4f}")

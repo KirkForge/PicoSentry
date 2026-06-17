@@ -180,7 +180,7 @@ def detect_goproxy_private(target: Path) -> bool:
 
     go_mod_data = parse_go_mod(target)
     if go_mod_data:
-        for _original, replacement in go_mod_data.get("replace", {}).items():
+        for replacement in go_mod_data.get("replace", {}).values():
 
             if replacement and replacement.startswith((".", "/", "../")):
                 return True

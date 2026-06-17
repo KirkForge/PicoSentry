@@ -63,7 +63,7 @@ def _load_pnpm_lockfile(content: str) -> dict[str, str]:
     deps: dict[str, str] = {}
 
 
-    for _importer_path, importer_deps in lockfile.importers.items():
+    for importer_deps in lockfile.importers.values():
         for name, version_info in importer_deps.items():
             if isinstance(version_info, str):
 

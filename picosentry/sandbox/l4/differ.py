@@ -95,7 +95,7 @@ def find_best_baseline(
     best: tuple[Baseline, DriftResult] | None = None
     best_score = 1.0
 
-    for _name, baseline in baselines.items():
+    for baseline in baselines.values():
 
         if baseline.package not in ("*", profile.package, profile.entrypoint):
             continue

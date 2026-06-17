@@ -135,7 +135,7 @@ def parse_nuget_lock(target: Path) -> list[dict] | None:
 
 
     deps_section = data.get("dependencies", {})
-    for _project_name, project_info in deps_section.items():
+    for project_info in deps_section.values():
         project_deps = project_info.get("dependencies", {})
         for pkg_name, pkg_info in project_deps.items():
             packages.append({

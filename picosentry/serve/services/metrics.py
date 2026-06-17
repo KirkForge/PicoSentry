@@ -94,7 +94,7 @@ class MetricsCollector:
         with self._lock:
 
             grouped = defaultdict(list)
-            for _name, metrics_list in self.metrics.items():
+            for metrics_list in self.metrics.values():
                 for m in metrics_list:
                     grouped[m.name].append(m)
 

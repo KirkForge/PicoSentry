@@ -197,13 +197,12 @@ def verify_policy(content: str, key: bytes, key_id: str = "default") -> VerifyRe
             key_id=parsed.key_id,
             timestamp=parsed.timestamp,
         )
-    else:
-        return VerifyResult(
-            valid=False,
-            algorithm=parsed.algorithm,
-            key_id=parsed.key_id,
-            error="signature mismatch — policy may have been tampered with",
-        )
+    return VerifyResult(
+        valid=False,
+        algorithm=parsed.algorithm,
+        key_id=parsed.key_id,
+        error="signature mismatch — policy may have been tampered with",
+    )
 
 
 def verify_policy_file(path: Path, key: bytes, key_id: str = "default") -> VerifyResult:
@@ -318,13 +317,12 @@ def verify_policy_companion(path: Path, key: bytes, key_id: str = "default") -> 
             key_id=stored_key_id,
             timestamp=timestamp,
         )
-    else:
-        return VerifyResult(
-            valid=False,
-            algorithm=algo,
-            key_id=stored_key_id,
-            error="signature mismatch — policy may have been tampered with",
-        )
+    return VerifyResult(
+        valid=False,
+        algorithm=algo,
+        key_id=stored_key_id,
+        error="signature mismatch — policy may have been tampered with",
+    )
 
 
 def load_policy_with_companion_verification(

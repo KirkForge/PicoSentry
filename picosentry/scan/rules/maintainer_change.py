@@ -12,9 +12,8 @@ __all__ = ["detect_maintainer_changes"]
 def _extract_author_name(author) -> str:
     if isinstance(author, str):
 
-        name = author.split("<")[0].split("(")[0].strip()
-        return name
-    elif isinstance(author, dict):
+        return author.split("<")[0].split("(")[0].strip()
+    if isinstance(author, dict):
         return str(author.get("name", ""))
     return ""
 
@@ -63,7 +62,7 @@ def _extract_npm_user_name(pkg: dict) -> str:
     npm_user = pkg.get("_npmUser")
     if isinstance(npm_user, dict):
         return str(npm_user.get("name", ""))
-    elif isinstance(npm_user, str):
+    if isinstance(npm_user, str):
         return npm_user.split("<")[0].strip()
     return ""
 

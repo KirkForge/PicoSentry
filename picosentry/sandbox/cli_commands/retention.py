@@ -25,11 +25,11 @@ def cmd(args: argparse.Namespace) -> int:
             for err in stats["errors"]:
                 print(f"  Error: {err}")
         return 0
-    elif args.action == "stats":
+    if args.action == "stats":
         stats = rm.get_storage_stats()
         print(json.dumps(stats, sort_keys=True, indent=2))
         return 0
-    elif args.action == "export":
+    if args.action == "export":
         output = args.output or Path("picodome-export.json")
         rm.export_data(output)
         print(f"Exported to {output}")

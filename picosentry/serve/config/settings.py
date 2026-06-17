@@ -285,9 +285,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
 
         for field_name, field_type in known_hints.items():
-            if field_name in data and isinstance(data[field_name], dict):
-                if hasattr(field_type, "__dataclass_fields__"):
-                    data[field_name] = field_type(**data[field_name])
+            if field_name in data and isinstance(data[field_name], dict) and hasattr(field_type, "__dataclass_fields__"):
+                data[field_name] = field_type(**data[field_name])
 
         return cls(**data)
 

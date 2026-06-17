@@ -23,5 +23,4 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 except (ValueError, TypeError):
                     pass
 
-        response = await call_next(request)
-        return response
+        return await call_next(request)

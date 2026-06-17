@@ -414,9 +414,8 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
         config.cors_origins = str(data["cors_origins"])
 
 
-    config = apply_env_overrides(config)
+    return apply_env_overrides(config)
 
-    return config
 
 
 def _find_config(target_dir: Path) -> Path | None:

@@ -171,27 +171,26 @@ def detect_dependency_confusion(
 
     for op in profile.fs_ops:
         path_lower = op.path.lower()
-        if op.operation in ("read", "write", "create"):
-            if path_lower.endswith((".npmrc", "pip.conf")) or "pip.ini" in path_lower:
-                if op.operation in ("write", "create"):
-                    findings.append(
-                        Finding(
-                            rule_id="L4-DEP-006",
-                            severity=Severity.HIGH,
-                            message=f"Package registry config modification ({op.operation}): {op.path}",
-                            location=op.path,
-                            evidence={"operation": op.operation, "path": op.path},
-                        )
-                    )
-                elif op.operation == "read":
-                    findings.append(
-                        Finding(
-                            rule_id="L4-DEP-006",
-                            severity=Severity.LOW,
-                            message=f"Package registry config read: {op.path}",
-                            location=op.path,
-                            evidence={"operation": op.operation, "path": op.path},
-                        )
-                    )
+        is_config_path = path_lower.endswith((".npmrc", "pip.conf")) or "pip.ini" in path_lower
+        if op.operation in ("write", "create") and is_config_path:
+            findings.append(
+                Finding(
+                    rule_id="L4-DEP-006",
+                    severity=Severity.HIGH,
+                    message=f"Package registry config modification ({op.operation}): {op.path}",
+                    location=op.path,
+                    evidence={"operation": op.operation, "path": op.path},
+                )
+            )
+        elif op.operation == "read" and is_config_path:
+            findings.append(
+                Finding(
+                    rule_id="L4-DEP-006",
+                    severity=Severity.LOW,
+                    message=f"Package registry config read: {op.path}",
+                    location=op.path,
+                    evidence={"operation": op.operation, "path": op.path},
+                )
+            )
 
     return findings

@@ -55,14 +55,12 @@ def compare_profile_to_baseline(
         for call in profile.network_calls:
 
 
-            if not call.address.replace(".", "").replace(":", "").isdigit():
-
-                if call.address not in baseline.allowed_domains:
-                    if not network_drift:
-                        network_drift = True
-                        drift_count += 1
-                    drift_flags.append(f"Unexpected domain: {call.address}")
-                    break
+            if not call.address.replace(".", "").replace(":", "").isdigit() and call.address not in baseline.allowed_domains:
+                if not network_drift:
+                    network_drift = True
+                    drift_count += 1
+                drift_flags.append(f"Unexpected domain: {call.address}")
+                break
 
 
     if baseline.allowed_paths and "**" not in baseline.allowed_paths:

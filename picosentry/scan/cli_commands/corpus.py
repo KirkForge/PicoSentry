@@ -74,7 +74,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print("    {}".format(p["file"]))
         return 0
 
-    elif args.corpus_action == "export":
+    if args.corpus_action == "export":
         output = Path(args.output)
         try:
             pack = export_corpus_pack(
@@ -96,7 +96,7 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Import with: picosentry corpus import {output}")
         return 0
 
-    elif args.corpus_action == "import":
+    if args.corpus_action == "import":
         path = Path(args.path)
         if not path.exists():
             print(f"Error: file not found: {path}", file=sys.stderr)
@@ -123,7 +123,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print(f"    - {err}")
         return 1 if stats["errors"] else 0
 
-    elif args.corpus_action == "validate":
+    if args.corpus_action == "validate":
         path = Path(args.path)
         if not path.exists():
             print(f"Error: file not found: {path}", file=sys.stderr)
@@ -137,13 +137,12 @@ def cmd(args: argparse.Namespace) -> int:
                 for w in result["warnings"]:
                     print(f"  Warning: {w}")
             return 0
-        else:
-            print("Corpus pack is INVALID")
-            for err in result["errors"]:
-                print(f"  Error: {err}")
-            return 1
+        print("Corpus pack is INVALID")
+        for err in result["errors"]:
+            print(f"  Error: {err}")
+        return 1
 
-    elif args.corpus_action == "sign":
+    if args.corpus_action == "sign":
         from picosentry.scan.crypto import content_digest, sign_content, write_detached_signature
 
         path = Path(args.path)

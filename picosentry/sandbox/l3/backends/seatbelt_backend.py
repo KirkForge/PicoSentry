@@ -24,8 +24,7 @@ logger = logging.getLogger("picodome.l3.seatbelt")
 
 def _escape_seatbelt_path(path: str) -> str:
     path = path.replace(chr(92), chr(92) + chr(92))  # backslash -> double-backslash
-    path = path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
-    return path
+    return path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
 
 
 class SeatbeltBackend(SandboxBackend):

@@ -62,8 +62,7 @@ def _sqlite_to_postgres(sql: str) -> str:
     characters inside string literals, so a direct replacement is safe.
     """
     sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
-    sql = sql.replace("?", "%s")
-    return sql
+    return sql.replace("?", "%s")
 
 
 @dataclass(frozen=True)
@@ -435,10 +434,9 @@ class DatabaseManager:
         sql = self._prepare_sql(sql)
         if isinstance(self._pool, SQLitePool):
             return conn.execute(sql, params)
-        else:
-            cursor = conn.cursor()
-            cursor.execute(sql, params)
-            return cursor
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        return cursor
 
     def _row_to_dict(self, row, cursor) -> dict:
         """Convert a fetched row to dict, handling backend differences.
@@ -446,9 +444,8 @@ class DatabaseManager:
         """
         if isinstance(self._pool, SQLitePool):
             return dict(row)
-        else:
-            cols = [desc[0] for desc in cursor.description] if cursor.description else []
-            return dict(zip(cols, row))
+        cols = [desc[0] for desc in cursor.description] if cursor.description else []
+        return dict(zip(cols, row))
 
     def execute(self, sql: str, params: tuple = ()) -> list:
         with self._lock:
@@ -468,14 +465,13 @@ class DatabaseManager:
             conn.commit()
             if isinstance(self._pool, SQLitePool):
                 return cursor.lastrowid
-            else:
-                # Postgres: ask for the last sequence value assigned in this
-                # session. Tables without a serial column will raise; we return 0.
-                try:
-                    cursor.execute("SELECT lastval()")
-                    return cursor.fetchone()[0]
-                except Exception:
-                    return 0
+            # Postgres: ask for the last sequence value assigned in this
+            # session. Tables without a serial column will raise; we return 0.
+            try:
+                cursor.execute("SELECT lastval()")
+                return cursor.fetchone()[0]
+            except Exception:
+                return 0
 
     def _migrate_orgs_api_key_hash(self):
 

@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 
 import pytest
+import contextlib
 
 # Ensure the test settings match tests/serve/conftest.py
 os.environ.setdefault("PICOSHOGUN_ENV", "test")
@@ -176,18 +177,13 @@ def test_get_plugins_endpoint_returns_dirs_field():
     client = TestClient(app)
     # The /plugins endpoint requires auth; register+login to get a
     # token (matches the pattern in tests/serve/test_api.py).
-    try:
+    with contextlib.suppress(Exception):
         client.post("/auth/register", json={
             "username": "plugin_user",
             "password": "testpassword123",
         })
-    except Exception:
-        pass
     resp = client.post("/auth/login?username=plugin_user&password=testpassword123")
-    if resp.status_code == 200:
-        token = resp.json().get("access_token", "")
-    else:
-        token = ""
+    token = resp.json().get("access_token", "") if resp.status_code == 200 else ""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     resp = client.get("/plugins", headers=headers)

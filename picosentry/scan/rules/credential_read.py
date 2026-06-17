@@ -87,12 +87,11 @@ def redact_secret_evidence(text: str) -> str:
         redacted,
     )
 
-    redacted = re.sub(
+    return re.sub(
         r"(_authToken\s*=\s*)\S+",
         r"\1<REDACTED>",
         redacted,
     )
-    return redacted
 
 
 def _should_skip_path(file_path: Path) -> bool:

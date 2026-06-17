@@ -127,21 +127,19 @@ class ImageScanner:
                     exc,
                 )
                 return False, f"daemon unreachable: image '{image}' scan could not be performed"
-            else:
-                logger.warning(
-                    "Cannot reach PicoDome daemon for image scan '%s': %s — allowing (fail-open)",
-                    image,
-                    exc,
-                )
-                return True, ""
+            logger.warning(
+                "Cannot reach PicoDome daemon for image scan '%s': %s — allowing (fail-open)",
+                image,
+                exc,
+            )
+            return True, ""
 
         except Exception as exc:
             if self._fail_closed:
                 logger.error("Image scan failed for '%s': %s — denying (fail-closed)", image, exc)
                 return False, f"scan failed: image '{image}' scan error: {exc}"
-            else:
-                logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
-                return True, ""
+            logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
+            return True, ""
 
     @property
     def min_severity_level(self) -> int:

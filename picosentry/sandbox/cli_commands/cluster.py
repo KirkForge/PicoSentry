@@ -129,7 +129,7 @@ def cmd(args: argparse.Namespace) -> int:
             print("  Gossip TLS: configured")
         return 0
 
-    elif action == "status":
+    if action == "status":
 
         manager = get_cluster_manager()
         status = manager.get_status()
@@ -164,15 +164,14 @@ def cmd(args: argparse.Namespace) -> int:
             print()
         return 0
 
-    elif action == "leave":
+    if action == "leave":
         manager = get_cluster_manager()
         manager.stop()
         print(f"✓ Left cluster (node {manager.node_id})")
         return 0
 
-    else:
-        print("Usage: picodome cluster {join|status|leave}", file=sys.stderr)
-        return 1
+    print("Usage: picodome cluster {join|status|leave}", file=sys.stderr)
+    return 1
 
 
 __all__ = ["NAME", "add_arguments", "cmd"]

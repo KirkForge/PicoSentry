@@ -664,12 +664,11 @@ def main(args: list[str] | None = None) -> int:
     if critical_high:
         print("❌ FAIL — Critical or High severity findings detected")
         return 1
-    elif parsed.strict and findings:
+    if parsed.strict and findings:
         print("❌ FAIL — Findings detected in strict mode")
         return 1
-    else:
-        print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
-        return 0
+    print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
+    return 0
 
 
 if __name__ == "__main__":

@@ -119,8 +119,7 @@ class TestAdmissionHandler:
                 method="POST",
             )
             response = urllib.request.urlopen(req, timeout=5)
-            result = json.loads(response.read())
-            return result
+            return json.loads(response.read())
         finally:
             server.shutdown()
 

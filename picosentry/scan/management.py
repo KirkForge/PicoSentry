@@ -191,13 +191,12 @@ def fetch_advisories(
         count = len(list(output_dir.rglob("*.json")))
         logger.info("Extracted %d advisory files to %s", count, output_dir)
         return count
-    else:
 
-        digest = hashlib.sha256(data).hexdigest()[:12]
-        out_file = output_dir / f"advisory-{digest}.json"
-        out_file.write_bytes(data)
-        logger.info("Saved advisory data to %s", out_file)
-        return 1
+    digest = hashlib.sha256(data).hexdigest()[:12]
+    out_file = output_dir / f"advisory-{digest}.json"
+    out_file.write_bytes(data)
+    logger.info("Saved advisory data to %s", out_file)
+    return 1
 
 
 def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 30) -> bool:

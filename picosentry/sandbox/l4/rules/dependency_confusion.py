@@ -1,5 +1,5 @@
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -46,7 +46,6 @@ SUSPICIOUS_INSTALL_PATTERNS = (
 
 def detect_dependency_confusion(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 

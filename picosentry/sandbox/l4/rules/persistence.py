@@ -1,5 +1,5 @@
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -34,7 +34,6 @@ PERSISTENCE_PATHS: list[tuple[str, str, Severity]] = [
 
 def detect_persistence(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 

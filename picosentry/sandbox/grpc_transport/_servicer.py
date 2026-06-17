@@ -104,7 +104,7 @@ class PicoDomeServicer:
                 )
 
         except Exception as e:
-            logger.exception("Scan RPC failed: %s", e)
+            logger.exception("Scan RPC failed")
             self._audit_log("SCAN_ERROR", detail=str(e))
 
 

@@ -354,8 +354,8 @@ class PicoDomeGetRoutesMixin:
 
             snapshot = mgr.state.get_state_snapshot()
             self._send_json(snapshot)
-        except Exception as exc:
-            logger.exception("Failed to get cluster snapshot: %s", exc)
+        except Exception:
+            logger.exception("Failed to get cluster snapshot")
             self._send_error(500, "cluster snapshot unavailable")
 
 

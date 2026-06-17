@@ -342,8 +342,8 @@ class PicoDomePostRoutesMixin:
             })
         except json.JSONDecodeError:
             self._send_error(400, "invalid JSON body")
-        except Exception as exc:
-            logger.exception("Cluster snapshot merge failed: %s", exc)
+        except Exception:
+            logger.exception("Cluster snapshot merge failed")
             self._send_error(500, "cluster merge failed")
 
 

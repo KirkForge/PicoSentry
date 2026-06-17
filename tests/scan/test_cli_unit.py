@@ -9,7 +9,6 @@ and checks return codes / stdout / stderr.
 import json
 import os
 import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from picosentry.scan.cli import (
@@ -25,10 +24,9 @@ from picosentry.scan.cli import (
     _format_summary,
     main,
 )
-from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
+from picosentry.scan.models import Severity
 
 from tests.scan.conftest import (
-    FIXTURES_DIR,
     make_finding as _make_finding,
     make_scan_result as _make_result,
 )

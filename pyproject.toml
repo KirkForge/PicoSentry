@@ -93,6 +93,7 @@ dev = [
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
     "pytest-timeout>=2.0",
+    "pytest-xdist>=3.0",
     "httpx>=0.24",
     "ruff>=0.8",
     "mypy>=1.0",
@@ -156,6 +157,16 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests that require network access",
 ]
+filterwarnings = [
+    # Starlette/httpx deprecation is a third-party decision (Pydantic's
+    # httpx2 fork). We pin httpx and silence the noisy warning rather than
+    # swapping the project's HTTP client for a fork.
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+    # Multiprocessing fork() in a multi-threaded process comes from the OTel
+    # batch span processor threads running during scan worker tests. The engine
+    # handles fork-safety defensively; this is not actionable in tests.
+    "ignore:This process .* is multi-threaded, use of fork\\(\\) may lead to deadlocks",
+]
 
 # pytest-asyncio settings — these belong in their own table, not
 # [tool.pytest.ini_options], where pytest-asyncio's plugin doesn't
@@ -194,7 +205,11 @@ ignore = [
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
 "picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
 "picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF"]
+"picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
+"tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
+"tests/scan/fixtures/validation/positive/pypi_obfs_marshal_load/_evil.py" = ["SIM115"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -208,7 +223,15 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
 ignore_missing_imports = true
-exclude = ["build/", "dist/", ".venv/"]
+exclude = [
+    "build/", "dist/", ".venv/",
+    # Malicious/obfuscated fixture files intentionally contain invalid Python
+    # to exercise detectors; don't let them pollute the type-check report.
+    "tests/scan/fixtures/validation/positive/*/_evil.py",
+    "tests/scan/fixtures/validation/positive/pypi_obfs_ord_chain/_evil.py",
+    "tests/scan/fixtures/validation/positive/pypi_obfs_b64decodestring/_evil.py",
+    "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py",
+]
 
 # gRPC proto stubs are committed (see scripts/regen_proto.sh) so the
 # transport module is importable on a stock `pip install`.  The
@@ -224,6 +247,14 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "picosentry.scan.crypto"
 ignore_errors = true
+
+# OpenTelemetry is an optional extra; the installed package's partial type
+# stubs don't expose the `trace` attribute reliably across versions.  The file
+# gates all OTel usage behind an import check and a feature flag, so silencing
+# the type checker here is safe.
+[[tool.mypy.overrides]]
+module = "picosentry.sandbox.tracing"
+disable_error_code = ["attr-defined"]
 
 # The daemon HTTP handler is composed of multiple mixin classes
 # (PicoDomeResponseMixin, PicoDomeAuthMixin, PicoDomeGetRoutesMixin,
@@ -242,4 +273,9 @@ module = [
     "picosentry.sandbox.daemon.handler_routes_post",
 ]
 disable_error_code = ["misc"]
+
+[dependency-groups]
+dev = [
+    "pytest-xdist>=3.8.0",
+]
 

@@ -146,9 +146,7 @@ def main(argv: list[str] | None = None) -> None:
                     cmd=[sub_cmd, *argv[2:]],
                 )
             )
-        elif sub_cmd == "rules":
-            _handle_sandbox_subcommand(argparse.Namespace(cmd=[sub_cmd]))
-        elif sub_cmd == "init":
+        elif sub_cmd in {"rules", "init"}:
             _handle_sandbox_subcommand(argparse.Namespace(cmd=[sub_cmd]))
         return
 

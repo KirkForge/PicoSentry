@@ -59,9 +59,9 @@ class TestFindingProtocol:
 
     def test_sandbox_finding_satisfies_protocol(self) -> None:
         from picosentry._core.models import FindingProtocol
-        from picosentry.sandbox.models import Finding
+        from picosentry.sandbox.models import Finding, Severity
 
-        assert isinstance(Finding(rule_id="test", severity="HIGH", message="test"), FindingProtocol)
+        assert isinstance(Finding(rule_id="test", severity=Severity.HIGH, message="test"), FindingProtocol)
 
 
 class TestSharedAssertSecure:

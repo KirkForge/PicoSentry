@@ -775,7 +775,7 @@ class TestGRPCClientRetry:
         good_result = ScanResult(verdict="ALLOW")
 
         with patch.object(client, "scan", return_value=good_result):
-            result = asyncio.get_event_loop().run_until_complete(client.scan_async(command=["echo", "hello"]))
+            result = asyncio.run(client.scan_async(command=["echo", "hello"]))
             assert result.verdict == "ALLOW"
             client.scan.assert_called_once()
 

@@ -50,6 +50,8 @@ class AuditEventType(str, Enum):
     DATA_EXPORT = "data_export"
     DATA_DELETE = "data_delete"
 
+    CLUSTER_GOSSIP = "cluster_gossip"
+
 
 @dataclass(frozen=True)
 class AuditEvent:

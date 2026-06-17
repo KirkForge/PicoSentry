@@ -44,7 +44,64 @@ class ConnectionPool:
 class Migration:
     version: int
     name: str
-    sql: str
+    sqlite_sql: str
+    postgres_sql: str | None = None
+
+    def sql_for(self, backend: str) -> str:
+        if backend == "sqlite":
+            return self.sqlite_sql
+        if self.postgres_sql is not None:
+            return self.postgres_sql
+        return _sqlite_to_postgres(self.sqlite_sql)
+
+
+def _sqlite_to_postgres(sql: str) -> str:
+    """Translate SQLite DDL/DML used in migrations to PostgreSQL equivalents.
+
+    The migration SQL is under project control and never contains literal ``?``
+    characters inside string literals, so a direct replacement is safe.
+    """
+    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+    sql = sql.replace("?", "%s")
+    return sql
+
+
+@dataclass(frozen=True)
+class SQLDialect:
+    """Backend-specific SQL fragments used by application code.
+
+    Keeps the few SQLite-isms in the codebase isolated so that PostgreSQL
+    deployments run equivalent standard SQL.
+    """
+
+    backend: str
+
+    def placeholder(self) -> str:
+        return "%s" if self.backend == "postgres" else "?"
+
+    def date_now(self) -> str:
+        return "CURRENT_DATE" if self.backend == "postgres" else "DATE('now')"
+
+    def date_column(self, column: str) -> str:
+        if self.backend == "postgres":
+            return f"{column}::date"
+        return f"DATE({column})"
+
+    def hour_column(self, column: str) -> str:
+        if self.backend == "postgres":
+            return f"EXTRACT(HOUR FROM {column})::text"
+        return f"strftime('%H', {column})"
+
+    def date_add_hours(self, start: str, hours: int) -> str:
+        if self.backend == "postgres":
+            return f"NOW() + INTERVAL '{hours} hours'"
+        return f"datetime('{start}', '{hours} hours')"
+
+    def bool_true(self) -> int | bool:
+        return True if self.backend == "postgres" else 1
+
+    def bool_false(self) -> int | bool:
+        return False if self.backend == "postgres" else 0
 
 MIGRATIONS = [
     Migration(1, "initial", """
@@ -341,6 +398,18 @@ class DatabaseManager:
     def backend(self) -> str:
         return self._backend
 
+    @property
+    def dialect(self) -> SQLDialect:
+        return SQLDialect(self._backend)
+
+    def _prepare_sql(self, sql: str) -> str:
+        """Translate SQLite-isms in runtime SQL for the active backend."""
+        if self._backend != "postgres":
+            return sql
+        # Migration SQL is backend-specific; runtime SQL uses ? placeholders.
+        # The codebase never puts a literal ? inside SQL string literals.
+        return sql.replace("?", "%s")
+
     def _get_connection(self):
         return self._pool.acquire()
 
@@ -363,6 +432,7 @@ class DatabaseManager:
         SQLite: conn.execute() returns cursor directly.
         Postgres: needs cursor = conn.cursor(); cursor.execute().
         """
+        sql = self._prepare_sql(sql)
         if isinstance(self._pool, SQLitePool):
             return conn.execute(sql, params)
         else:
@@ -399,19 +469,28 @@ class DatabaseManager:
             if isinstance(self._pool, SQLitePool):
                 return cursor.lastrowid
             else:
-                # Postgres: try RETURNING id, fall back to cursor.lastrowid
+                # Postgres: ask for the last sequence value assigned in this
+                # session. Tables without a serial column will raise; we return 0.
                 try:
-                    return cursor.fetchone()[0] if cursor.description else 0
+                    cursor.execute("SELECT lastval()")
+                    return cursor.fetchone()[0]
                 except Exception:
                     return 0
 
     def _migrate_orgs_api_key_hash(self):
 
         try:
-            cols = self.execute("PRAGMA table_info(orgs)")
-            if not cols:
-                return  # Table doesn't exist yet
-            col_names = [row["name"] for row in cols]
+            if self._backend == "postgres":
+                cols = self.execute(
+                    "SELECT column_name FROM information_schema.columns "
+                    "WHERE table_name = 'orgs' AND table_schema = 'public'"
+                )
+                col_names = [row["column_name"] for row in cols]
+            else:
+                cols = self.execute("PRAGMA table_info(orgs)")
+                if not cols:
+                    return  # Table doesn't exist yet
+                col_names = [row["name"] for row in cols]
             if "api_key" in col_names and "api_key_hash" not in col_names:
 
                 self.execute("ALTER TABLE orgs RENAME COLUMN api_key TO api_key_hash")
@@ -441,7 +520,8 @@ class DatabaseManager:
         for migration in MIGRATIONS:
             if migration.version > current:
                 logger.info("Applying migration %s: %s", migration.version, migration.name)
-                for stmt in migration.sql.split(";"):
+                sql = migration.sql_for(self._backend)
+                for stmt in sql.split(";"):
                     stmt = stmt.strip()
                     if stmt:
                         try:
@@ -453,7 +533,9 @@ class DatabaseManager:
                                 logger.debug("Migration idempotent skip: %s", e)
                             else:
                                 raise
-                self.execute_insert(
+                # schema_version has a simple integer primary key; use execute()
+                # to avoid needing a generated id on either backend.
+                self.execute(
                     "INSERT INTO schema_version (version, name) VALUES (?, ?)",
                     (migration.version, migration.name)
                 )

@@ -119,7 +119,7 @@ class TestJobQueue:
     def test_complete_job(self):
         q = JobQueue(max_size=10)
         job = q.enqueue(command=["echo", "test"], actor="u1")
-        dequeued = q.dequeue(timeout=1.0)  # noqa: F841
+        _ = q.dequeue(timeout=1.0)
         q.complete(job.job_id, result={"verdict": "ALLOW"})
         result = q.get_result(job.job_id)
         assert result == {"verdict": "ALLOW"}
@@ -142,7 +142,7 @@ class TestJobQueue:
 
     def test_purge_expired(self):
         q = JobQueue(max_size=10)
-        job = q.enqueue(command=["echo", "old"], actor="u1")  # noqa: F841
+        _ = q.enqueue(command=["echo", "old"], actor="u1")
         # Manually set created_at to the past
         with q._lock:
             for j in q._heap:

@@ -1,6 +1,5 @@
 """Tests for L2-NETEX-001: Network exfiltration and C2 domain detection."""
 
-import json
 import tempfile
 import unittest
 from pathlib import Path

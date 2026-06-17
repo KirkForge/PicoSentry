@@ -100,19 +100,19 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 """, (pid, meta.name, meta.category, meta.priority, meta.status, meta.version))
 
     def get_status(self) -> dict[str, Any]:
-        conn_stats = db.execute_one("""
+        conn_stats = db.execute_one(f"""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
             FROM project_runs
-            WHERE run_start > datetime('now', '-24 hours')
+            WHERE run_start > {db.dialect.date_add_hours('now', -24)}
         """)
 
-        threats = db.execute_one("""
+        threats = db.execute_one(f"""
             SELECT COUNT(*) as count FROM intelligence
             WHERE severity IN ('critical', 'high')
-            AND created_at > datetime('now', '-24 hours')
+            AND created_at > {db.dialect.date_add_hours('now', -24)}
         """)
 
         pending = db.execute_one("""
@@ -215,10 +215,10 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 status = "failed"
 
                 if settings.orchestrator.retry_failed:
-                    retry_count = db.execute_one("""
+                    retry_count = db.execute_one(f"""
                         SELECT COUNT(*) as c FROM project_runs
                         WHERE project_id = ? AND status = 'failed'
-                        AND run_start > datetime('now', '-1 hour')
+                        AND run_start > {db.dialect.date_add_hours('now', -1)}
                     """, (project_id,))
                     if retry_count and retry_count["c"] < settings.orchestrator.retry_max:
                         logger.info("Will retry %s after %ss", project_id, settings.orchestrator.retry_delay)

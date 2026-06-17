@@ -21,6 +21,7 @@ from picosentry.serve.services.correlation.models import (
     SEVERITY_WEIGHTS,
 )
 from picosentry.serve.services.correlation.narrative import generate_narrative
+from picosentry.serve.database.manager import db
 from picosentry.serve.services.correlation.persistence import (
     _load_events_impl,
     _persist_chains_cache_impl,
@@ -44,11 +45,50 @@ class CorrelationEngine:
 
         self._max_events_per_artifact = 1000
 
+        self._max_events_per_minute = 10_000
+        self._minute_bucket_start: float = 0.0
+        self._minute_event_count = 0
+
         self._escalation_callbacks: list[Callable[[KillChainTimeline], None]] = []
 
+    @classmethod
+    def enable_persistence_if_supported(cls) -> bool:
+        """Probe the configured DB backend and enable persistence if supported."""
+        try:
+            db.execute("SELECT 1 FROM correlation_events LIMIT 1")
+            cls.PERSIST_ENABLED = True
+            logger.debug("Correlation persistence backend is available")
+            return True
+        except Exception:
+            cls.PERSIST_ENABLED = False
+            logger.debug("Correlation persistence not available (run migrations first)")
+            return False
+
+    def _allowed_by_backpressure(self, event_count: int) -> int:
+        """Return the number of events that fit within the per-minute budget."""
+        import time
+
+        now = time.monotonic()
+        if now - self._minute_bucket_start >= 60.0:
+            self._minute_bucket_start = now
+            self._minute_event_count = 0
+
+        budget = self._max_events_per_minute - self._minute_event_count
+        if budget <= 0:
+            return 0
+        allowed = min(event_count, budget)
+        self._minute_event_count += allowed
+        return allowed
 
     def ingest(self, event: CorrelatedEvent) -> None:
         with self._lock:
+            if self._allowed_by_backpressure(1) == 0:
+                logger.warning(
+                    "Correlation ingestion dropped event (rate limit): %s | %s",
+                    event.artifact_id, event.rule_id,
+                )
+                return
+
             events = self._events[event.artifact_id]
             events.append(event)
 
@@ -64,14 +104,28 @@ class CorrelationEngine:
 
     def ingest_many(self, events: list[CorrelatedEvent]) -> None:
         with self._lock:
-            for event in events:
+            allowed = self._allowed_by_backpressure(len(events))
+            if allowed == 0:
+                logger.warning(
+                    "Correlation ingestion dropped batch of %d events (rate limit)",
+                    len(events),
+                )
+                return
+
+            dropped = len(events) - allowed
+            for event in events[:allowed]:
                 artifact_events = self._events[event.artifact_id]
                 artifact_events.append(event)
                 if len(artifact_events) > self._max_events_per_artifact:
                     self._events[event.artifact_id] = artifact_events[-self._max_events_per_artifact :]
                 self._chains.pop(event.artifact_id, None)
 
-        logger.debug("Ingested batch of %d events", len(events))
+        if dropped:
+            logger.warning(
+                "Correlation ingestion dropped %d/%d events (rate limit)",
+                dropped, len(events),
+            )
+        logger.debug("Ingested batch of %d events", allowed)
 
 
     def kill_chain(self, artifact_id: str) -> KillChainTimeline | None:

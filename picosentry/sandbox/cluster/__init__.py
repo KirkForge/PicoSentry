@@ -11,6 +11,8 @@ from picosentry.sandbox.cluster.manager import (
     ClusterState,
     NodeStatus,
     ScanRequest,
+    get_cluster_manager,
+    setup_cluster_manager,
 )
 
 __all__ = [
@@ -22,4 +24,6 @@ __all__ = [
     "SQLiteStateBackend",
     "ScanRequest",
     "StateBackend",
+    "get_cluster_manager",
+    "setup_cluster_manager",
 ]

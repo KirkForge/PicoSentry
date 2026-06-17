@@ -131,10 +131,10 @@ class IntelligenceEngine:
         self._load_historical()
 
     def _load_historical(self):
-        rows = db.execute("""
+        rows = db.execute(f"""
             SELECT source_project, severity, COUNT(*) as count
             FROM intelligence
-            WHERE created_at > datetime('now', '-7 days')
+            WHERE created_at > {db.dialect.date_add_hours('now', -7 * 24)}
             GROUP BY source_project, severity
         """)
         for row in rows:
@@ -429,7 +429,11 @@ class IntelligenceEngine:
         return sum(self.threat_scores.values())
 
     def find_correlations(self, time_window_hours: int = 24) -> list[dict[str, Any]]:
-        rows = db.execute("""
+        if db.dialect.backend == "postgres":
+            time_expr = f"i1.created_at BETWEEN i2.created_at - INTERVAL '{time_window_hours} hours' AND i2.created_at + INTERVAL '{time_window_hours} hours'"
+        else:
+            time_expr = f"ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 <= {time_window_hours}"
+        rows = db.execute(f"""
             SELECT
                 i1.source_project as project1,
                 i2.source_project as project2,
@@ -439,27 +443,28 @@ class IntelligenceEngine:
             FROM intelligence i1
             JOIN intelligence i2 ON i1.intel_type = i2.intel_type
                 AND i1.source_project != i2.source_project
-                AND ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 <= ?
-            WHERE i1.created_at > datetime('now', '-' || ? || ' hours')
+                AND {time_expr}
+            WHERE i1.created_at > {db.dialect.date_add_hours('now', -time_window_hours)}
             GROUP BY project1, project2, i1.intel_type
             HAVING correlation_count >= 2
             ORDER BY correlation_count DESC
-        """, (time_window_hours, str(time_window_hours)))
+        """)
 
         return [dict(row) for row in rows]
 
     def get_trends(self, hours: int = 24) -> dict[str, Any]:
-        rows = db.execute("""
+        hour_col = db.dialect.hour_column("created_at")
+        rows = db.execute(f"""
             SELECT
                 intel_type,
                 severity,
-                strftime('%H', created_at) as hour,
+                {hour_col} as hour,
                 COUNT(*) as count
             FROM intelligence
-            WHERE created_at > datetime('now', '-' || ? || ' hours')
+            WHERE created_at > {db.dialect.date_add_hours('now', -hours)}
             GROUP BY intel_type, severity, hour
             ORDER BY hour, count DESC
-        """, (str(hours),))
+        """, ())
 
         trends: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for row in rows:

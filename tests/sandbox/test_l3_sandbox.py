@@ -212,7 +212,7 @@ class TestSandboxEngine:
             ),
         ]
         policy = Policy(name="test-restrictive", rules=policy_rules)
-        result = sandbox_run(  # noqa: F841
+        _ = sandbox_run(
             ["python3", "-c", "print('1.2.3.4')"],
             policy=policy,
             timeout=5.0,

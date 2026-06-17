@@ -86,12 +86,12 @@ class PostgresPool:
             import psycopg2.extras
             self._psycopg2 = pg
             self._extras = psycopg2.extras
-        except ImportError:
+        except ImportError as err:
             raise ImportError(
                 "Postgres backend requires psycopg2. Install with: "
                 "pip install psycopg2-binary\n"
                 "Or switch to SQLite: export PICOSHOGUN_DATABASE_BACKEND=sqlite"
-            )
+            ) from err
 
     def acquire(self):
         self._ensure_psycopg2()

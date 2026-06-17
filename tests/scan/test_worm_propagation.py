@@ -1,6 +1,5 @@
 """Tests for L2-WORM-001: Worm propagation detection."""
 
-import json
 import tempfile
 import unittest
 from pathlib import Path

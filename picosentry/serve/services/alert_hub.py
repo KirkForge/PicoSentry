@@ -273,16 +273,16 @@ Time: {datetime.now(timezone.utc).isoformat()}
         logger.log(log_level, "PicoShogun[%s]: [%s] %s", project_id, severity.upper(), message[:500])
 
     def get_alert_stats(self, hours: int = 24) -> dict[str, Any]:
-        rows = db.execute("""
+        rows = db.execute(f"""
             SELECT
                 severity,
                 channel,
                 sent,
                 COUNT(*) as count
             FROM alerts
-            WHERE created_at > datetime('now', '-' || ? || ' hours')
+            WHERE created_at > {db.dialect.date_add_hours('now', -hours)}
             GROUP BY severity, channel, sent
-        """, (hours,))
+        """)
 
         stats: dict[str, dict[str, int]] = defaultdict(lambda: defaultdict(int))
         for row in rows:

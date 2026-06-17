@@ -645,5 +645,4 @@ class TestNotaryCLIDefaultKey:
         # And the hard-error message should NOT appear in stderr.
         # (We assert on absence; capsys is per-test, but the test
         # pattern with monkeypatch and patches handles it.)
-        import io
         # rc 0 already implies the key check passed.

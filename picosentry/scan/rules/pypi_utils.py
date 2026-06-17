@@ -1,7 +1,6 @@
 
 from __future__ import annotations
 
-import configparser
 import email
 import logging
 import re
@@ -258,30 +257,6 @@ def _extract_pip_package_name(req: str) -> str | None:
         return None
 
     return name_part
-
-
-def parse_setup_cfg(target: Path) -> dict | None:
-    setup_cfg = target / "setup.cfg"
-    if not setup_cfg.is_file():
-        return None
-
-    try:
-        config = configparser.ConfigParser()
-        config.read_string(setup_cfg.read_text(encoding="utf-8"))
-    except Exception:
-        return None
-
-    result: dict = {}
-
-    if config.has_section("options"):
-        options = dict(config["options"])
-        install_requires = options.get("install_requires", "")
-        if install_requires:
-            result["install_requires"] = [
-                line.strip() for line in install_requires.splitlines() if line.strip() and not line.strip().startswith("#")
-            ]
-
-    return result
 
 
 def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:

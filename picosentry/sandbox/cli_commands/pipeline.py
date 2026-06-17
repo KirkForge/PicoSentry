@@ -142,7 +142,7 @@ def cmd(args: argparse.Namespace) -> int:
             print()
             print(format_table(analysis))
 
-    return _compute_exit_code_pipeline(sandbox, analysis, args)
+    return _compute_exit_code_pipeline(analysis, args)
 
 
 __all__ = ["NAME", "add_arguments", "cmd"]

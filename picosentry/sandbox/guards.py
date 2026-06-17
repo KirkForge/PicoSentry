@@ -34,7 +34,6 @@ __all__ = [
     "deterministic_hash",
     "diff_results",
     "validate_findings_deterministic",
-    "validate_no_randomness",
     "validate_result_sorted",
     "verify_determinism",
 ]
@@ -139,26 +138,6 @@ def validate_result_sorted(result_dict: dict) -> list[str]:
                 _check_sorted(v, f"{path}.{k}" if path else k)
 
     _check_sorted(result_dict)
-    return violations
-
-
-def validate_no_randomness(result_dict: dict) -> list[str]:
-    violations: list[str] = []
-
-    def _check_value(v, path: str = "") -> None:
-        if isinstance(v, str):
-            if _UUID_PATTERN.search(v):
-                violations.append(f"UUID found at {path}: {v[:50]}")
-            if _ISO_TIMESTAMP_PATTERN.search(v):
-                violations.append(f"timestamp found at {path}: {v[:50]}")
-        elif isinstance(v, dict):
-            for k2, v2 in v.items():
-                _check_value(v2, f"{path}.{k2}")
-        elif isinstance(v, list):
-            for i, item in enumerate(v):
-                _check_value(item, f"{path}[{i}]")
-
-    _check_value(result_dict)
     return violations
 
 

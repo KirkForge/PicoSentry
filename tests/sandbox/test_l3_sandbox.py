@@ -223,7 +223,6 @@ class TestSandboxEngine:
         # With seccomp, print does not trigger network syscalls. Post-hoc pattern analysis catches IP in output.
         # The seccomp backend handles this at kernel level; subprocess backend catches it post-hoc.
         # Either way, events should exist if anything suspicious was found.
-        pass  # Accept any verdict for this policy+command combination
 
 
 # ── Backend detection and engine tests ─────────────────────────────────

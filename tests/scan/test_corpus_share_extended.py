@@ -519,8 +519,7 @@ class TestImportCorpusPack(unittest.TestCase):
             Path(tmpdir) / "gone.json"
             # Create then delete to get a path that exists briefly
             # Actually test with a path that raises OSError on stat
-            # We'll mock stat to raise
-            pass  # Covered by FileNotFoundError test above
+            # We'll mock stat to raise. Covered by FileNotFoundError test above.
 
     def test_import_cryptographic_verify_no_signature(self):
         """verify_crypto=True with no signature should raise ValueError."""

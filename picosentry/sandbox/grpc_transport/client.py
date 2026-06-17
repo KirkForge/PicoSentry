@@ -141,7 +141,7 @@ class PicoDomeGRPCClient:
             logger.info("gRPC client TLS credentials created")
             return credentials
         except Exception as e:
-            logger.error("Failed to create gRPC client TLS credentials: %s", e)
+            logger.exception("Failed to create gRPC client TLS credentials: %s", e)
             return None
 
     def scan(
@@ -171,7 +171,7 @@ class PicoDomeGRPCClient:
                     )
                     time.sleep(self._retry_delay)
                 else:
-                    logger.error("All %d scan attempts failed", self._max_retries)
+                    logger.exception("All %d scan attempts failed", self._max_retries)
 
         raise ConnectionError(f"Failed to scan after {self._max_retries} attempts: {last_error}")
 
@@ -240,7 +240,7 @@ class PicoDomeGRPCClient:
             resp = json.loads(response_data.decode("utf-8"))
             return ScanResult.from_dict(resp)
         except grpc.RpcError as e:
-            logger.error("gRPC Scan RPC failed: %s", e)
+            logger.exception("gRPC Scan RPC failed: %s", e)
             raise
 
     async def scan_async(
@@ -292,7 +292,7 @@ class PicoDomeGRPCClient:
                 )(b"", timeout=5.0)
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError as e:
-                logger.error("gRPC Health RPC failed: %s", e)
+                logger.exception("gRPC Health RPC failed: %s", e)
                 return {"healthy": False, "detail": str(e)}
 
     def get_policy(self, name: str, version: int | None = None) -> dict[str, Any]:
@@ -324,7 +324,7 @@ class PicoDomeGRPCClient:
                 )(request_data, timeout=10.0)
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError as e:
-                logger.error("gRPC GetPolicy RPC failed: %s", e)
+                logger.exception("gRPC GetPolicy RPC failed: %s", e)
                 raise
 
     def query_audit(
@@ -379,7 +379,7 @@ class PicoDomeGRPCClient:
                 )(request_data, timeout=10.0)
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError as e:
-                logger.error("gRPC QueryAudit RPC failed: %s", e)
+                logger.exception("gRPC QueryAudit RPC failed: %s", e)
                 raise
 
     def close(self) -> None:

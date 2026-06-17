@@ -242,7 +242,7 @@ class CorrelationEngine:
             try:
                 callback(chain)
             except Exception as e:
-                logger.error("Escalation callback failed for %s: %s", chain.artifact_id, e)
+                logger.exception("Escalation callback failed for %s: %s", chain.artifact_id, e)
 
 
     def _compute_timeline(

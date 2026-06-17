@@ -302,7 +302,7 @@ def _metrics_from_fixtures(
         try:
             result = engine.scan(spec.path, advisory_db_path=advisory_db_path)
         except Exception as exc:
-            logger.error("Fixture %s: scan raised %s", spec.name, exc)
+            logger.exception("Fixture %s: scan raised %s", spec.name, exc)
             fixture_results.append((spec.name, "ERROR", (str(exc),)))
             continue
 

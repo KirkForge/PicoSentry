@@ -224,7 +224,7 @@ class JobScheduler:
             logger.info("Job %s completed: %s", job.name, status)
 
         except Exception as e:
-            logger.error("Job %s failed: %s", job.name, e)
+            logger.exception("Job %s failed: %s", job.name, e)
             db.execute_insert("""
                 UPDATE scheduled_jobs
                 SET last_run = ?, last_status = 'failed'

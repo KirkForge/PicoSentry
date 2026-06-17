@@ -68,7 +68,7 @@ class BackupManager:
             }
 
         except Exception as e:
-            logger.error("Backup failed: %s", e)
+            logger.exception("Backup failed: %s", e)
             return None
 
         finally:
@@ -132,7 +132,7 @@ class BackupManager:
             return True
 
         except Exception as e:
-            logger.error("Restore failed: %s", e)
+            logger.exception("Restore failed: %s", e)
             return False
 
         finally:

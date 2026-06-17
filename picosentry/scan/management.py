@@ -84,7 +84,7 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         resp, data = safe_urlopen(req, timeout=timeout)
     except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError) as e:
-        logger.error("Failed to fetch policy: %s", e)
+        logger.exception("Failed to fetch policy: %s", e)
         raise
     finally:
         if "resp" in locals() and resp:
@@ -132,7 +132,7 @@ def fetch_advisories(
         req = urllib.request.Request(url, headers={"Accept": "application/zip, application/json"})
         resp, data = safe_urlopen(req, timeout=timeout)
     except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError) as e:
-        logger.error("Failed to fetch advisories: %s", e)
+        logger.exception("Failed to fetch advisories: %s", e)
         raise
     finally:
         if "resp" in locals() and resp:
@@ -221,7 +221,7 @@ def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 3
         status = resp.status
         resp.close()
     except (urllib.error.URLError, InsecureURLError) as e:
-        logger.error("Failed to push policy: %s", e)
+        logger.exception("Failed to push policy: %s", e)
         raise
 
     ok: bool = 200 <= status < 300

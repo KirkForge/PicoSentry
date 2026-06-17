@@ -334,7 +334,7 @@ class ClusterManager:
                     node.last_heartbeat = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     self._state.update_node(node)
             except Exception as e:
-                logger.error("Heartbeat update failed: %s", e)
+                logger.exception("Heartbeat update failed: %s", e)
 
             self._stop_event.wait(timeout=self._heartbeat_interval)
 
@@ -343,7 +343,7 @@ class ClusterManager:
             try:
                 self._check_node_health()
             except Exception as e:
-                logger.error("Health check failed: %s", e)
+                logger.exception("Health check failed: %s", e)
 
             self._stop_event.wait(timeout=self._heartbeat_timeout)
 
@@ -400,7 +400,7 @@ class ClusterManager:
                     except Exception as e:
                         logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
             except Exception as e:
-                logger.error("Gossip loop error: %s", e)
+                logger.exception("Gossip loop error: %s", e)
 
             self._stop_event.wait(timeout=gossip_interval)
 

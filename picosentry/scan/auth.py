@@ -338,9 +338,9 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
             except Exception as e:
 
                 if isinstance(e, (InsecureURLError, ResponseTooLargeError)):
-                    logger.error("JWKS URL rejected: %s", e)
+                    logger.exception("JWKS URL rejected: %s", e)
                 else:
-                    logger.error("Failed to fetch JWKS from %s: %s", config.oidc_jwks_url, e)
+                    logger.exception("Failed to fetch JWKS from %s: %s", config.oidc_jwks_url, e)
                 return AuthResult.denied(f"JWKS fetch failed: {e}")
 
         if "key" not in decode_kwargs:
@@ -371,7 +371,7 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
 
     except ImportError:
 
-        logger.error(
+        logger.exception(
             "PyJWT not installed. Cannot verify OIDC token signature. Install PyJWT for production: pip install PyJWT"
         )
         return AuthResult.denied("OIDC token verification requires PyJWT. Install with: pip install PyJWT")

@@ -269,7 +269,7 @@ def scan_workspace(
             result.failed_projects += 1
             error_msg = f"{rel}: {e}"
             result.errors.append(error_msg)
-            logger.error("  %s: FAILED — %s", rel, e)
+            logger.exception("  %s: FAILED — %s", rel, e)
 
     result.duration_ms = int((time.monotonic() - start) * 1000)
 

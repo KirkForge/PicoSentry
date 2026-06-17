@@ -42,7 +42,7 @@ def load_key() -> bytes | None:
         try:
             return bytes.fromhex(hex_key)
         except ValueError:
-            logger.error("PICODOME_POLICY_KEY is not valid hex")
+            logger.exception("PICODOME_POLICY_KEY is not valid hex")
             return None
 
 
@@ -52,7 +52,7 @@ def load_key() -> bytes | None:
             content = Path(key_file).read_text().strip()
             return bytes.fromhex(content)
         except (OSError, ValueError) as exc:
-            logger.error("Failed to read policy key file '%s': %s", key_file, exc)
+            logger.exception("Failed to read policy key file '%s': %s", key_file, exc)
             return None
 
 

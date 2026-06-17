@@ -79,7 +79,7 @@ class SyslogSink(AuditSink):
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             logger.info("SyslogSink: UDP socket created for %s:%d", self._host, self._port)
         except OSError as exc:
-            logger.error("SyslogSink: failed to create socket: %s", exc)
+            logger.exception("SyslogSink: failed to create socket: %s", exc)
             self._record_failure(str(exc))
 
     def stop(self) -> None:

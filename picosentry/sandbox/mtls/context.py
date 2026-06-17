@@ -82,7 +82,7 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
     try:
         ctx.load_cert_chain(certfile=config.cert_path, keyfile=config.key_path)
     except (ssl.SSLError, OSError) as e:
-        logger.error("Failed to load TLS cert/key: %s", e)
+        logger.exception("Failed to load TLS cert/key: %s", e)
         raise
 
 
@@ -90,7 +90,7 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
         try:
             ctx.load_verify_locations(cafile=config.ca_path)
         except (ssl.SSLError, OSError) as e:
-            logger.error("Failed to load CA bundle: %s", e)
+            logger.exception("Failed to load CA bundle: %s", e)
             raise
         ctx.verify_mode = ssl.CERT_REQUIRED
     elif config.verify_client:
@@ -204,7 +204,7 @@ def _create_dev_ssl_context() -> ssl.SSLContext:
             timeout=10,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
-        logger.error("Failed to generate dev TLS cert: %s", e)
+        logger.exception("Failed to generate dev TLS cert: %s", e)
         raise RuntimeError(f"Cannot generate dev TLS cert: {e}") from e
 
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

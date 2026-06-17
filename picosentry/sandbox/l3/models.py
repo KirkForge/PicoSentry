@@ -104,7 +104,7 @@ class SandboxEvent:
             d["address"] = self.address
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
@@ -151,4 +151,4 @@ class SandboxResult:
                 d["run_id"] = self.run_id
             if self.timestamp:
                 d["timestamp"] = self.timestamp
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))

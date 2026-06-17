@@ -48,7 +48,7 @@ class ReproducibleBuild:
             "no_deps": self.no_deps,
             "offline": self.offline,
         }
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
     def env_vars(self) -> dict[str, str]:
         env = {

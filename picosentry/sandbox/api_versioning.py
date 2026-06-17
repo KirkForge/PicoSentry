@@ -130,5 +130,5 @@ class APIVersionNegotiator:
         return {
             "current": CURRENT_API_VERSION,
             "supported": SUPPORTED_VERSIONS,
-            "deprecated": {k: v for k, v in DEPRECATED_VERSIONS.items()},
+            "deprecated": dict(DEPRECATED_VERSIONS.items()),
         }

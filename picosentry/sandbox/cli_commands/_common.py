@@ -135,10 +135,8 @@ def _compute_exit_code_sandbox(result: SandboxResult, args: argparse.Namespace) 
         return 1
 
 
-    if args.fail_on:
-
-        if result.overall_verdict.value in ("DENY", "KILL"):
-            return 1
+    if args.fail_on and result.overall_verdict.value in ("DENY", "KILL"):
+        return 1
 
 
     return 0 if result.overall_verdict.value == "ALLOW" else 1

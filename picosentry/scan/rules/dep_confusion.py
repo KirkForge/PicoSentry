@@ -84,11 +84,11 @@ def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
     for pattern in config.internal_patterns:
         if re.search(pattern, name, re.IGNORECASE):
             return True
-    if config.check_single_segment:
-
-        if "." not in name and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name):
-            return True
-    return False
+    return (
+        config.check_single_segment
+        and "." not in name
+        and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name) is not None
+    )
 
 
 _MAVEN_PUBLIC_GROUP_PREFIXES: frozenset[str] = frozenset({

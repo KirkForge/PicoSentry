@@ -186,7 +186,7 @@ def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_pypi_post_install(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     if not detect_pypi_project(target):

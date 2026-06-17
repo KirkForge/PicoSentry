@@ -152,7 +152,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
     return findings
 
 
-def detect_provenance_issues(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_provenance_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

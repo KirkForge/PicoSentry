@@ -212,7 +212,7 @@ def _check_package_against_iocs(
     return findings
 
 
-def detect_custom_iocs(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_custom_iocs(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

@@ -262,7 +262,7 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
             file_count += 1
 
 
-def detect_network_exfiltration(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_network_exfiltration(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

@@ -9,7 +9,7 @@ from .utils import load_package_json
 __all__ = ["detect_pnpm_config"]
 
 
-def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
+def detect_pnpm_config(target_path: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     target = Path(target_path)

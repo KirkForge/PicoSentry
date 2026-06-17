@@ -119,7 +119,7 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
     return findings
 
 
-def detect_bundled_shadows(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_bundled_shadows(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

@@ -114,7 +114,7 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_manifest_issues(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_manifest_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

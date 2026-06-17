@@ -118,7 +118,7 @@ class TestMavenDependencyConfusion:
 
     def test_detects_dep_confusion_in_malicious(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
-        findings = detect_maven_dep_confusion(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_maven_dep_confusion(_maven_malicious())
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) >= 1
         # "internal-lib" should be flagged
@@ -126,7 +126,7 @@ class TestMavenDependencyConfusion:
 
     def test_clean_project_has_no_dep_confusion(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
-        findings = detect_maven_dep_confusion(_maven_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_maven_dep_confusion(_maven_clean())
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -155,7 +155,7 @@ class TestMavenDependencyConfusion:
         </dependency>
     </dependencies>
 </project>""")
-        findings = detect_maven_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_maven_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -177,7 +177,7 @@ class TestMavenDependencyConfusion:
         </dependency>
     </dependencies>
 </project>""")
-        findings = detect_maven_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_maven_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-MAVEN-DEPC-001"]
         assert len(depc_findings) >= 1
 
@@ -347,7 +347,7 @@ class TestMavenIntegration:
 
     def test_dep_confusion_findings_are_critical(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_maven_dep_confusion
-        findings = detect_maven_dep_confusion(_maven_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_maven_dep_confusion(_maven_malicious())
         for f in findings:
             assert f.severity == Severity.CRITICAL
             assert f.ecosystem == "maven"

@@ -1,7 +1,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import re
 from pathlib import Path
 
@@ -94,10 +93,6 @@ def redact_secret_evidence(text: str) -> str:
         redacted,
     )
     return redacted
-
-
-def secret_fingerprint(evidence: str) -> str:
-    return hashlib.sha256(evidence.encode()).hexdigest()[:16]
 
 
 def _should_skip_path(file_path: Path) -> bool:

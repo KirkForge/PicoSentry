@@ -75,7 +75,6 @@ def cmd(args: argparse.Namespace) -> int:
         engine=engine,
         config=config,
         rules=args.rules,
-        fail_on=args.fail_on,
         timeout=args.timeout,
     )
 

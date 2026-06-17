@@ -164,7 +164,6 @@ def scan_workspace(
     engine: ScanEngine | None = None,
     config: PicoSentryConfig | None = None,
     rules: Sequence[str] | None = None,
-    fail_on: str = "medium",
     timeout: int = 0,
 ) -> WorkspaceResult:
     if engine is None:

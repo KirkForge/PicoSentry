@@ -119,6 +119,7 @@ def test_bench_rule_registration(engine):
         "L2-IOC",
         "L2-WORM",
         "L2-NETEX",
+        "L2-BUILD",
         "L2-PYPI",
         "L2-GO",
         "L2-CARGO",

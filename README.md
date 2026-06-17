@@ -22,7 +22,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 178 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
 | `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
 | `picosentry watch` | **Beta** | Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
@@ -33,9 +33,9 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
 | Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations) |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.13` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.0.13 published |
+| Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.14` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.0.14 published |
 
 The scanner is the stable product. Everything else is beta or experimental —
 read the notes column honestly. "Beta" means it works but hasn't been
@@ -61,10 +61,10 @@ security review — don't expose it to untrusted networks.
 - **Admission controller is not tested against a real K8s cluster.** The code
   exists and the CLI works, but it hasn't seen a real API server.
 - **Has published detection-benchmark data** in
-  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.13 corpus is 178
-  fixtures (145 positive, 33 negative) / 49 L2 rule_ids + 4 L2-CAMP rule_ids
+  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.14 corpus is 188
+  fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids
   / 100% precision / 100% recall. The corpus is small (mean ~3
-  positives + ~3 negatives per rule across 53 rules) and the fixtures are
+  positives + ~3 negatives per rule across 54 rules) and the fixtures are
   mostly hand-crafted, so the 100% number is a smoke test, not a
   statistically meaningful measurement. See "Honest limitations" in
   that document for what the numbers do and don't prove.

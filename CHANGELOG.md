@@ -2,6 +2,44 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.14] — 2026-06-16
+
+### Detection corpus expansion — L2-BUILD-001 cross-ecosystem build hooks
+
+Closes task #4 ("Polish and improve code quality") by expanding the
+highest-impact lever: the detection corpus. Adds a new cross-ecosystem
+rule, **L2-BUILD-001 — Dangerous build-time hooks**, covering install-time
+and build-time malicious behavior in Cargo (`build.rs`), Go
+(`//go:generate`), RubyGems (`extconf.rb` / `.gemspec`), Maven
+(`exec-maven-plugin`), and NuGet (MSBuild `.targets` / `.csproj`).
+
+**New rule:** `picosentry/scan/rules/dangerous_build_hooks.py`
+detects subprocess execution, network downloads, obfuscation, credential
+reads, and system-path writes in build hooks. Registered as
+`L2-BUILD-001` in `create_default_engine()`.
+
+**New fixtures (10):**
+- Positive: `malicious_cargo_build_rs`, `malicious_go_generate`,
+  `malicious_rubygems_extconf`, `malicious_maven_exec_plugin`,
+  `malicious_nuget_msbuild_target`
+- Negative: `clean_cargo_build_rs`, `clean_go_generate`,
+  `clean_rubygems_extconf`, `clean_maven_exec_plugin`,
+  `clean_nuget_msbuild_target`
+
+**Corpus counts updated across the codebase:** 188 fixtures
+(150 positive / 38 negative), 54 rules (50 L2 + 4 L2-CAMP). All counts
+synced in `picosentry/experimental.py`, `README.md`, and
+`docs/BENCHMARKS.md` (per-rule table regenerated from
+`tests/scan/fixtures/validation/REPORT.json`).
+
+**Rule documentation:** `picosentry/scan/docs/rules/L2-BUILD-001.md`
+covers all five ecosystems plus remediation guidance.
+
+**Version bump:** All `__version__` strings and deployment manifests
+kept in lockstep at 2.0.14 (pyproject.toml, picosentry/__init__.py,
+_core, scan, sandbox, watch, serve/config/version.py,
+deploy/helm/picodome/Chart.yaml, deploy/kubernetes/deployment.yaml).
+
 ## [2.0.13] — 2026-06-13
 
 ### Enterprise Beta — admission controller + sandbox fix + benchmark honesty

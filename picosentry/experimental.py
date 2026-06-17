@@ -24,7 +24,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry scan`",
         status="Stable",
-        notes="Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 178 fixtures",
+        notes="Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures",
     ),
     ComponentStatus(
         name="`picosentry sandbox`",
@@ -79,17 +79,17 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Detection benchmarks",
         status="Stable",
-        notes="178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations)",
+        notes="188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations)",
     ),
     ComponentStatus(
         name="Docker image",
         status="Stable",
-        notes="`kirkforge/picodome:v2.0.13` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
+        notes="`kirkforge/picodome:v2.0.14` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
     ),
     ComponentStatus(
         name="PyPI package",
         status="Stable",
-        notes="`pip install picosentry` — v2.0.13 published",
+        notes="`pip install picosentry` — v2.0.14 published",
     ),
 )
 

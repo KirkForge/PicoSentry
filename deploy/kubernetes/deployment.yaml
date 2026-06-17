@@ -4,7 +4,7 @@ metadata:
   name: picodome
   labels:
     app: picodome
-    version: v2.0.13
+    version: v2.0.14
 spec:
   replicas: 2
   selector:
@@ -29,10 +29,10 @@ spec:
           type: RuntimeDefault
       containers:
         - name: picodome
-          # Replace <TAG> with the actual release version (e.g. v2.0.13).
+          # Replace <TAG> with the actual release version (e.g. v2.0.14).
           # The kirkforge/picodome image is not yet published to a public
           # registry; build it locally with the Dockerfile at the repo root.
-          image: kirkforge/picodome:v2.0.13
+          image: kirkforge/picodome:v2.0.14
           imagePullPolicy: IfNotPresent
           # Start the sandbox daemon with both transports available.
           # The daemon CLI accepts --transport=grpc to switch to gRPC;

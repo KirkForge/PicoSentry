@@ -241,7 +241,7 @@ def sign_content(content: bytes, method: str = "sigstore", secret_key: str = "",
 
 
 def verify_content_sigstore(
-    content: bytes, signature_bundle_json: str, certificate: str = "", offline: bool = False
+    content: bytes, signature_bundle_json: str, offline: bool = False
 ) -> bool:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore verification. Install with: pip install sigstore")
@@ -336,7 +336,6 @@ def verify_content(
         return verify_content_sigstore(
             content,
             signature_bundle.raw_signature,
-            signature_bundle.certificate,
             offline=offline,
         )
     elif signature_bundle.provider == "minisign":

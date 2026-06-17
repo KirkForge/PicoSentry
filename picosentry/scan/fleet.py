@@ -372,7 +372,7 @@ class FleetManager:
         self._save_state()
 
         if rollout.failure_action == "rollback":
-            self._rollback_targets(name)
+            self._rollback_targets()
 
         audit(
             "fleet.fail_rollout",
@@ -383,7 +383,7 @@ class FleetManager:
 
         return status
 
-    def _rollback_targets(self, name: str) -> None:
+    def _rollback_targets(self) -> None:
         for target_id, prev_digest in self._previous_policies.items():
             target = self._targets.get(target_id)
             if target and prev_digest:

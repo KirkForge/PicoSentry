@@ -606,14 +606,14 @@ class TestPolicyCheckRequirements(unittest.TestCase):
     def test_no_lockfile(self):
         with tempfile.TemporaryDirectory() as td:
             p = Policy(require_lockfile=True, require_integrity=False)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             self.assertTrue(any(v.detail.get("required") == "lockfile" for v in violations))
 
     def test_has_package_lock(self):
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "package-lock.json").write_text("{}")
             p = Policy(require_lockfile=True, require_integrity=True)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             # Has lockfile, and integrity is satisfied by package-lock.json
             lockfile_violations = [v for v in violations if v.detail.get("required") == "lockfile"]
             integrity_violations = [v for v in violations if v.detail.get("required") == "integrity"]
@@ -624,7 +624,7 @@ class TestPolicyCheckRequirements(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "pnpm-lock.yaml").write_text("")
             p = Policy(require_lockfile=True, require_integrity=True)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             lockfile_v = [v for v in violations if v.detail.get("required") == "lockfile"]
             self.assertEqual(len(lockfile_v), 0)
 
@@ -632,20 +632,20 @@ class TestPolicyCheckRequirements(unittest.TestCase):
         with tempfile.TemporaryDirectory() as td:
             (Path(td) / "yarn.lock").write_text("")
             p = Policy(require_lockfile=True, require_integrity=False)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             lockfile_v = [v for v in violations if v.detail.get("required") == "lockfile"]
             self.assertEqual(len(lockfile_v), 0)
 
     def test_integrity_no_lockfile(self):
         with tempfile.TemporaryDirectory() as td:
             p = Policy(require_lockfile=False, require_integrity=True)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             self.assertTrue(any(v.detail.get("required") == "integrity" for v in violations))
 
     def test_no_requirements(self):
         with tempfile.TemporaryDirectory() as td:
             p = Policy(require_lockfile=False, require_integrity=False)
-            violations = p.check_requirements(Path(td), MagicMock())
+            violations = p.check_requirements(Path(td))
             self.assertEqual(len(violations), 0)
 
 

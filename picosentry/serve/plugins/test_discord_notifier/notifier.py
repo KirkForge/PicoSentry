@@ -85,7 +85,7 @@ class DiscordNotifier(PluginInterface):
         try:
             resp = requests.post(
                 self.webhook_url,
-                json=payload,  # type: ignore[arg-type]
+                json=payload,
                 timeout=5,
                 headers={"Content-Type": "application/json"},
             )

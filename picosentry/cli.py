@@ -544,26 +544,6 @@ def _handle_diff(args: argparse.Namespace) -> None:
     sys.exit(result[0])
 
 
-def _handle_scan_subcommand(args: argparse.Namespace) -> None:
-    if args.scan_command == "rules":
-        from picosentry.scan.rules import RULE_INFO
-        print(f"Available scanner rules ({len(RULE_INFO)}):")
-        for rule_id, info in sorted(RULE_INFO.items()):
-            desc = info.get("description", "")
-            print(f"  {rule_id}: {desc}")
-    elif args.scan_command == "update":
-        from picosentry.scan.cli import main as scan_main
-        scan_main(argv=["update"])
-    elif args.scan_command == "init":
-        from picosentry.scan.cli import main as scan_main
-        scan_main(argv=["init"])
-    elif args.scan_command == "diff":
-        from picosentry.scan.guards import diff_scans
-        result = diff_scans(Path(args.path_a), Path(args.path_b), verbose=args.verbose)
-        print(result[1])
-        sys.exit(result[0])
-
-
 def _handle_sandbox(args: argparse.Namespace) -> None:
     # Manual subcommand routing.  We removed the argparse subparser
     # because it conflicted with the `cmd` positional (nargs="*"):

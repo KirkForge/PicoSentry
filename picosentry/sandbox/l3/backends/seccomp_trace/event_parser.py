@@ -71,12 +71,7 @@ def parse_seccomp_log(
             arch = int(m.group("arch"), 16)
         except (ValueError, TypeError):
             continue
-        if arch == _ARCH_X86_64:
-            name = x86_64_nr_to_name.get(syscall_nr)
-        else:
-
-
-            name = None
+        name = x86_64_nr_to_name.get(syscall_nr) if arch == _ARCH_X86_64 else None
         if name is None:
             name = f"unknown_{arch:x}_{syscall_nr}"
         operation, rule_id_prefix = classify_syscall(name)

@@ -73,10 +73,7 @@ class L4Engine:
 
                 sig = inspect.signature(rule_fn)
                 param_count = len(sig.parameters)
-                if param_count >= 2:
-                    findings = rule_fn(profile, baselines)
-                else:
-                    findings = rule_fn(profile)
+                findings = rule_fn(profile, baselines) if param_count >= 2 else rule_fn(profile)
                 all_findings.extend(findings)
                 logger.debug("L4 rule %s: %d findings", rule_id, len(findings))
             except Exception:

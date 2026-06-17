@@ -98,7 +98,7 @@ def pin_dependencies(lockfile_path: str) -> dict:
     for line in content.splitlines():
         line = line.strip()
 
-        if not line or line.startswith("#") or line.startswith("-"):
+        if not line or line.startswith(("#", "-")):
 
             continue
 

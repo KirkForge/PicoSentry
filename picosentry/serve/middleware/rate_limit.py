@@ -161,7 +161,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             org_api_key = request.headers.get("X-Org-API-Key", "")
             rate_limited = False
-            if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith("sk_") or org_api_key.startswith("pk_")):
+            if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
                 org_count = self._clean_and_count(self.org_requests, org_api_key, now)
                 if org_count >= self.max_requests_per_org:
                     retry_after = int(self.window - (now - self.org_requests[org_api_key][0]) + 1)

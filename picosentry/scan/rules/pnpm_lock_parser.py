@@ -160,7 +160,7 @@ def _parse_with_regex(content: str) -> PnpmLockfile:
             in_importers = True
             continue
         if in_importers:
-            if line.startswith("  ") or line.startswith("\t"):
+            if line.startswith(("  ", "\t")):
 
                 pass
             else:

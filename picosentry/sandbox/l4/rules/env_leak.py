@@ -39,7 +39,7 @@ def detect_env_leak(
 
     for op in profile.fs_ops:
         path_lower = op.path.lower()
-        if path_lower.endswith(".env") or path_lower.endswith(".env.local") or path_lower.endswith(".env.production"):
+        if path_lower.endswith((".env", ".env.local", ".env.production")):
             findings.append(
                 Finding(
                     rule_id="L4-ENV-001",

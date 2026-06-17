@@ -66,7 +66,7 @@ def detect_dependency_confusion(
                 )
 
 
-        if hostname_lower.endswith(".local") or hostname_lower.endswith(".internal"):
+        if hostname_lower.endswith((".local", ".internal")):
             findings.append(
                 Finding(
                     rule_id="L4-DEP-001",
@@ -174,7 +174,7 @@ def detect_dependency_confusion(
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if op.operation in ("read", "write", "create"):
-            if path_lower.endswith(".npmrc") or path_lower.endswith("pip.conf") or "pip.ini" in path_lower:
+            if path_lower.endswith((".npmrc", "pip.conf")) or "pip.ini" in path_lower:
                 if op.operation in ("write", "create"):
                     findings.append(
                         Finding(

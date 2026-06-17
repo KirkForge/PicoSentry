@@ -113,7 +113,7 @@ class TestGoDependencyConfusion:
         """internal-secrets without GOPRIVATE should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
         target = _go_malicious()
-        findings = detect_go_dep_confusion(target, Path(""))
+        findings = detect_go_dep_confusion(target)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) >= 1, f"Expected dep confusion finding, got: {[f.package for f in findings]}"
         assert internal[0].rule_id == "L2-GO-DEPC-001"
@@ -122,7 +122,7 @@ class TestGoDependencyConfusion:
         """Clean project with only public GitHub deps should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
         target = _go_clean()
-        findings = detect_go_dep_confusion(target, Path(""))
+        findings = detect_go_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_go_env_private_skips_flags(self, tmp_path):
@@ -132,7 +132,7 @@ class TestGoDependencyConfusion:
             "module test\n\ngo 1.21\n\nrequire (\n\tinternal-secrets v0.1.0\n)\n"
         )
         (tmp_path / "go.env").write_text("GOPRIVATE=internal-secrets\n")
-        findings = detect_go_dep_confusion(tmp_path, Path(""))
+        findings = detect_go_dep_confusion(tmp_path)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) == 0, f"GOPRIVATE should suppress dep confusion: {internal}"
 

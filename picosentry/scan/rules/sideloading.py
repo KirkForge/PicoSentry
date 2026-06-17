@@ -99,7 +99,7 @@ def _extract_protocol_deps(pkg_data: dict, pkg_json_path: str = "package.json") 
     return findings
 
 
-def detect_sideloading(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_sideloading(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

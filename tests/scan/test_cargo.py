@@ -115,7 +115,7 @@ class TestCargoDependencyConfusion:
         """internal-auth without private registry should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_malicious()
-        findings = detect_cargo_dep_confusion(target, Path(""))
+        findings = detect_cargo_dep_confusion(target)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) >= 1, f"Expected dep confusion finding, got: {[f.package for f in findings]}"
         assert internal[0].rule_id == "L2-CARGO-DEPC-001"
@@ -124,7 +124,7 @@ class TestCargoDependencyConfusion:
         """my-corp-lib without private registry should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_malicious()
-        findings = detect_cargo_dep_confusion(target, Path(""))
+        findings = detect_cargo_dep_confusion(target)
         corp = [f for f in findings if "my-corp" in f.package]
         assert len(corp) >= 1, f"Expected dep confusion finding, got: {[f.package for f in findings]}"
         assert corp[0].rule_id == "L2-CARGO-DEPC-001"
@@ -133,7 +133,7 @@ class TestCargoDependencyConfusion:
         """Clean project with only public crates should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
         target = _cargo_clean()
-        findings = detect_cargo_dep_confusion(target, Path(""))
+        findings = detect_cargo_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_private_registry_config_skips_flags(self, tmp_path):
@@ -146,7 +146,7 @@ class TestCargoDependencyConfusion:
         (tmp_path / ".cargo" / "config.toml").write_text(
             '[registries.my-private]\nindex = "https://private.crates.io/git/index"\n'
         )
-        findings = detect_cargo_dep_confusion(tmp_path, Path(""))
+        findings = detect_cargo_dep_confusion(tmp_path)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) == 0, f"Private registry should suppress dep confusion: {internal}"
 

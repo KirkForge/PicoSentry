@@ -120,7 +120,7 @@ def _check_pnpm_workspace(target: Path) -> list[Finding]:
     return findings
 
 
-def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_lockfile_drift(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

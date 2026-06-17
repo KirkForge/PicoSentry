@@ -146,7 +146,7 @@ def _scan_file(file_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_obfuscation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

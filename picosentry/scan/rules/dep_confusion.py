@@ -276,7 +276,7 @@ def _get_maven_finding_file(target: Path, has_pom: bool) -> Path:
     return target / "build.gradle"
 
 
-def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_all_dep_confusion(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

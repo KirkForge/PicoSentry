@@ -117,14 +117,14 @@ class TestRubyGemsDependencyConfusion:
 
     def test_detects_dep_confusion_in_malicious(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
-        findings = detect_rubygems_dep_confusion(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_dep_confusion(_gem_malicious())
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) >= 1
         assert any("company-internal" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
-        findings = detect_rubygems_dep_confusion(_gem_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_dep_confusion(_gem_clean())
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -136,7 +136,7 @@ class TestRubyGemsDependencyConfusion:
 
 gem "company-internal", "~> 1.0"
 """)
-        findings = detect_rubygems_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -148,7 +148,7 @@ gem "company-internal", "~> 1.0"
 
 gem "company-internal", git: "https://github.com/company/internal-gem.git"
 """)
-        findings = detect_rubygems_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -284,7 +284,7 @@ class TestRubyGemsIntegration:
 
     def test_dep_confusion_findings_are_critical(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
-        findings = detect_rubygems_dep_confusion(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_dep_confusion(_gem_malicious())
         for f in findings:
             assert f.severity == Severity.CRITICAL
             assert f.ecosystem == "rubygems"

@@ -210,7 +210,7 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     return findings
 
 
-def detect_license_issues(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_license_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

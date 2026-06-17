@@ -117,14 +117,14 @@ class TestNuGetDependencyConfusion:
 
     def test_detects_dep_confusion_in_malicious(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_nuget_dep_confusion(_nuget_malicious())
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) >= 1
         assert any("Company.Internal.Lib" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_nuget_dep_confusion(_nuget_clean())
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -144,7 +144,7 @@ class TestNuGetDependencyConfusion:
     <add key="internal" value="https://pkgs.internal.example.com/nuget/v3/index.json" />
   </packageSources>
 </configuration>""")
-        findings = detect_nuget_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_nuget_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -288,7 +288,7 @@ class TestNuGetIntegration:
 
     def test_dep_confusion_findings_are_critical(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_nuget_dep_confusion(_nuget_malicious())
         for f in findings:
             assert f.severity == Severity.CRITICAL
             assert f.ecosystem == "nuget"

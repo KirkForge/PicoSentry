@@ -236,7 +236,7 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 )
 
 
-def detect_maintainer_changes(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_maintainer_changes(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

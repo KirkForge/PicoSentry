@@ -154,7 +154,7 @@ def _scan_python_file(file_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_pypi_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_pypi_obfuscation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     if not detect_pypi_project(target):

@@ -166,7 +166,7 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_engine_issues(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_engine_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

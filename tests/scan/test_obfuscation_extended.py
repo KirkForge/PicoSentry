@@ -117,7 +117,7 @@ class TestDetectObfuscation(unittest.TestCase):
     def test_root_js_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             _make_project(Path(tmp), {"name": "test", "version": "1.0.0"}, {"index.js": 'eval("malicious")'})
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertGreater(len(findings), 0)
 
     def test_node_modules_scan(self):
@@ -128,13 +128,13 @@ class TestDetectObfuscation(unittest.TestCase):
             nm.mkdir(parents=True)
             (nm / "package.json").write_text('{"name": "evil", "version": "1.0.0"}')
             (nm / "index.js").write_text('eval("pwned")')
-            findings = detect_obfuscation(root, root / "corpus")
+            findings = detect_obfuscation(root)
             self.assertGreater(len(findings), 0)
 
     def test_no_js_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             _make_project(Path(tmp), {"name": "test", "version": "1.0.0"}, {"style.css": "body { color: red; }"})
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertEqual(len(findings), 0)
 
     def test_scoped_package(self):
@@ -145,14 +145,14 @@ class TestDetectObfuscation(unittest.TestCase):
             scoped.mkdir(parents=True)
             (scoped / "package.json").write_text('{"name": "@scope/pkg", "version": "1.0.0"}')
             (scoped / "index.js").write_text('Function("return this")()')
-            findings = detect_obfuscation(root, root / "corpus")
+            findings = detect_obfuscation(root)
             self.assertGreater(len(findings), 0)
             self.assertIn("@scope", findings[0].package)
 
     def test_empty_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "package.json").write_text('{"name": "empty"}')
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertEqual(len(findings), 0)
 
 

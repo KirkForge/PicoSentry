@@ -122,7 +122,7 @@ class TestPyPIDependencyConfusion:
         """internal-secrets without private index should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
         target = _pypi_malicious()
-        findings = detect_pypi_dep_confusion(target, Path(""))
+        findings = detect_pypi_dep_confusion(target)
         internal = [f for f in findings if "internal-" in f.package]
         assert len(internal) >= 1, f"Expected dep confusion finding, got: {[f.package for f in findings]}"
         assert internal[0].rule_id == "L2-PYPI-DEPC-001"
@@ -131,7 +131,7 @@ class TestPyPIDependencyConfusion:
         """Clean project without internal deps should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
         target = _pypi_clean()
-        findings = detect_pypi_dep_confusion(target, Path(""))
+        findings = detect_pypi_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_private_index_skips_flags(self, tmp_path):
@@ -140,7 +140,7 @@ class TestPyPIDependencyConfusion:
         # Create a project with a pip.conf pointing to a private registry
         (tmp_path / "pip.conf").write_text("[global]\nindex-url = https://private-pypi.example.com/simple/\n")
         (tmp_path / "requirements.txt").write_text("internal-secrets==0.1.0\n")
-        findings = detect_pypi_dep_confusion(tmp_path, Path(""))
+        findings = detect_pypi_dep_confusion(tmp_path)
         internal = [f for f in findings if "internal-" in f.package]
         assert len(internal) == 0, f"Private index should suppress dep confusion: {internal}"
 
@@ -155,7 +155,7 @@ class TestPyPIPostInstall:
         """setup.py with subprocess/os.system/eval should be flagged."""
         from picosentry.scan.rules.pypi_post_install import detect_pypi_post_install
         target = _pypi_malicious()
-        findings = detect_pypi_post_install(target, Path(""))
+        findings = detect_pypi_post_install(target)
         assert len(findings) >= 1, f"Expected findings from malicious setup.py, got: {len(findings)}"
         critical = [f for f in findings if f.severity == Severity.CRITICAL]
         assert len(critical) >= 1, f"Expected CRITICAL findings, got: {[f.severity for f in findings]}"
@@ -166,7 +166,7 @@ class TestPyPIPostInstall:
         """Clean project without setup.py should have no post-install findings."""
         from picosentry.scan.rules.pypi_post_install import detect_pypi_post_install
         target = _pypi_clean()
-        findings = detect_pypi_post_install(target, Path(""))
+        findings = detect_pypi_post_install(target)
         assert len(findings) == 0, f"Clean project should have no post-install findings: {findings}"
 
 
@@ -180,7 +180,7 @@ class TestPyPIObfuscation:
         """eval() calls in Python files should be flagged."""
         from picosentry.scan.rules.pypi_obfuscation import detect_pypi_obfuscation
         target = _pypi_malicious()
-        findings = detect_pypi_obfuscation(target, Path(""))
+        findings = detect_pypi_obfuscation(target)
         eval_findings = [f for f in findings if f.rule_id == "L2-PYPI-OBFS-001"]
         assert len(eval_findings) >= 0  # setup.py counts as root file
 
@@ -188,7 +188,7 @@ class TestPyPIObfuscation:
         """A non-Python project should return no obfuscation findings."""
         from picosentry.scan.rules.pypi_obfuscation import detect_pypi_obfuscation
         (tmp_path / "package.json").write_text('{"name": "test", "version": "1.0.0"}')
-        findings = detect_pypi_obfuscation(tmp_path, Path(""))
+        findings = detect_pypi_obfuscation(tmp_path)
         assert len(findings) == 0
 
 

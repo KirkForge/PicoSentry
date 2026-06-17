@@ -230,7 +230,7 @@ def _iter_target_files(target: Path, suffixes: tuple[str, ...]) -> list[Path]:
     return files
 
 
-def detect_dangerous_build_hooks(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_dangerous_build_hooks(target: Path) -> list[Finding]:
     """Scan non-npm/pypi build hooks for suspicious install-time behavior."""
     findings: list[Finding] = []
 

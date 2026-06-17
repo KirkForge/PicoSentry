@@ -148,7 +148,7 @@ def test_clean_directory_no_findings(tmp_path: Path) -> None:
         encoding="utf-8",
     )
     for c in iter_campaigns():
-        assert c.detect(tmp_path, Path("/tmp")) == [], f"{c.campaign_id} produced false positive"
+        assert c.detect(tmp_path) == [], f"{c.campaign_id} produced false positive"
 
 
 # ── Engine integration ────────────────────────────────────────────────────

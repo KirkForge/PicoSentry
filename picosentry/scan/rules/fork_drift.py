@@ -157,7 +157,7 @@ def _is_fork_repo(url: str, pkg_name: str, author: str = "") -> bool:
     return False
 
 
-def detect_fork_drift(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_fork_drift(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

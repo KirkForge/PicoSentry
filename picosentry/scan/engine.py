@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import hashlib
+import inspect
 import logging
 import os
 import threading
@@ -95,7 +96,7 @@ def _get_version() -> str:
 _VERSION = _get_version()
 
 
-DetectorRule = Callable[[Path, Path], list[Finding]]
+DetectorRule = Callable[..., list[Finding]]
 
 
 class ScanEngine:
@@ -275,12 +276,13 @@ class ScanEngine:
 
         def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
             if fn.__name__ == "detect_all_advisory_vulnerabilities":
-
-
                 return fn(
                     target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
                 )
-            return fn(target_path, self._corpus_dir)
+            param_count = len(inspect.signature(fn).parameters)
+            if param_count >= 2:
+                return fn(target_path, self._corpus_dir)
+            return fn(target_path)
 
         for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
             rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]

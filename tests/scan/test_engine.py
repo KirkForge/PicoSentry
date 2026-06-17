@@ -7,7 +7,7 @@ from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
 from picosentry.scan.rules.engine import detect_engine_issues
 
-from tests.scan.conftest import FIXTURES_DIR, make_npm_project as _make_project
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestEngineConstraints:
@@ -22,7 +22,7 @@ class TestEngineConstraints:
                 "version": "1.0.0",
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.LOW for f in findings)
 
     def test_no_engines_with_install_scripts(self, tmp_path):
@@ -35,7 +35,7 @@ class TestEngineConstraints:
                 "scripts": {"postinstall": "node build.js"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.HIGH for f in findings)
 
     def test_overly_permissive_engines_star(self, tmp_path):
@@ -48,7 +48,7 @@ class TestEngineConstraints:
                 "engines": {"node": "*"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.MEDIUM for f in findings)
 
     def test_overly_permissive_engines_gte_000(self, tmp_path):
@@ -61,7 +61,7 @@ class TestEngineConstraints:
                 "engines": {"node": ">=0.0.0"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.MEDIUM for f in findings)
 
     def test_overly_permissive_engines_any(self, tmp_path):
@@ -74,7 +74,7 @@ class TestEngineConstraints:
                 "engines": {"node": "any"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.MEDIUM for f in findings)
 
     def test_narrow_engines_exact(self, tmp_path):
@@ -87,7 +87,7 @@ class TestEngineConstraints:
                 "engines": {"node": "18.17.0"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.INFO for f in findings)
 
     def test_reasonable_engines_range(self, tmp_path):
@@ -100,7 +100,7 @@ class TestEngineConstraints:
                 "engines": {"node": ">=18.0.0"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert not any(f.rule_id == "L2-ENGIN-001" for f in findings)
 
     def test_npm_without_node(self, tmp_path):
@@ -113,7 +113,7 @@ class TestEngineConstraints:
                 "engines": {"npm": ">=8.0.0"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.LOW for f in findings)
 
     def test_npm_with_node(self, tmp_path):
@@ -126,7 +126,7 @@ class TestEngineConstraints:
                 "engines": {"node": ">=18.0.0", "npm": ">=8.0.0"},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         # Should NOT have the npm-without-node finding
         assert not any("npm without node" in f.evidence.lower() for f in findings if f.rule_id == "L2-ENGIN-001")
 
@@ -140,7 +140,7 @@ class TestEngineConstraints:
                 "engines": {},
             },
         )
-        findings = detect_engine_issues(project, FIXTURES_DIR)
+        findings = detect_engine_issues(project)
         assert any(f.rule_id == "L2-ENGIN-001" for f in findings)
 
     def test_deterministic_engine_findings(self, tmp_path):
@@ -153,8 +153,8 @@ class TestEngineConstraints:
                 "scripts": {"postinstall": "echo hi"},
             },
         )
-        findings_a = detect_engine_issues(project, FIXTURES_DIR)
-        findings_b = detect_engine_issues(project, FIXTURES_DIR)
+        findings_a = detect_engine_issues(project)
+        findings_b = detect_engine_issues(project)
         assert len(findings_a) == len(findings_b)
         for a, b in zip(findings_a, findings_b, strict=False):
             assert a.rule_id == b.rule_id

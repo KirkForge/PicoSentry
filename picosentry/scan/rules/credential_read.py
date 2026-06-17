@@ -241,7 +241,7 @@ def _scan_source_for_creds(file_path: Path, pkg_label: str) -> list[Finding]:
     return findings
 
 
-def detect_credential_reading(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_credential_reading(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
 

@@ -281,7 +281,7 @@ class CampaignPackage:
         return findings
 
 
-    def detect(self, target: Path, corpus_dir: Path) -> list[Finding]:
+    def detect(self, target: Path) -> list[Finding]:
         findings: list[Finding] = []
         findings.extend(self.detect_named_signatures(target))
         findings.extend(self.detect_payload_filenames(target))

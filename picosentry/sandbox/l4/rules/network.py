@@ -30,18 +30,17 @@ def detect_network_anomalies(
     findings: list[Finding] = []
 
 
-    for call in profile.network_calls:
-        if call.port in SUSPICIOUS_PORTS:
-            findings.append(
-                Finding(
-                    rule_id="L4-NET-001",
-                    severity=Severity.HIGH,
-                    message=f"Connection to suspicious port: {call.address}:{call.port}",
-                    location=f"{call.address}:{call.port}",
-                    evidence={"address": call.address, "port": call.port},
-                )
-            )
-
+    findings.extend(
+        Finding(
+            rule_id="L4-NET-001",
+            severity=Severity.HIGH,
+            message=f"Connection to suspicious port: {call.address}:{call.port}",
+            location=f"{call.address}:{call.port}",
+            evidence={"address": call.address, "port": call.port},
+        )
+        for call in profile.network_calls
+        if call.port in SUSPICIOUS_PORTS
+    )
 
     for dns in profile.dns_queries:
         hostname = dns.hostname

@@ -100,10 +100,10 @@ def render_status_table() -> str:
         "| Component | Status | Notes |",
         "|-----------|--------|-------|",
     ]
-    for component in COMPONENT_STATUS:
-        lines.append(
-            f"| {component.name} | **{component.status}** | {component.notes} |"
-        )
+    lines.extend(
+        f"| {component.name} | **{component.status}** | {component.notes} |"
+        for component in COMPONENT_STATUS
+    )
     return "\n".join(lines)
 
 

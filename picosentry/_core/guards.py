@@ -54,11 +54,11 @@ class DeterministicGuard:
                 val = f.get(field_name, "")
                 if not isinstance(val, str):
                     continue
-                for pattern in FORBIDDEN_IN_FINDINGS:
-                    if pattern in val:
-                        violations.append(
-                            f"{path}.{field_name} contains forbidden pattern '{pattern}'"
-                        )
+                violations.extend(
+                    f"{path}.{field_name} contains forbidden pattern '{pattern}'"
+                    for pattern in FORBIDDEN_IN_FINDINGS
+                    if pattern in val
+                )
 
 
             for field_name in ("finding_id", "rule_id", "package"):

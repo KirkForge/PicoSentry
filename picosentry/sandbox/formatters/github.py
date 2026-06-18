@@ -55,8 +55,10 @@ def _l3_github(result: SandboxResult, sarif_path: str) -> str:
         lines.append("### Events\n")
         lines.append("| Rule | Verdict | Operation | Detail |")
         lines.append("|------|---------|-----------|--------|")
-        for event in result.events[:50]:
-            lines.append(f"| {event.rule_id} | {event.verdict.value} | {event.operation} | {event.detail[:80]} |")
+        lines.extend(
+            f"| {event.rule_id} | {event.verdict.value} | {event.operation} | {event.detail[:80]} |"
+            for event in result.events[:50]
+        )
         remaining = len(result.events) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more event(s)\n")
@@ -93,8 +95,10 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
         lines.append("### Findings\n")
         lines.append("| Rule | Severity | Message | Location |")
         lines.append("|------|----------|---------|----------|")
-        for f in result.findings[:50]:
-            lines.append(f"| {f.rule_id} | {f.severity.value} | {f.message[:80]} | {f.location or '—'} |")
+        lines.extend(
+            f"| {f.rule_id} | {f.severity.value} | {f.message[:80]} | {f.location or '—'} |"
+            for f in result.findings[:50]
+        )
         remaining = len(result.findings) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more finding(s)\n")

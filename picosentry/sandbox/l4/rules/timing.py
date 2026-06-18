@@ -22,17 +22,17 @@ def detect_timing_anomalies(
         )
 
 
-    for tp in profile.timing_points:
-        if tp.elapsed_ms > 60000:  # >60s on a single operation
-            findings.append(
-                Finding(
-                    rule_id="L4-TIME-002",
-                    severity=Severity.MEDIUM,
-                    message=f"Timing point '{tp.label}' took {tp.elapsed_ms}ms — potential busy-wait or sleep",
-                    location=tp.label,
-                    evidence={"label": tp.label, "elapsed_ms": tp.elapsed_ms},
-                )
-            )
+    findings.extend(
+        Finding(
+            rule_id="L4-TIME-002",
+            severity=Severity.MEDIUM,
+            message=f"Timing point '{tp.label}' took {tp.elapsed_ms}ms — potential busy-wait or sleep",
+            location=tp.label,
+            evidence={"label": tp.label, "elapsed_ms": tp.elapsed_ms},
+        )
+        for tp in profile.timing_points
+        if tp.elapsed_ms > 60000  # >60s on a single operation
+    )
 
 
     if baselines:

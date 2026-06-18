@@ -60,17 +60,17 @@ def detect_network_anomalies(
                 break
 
 
-        for tld in SUSPICIOUS_TLDS:
-            if hostname.endswith(tld):
-                findings.append(
-                    Finding(
-                        rule_id="L4-NET-003",
-                        severity=Severity.MEDIUM,
-                        message=f"DNS query to suspicious TLD: {hostname}",
-                        location=hostname,
-                        evidence={"hostname": hostname, "tld": tld},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-NET-003",
+                severity=Severity.MEDIUM,
+                message=f"DNS query to suspicious TLD: {hostname}",
+                location=hostname,
+                evidence={"hostname": hostname, "tld": tld},
+            )
+            for tld in SUSPICIOUS_TLDS
+            if hostname.endswith(tld)
+        )
 
 
     if len(profile.network_calls) > 20:
@@ -95,15 +95,15 @@ def detect_network_anomalies(
                 c for c in profile.network_calls
                 if _PRIVATE_IP_RE.match(c.address) and c.address not in ("127.0.0.1", "0.0.0.0")
             ]
-            for call in private_calls:
-                findings.append(
-                    Finding(
-                        rule_id="L4-NET-005",
-                        severity=Severity.MEDIUM,
-                        message=f"Connection to private IP in zero-network baseline: {call.address}",
-                        location=call.address,
-                        evidence={"address": call.address, "port": call.port},
-                    )
+            findings.extend(
+                Finding(
+                    rule_id="L4-NET-005",
+                    severity=Severity.MEDIUM,
+                    message=f"Connection to private IP in zero-network baseline: {call.address}",
+                    location=call.address,
+                    evidence={"address": call.address, "port": call.port},
                 )
+                for call in private_calls
+            )
 
     return findings

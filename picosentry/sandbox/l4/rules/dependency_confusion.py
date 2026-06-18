@@ -52,17 +52,17 @@ def detect_dependency_confusion(
 
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
-        for pattern in SUSPICIOUS_REGISTRY_HOSTS:
-            if pattern in hostname_lower:
-                findings.append(
-                    Finding(
-                        rule_id="L4-DEP-001",
-                        severity=Severity.HIGH,
-                        message=f"DNS query to suspicious registry: {dns.hostname}",
-                        location=dns.hostname,
-                        evidence={"hostname": dns.hostname, "pattern": pattern},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-DEP-001",
+                severity=Severity.HIGH,
+                message=f"DNS query to suspicious registry: {dns.hostname}",
+                location=dns.hostname,
+                evidence={"hostname": dns.hostname, "pattern": pattern},
+            )
+            for pattern in SUSPICIOUS_REGISTRY_HOSTS
+            if pattern in hostname_lower
+        )
 
 
         if hostname_lower.endswith((".local", ".internal")):
@@ -136,19 +136,18 @@ def detect_dependency_confusion(
             )
 
 
-    for spawn in profile.spawns:
-        all_args_str = " ".join(spawn.args)
-        for pattern in SUSPICIOUS_REGISTRY_ARG_PATTERNS:
-            if pattern.lower() in all_args_str.lower():
-                findings.append(
-                    Finding(
-                        rule_id="L4-DEP-004",
-                        severity=Severity.HIGH,
-                        message=f"Registry override attempt: {pattern} in {spawn.executable}",
-                        location=spawn.executable,
-                        evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
-                    )
-                )
+    findings.extend(
+        Finding(
+            rule_id="L4-DEP-004",
+            severity=Severity.HIGH,
+            message=f"Registry override attempt: {pattern} in {spawn.executable}",
+            location=spawn.executable,
+            evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
+        )
+        for spawn in profile.spawns
+        for pattern in SUSPICIOUS_REGISTRY_ARG_PATTERNS
+        if pattern.lower() in " ".join(spawn.args).lower()
+    )
 
 
     standard_ports = {0, 22, 80, 443}

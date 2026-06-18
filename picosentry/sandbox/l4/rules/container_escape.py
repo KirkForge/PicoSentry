@@ -115,31 +115,31 @@ def detect_container_escape(
     for spawn in profile.spawns:
         all_args = " ".join(spawn.args).lower()
         exe_lower = spawn.executable.lower()
-        for kw in namespace_keywords:
-            if kw in exe_lower or kw in all_args:
-                findings.append(
-                    Finding(
-                        rule_id="L4-CONTAINER-005",
-                        severity=Severity.HIGH,
-                        message=f"Namespace manipulation command: {spawn.executable} {' '.join(spawn.args[:5])}",
-                        location=spawn.executable,
-                        evidence={"executable": spawn.executable, "args": spawn.args[:5], "keyword": kw},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-CONTAINER-005",
+                severity=Severity.HIGH,
+                message=f"Namespace manipulation command: {spawn.executable} {' '.join(spawn.args[:5])}",
+                location=spawn.executable,
+                evidence={"executable": spawn.executable, "args": spawn.args[:5], "keyword": kw},
+            )
+            for kw in namespace_keywords
+            if kw in exe_lower or kw in all_args
+        )
 
 
     metadata_dns_patterns = ("metadata.google", "metadata.azure", "169.254.169.254")
-    for dns in profile.dns_queries:
-        for pattern in metadata_dns_patterns:
-            if pattern in dns.hostname.lower():
-                findings.append(
-                    Finding(
-                        rule_id="L4-CONTAINER-006",
-                        severity=Severity.HIGH,
-                        message=f"DNS query to cloud metadata hostname: {dns.hostname}",
-                        location=dns.hostname,
-                        evidence={"hostname": dns.hostname, "pattern": pattern},
-                    )
-                )
+    findings.extend(
+        Finding(
+            rule_id="L4-CONTAINER-006",
+            severity=Severity.HIGH,
+            message=f"DNS query to cloud metadata hostname: {dns.hostname}",
+            location=dns.hostname,
+            evidence={"hostname": dns.hostname, "pattern": pattern},
+        )
+        for dns in profile.dns_queries
+        for pattern in metadata_dns_patterns
+        if pattern in dns.hostname.lower()
+    )
 
     return findings

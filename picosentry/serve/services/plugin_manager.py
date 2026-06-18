@@ -312,7 +312,11 @@ class PluginManager:
 
         if require_signed:
             if not sig_hex or not pub_key_hex:
-                logger.error("Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no signature/public_key in manifest", name)
+                logger.error(
+                    "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 "
+                    "but no signature/public_key in manifest",
+                    name,
+                )
                 return False
             if not module_checksum:
                 logger.error("Plugin '%s': cannot verify signature — entry module not found", name)
@@ -326,7 +330,11 @@ class PluginManager:
             if self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
                 logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
             else:
-                logger.warning("Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)", name)
+                logger.warning(
+                    "Plugin '%s': Ed25519 signature present but INVALID "
+                    "— loading anyway (not required)",
+                    name,
+                )
 
 
         sys.path.insert(0, path)

@@ -31,7 +31,8 @@ class AuthService:
 
     def _hash_password(self, password: str) -> str:
         if HAS_BCRYPT:
-            return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=settings.security.password_hash_rounds)).decode()
+            rounds = settings.security.password_hash_rounds
+            return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=rounds)).decode()
 
 
         salt = secrets.token_hex(32)

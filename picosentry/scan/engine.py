@@ -119,7 +119,15 @@ class ScanEngine:
             return explicit
         user_dir = user_corpus_dir()
 
-        for eco_file in ("npm_top_packages.json", "pypi_top_packages.json", "go_top_packages.json", "cargo_top_packages.json", "maven_top_packages.json", "rubygems_top_packages.json", "nuget_top_packages.json"):
+        for eco_file in (
+            "npm_top_packages.json",
+            "pypi_top_packages.json",
+            "go_top_packages.json",
+            "cargo_top_packages.json",
+            "maven_top_packages.json",
+            "rubygems_top_packages.json",
+            "nuget_top_packages.json",
+        ):
             if (user_dir / eco_file).is_file():
                 logger.info("Using user corpus: %s", user_dir)
                 return user_dir

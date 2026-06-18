@@ -18,11 +18,13 @@ async def dashboard_summary(user: dict = Depends(get_current_user)):
     health = orchestrator.get_health_checks()
     recent_projects = orchestrator.list_projects(limit=10)
     recent_intel = db.execute(
-        "SELECT id, source_project, intel_type, severity, confidence, created_at FROM intelligence ORDER BY created_at DESC LIMIT 10",
+        "SELECT id, source_project, intel_type, severity, confidence, created_at "
+        "FROM intelligence ORDER BY created_at DESC LIMIT 10",
         (),
     )
     recent_alerts = db.execute(
-        "SELECT id, project_id, alert_type, severity, message, channel, sent, created_at FROM alerts ORDER BY created_at DESC LIMIT 10",
+        "SELECT id, project_id, alert_type, severity, message, channel, sent, created_at "
+        "FROM alerts ORDER BY created_at DESC LIMIT 10",
         (),
     )
     pending_alerts = db.execute_one("SELECT COUNT(*) as c FROM alerts WHERE sent = 0")

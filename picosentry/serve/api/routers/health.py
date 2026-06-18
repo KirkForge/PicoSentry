@@ -18,11 +18,13 @@ router = APIRouter()
 async def root():
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun</title></head>
-<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;\
+justify-content:center;align-items:center;height:100vh;margin:0">
 <div style="text-align:center">
 <h1 style="color:#00ff88">⚔️ PicoShogun</h1>
 <p>Security Command Centre — v{__version__}</p>
-<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a> · <a href="/docs" style="color:#00ff88">API Docs</a> · <a href="/health" style="color:#00ff88">Health</a></p>
+<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a> · \
+<a href="/docs" style="color:#00ff88">API Docs</a> · <a href="/health" style="color:#00ff88">Health</a></p>
 </div></body></html>"""
 
 
@@ -38,11 +40,13 @@ async def dashboard():
         return dashboard_path.read_text()
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun Dashboard</title></head>
-<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;\
+justify-content:center;align-items:center;height:100vh;margin:0">
 <div style="text-align:center">
 <h1 style="color:#00ff88">⚔️ Dashboard</h1>
 <p>PicoShogun v{__version__}</p>
-<p style="color:#888">Dashboard not found — expected <code>front/build/index.html</code> or <code>front/index.html</code></p>
+<p style="color:#888">Dashboard not found — expected <code>front/build/index.html</code> \
+or <code>front/index.html</code></p>
 </div></body></html>"""
 
 

@@ -207,11 +207,21 @@ class SeccompBackend(SandboxBackend):
 
                     suggestions = []
                     if "clone" in blocked or "clone3" in blocked or "fork" in blocked:
-                        suggestions.append("Process spawning was denied. Use --allow-runtime node/python or add process_spawn: allow to your policy.")
+                        suggestions.append(
+                            "Process spawning was denied. Use --allow-runtime node/python "
+                            "or add process_spawn: allow to your policy."
+                        )
                     if "wait4" in blocked or "waitid" in blocked:
-                        suggestions.append("Child reaping was denied. If you allow process spawning, child reaping syscalls must also be allowed.")
+                        suggestions.append(
+                            "Child reaping was denied. If you allow process spawning, "
+                            "child reaping syscalls must also be allowed."
+                        )
                     if not suggestions:
-                        suggestions.append("A syscall was blocked by the sandbox policy. Use --allow-runtime node/python for common package managers, or use a permissive policy with default_action=ALLOW.")
+                        suggestions.append(
+                            "A syscall was blocked by the sandbox policy. "
+                            "Use --allow-runtime node/python for common package managers, "
+                            "or use a permissive policy with default_action=ALLOW."
+                        )
 
                     diagnostic = "Process killed by seccomp — syscall violation."
                     if denied_categories:

@@ -155,7 +155,10 @@ def detect_dependency_confusion(
         if call.port not in standard_ports and call.port > 0:
 
             addr_lower = call.address.lower()
-            registry_keywords = ("pypi", "npmjs", "npm", "registry", "rubygems", "crates", "maven", "nuget", "packagist")
+            registry_keywords = (
+                "pypi", "npmjs", "npm", "registry", "rubygems",
+                "crates", "maven", "nuget", "packagist",
+            )
             if any(kw in addr_lower for kw in registry_keywords):
                 findings.append(
                     Finding(

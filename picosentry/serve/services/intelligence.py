@@ -12,8 +12,15 @@ class IntelligenceEngine:
 
 
     PATTERNS: ClassVar[dict[str, tuple[str, str]]] = {
-        "threat_ip": (r"(?<![a-zA-Z0-9._-])(?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})(?![a-zA-Z0-9._-])", "low"),
-        "suspicious_domain": (r"(?i)(?<!\w)[a-zA-Z0-9-]+\.(?:com|net|org|io|dev|app|cloud|xyz|tk|ml|cf|biz|info|top)(?!\w)", "medium"),
+        "threat_ip": (
+            r"(?<![a-zA-Z0-9._-])(?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}"
+            r"(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})(?![a-zA-Z0-9._-])",
+            "low",
+        ),
+        "suspicious_domain": (
+            r"(?i)(?<!\w)[a-zA-Z0-9-]+\.(?:com|net|org|io|dev|app|cloud|xyz|tk|ml|cf|biz|info|top)(?!\w)",
+            "medium",
+        ),
         "critical_vuln": (r"CRITICAL|RCE|remote\s*code\s*execution|shell", "critical"),
         "high_vuln": (r"HIGH|vulnerability|CVE-\d{4}-\d+|exploit", "high"),
         "auth_failure": (r"failed.*auth|brute\s*force|password\s*crack|login\s*fail", "medium"),
@@ -355,15 +362,60 @@ class IntelligenceEngine:
 
     def classify_failure(self, project_id: str, output: str) -> dict[str, Any] | None:
         signatures = [
-            ("syntax_error", r"(indentationerror|syntaxerror|unexpected token|invalid syntax)", "critical", "Python syntax/indentation error — code will never run"),
-            ("permission_denied", r"(permission denied|operation not permitted|eacces|access is denied)", "high", "Insufficient privileges for operation"),
-            ("missing_argument", r"(error:.*required|missing.*argument|too few arguments)", "medium", "Script invoked without required parameters"),
-            ("port_in_use", r"(address already in use|oserror.*errno 98|bind.*failed)", "medium", "Socket port already in use by another process"),
-            ("raw_socket_denied", r"(operation not permitted.*raw|permission denied.*socket|root required.*raw)", "high", "Raw socket requires root/capabilities"),
-            ("missing_dependency", r"(modulenotfounderror|importerror|no module named)", "high", "Python dependency not installed"),
-            ("file_not_found", r"(filenotfounderror|no such file|file not found)", "medium", "Referenced file missing at runtime"),
-            ("timeout", r"(timeout|timed out|connection timed out)", "medium", "Operation exceeded time limit"),
-            ("connection_refused", r"(connection refused|errno 111|errconnrefused)", "medium", "Target service not listening"),
+            (
+                "syntax_error",
+                r"(indentationerror|syntaxerror|unexpected token|invalid syntax)",
+                "critical",
+                "Python syntax/indentation error — code will never run",
+            ),
+            (
+                "permission_denied",
+                r"(permission denied|operation not permitted|eacces|access is denied)",
+                "high",
+                "Insufficient privileges for operation",
+            ),
+            (
+                "missing_argument",
+                r"(error:.*required|missing.*argument|too few arguments)",
+                "medium",
+                "Script invoked without required parameters",
+            ),
+            (
+                "port_in_use",
+                r"(address already in use|oserror.*errno 98|bind.*failed)",
+                "medium",
+                "Socket port already in use by another process",
+            ),
+            (
+                "raw_socket_denied",
+                r"(operation not permitted.*raw|permission denied.*socket|root required.*raw)",
+                "high",
+                "Raw socket requires root/capabilities",
+            ),
+            (
+                "missing_dependency",
+                r"(modulenotfounderror|importerror|no module named)",
+                "high",
+                "Python dependency not installed",
+            ),
+            (
+                "file_not_found",
+                r"(filenotfounderror|no such file|file not found)",
+                "medium",
+                "Referenced file missing at runtime",
+            ),
+            (
+                "timeout",
+                r"(timeout|timed out|connection timed out)",
+                "medium",
+                "Operation exceeded time limit",
+            ),
+            (
+                "connection_refused",
+                r"(connection refused|errno 111|errconnrefused)",
+                "medium",
+                "Target service not listening",
+            ),
         ]
 
         for sig_type, pattern, severity, description in signatures:
@@ -430,9 +482,15 @@ class IntelligenceEngine:
 
     def find_correlations(self, time_window_hours: int = 24) -> list[dict[str, Any]]:
         if db.dialect.backend == "postgres":
-            time_expr = f"i1.created_at BETWEEN i2.created_at - INTERVAL '{time_window_hours} hours' AND i2.created_at + INTERVAL '{time_window_hours} hours'"
+            time_expr = (
+                f"i1.created_at BETWEEN i2.created_at - INTERVAL '{time_window_hours} hours' "
+                f"AND i2.created_at + INTERVAL '{time_window_hours} hours'"
+            )
         else:
-            time_expr = f"ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 <= {time_window_hours}"
+            time_expr = (
+                f"ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 "
+                f"<= {time_window_hours}"
+            )
         rows = db.execute(f"""
             SELECT
                 i1.source_project as project1,

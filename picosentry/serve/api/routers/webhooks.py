@@ -13,7 +13,12 @@ router = APIRouter()
 
 @router.get("/webhooks", tags=["Webhooks"])
 async def list_webhooks(user: dict = Depends(get_current_user)):
-    return {"webhooks": {name: {"url": w.url, "events": w.events, "active": w.active} for name, w in webhook_manager.webhooks.items()}}
+    return {
+        "webhooks": {
+            name: {"url": w.url, "events": w.events, "active": w.active}
+            for name, w in webhook_manager.webhooks.items()
+        }
+    }
 
 
 @router.post("/webhooks", tags=["Webhooks"])

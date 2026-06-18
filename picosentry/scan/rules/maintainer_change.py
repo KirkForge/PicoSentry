@@ -145,6 +145,9 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
 
 
     if not author_names and has_scripts and pkg_name != "root":
+        _install_script_names = (
+            s for s in pkg.get("scripts", {}) if s in {"install", "postinstall", "preinstall", "prepare"}
+        )
         findings.append(
             Finding(
                 rule_id="L2-MAINT-001",
@@ -156,7 +159,10 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                     f"Package '{pkg_name}' has no author/maintainer info but "
                     f"has install scripts — unaccountable code execution"
                 ),
-                evidence=f"no author field, scripts: {', '.join(s for s in pkg.get('scripts', {}) if s in {'install', 'postinstall', 'preinstall', 'prepare'})}",
+                evidence=(
+                    "no author field, scripts: "
+                    f"{', '.join(sorted(_install_script_names))}"
+                ),
                 remediation=(
                     "Packages without author information that run code on install "
                     "are a critical supply chain risk. Verify the package source, "

@@ -405,7 +405,10 @@ RULE_INFO = {
     },
     "L2-BUILD-001": {
         "name": "dangerous_build_hooks",
-        "description": "Build scripts (Cargo, Go, RubyGems, Maven, NuGet) that spawn processes, download code, or read credentials during install",
+        "description": (
+            "Build scripts (Cargo, Go, RubyGems, Maven, NuGet) that spawn processes, "
+            "download code, or read credentials during install"
+        ),
         "severity": "CRITICAL",
         "category": "execution",
         "helpUri": f"{_DOCS_BASE}/L2-BUILD-001.md",

@@ -132,7 +132,10 @@ async def get_correlations(project_id: str, user: dict = Depends(get_current_use
 
 @router.get("/intelligence/threat-score", tags=["Intelligence"])
 async def get_threat_score(user: dict = Depends(get_current_user)):
-    result = db.execute_one("SELECT AVG(confidence) as avg_score, COUNT(*) as total FROM intelligence WHERE severity IN ('critical', 'high')")
+    result = db.execute_one(
+        "SELECT AVG(confidence) as avg_score, COUNT(*) as total "
+        "FROM intelligence WHERE severity IN ('critical', 'high')"
+    )
     return {
         "threat_score": round(result["avg_score"], 3) if result and result["avg_score"] else 0.0,
         "total_threats": result["total"] if result else 0,

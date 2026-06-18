@@ -25,17 +25,36 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     export.add_argument("--name", type=str, default="my-iocs", help="Pack name")
     export.add_argument("--description", type=str, default="", help="Pack description")
     export.add_argument("--author", type=str, default="", help="Pack author")
-    export.add_argument("--sign", choices=["sigstore", "minisign"], default=None, help="Cryptographically sign the pack")
-    export.add_argument("--sign-key", type=str, default="", help="Path to minisign secret key (for --sign minisign)")
+    export.add_argument(
+        "--sign",
+        choices=["sigstore", "minisign"],
+        default=None,
+        help="Cryptographically sign the pack",
+    )
+    export.add_argument(
+        "--sign-key",
+        type=str,
+        default="",
+        help="Path to minisign secret key (for --sign minisign)",
+    )
 
 
     import_ = sub.add_parser("import", help="Import a corpus pack into your IoC registry")
     import_.add_argument("path", type=str, help="Path to corpus pack .json file")
     import_.add_argument("--force", action="store_true", help="Overwrite existing IoCs")
     import_.add_argument("--dry-run", action="store_true", help="Validate only, don't import")
-    import_.add_argument("--verify-crypto", action="store_true", help="Verify cryptographic signature (Sigstore/minisign)")
+    import_.add_argument(
+        "--verify-crypto",
+        action="store_true",
+        help="Verify cryptographic signature (Sigstore/minisign)",
+    )
     import_.add_argument("--no-verify-crypto", action="store_true", help="Skip cryptographic signature verification")
-    import_.add_argument("--public-key", type=str, default="", help="Path to minisign public key (for minisign verification)")
+    import_.add_argument(
+        "--public-key",
+        type=str,
+        default="",
+        help="Path to minisign public key (for minisign verification)",
+    )
     import_.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
 
 
@@ -48,9 +67,20 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
     sign = sub.add_parser("sign", help="Sign a corpus pack with cryptographic signature")
     sign.add_argument("path", type=str, help="Path to corpus pack .json file to sign")
-    sign.add_argument("--method", choices=["sigstore", "minisign", "digest"], default="digest", help="Signing method (default: digest-only)")
+    sign.add_argument(
+        "--method",
+        choices=["sigstore", "minisign", "digest"],
+        default="digest",
+        help="Signing method (default: digest-only)",
+    )
     sign.add_argument("--secret-key", type=str, default="", help="Path to minisign secret key (for minisign method)")
-    sign.add_argument("--output", "-o", type=str, default="", help="Output path for signature file (default: <path>.sig)")
+    sign.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default="",
+        help="Output path for signature file (default: <path>.sig)",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:

@@ -46,7 +46,12 @@ C2_DOMAINS: list[tuple[str, str, Severity, str]] = [
     (r"\bfirebase\.su\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
     (r"\bdieorsuffer\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
     (r"\bsmartscreen-api\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 phishing domain"),
-    (r"\bwebhook\.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7", "Shai-Hulud exfil", Severity.CRITICAL, "Known Shai-Hulud exfiltration webhook"),
+    (
+        r"\bwebhook\.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7",
+        "Shai-Hulud exfil",
+        Severity.CRITICAL,
+        "Known Shai-Hulud exfiltration webhook",
+    ),
 ]
 
 
@@ -60,9 +65,19 @@ PHISHING_DOMAINS: list[tuple[str, str, Severity, str]] = [
 
 
 CLOUD_METADATA: list[tuple[str, str, Severity, str]] = [
-    (r"169\.254\.169\.254", "AWS IMDS", Severity.CRITICAL, "AWS Instance Metadata Service endpoint — credential exfiltration risk"),
+    (
+        r"169\.254\.169\.254",
+        "AWS IMDS",
+        Severity.CRITICAL,
+        "AWS Instance Metadata Service endpoint — credential exfiltration risk",
+    ),
     (r"fd00:ec2::254", "AWS IMDS IPv6", Severity.CRITICAL, "AWS Instance Metadata Service IPv6 endpoint"),
-    (r"\[fd00:ec2::254\]", "AWS IMDS IPv6 brackets", Severity.CRITICAL, "AWS Instance Metadata Service IPv6 bracket notation"),
+    (
+        r"\[fd00:ec2::254\]",
+        "AWS IMDS IPv6 brackets",
+        Severity.CRITICAL,
+        "AWS Instance Metadata Service IPv6 bracket notation",
+    ),
     (r"metadata\.google\.internal", "GCP metadata", Severity.CRITICAL, "GCP Compute Engine metadata endpoint"),
     (r"metadata\.azure\.com", "Azure metadata", Severity.CRITICAL, "Azure Instance Metadata Service endpoint"),
     (r"/latest/meta-data/", "AWS IMDS path", Severity.CRITICAL, "AWS IMDS metadata path pattern"),

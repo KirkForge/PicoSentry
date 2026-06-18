@@ -120,7 +120,10 @@ def _detect_backend(
                 return SubprocessBackend()
             raise BackendUnavailableError(
                 "seccomp-trace",
-                "SCMP_ACT_LOG not available on this system (requires libseccomp + Linux 3.5+ with CONFIG_SECCOMP_LOG=y)",
+                (
+                    "SCMP_ACT_LOG not available on this system "
+                    "(requires libseccomp + Linux 3.5+ with CONFIG_SECCOMP_LOG=y)"
+                ),
                 available_backends=available,
             )
 

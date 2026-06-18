@@ -214,7 +214,10 @@ class _MtlsCertCheck:
             if not mtls_cert and not mtls_dev:
                 return SecurityViolation(
                     check="mtls_cert",
-                    message="No mTLS certificate configured in production — set PICODOME_TLS_CERT or PICODOME_TLS_DEV=1 for dev certs",
+                    message=(
+                        "No mTLS certificate configured in production — "
+                        "set PICODOME_TLS_CERT or PICODOME_TLS_DEV=1 for dev certs"
+                    ),
                     severity="WARN",
                 )
         return None
@@ -247,7 +250,16 @@ _ENV_TO_ATTR = {
 
 def apply_env_overrides(config: PicoDomeConfig) -> PicoDomeConfig:
 
-    _STRING_ATTRS = {"format", "fail_on", "baseline", "policy", "log_format", "store_backend", "sqlite_path", "cors_origins"}
+    _STRING_ATTRS = {
+        "format",
+        "fail_on",
+        "baseline",
+        "policy",
+        "log_format",
+        "store_backend",
+        "sqlite_path",
+        "cors_origins",
+    }
 
     for env_name, attr_name in _ENV_TO_ATTR.items():
         env_val = os.environ.get(env_name)

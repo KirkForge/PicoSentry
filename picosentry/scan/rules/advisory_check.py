@@ -171,7 +171,11 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
                         packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))
 
 
-    for lock_parser, lock_file in [(parse_poetry_lock, "poetry.lock"), (parse_requirements_txt, "requirements.txt"), (parse_uv_lock, "uv.lock")]:
+    for lock_parser, lock_file in [
+        (parse_poetry_lock, "poetry.lock"),
+        (parse_requirements_txt, "requirements.txt"),
+        (parse_uv_lock, "uv.lock"),
+    ]:
         lock_path = target / lock_file
         if lock_path.exists():
             try:
@@ -279,7 +283,10 @@ def _check_packages(
                     file=str(source_path),
                     message=f"{adv.id}: {adv.summary}",
                     evidence=f"advisory={adv.id}, severity={adv.severity}, fixed={adv.fixed_version or 'N/A'}",
-                    remediation=f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} See {adv.references[0] if adv.references else 'advisory database'} for details.",
+                    remediation=(
+                        f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} "
+                        f"See {adv.references[0] if adv.references else 'advisory database'} for details."
+                    ),
                     references=adv.references[:5] if adv.references else [],
                     ecosystem=config.ecosystem,
                 )
@@ -289,13 +296,48 @@ def _check_packages(
 
 
 _ECOSYSTEMS: list[AdvisoryConfig] = [
-    AdvisoryConfig(ecosystem="npm", rule_id="L2-ADV-001", detect_project=lambda p: (p / "package.json").exists(), collect_packages=_collect_npm_packages),
-    AdvisoryConfig(ecosystem="go", rule_id="L2-GO-ADV-001", detect_project=detect_go_project, collect_packages=_collect_go_packages),
-    AdvisoryConfig(ecosystem="cargo", rule_id="L2-CARGO-ADV-001", detect_project=detect_cargo_project, collect_packages=_collect_cargo_packages),
-    AdvisoryConfig(ecosystem="pypi", rule_id="L2-PYPI-ADV-001", detect_project=detect_pypi_project, collect_packages=_collect_pypi_packages),
-    AdvisoryConfig(ecosystem="maven", rule_id="L2-MAVEN-ADV-001", detect_project=detect_maven_project, collect_packages=_collect_maven_packages),
-    AdvisoryConfig(ecosystem="nuget", rule_id="L2-NUGET-ADV-001", detect_project=detect_nuget_project, collect_packages=_collect_nuget_packages),
-    AdvisoryConfig(ecosystem="rubygems", rule_id="L2-RUBYGEMS-ADV-001", detect_project=detect_rubygems_project, collect_packages=_collect_rubygems_packages),
+    AdvisoryConfig(
+        ecosystem="npm",
+        rule_id="L2-ADV-001",
+        detect_project=lambda p: (p / "package.json").exists(),
+        collect_packages=_collect_npm_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="go",
+        rule_id="L2-GO-ADV-001",
+        detect_project=detect_go_project,
+        collect_packages=_collect_go_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="cargo",
+        rule_id="L2-CARGO-ADV-001",
+        detect_project=detect_cargo_project,
+        collect_packages=_collect_cargo_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="pypi",
+        rule_id="L2-PYPI-ADV-001",
+        detect_project=detect_pypi_project,
+        collect_packages=_collect_pypi_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="maven",
+        rule_id="L2-MAVEN-ADV-001",
+        detect_project=detect_maven_project,
+        collect_packages=_collect_maven_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="nuget",
+        rule_id="L2-NUGET-ADV-001",
+        detect_project=detect_nuget_project,
+        collect_packages=_collect_nuget_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="rubygems",
+        rule_id="L2-RUBYGEMS-ADV-001",
+        detect_project=detect_rubygems_project,
+        collect_packages=_collect_rubygems_packages,
+    ),
 ]
 
 

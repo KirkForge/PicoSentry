@@ -162,9 +162,16 @@ def main(argv: list[str] | None = None) -> None:
     subparsers = parser.add_subparsers(dest="command", help="Available subcommands")
 
 
-    scan_parser = subparsers.add_parser("scan", help="Supply-chain scanner for 7 ecosystems (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)")
+    scan_parser = subparsers.add_parser(
+        "scan",
+        help="Supply-chain scanner for 7 ecosystems (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)",
+    )
     scan_parser.add_argument("target", nargs="*", type=str, help="Project directory to scan")
-    scan_parser.add_argument("--format", choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"], default="table")
+    scan_parser.add_argument(
+        "--format",
+        choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"],
+        default="table",
+    )
     scan_parser.add_argument("--quiet", "-q", action="store_true", help="CI-friendly summary only")
     scan_parser.add_argument("--summary", action="store_true", help="One-line summary for notifications")
     scan_parser.add_argument("--deterministic-output", "-D", action="store_true", help="Enable deterministic output")
@@ -180,7 +187,11 @@ def main(argv: list[str] | None = None) -> None:
     scan_parser.add_argument("--baseline-update", action="store_true", help="Write updated baseline")
     scan_parser.add_argument("--no-color", action="store_true", help="Disable colored output")
     scan_parser.add_argument("--verify-determinism", action="store_true", help="Verify SHA-256 determinism")
-    scan_parser.add_argument("--validate", action="store_true", help="Run validation harness against built-in fixtures (ignores <target>)")
+    scan_parser.add_argument(
+        "--validate",
+        action="store_true",
+        help="Run validation harness against built-in fixtures (ignores <target>)",
+    )
     scan_parser.add_argument("--sarif-file", type=str, default=None, help="SARIF output path")
     scan_parser.add_argument("--policy", "-p", type=str, default=None, help="Policy file path")
     scan_parser.add_argument("--fail-on-rule-error", action="store_true", help="Fail on rule errors")
@@ -195,7 +206,11 @@ def main(argv: list[str] | None = None) -> None:
     # and the subparser's value ("sandbox") would overwrite the positional's
     # list if they shared the same dest name.
     sandbox_parser.add_argument("cmd", nargs="*", type=str, help="Command to run under sandbox")
-    sandbox_parser.add_argument("--format", choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"], default="table")
+    sandbox_parser.add_argument(
+        "--format",
+        choices=["json", "sarif", "table", "ml-context", "cyclonedx", "github"],
+        default="table",
+    )
     sandbox_parser.add_argument("--deterministic-output", "-D", action="store_true", help="Enable deterministic output")
     sandbox_parser.add_argument("--exit-code", action="store_true", help="Exit non-zero on findings")
     sandbox_parser.add_argument("--fail-on", choices=["critical", "high", "medium", "low", "info"], default=None)

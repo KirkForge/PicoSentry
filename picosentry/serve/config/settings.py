@@ -169,7 +169,10 @@ class _SslCertCheck:
         if self._settings.is_production() and not self._settings.security.ssl_cert_path:
             return SecurityViolation(
                 check="ssl_cert",
-                message="No SSL certificate configured in production — set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination",
+                message=(
+                    "No SSL certificate configured in production — "
+                    "set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination"
+                ),
                 severity="ERROR",
             )
         return None
@@ -212,7 +215,10 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
             if self.security.secret_key == "change-me-in-production":
                 issues.append("SECURITY: Default secret key in production")
             if not self.security.ssl_cert_path:
-                issues.append("SECURITY: No SSL certificate configured (set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination upstream)")
+                issues.append(
+                    "SECURITY: No SSL certificate configured "
+                    "(set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination upstream)"
+                )
             if self.debug:
                 issues.append("SECURITY: Debug mode enabled in production")
             if "*" in self.security.allowed_hosts:
@@ -233,7 +239,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
         if _env("SKIP_SECURE_ASSERT", "") == "1":
             __import__("logging").getLogger("picoshogun.config").warning(
-                "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. "
+                "This bypasses startup security checks."
             )
             return
 
@@ -285,7 +292,11 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
 
         for field_name, field_type in known_hints.items():
-            if field_name in data and isinstance(data[field_name], dict) and hasattr(field_type, "__dataclass_fields__"):
+            if (
+                field_name in data
+                and isinstance(data[field_name], dict)
+                and hasattr(field_type, "__dataclass_fields__")
+            ):
                 data[field_name] = field_type(**data[field_name])
 
         return cls(**data)

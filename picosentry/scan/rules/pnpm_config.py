@@ -53,7 +53,10 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                         line=line_no,
                         message=".npmrc enables dangerouslyAllowAllBuilds — all install scripts run without allowlist",
                         evidence=f"Config line: {stripped}",
-                        remediation="Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages with build scripts.",
+                        remediation=(
+                            "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies "
+                            "to allowlist specific packages with build scripts."
+                        ),
                         references=[
                             "https://pnpm.io/settings#dangerouslyallowallbuilds",
                             "https://pnpm.io/package_json#pnpmonlybuiltdependencies",
@@ -73,7 +76,10 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                 line=None,
                 message="package.json enables dangerouslyAllowAllBuilds — all install scripts run without allowlist",
                 evidence="pnpm.dangerouslyAllowAllBuilds: true",
-                remediation="Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages.",
+                remediation=(
+                    "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies "
+                    "to allowlist specific packages."
+                ),
                 references=[
                     "https://pnpm.io/settings#dangerouslyallowallbuilds",
                     "https://pnpm.io/package_json#pnpmonlybuiltdependencies",
@@ -113,7 +119,10 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                     line=None,
                     message=f"pnpm override detected: {override_key} → {override_val}",
                     evidence=f"pnpm.overrides.{override_key} = {override_val}",
-                    remediation="Review pnpm overrides regularly. Overrides bypass resolution and may introduce unverified code.",
+                    remediation=(
+                        "Review pnpm overrides regularly. "
+                        "Overrides bypass resolution and may introduce unverified code."
+                    ),
                     references=["https://pnpm.io/package_json#pnpmoverrides"],
                 )
             )
@@ -130,7 +139,10 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                 line=None,
                 message=f"pnpm patchedDependencies modifies {len(pnpm_patches)} package(s) — patches bypass npm audit",
                 evidence=f"patchedDependencies: {list(pnpm_patches.keys())}",
-                remediation="Minimize pnpm patches. Each patch modifies third-party code and is invisible to npm audit. Prefer upstream fixes.",
+                remediation=(
+                    "Minimize pnpm patches. Each patch modifies third-party code "
+                    "and is invisible to npm audit. Prefer upstream fixes."
+                ),
                 references=["https://pnpm.io/package_json#pnpmpatcheddependencies"],
             )
         )

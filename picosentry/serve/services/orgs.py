@@ -87,12 +87,27 @@ class Organization:
         """, (org_id,))
         runs_today = runs_today_row["c"] if runs_today_row else 0
 
+        def _pct(used: int, limit: int) -> float:
+            return used / limit * 100 if limit > 0 else 0.0
+
         return {
             "tier": tier,
-            "users": {"used": users, "limit": limits["users"], "pct": users/limits["users"]*100 if limits["users"] > 0 else 0},
-            "projects": {"used": projects, "limit": limits["projects"], "pct": projects/limits["projects"]*100 if limits["projects"] > 0 else 0},
-            "runs_today": {"used": runs_today, "limit": limits["runs_per_day"], "pct": runs_today/limits["runs_per_day"]*100 if limits["runs_per_day"] > 0 else 0},
-            "storage_mb": limits["storage_mb"]
+            "users": {
+                "used": users,
+                "limit": limits["users"],
+                "pct": _pct(users, limits["users"]),
+            },
+            "projects": {
+                "used": projects,
+                "limit": limits["projects"],
+                "pct": _pct(projects, limits["projects"]),
+            },
+            "runs_today": {
+                "used": runs_today,
+                "limit": limits["runs_per_day"],
+                "pct": _pct(runs_today, limits["runs_per_day"]),
+            },
+            "storage_mb": limits["storage_mb"],
         }
 
     @staticmethod

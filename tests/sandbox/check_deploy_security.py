@@ -134,7 +134,7 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
         # Dev-bypass env vars enabled in the manifest
         for var, severity, reason in _DEV_BYPASS_ENV_VARS:
             if _env_var_enabled_in_line(var, line, lines, i):
-                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
+                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                 findings.append(
                     Finding(
                         severity,
@@ -363,7 +363,7 @@ def check_helm_templates(findings: list[Finding]) -> None:
                 if var not in line or "comment" in line.lower():
                     continue
                 if _env_var_enabled_in_line(var, line, lines, i):
-                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
+                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                     findings.append(
                         Finding(
                             severity,

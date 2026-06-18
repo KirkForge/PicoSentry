@@ -109,9 +109,9 @@ class MetricsCollector:
                 for m in metrics_list[-50:]:  # Last 50 per metric
                     label_str = ",".join(f'{k}="{v}"' for k, v in m.labels.items())
                     if label_str:
-                        lines.append(f'picoshogun_{name}{{{label_str}}} {m.value}')
+                        lines.append(f"picoshogun_{name}{{{label_str}}} {m.value}")
                     else:
-                        lines.append(f'picoshogun_{name} {m.value}')
+                        lines.append(f"picoshogun_{name} {m.value}")
 
         return "\n".join(lines)
 

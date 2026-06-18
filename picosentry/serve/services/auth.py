@@ -35,7 +35,7 @@ class AuthService:
 
 
         salt = secrets.token_hex(32)
-        hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
         return f"pbkdf2:{salt}:{hashed.hex()}"
 
     def _verify_password(self, password: str, hashed: str) -> bool:
@@ -45,7 +45,7 @@ class AuthService:
 
         if hashed.startswith("pbkdf2:"):
             _, salt, hash_value = hashed.split(":")
-            check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+            check = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
             return hmac.compare_digest(check.hex(), hash_value)
 
         return False

@@ -131,9 +131,11 @@ class TestPolicyVerificationInLoadPolicy:
         policy_file = tmp_path / "policy.json"
         policy_file.write_text(SAMPLE_POLICY_JSON)
 
-        with mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key)}, clear=True):
-            with pytest.raises(ValueError, match="signature verification failed"):
-                load_policy(path=policy_file, verify_signature=True)
+        with (
+            mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key)}, clear=True),
+            pytest.raises(ValueError, match="signature verification failed"),
+        ):
+            load_policy(path=policy_file, verify_signature=True)
 
     def test_load_policy_rejects_tampered_with_key(self, tmp_path):
         """Tampered policy is rejected when verify_signature=True."""
@@ -147,9 +149,11 @@ class TestPolicyVerificationInLoadPolicy:
         tampered["name"] = "tampered-policy"
         policy_file.write_text(json.dumps(tampered))
 
-        with mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key)}, clear=True):
-            with pytest.raises(ValueError, match="signature verification failed"):
-                load_policy(path=policy_file, verify_signature=True)
+        with (
+            mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key)}, clear=True),
+            pytest.raises(ValueError, match="signature verification failed"),
+        ):
+            load_policy(path=policy_file, verify_signature=True)
 
     def test_load_policy_wrong_key(self, tmp_path):
         """Policy signed with one key is rejected when verified with another."""
@@ -159,9 +163,11 @@ class TestPolicyVerificationInLoadPolicy:
         policy_file.write_text(SAMPLE_POLICY_JSON)
         sign_policy_companion(policy_file, key1)
 
-        with mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key2)}, clear=True):
-            with pytest.raises(ValueError, match="signature verification failed"):
-                load_policy(path=policy_file, verify_signature=True)
+        with (
+            mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": key_to_hex(key2)}, clear=True),
+            pytest.raises(ValueError, match="signature verification failed"),
+        ):
+            load_policy(path=policy_file, verify_signature=True)
 
     def test_load_named_policy_ignores_verification(self):
         """Named policies (built-in) don't need signature verification."""

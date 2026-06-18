@@ -167,12 +167,14 @@ class TestCheckLicense:
                 }
             )
         )
-        with patch.dict(os.environ, {}, clear=True):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("os.getcwd", return_value=str(tmp_path)),
+            patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or os.path.isfile(p)),
+        ):
             _reset_cache()
-            with patch("os.getcwd", return_value=str(tmp_path)):
-                with patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or os.path.isfile(p)):
-                    info = check_license()
-                    assert info.tier == LicenseTier.ENTERPRISE
+            info = check_license()
+            assert info.tier == LicenseTier.ENTERPRISE
 
     def test_caches_result(self):
         with patch.dict(os.environ, {}, clear=True):

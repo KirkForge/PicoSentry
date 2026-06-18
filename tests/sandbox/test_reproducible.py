@@ -132,15 +132,19 @@ class TestGetSourceDateEpoch:
 
     def test_invalid_env_var_raises(self):
         """Non-integer SOURCE_DATE_EPOCH should raise ReproducibleBuildError."""
-        with mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "not-a-number"}):
-            with pytest.raises(ReproducibleBuildError, match="must be an integer"):
-                get_source_date_epoch()
+        with (
+            mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "not-a-number"}),
+            pytest.raises(ReproducibleBuildError, match="must be an integer"),
+        ):
+            get_source_date_epoch()
 
     def test_negative_env_var_raises(self):
         """Negative SOURCE_DATE_EPOCH should raise ReproducibleBuildError."""
-        with mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "-1"}):
-            with pytest.raises(ReproducibleBuildError, match="non-negative"):
-                get_source_date_epoch()
+        with (
+            mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "-1"}),
+            pytest.raises(ReproducibleBuildError, match="non-negative"),
+        ):
+            get_source_date_epoch()
 
 
 # ─── pin_dependencies tests ───────────────────────────────────────────────────

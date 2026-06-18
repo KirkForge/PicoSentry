@@ -307,45 +307,55 @@ def check_helm_values(findings: list[Finding]) -> None:
     # Check data structure if YAML parsed (dedup with line-level checks)
     if data and isinstance(data, dict):
         enterprise = data.get("enterprise", {})
-        if isinstance(enterprise, dict) and not enterprise.get("enabled", False):
+        if (
+            isinstance(enterprise, dict)
+            and not enterprise.get("enabled", False)
             # Only add if not already found by line-level check
-            if not any(f.check == "enterprise-disabled-helm" for f in findings):
-                findings.append(
-                    Finding(
-                        "MEDIUM",
-                        "enterprise-disabled-helm",
-                        "enterprise.enabled is false — production deployments should enable enterprise mode",
-                        str(values_path),
-                    )
+            and not any(f.check == "enterprise-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "enterprise-disabled-helm",
+                    "enterprise.enabled is false — production deployments should enable enterprise mode",
+                    str(values_path),
                 )
+            )
 
         auth = data.get("auth", {})
         if isinstance(auth, dict):
             tokens = auth.get("tokens", "")
-            if tokens and isinstance(tokens, str) and tokens not in ("", '""', "''"):
+            if (
+                tokens
+                and isinstance(tokens, str)
+                and tokens not in ("", '""', "''")
                 # Non-empty inline token — check if it's not a placeholder
-                if tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME"):
-                    if not any(f.check == "inline-tokens-helm" for f in findings):
-                        findings.append(
-                            Finding(
-                                "HIGH",
-                                "inline-tokens-helm",
-                                "auth.tokens is set inline in values.yaml — use existingSecret instead",
-                                str(values_path),
-                            )
-                        )
-
-        mtls = data.get("mtls", {})
-        if isinstance(mtls, dict) and not mtls.get("enabled", False):
-            if not any(f.check == "mtls-disabled-helm" for f in findings):
+                and tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME")
+                and not any(f.check == "inline-tokens-helm" for f in findings)
+            ):
                 findings.append(
                     Finding(
-                        "MEDIUM",
-                        "mtls-disabled-helm",
-                        "mtls.enabled is false — no mutual TLS in production",
+                        "HIGH",
+                        "inline-tokens-helm",
+                        "auth.tokens is set inline in values.yaml — use existingSecret instead",
                         str(values_path),
                     )
                 )
+
+        mtls = data.get("mtls", {})
+        if (
+            isinstance(mtls, dict)
+            and not mtls.get("enabled", False)
+            and not any(f.check == "mtls-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "mtls-disabled-helm",
+                    "mtls.enabled is false — no mutual TLS in production",
+                    str(values_path),
+                )
+            )
 
 
 def check_helm_templates(findings: list[Finding]) -> None:

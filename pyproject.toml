@@ -185,7 +185,6 @@ select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "
 ignore = [
     "E501", "N806", "N818", "N802", "N812",
     "A002",
-    "SIM102", "SIM108", "SIM117", "C416",
     "B008",
     # I001 (isort "import block is un-sorted or un-formatted") is suppressed
     # for the shipped codebase. The minifier (.tools/minify.py) strips

@@ -76,10 +76,10 @@ def _extract_repo_url(pkg: dict) -> str | None:
     if isinstance(repo, str):
         return repo
     if isinstance(repo, dict):
-        url = cast(str, repo.get("url", ""))
+        url = cast("str", repo.get("url", ""))
         if url:
             return url
-    homepage = cast(str, pkg.get("homepage", ""))
+    homepage = cast("str", pkg.get("homepage", ""))
     if homepage and "github.com" in homepage:
         return homepage
     return None

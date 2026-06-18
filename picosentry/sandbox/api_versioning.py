@@ -27,8 +27,7 @@ class APIVersion:
     @classmethod
     def parse(cls, version_str: str) -> APIVersion:
         version_str = version_str.strip().lower()
-        if version_str.startswith("v"):
-            version_str = version_str[1:]
+        version_str = version_str.removeprefix("v")
         parts = version_str.split(".")
         major = int(parts[0]) if parts else 1
         minor = int(parts[1]) if len(parts) > 1 else 0

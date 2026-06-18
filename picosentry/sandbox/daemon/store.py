@@ -198,8 +198,7 @@ class PersistentScanJobStore:
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
             with open(tmp_file, "w", encoding="utf-8") as f:
-                for job in self._jobs.values():
-                    f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
+                f.writelines(json.dumps(job, sort_keys=True, default=str) + "\n" for job in self._jobs.values())
             tmp_file.replace(self._store_file)
         except OSError as e:
             logger.warning("Failed to rewrite job store: %s", e)

@@ -89,7 +89,7 @@ class PrometheusMetrics:
     def _parse_key(key: str) -> tuple[str, dict[str, str] | None]:
         if "{" not in key:
             return key, None
-        name = key.split("{")[0]
+        name = key.split("{", maxsplit=1)[0]
         label_str = key.split("{")[1].rstrip("}")
         labels = {}
         for pair in label_str.split(","):

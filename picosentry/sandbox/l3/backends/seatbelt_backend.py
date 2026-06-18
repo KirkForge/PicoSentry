@@ -267,8 +267,7 @@ class SeatbeltBackend(SandboxBackend):
                 parts.extend(f'(subpath "{_escape_seatbelt_path(path)}")' for path in rule.paths)
         elif rule.target == RuleTarget.FILE_READ:
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(literal "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(literal "{_escape_seatbelt_path(path)}")' for path in rule.paths)
             else:
                 parts.append("file-read*")
 

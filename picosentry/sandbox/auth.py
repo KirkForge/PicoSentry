@@ -108,8 +108,8 @@ class TokenAuth:
     def _load_tokens(self) -> None:
 
         env_tokens = os.environ.get("PICODOME_API_TOKENS", "")
-        for token in env_tokens.split(","):
-            token = token.strip()
+        for raw_token in env_tokens.split(","):
+            token = raw_token.strip()
             if token:
                 self._add_token(token)
 
@@ -117,8 +117,8 @@ class TokenAuth:
         token_file = Path.home() / ".picodome" / "api-tokens"
         if token_file.is_file():
             try:
-                for line in token_file.read_text(encoding="utf-8").splitlines():
-                    line = line.strip()
+                for raw_line in token_file.read_text(encoding="utf-8").splitlines():
+                    line = raw_line.strip()
                     if line and not line.startswith("#"):
                         self._add_token(line)
             except OSError:

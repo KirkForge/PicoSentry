@@ -267,8 +267,8 @@ def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:
     except OSError:
         return results
 
-    for line in lines:
-        line = line.strip()
+    for raw_line in lines:
+        line = raw_line.strip()
         if not line or line.startswith(("#", "-")):
             continue
 

@@ -226,27 +226,28 @@ class PicoSentryConfig:
         from picosentry.scan.models import Finding, Severity
 
         overridden = []
-        for f in findings:
-            if f.rule_id in self.severity_overrides:
-                new_sev = self.severity_overrides[f.rule_id]
+        for finding in findings:
+            f = finding
+            if finding.rule_id in self.severity_overrides:
+                new_sev = self.severity_overrides[finding.rule_id]
                 try:
                     sev_enum = Severity(new_sev.upper())
                     f = Finding(
-                        rule_id=f.rule_id,
+                        rule_id=finding.rule_id,
                         severity=sev_enum,
-                        confidence=f.confidence,
-                        package=f.package,
-                        file=f.file,
-                        message=f.message,
-                        evidence=f.evidence,
-                        remediation=f.remediation,
-                        references=f.references,
-                        line=f.line,
+                        confidence=finding.confidence,
+                        package=finding.package,
+                        file=finding.file,
+                        message=finding.message,
+                        evidence=finding.evidence,
+                        remediation=finding.remediation,
+                        references=finding.references,
+                        line=finding.line,
                     )
                 except ValueError:
                     logger.warning(
                         "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
-                        f.rule_id,
+                        finding.rule_id,
                         new_sev,
                     )
             overridden.append(f)

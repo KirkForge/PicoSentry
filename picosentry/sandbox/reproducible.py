@@ -94,8 +94,8 @@ def pin_dependencies(lockfile_path: str) -> dict:
     content = path.read_text(encoding="utf-8")
     packages: list[dict] = []
 
-    for line in content.splitlines():
-        line = line.strip()
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
 
         if not line or line.startswith(("#", "-")):
 

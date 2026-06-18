@@ -82,16 +82,18 @@ class L4Engine:
 
         if not deterministic:
             filled_findings = []
-            for f in all_findings:
-                if not f.finding_id:
+            for finding in all_findings:
+                if not finding.finding_id:
                     f = Finding(
-                        rule_id=f.rule_id,
-                        severity=f.severity,
-                        message=f.message,
-                        location=f.location,
-                        evidence=f.evidence,
+                        rule_id=finding.rule_id,
+                        severity=finding.severity,
+                        message=finding.message,
+                        location=finding.location,
+                        evidence=finding.evidence,
                         finding_id=_generate_finding_id(),
                     )
+                else:
+                    f = finding
                 filled_findings.append(f)
             all_findings = filled_findings
 

@@ -92,8 +92,8 @@ def _load_yaml_file(path: Path) -> dict | list | None:
             pass
         # Very basic YAML: extract top-level key: value pairs
         result: dict = {}
-        for line in text.splitlines():
-            line = line.strip()
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             match = re.match(r'^(\w+):\s*["\']?(.+?)["\']?\s*$', line)

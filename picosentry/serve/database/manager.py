@@ -517,8 +517,8 @@ class DatabaseManager:
             if migration.version > current:
                 logger.info("Applying migration %s: %s", migration.version, migration.name)
                 sql = migration.sql_for(self._backend)
-                for stmt in sql.split(";"):
-                    stmt = stmt.strip()
+                for raw_stmt in sql.split(";"):
+                    stmt = raw_stmt.strip()
                     if stmt:
                         try:
                             self.execute(stmt + ";")

@@ -58,17 +58,17 @@ def detect_crypto_mining(
     findings: list[Finding] = []
 
 
-    for call in profile.network_calls:
-        if call.port in MINING_PORTS:
-            findings.append(
-                Finding(
-                    rule_id="L4-CRYPTO-001",
-                    severity=Severity.CRITICAL,
-                    message=f"Connection to known mining pool port {call.port}: {call.address}:{call.port}",
-                    location=f"{call.address}:{call.port}",
-                    evidence={"address": call.address, "port": call.port, "protocol": call.protocol},
-                )
-            )
+    findings.extend(
+        Finding(
+            rule_id="L4-CRYPTO-001",
+            severity=Severity.CRITICAL,
+            message=f"Connection to known mining pool port {call.port}: {call.address}:{call.port}",
+            location=f"{call.address}:{call.port}",
+            evidence={"address": call.address, "port": call.port, "protocol": call.protocol},
+        )
+        for call in profile.network_calls
+        if call.port in MINING_PORTS
+    )
 
 
     for spawn in profile.spawns:

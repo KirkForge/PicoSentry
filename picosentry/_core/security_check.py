@@ -53,7 +53,10 @@ def check_deployment_security(environ: dict[str, str] | None = None) -> list[Dep
             DeploymentFinding(
                 severity="CRITICAL",
                 check="enterprise-mode-with-tls-dev",
-                message="PICODOME_ENTERPRISE_MODE=1 and PICODOME_TLS_DEV=1 are both set — enterprise mode rejects dev certs",
+                message=(
+                    "PICODOME_ENTERPRISE_MODE=1 and PICODOME_TLS_DEV=1 are both set — "
+                    "enterprise mode rejects dev certs"
+                ),
             )
         )
 

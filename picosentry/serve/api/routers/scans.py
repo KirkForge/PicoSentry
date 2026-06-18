@@ -95,7 +95,11 @@ async def run_sandbox(
         run_id=result.run_id,
         timestamp=result.timestamp,
         command=result.command,
-        overall_verdict=result.overall_verdict.value if hasattr(result.overall_verdict, "value") else str(result.overall_verdict),
+        overall_verdict=(
+            result.overall_verdict.value
+            if hasattr(result.overall_verdict, "value")
+            else str(result.overall_verdict)
+        ),
         exit_code=result.exit_code,
         duration_ms=result.duration_ms,
         events=[e.to_dict() for e in result.events],

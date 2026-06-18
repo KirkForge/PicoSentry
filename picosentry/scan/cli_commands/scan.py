@@ -112,12 +112,30 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     scan_parser.add_argument(
         "--output", "-o", type=str, default=None, help="Write output to file instead of stdout"
     )
-    scan_parser.add_argument("--rules", "-r", nargs="+", default=None, help="Run only specific rules (e.g., L2-POST-001 L2-OBFS-001)")
-    scan_parser.add_argument("--corpus", "-c", type=str, default=None, help="Path to corpus directory (default: built-in)")
-    scan_parser.add_argument("--advisory-db", type=str, default=None, help="Path to OSV-format advisory database for vulnerability checking")
-    scan_parser.add_argument("--no-color", action="store_true", help="Disable colored output (table format only)")
-    scan_parser.add_argument("--token-budget", type=int, default=None, help="Token budget for ml-context format (default: 4096)")
-    scan_parser.add_argument("--exit-code", action="store_true", help="Exit with code 1 if findings found, 0 if clean")
+    scan_parser.add_argument(
+        "--rules", "-r", nargs="+", default=None,
+        help="Run only specific rules (e.g., L2-POST-001 L2-OBFS-001)",
+    )
+    scan_parser.add_argument(
+        "--corpus", "-c", type=str, default=None,
+        help="Path to corpus directory (default: built-in)",
+    )
+    scan_parser.add_argument(
+        "--advisory-db", type=str, default=None,
+        help="Path to OSV-format advisory database for vulnerability checking",
+    )
+    scan_parser.add_argument(
+        "--no-color", action="store_true",
+        help="Disable colored output (table format only)",
+    )
+    scan_parser.add_argument(
+        "--token-budget", type=int, default=None,
+        help="Token budget for ml-context format (default: 4096)",
+    )
+    scan_parser.add_argument(
+        "--exit-code", action="store_true",
+        help="Exit with code 1 if findings found, 0 if clean",
+    )
     scan_parser.add_argument(
         "--severity-threshold",
         choices=["low", "medium", "high", "critical"],
@@ -130,17 +148,52 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         default=None,
         help="Exit with code 1 only if findings at or above this severity (implies --exit-code)",
     )
-    scan_parser.add_argument("--quiet", "-q", action="store_true", help="Only show summary line (findings count by severity). No detailed findings.")
-    scan_parser.add_argument("--summary", action="store_true", help="One-line summary for CI notifications. Implies --quiet.")
-    scan_parser.add_argument("--baseline", "-b", type=str, default=None, help="Path to baseline JSON file or ignore file. Known findings are suppressed.")
-    scan_parser.add_argument("--baseline-update", action="store_true", help="Write updated baseline file (with new findings added) after filtering. Use with --baseline.")
-    scan_parser.add_argument("--verbose", "-v", action="store_true", help="Show per-rule timing and detailed scan progress.")
-    scan_parser.add_argument("--timeout", type=int, default=0, help="Timeout in seconds for the entire scan (0 = no timeout). Exits with code 3 on timeout.")
-    scan_parser.add_argument("--fail-on-rule-error", action="store_true", help="Exit with code 4 if any detector rule raises an exception. Fail-closed for CI. Implied by --enterprise.")
-    scan_parser.add_argument("--enterprise", action="store_true", help="Enable enterprise mode. Equivalent to PICOSENTRY_ENTERPRISE_MODE=1.")
-    scan_parser.add_argument("--policy", "-p", type=str, default=None, help="Path to .picosentry-policy.yml for enterprise policy enforcement")
-    scan_parser.add_argument("--sarif-file", type=str, default=None, help="Path for SARIF output file when using --format github (default: sarif.json)")
-    scan_parser.add_argument("--verify-determinism", action="store_true", help="Run scan twice and verify SHA-256 determinism. Exit 0 if identical, 4 if different. Implies --format json.")
+    scan_parser.add_argument(
+        "--quiet", "-q", action="store_true",
+        help="Only show summary line (findings count by severity). No detailed findings.",
+    )
+    scan_parser.add_argument(
+        "--summary", action="store_true",
+        help="One-line summary for CI notifications. Implies --quiet.",
+    )
+    scan_parser.add_argument(
+        "--baseline", "-b", type=str, default=None,
+        help="Path to baseline JSON file or ignore file. Known findings are suppressed.",
+    )
+    scan_parser.add_argument(
+        "--baseline-update", action="store_true",
+        help="Write updated baseline file (with new findings added) after filtering. Use with --baseline.",
+    )
+    scan_parser.add_argument(
+        "--verbose", "-v", action="store_true",
+        help="Show per-rule timing and detailed scan progress.",
+    )
+    scan_parser.add_argument(
+        "--timeout", type=int, default=0,
+        help="Timeout in seconds for the entire scan (0 = no timeout). Exits with code 3 on timeout.",
+    )
+    scan_parser.add_argument(
+        "--fail-on-rule-error", action="store_true",
+        help="Exit with code 4 if any detector rule raises an exception. "
+             "Fail-closed for CI. Implied by --enterprise.",
+    )
+    scan_parser.add_argument(
+        "--enterprise", action="store_true",
+        help="Enable enterprise mode. Equivalent to PICOSENTRY_ENTERPRISE_MODE=1.",
+    )
+    scan_parser.add_argument(
+        "--policy", "-p", type=str, default=None,
+        help="Path to .picosentry-policy.yml for enterprise policy enforcement",
+    )
+    scan_parser.add_argument(
+        "--sarif-file", type=str, default=None,
+        help="Path for SARIF output file when using --format github (default: sarif.json)",
+    )
+    scan_parser.add_argument(
+        "--verify-determinism", action="store_true",
+        help="Run scan twice and verify SHA-256 determinism. "
+             "Exit 0 if identical, 4 if different. Implies --format json.",
+    )
     scan_parser.add_argument(
         "--validate",
         action="store_true",
@@ -217,7 +270,9 @@ def cmd(args: argparse.Namespace) -> int:
                                 target=cached_data.get("target", str(target)),
                                 engine_version=cached_data.get("engine_version", __version__),
                                 corpus_version=cached_data.get("corpus_version", ""),
-                                findings=[Finding(**f) for f in cached_data.get("findings", [])] if "findings" in cached_data else [],
+                                findings=[
+                                    Finding(**f) for f in cached_data.get("findings", [])
+                                ] if "findings" in cached_data else [],
                                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
                             )
                         except Exception:
@@ -288,7 +343,8 @@ def cmd(args: argparse.Namespace) -> int:
 
         if not config.quiet and not config.summary:
             print(
-                f"Baseline: {baseline_info.suppressed_count} known, {baseline_info.new_count} new (of {baseline_info.original_count} total)",
+                f"Baseline: {baseline_info.suppressed_count} known, "
+                f"{baseline_info.new_count} new (of {baseline_info.original_count} total)",
                 file=sys.stderr,
             )
 
@@ -317,7 +373,11 @@ def cmd(args: argparse.Namespace) -> int:
             for pkg_json_path, pkg_data in iter_node_modules(target):
                 pkg_name = pkg_data.get("name", pkg_json_path.parent.name)
 
-                if not pkg_name.startswith("@") and pkg_json_path.parent.name and pkg_json_path.parent.parent.name.startswith("@"):
+                if (
+                    not pkg_name.startswith("@")
+                    and pkg_json_path.parent.name
+                    and pkg_json_path.parent.parent.name.startswith("@")
+                ):
                     pkg_name = f"{pkg_json_path.parent.parent.name}/{pkg_name}"
                 installed_pkgs.add(pkg_name)
 

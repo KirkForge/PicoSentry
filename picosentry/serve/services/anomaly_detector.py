@@ -209,7 +209,11 @@ class AnomalyDetector:
                 continue
 
             if self._compare(value, rule.threshold, rule.comparison):
-                severity = "critical" if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5 else "warning"
+                severity = (
+                    "critical"
+                    if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5
+                    else "warning"
+                )
                 alert = AnomalyAlert(
                     rule_id=rule.id,
                     metric_name=rule.metric_name,
@@ -242,14 +246,19 @@ class AnomalyDetector:
 
 
         try:
-            self.db.execute_insert("""
-                INSERT INTO anomaly_alerts (rule_id, metric_name, value, threshold, comparison, severity, description, created_at)
+            self.db.execute_insert(
+                """
+                INSERT INTO anomaly_alerts (
+                    rule_id, metric_name, value, threshold, comparison, severity, description, created_at
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                alert.rule_id, alert.metric_name, alert.value,
-                alert.threshold, alert.comparison, alert.severity,
-                alert.description, alert.timestamp
-            ))
+                """,
+                (
+                    alert.rule_id, alert.metric_name, alert.value,
+                    alert.threshold, alert.comparison, alert.severity,
+                    alert.description, alert.timestamp,
+                ),
+            )
         except Exception:
 
             self.db.execute("""
@@ -265,14 +274,19 @@ class AnomalyDetector:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
-            self.db.execute_insert("""
-                INSERT INTO anomaly_alerts (rule_id, metric_name, value, threshold, comparison, severity, description, created_at)
+            self.db.execute_insert(
+                """
+                INSERT INTO anomaly_alerts (
+                    rule_id, metric_name, value, threshold, comparison, severity, description, created_at
+                )
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                alert.rule_id, alert.metric_name, alert.value,
-                alert.threshold, alert.comparison, alert.severity,
-                alert.description, alert.timestamp
-            ))
+                """,
+                (
+                    alert.rule_id, alert.metric_name, alert.value,
+                    alert.threshold, alert.comparison, alert.severity,
+                    alert.description, alert.timestamp,
+                ),
+            )
 
         self.alert_history.append(alert)
 

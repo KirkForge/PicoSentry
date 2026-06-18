@@ -133,7 +133,8 @@ class PicoSentryConfig:
 
         if _os.environ.get("PICOSENTRY_SKIP_SECURE_ASSERT") == "1":
             logger.warning(
-                "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. "
+                "This bypasses startup security checks."
             )
             return
 
@@ -341,7 +342,10 @@ class _CorpusSignatureCheck:
         if env in ("production", "staging") and not self._config.corpus_require_signature:
             return SecurityViolation(
                 check="corpus_signature",
-                message="Corpus signature verification disabled in production — set PICOSENTRY_CORPUS_REQUIRE_SIGNATURE=true",
+                message=(
+                    "Corpus signature verification disabled in production — "
+                    "set PICOSENTRY_CORPUS_REQUIRE_SIGNATURE=true"
+                ),
                 severity="WARN",
             )
         return None

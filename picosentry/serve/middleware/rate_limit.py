@@ -138,7 +138,10 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             for k in sorted_keys[:len(self.ip_requests) - self.max_buckets]:
                 del self.ip_requests[k]
         if len(self.org_requests) > self.max_buckets:
-            sorted_keys = sorted(self.org_requests, key=lambda k: self.org_requests[k][-1] if self.org_requests[k] else 0)
+            sorted_keys = sorted(
+                self.org_requests,
+                key=lambda k: self.org_requests[k][-1] if self.org_requests[k] else 0,
+            )
             for k in sorted_keys[:len(self.org_requests) - self.max_buckets]:
                 del self.org_requests[k]
 

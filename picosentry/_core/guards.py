@@ -22,6 +22,8 @@ FORBIDDEN_IN_FINDINGS = frozenset(
     }
 )
 
+_DEFAULT_EXCLUDE_FIELDS = ("run_id", "timestamp", "duration_ms", "scan_id")
+
 
 @runtime_checkable
 class DeterministicResult(Protocol):
@@ -92,7 +94,10 @@ class DeterministicGuard:
         return violations
 
 
-def deterministic_hash(data: dict[str, Any], exclude_fields: tuple[str, ...] = ("run_id", "timestamp", "duration_ms", "scan_id")) -> str:
+def deterministic_hash(
+    data: dict[str, Any],
+    exclude_fields: tuple[str, ...] = _DEFAULT_EXCLUDE_FIELDS,
+) -> str:
     det = {k: v for k, v in data.items() if k not in exclude_fields}
 
     if "stats" in det and isinstance(det["stats"], dict):
@@ -201,7 +206,10 @@ def diff_results(
     return (1, "\n".join(lines))
 
 
-def _deterministic_hash_raw(data: dict, exclude_fields: tuple[str, ...] = ("run_id", "timestamp", "duration_ms", "scan_id")) -> str:
+def _deterministic_hash_raw(
+    data: dict,
+    exclude_fields: tuple[str, ...] = _DEFAULT_EXCLUDE_FIELDS,
+) -> str:
     det = {k: v for k, v in data.items() if k not in exclude_fields}
     if "stats" in det and isinstance(det["stats"], dict):
         det["stats"] = {k: v for k, v in det["stats"].items() if k not in ("duration_ms", "rule_timings_ms")}

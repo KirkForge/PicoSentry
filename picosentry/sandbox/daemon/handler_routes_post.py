@@ -171,7 +171,10 @@ class PicoDomePostRoutesMixin:
             backend: SandboxBackend | None = None
 
             if _ENTERPRISE_MODE and backend_name == "subprocess":
-                self._send_error(ErrorCodes.ENTERPRISE_ENFORCEMENT, detail="subprocess backend is not allowed in enterprise mode")
+                self._send_error(
+                    ErrorCodes.ENTERPRISE_ENFORCEMENT,
+                    detail="subprocess backend is not allowed in enterprise mode",
+                )
                 return
             if backend_name != "auto":
                 cls_path = _DAEMON_BACKEND_MAP.get(backend_name)

@@ -108,7 +108,8 @@ class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with
         return violations
 
 
-def deterministic_hash(result: ScanResult) -> str:  # rationale: include-list hashing, only hashes known-deterministic fields
+# rationale: include-list hashing, only hashes known-deterministic fields
+def deterministic_hash(result: ScanResult) -> str:
     data = json.loads(result.to_json(deterministic_output=True))
     det: dict = {k: v for k, v in data.items() if k in DETERMINISTIC_FIELDS}
 

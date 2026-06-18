@@ -65,9 +65,13 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
 
 
         if len(self._global_bucket) >= self._global_limit:
-            logger.warning("DDoS shield: global rate limit exceeded from %s", request.client.host if request.client else "unknown")
+            client = request.client.host if request.client else "unknown"
+            logger.warning("DDoS shield: global rate limit exceeded from %s", client)
             from starlette.responses import JSONResponse
-            return JSONResponse({"error": "rate_limit_exceeded", "detail": "Global rate limit exceeded"}, status_code=429)
+            return JSONResponse(
+                {"error": "rate_limit_exceeded", "detail": "Global rate limit exceeded"},
+                status_code=429,
+            )
 
 
         path = request.url.path
@@ -75,9 +79,13 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
             bucket = self._path_buckets.get(path, [])
             bucket = [t for t in bucket if t > cutoff]
             if len(bucket) >= self._burst_limit:
-                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", path, request.client.host if request.client else "unknown")
+                client = request.client.host if request.client else "unknown"
+                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", path, client)
                 from starlette.responses import JSONResponse
-                return JSONResponse({"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {path}"}, status_code=429)
+                return JSONResponse(
+                    {"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {path}"},
+                    status_code=429,
+                )
             bucket.append(now)
             self._path_buckets[path] = bucket
 

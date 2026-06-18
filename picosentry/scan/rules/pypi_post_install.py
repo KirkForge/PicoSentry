@@ -107,7 +107,11 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
 
     if has_suspicious_code:
         risk_tags = list(dict.fromkeys(risk_tags))  # Deduplicate preserving order
-        severity = Severity.CRITICAL if "network access" in risk_tags or "credential reading" in risk_tags else Severity.HIGH
+        severity = (
+            Severity.CRITICAL
+            if "network access" in risk_tags or "credential reading" in risk_tags
+            else Severity.HIGH
+        )
 
         findings.append(
             Finding(

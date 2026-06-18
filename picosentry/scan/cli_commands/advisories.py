@@ -15,7 +15,12 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     fetch.add_argument("url", type=str, help="URL to advisory database (zip or JSON)")
     fetch.add_argument("--output", "-o", type=str, default=None, help="Output directory (default: $PICOADVISORY_DIR)")
     fetch.add_argument("--verify-crypto", action="store_true", help="Verify cryptographic signature on advisory bundle")
-    fetch.add_argument("--public-key", type=str, default="", help="Path to minisign public key (for minisign verification)")
+    fetch.add_argument(
+        "--public-key",
+        type=str,
+        default="",
+        help="Path to minisign public key (for minisign verification)",
+    )
     fetch.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
 
 

@@ -300,8 +300,12 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                     DEFAULT_THRESHOLD_BLOCK,
                     float,
                 ),
-                threshold_warn=_env_or_file("threshold_warn", "PICOWATCH_THRESHOLD_WARN", DEFAULT_THRESHOLD_WARN, float),
-                max_prompt_size=_env_or_file("max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int),
+                threshold_warn=_env_or_file(
+                    "threshold_warn", "PICOWATCH_THRESHOLD_WARN", DEFAULT_THRESHOLD_WARN, float
+                ),
+                max_prompt_size=_env_or_file(
+                    "max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int
+                ),
                 corpus_version=os.environ.get("PICOWATCH_CORPUS_VERSION")
                 or picowatch_conf.get("corpus_version", DEFAULT_CORPUS_VERSION),
             ),

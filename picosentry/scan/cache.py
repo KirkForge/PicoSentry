@@ -368,6 +368,12 @@ if _cache_env_key:
 else:
     _CACHE_HMAC_KEY = os.urandom(32)
     if os.environ.get("PICOSENTRY_QUIET") == "1":
-        logger.debug("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+        logger.debug(
+            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
+            "Set it for persistent cache integrity.",
+        )
     else:
-        logger.warning("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+        logger.warning(
+            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
+            "Set it for persistent cache integrity.",
+        )

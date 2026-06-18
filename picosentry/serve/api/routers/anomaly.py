@@ -44,7 +44,12 @@ async def trigger_anomaly_check(user: dict = Depends(get_current_user)):
 
 
 @router.patch("/rules/{rule_id}", tags=["Anomaly"])
-async def update_anomaly_rule(rule_id: str, enabled: bool | None = None, threshold: float | None = None, user: dict = Depends(get_current_user)):
+async def update_anomaly_rule(
+    rule_id: str,
+    enabled: bool | None = None,
+    threshold: float | None = None,
+    user: dict = Depends(get_current_user),
+):
     updates: dict = {}
     if enabled is not None:
         updates["enabled"] = enabled

@@ -59,7 +59,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Cross-layer correlation",
         status="Beta",
-        notes="Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested",
+        notes=(
+            "Links findings across scan + sandbox + watch layers; "
+            "persistence, dedup, and per-minute backpressure tested"
+        ),
     ),
     ComponentStatus(
         name="Plugin system",
@@ -74,7 +77,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Cluster mode",
         status="Beta",
-        notes="Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test",
+        notes=(
+            "Gossip over HTTP(S) with shared cluster token + optional mTLS; "
+            "monotonic versioning; 3-node integration test"
+        ),
     ),
     ComponentStatus(
         name="Detection benchmarks",

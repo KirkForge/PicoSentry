@@ -55,7 +55,8 @@ def compare_profile_to_baseline(
         for call in profile.network_calls:
 
 
-            if not call.address.replace(".", "").replace(":", "").isdigit() and call.address not in baseline.allowed_domains:
+            address_stripped = call.address.replace(".", "").replace(":", "")
+            if not address_stripped.isdigit() and call.address not in baseline.allowed_domains:
                 if not network_drift:
                     network_drift = True
                     drift_count += 1

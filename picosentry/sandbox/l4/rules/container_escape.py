@@ -51,7 +51,10 @@ def detect_container_escape(
                 final_severity = severity
                 if op.operation == "read" and esc_path == "/.dockerenv":
                     final_severity = Severity.INFO
-                elif op.operation in ("write", "create", "delete", "chmod", "chown") and final_severity.value < Severity.HIGH.value:
+                elif (
+                    op.operation in ("write", "create", "delete", "chmod", "chown")
+                    and final_severity.value < Severity.HIGH.value
+                ):
                     final_severity = Severity.HIGH
 
                 findings.append(

@@ -359,7 +359,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=pkg_name,
                     file=str(root_pkg),
                     message=(
-                        f"Package '{pkg_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Package '{pkg_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"package_name({pkg_name}) is edit_distance {best_dist} from {best_match}",
                     remediation=(
@@ -414,7 +415,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=dep_name,
                     file=str(root_pkg),
                     message=(
-                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"edit_distance({dep_name}, {best_match}) = {best_dist}",
                     remediation=(

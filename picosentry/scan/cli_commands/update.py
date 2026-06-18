@@ -18,8 +18,20 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(
         NAME, help="Download latest package corpus from npm registry (requires network)"
     )
-    parser.add_argument("--top", "-n", type=int, default=1000, help="Number of top packages to download (default: 1000)")
-    parser.add_argument("--output", "-o", type=str, default=None, help="Output path for corpus JSON (default: built-in corpus)")
+    parser.add_argument(
+        "--top",
+        "-n",
+        type=int,
+        default=1000,
+        help="Number of top packages to download (default: 1000)",
+    )
+    parser.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default=None,
+        help="Output path for corpus JSON (default: built-in corpus)",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:

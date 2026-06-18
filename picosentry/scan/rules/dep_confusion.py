@@ -225,7 +225,11 @@ def _pypi_has_private_index(target: Path) -> bool:
             config = configparser.ConfigParser()
             config.read_string(pypirc.read_text(encoding="utf-8"))
             for section in config.sections():
-                if section != "distutils" and config.has_option(section, "repository") and "pypi.org" not in config.get(section, "repository"):
+                if (
+                    section != "distutils"
+                    and config.has_option(section, "repository")
+                    and "pypi.org" not in config.get(section, "repository")
+                ):
                     return True
         except Exception:
             pass
@@ -523,7 +527,13 @@ _RUBYGEMS_CONFIG = DepConfusionConfig(
 )
 
 
-def _make_finding(config: DepConfusionConfig, package_ref: str, dep_name: str, target: Path, manifest_file: str) -> Finding:
+def _make_finding(
+    config: DepConfusionConfig,
+    package_ref: str,
+    dep_name: str,
+    target: Path,
+    manifest_file: str,
+) -> Finding:
     return Finding(
         rule_id=config.rule_id,
         severity=Severity.CRITICAL,

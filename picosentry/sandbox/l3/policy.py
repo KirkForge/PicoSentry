@@ -149,7 +149,12 @@ NODE_RULES: list = [
         "action": "allow",
         "description": "Allow process spawning (node, npm)",
     },
-    {"rule_id": "L3-NODE-BIND-001", "target": "network_bind", "action": "allow", "description": "Allow network binding (npm needs NETLINK bind for DNS)"},
+    {
+        "rule_id": "L3-NODE-BIND-001",
+        "target": "network_bind",
+        "action": "allow",
+        "description": "Allow network binding (npm needs NETLINK bind for DNS)",
+    },
     {
         "rule_id": "L3-NODE-EXEC-001",
         "target": "file_exec",
@@ -216,7 +221,12 @@ PYTHON_RULES: list = [
         "action": "allow",
         "description": "Allow process spawning (python, pip)",
     },
-    {"rule_id": "L3-PY-BIND-001", "target": "network_bind", "action": "allow", "description": "Allow network binding (pip needs NETLINK bind for DNS)"},
+    {
+        "rule_id": "L3-PY-BIND-001",
+        "target": "network_bind",
+        "action": "allow",
+        "description": "Allow network binding (pip needs NETLINK bind for DNS)",
+    },
     {
         "rule_id": "L3-PY-EXEC-001",
         "target": "file_exec",
@@ -388,7 +398,11 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
     for rule in policy.rules:
-        if rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC) and not rule.paths and rule.action == SyscallAction.ALLOW:
+        if (
+            rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC)
+            and not rule.paths
+            and rule.action == SyscallAction.ALLOW
+        ):
             pass
 
 

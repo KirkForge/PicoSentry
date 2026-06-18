@@ -167,7 +167,10 @@ class PolicyStack:
                         "type": "severity_relaxation",
                         "lower_layer": lower.layer,
                         "upper_layer": upper.layer,
-                        "detail": f"{upper.layer} relaxes fail_on_severity from {lower.policy.fail_on_severity} to {upper.policy.fail_on_severity}",
+                        "detail": (
+                            f"{upper.layer} relaxes fail_on_severity from "
+                            f"{lower.policy.fail_on_severity} to {upper.policy.fail_on_severity}"
+                        ),
                     }
                 )
                 warnings.append(

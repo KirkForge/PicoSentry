@@ -129,7 +129,7 @@ def _is_fork_repo(url: str, pkg_name: str, author: str = "") -> bool:
 
         for prefix in AUTHORITATIVE_PREFIXES:
             prefix_org = prefix.split("/")[-2].lower()
-            if resolved_org == prefix_org or org == prefix_org:
+            if prefix_org in (resolved_org, org):
                 return False
 
 

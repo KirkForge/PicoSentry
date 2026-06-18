@@ -186,7 +186,7 @@ class TenantManager:
 
         config = self._tenants[tenant_id]
         for key, value in kwargs.items():
-            if hasattr(config, key) and key != "tenant_id" and key != "base_path":
+            if hasattr(config, key) and key not in {"tenant_id", "base_path"}:
                 setattr(config, key, value)
 
 

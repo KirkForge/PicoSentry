@@ -34,46 +34,52 @@ def detect_filesystem_anomalies(
 
 
         if op.operation in ("write", "create"):
-            for protected in PROTECTED_WRITE_PATHS:
-                if path.startswith(protected) or path == protected:
-                    findings.append(
-                        Finding(
-                            rule_id="L4-FS-001",
-                            severity=Severity.CRITICAL,
-                            message=f"Write to protected system path: {path}",
-                            location=path,
-                            evidence={"operation": op.operation, "path": path},
-                        )
-                    )
+            findings.extend(
+                Finding(
+                    rule_id="L4-FS-001",
+                    severity=Severity.CRITICAL,
+                    message=f"Write to protected system path: {path}",
+                    location=path,
+                    evidence={"operation": op.operation, "path": path},
+                )
+                for protected in PROTECTED_WRITE_PATHS
+                if path.startswith(protected) or path == protected
+            )
 
 
         if op.operation in ("write", "create"):
-            for ext in SUSPICIOUS_WRITE_EXTENSIONS:
-                if path.lower().endswith(ext) and not path.startswith("/tmp/"):
-                    findings.append(
-                        Finding(
-                            rule_id="L4-FS-002",
-                            severity=Severity.MEDIUM,
-                            message=f"Executable/shared library written outside /tmp: {path}",
-                            location=path,
-                            evidence={"operation": op.operation, "path": path, "extension": ext},
-                        )
+            matched_ext = next(
+                (
+                    ext
+                    for ext in SUSPICIOUS_WRITE_EXTENSIONS
+                    if path.lower().endswith(ext) and not path.startswith("/tmp/")
+                ),
+                None,
+            )
+            if matched_ext:
+                findings.append(
+                    Finding(
+                        rule_id="L4-FS-002",
+                        severity=Severity.MEDIUM,
+                        message=f"Executable/shared library written outside /tmp: {path}",
+                        location=path,
+                        evidence={"operation": op.operation, "path": path, "extension": matched_ext},
                     )
-                    break
+                )
 
 
         if op.operation in ("delete",):
-            for critical in CRITICAL_DELETE_PATHS:
-                if path == critical or path.startswith(critical + "/"):
-                    findings.append(
-                        Finding(
-                            rule_id="L4-FS-003",
-                            severity=Severity.CRITICAL,
-                            message=f"Deletion of critical system file: {path}",
-                            location=path,
-                            evidence={"operation": op.operation, "path": path},
-                        )
-                    )
+            findings.extend(
+                Finding(
+                    rule_id="L4-FS-003",
+                    severity=Severity.CRITICAL,
+                    message=f"Deletion of critical system file: {path}",
+                    location=path,
+                    evidence={"operation": op.operation, "path": path},
+                )
+                for critical in CRITICAL_DELETE_PATHS
+                if path == critical or path.startswith(critical + "/")
+            )
 
 
         if "../" in path or "..\\" in path:

@@ -110,18 +110,17 @@ def detect_supply_chain_patterns(
 
 
     suspicious_keywords = {"pastebin", "webhook", "ipify", "ifconfig", "whatismyip", "checkip"}
-    for dns in profile.dns_queries:
-        hostname_lower = dns.hostname.lower()
-        for keyword in suspicious_keywords:
-            if keyword in hostname_lower:
-                findings.append(
-                    Finding(
-                        rule_id="L4-SC-005",
-                        severity=Severity.HIGH,
-                        message=f"Suspicious DNS query during execution: {dns.hostname}",
-                        location=dns.hostname,
-                        evidence={"hostname": dns.hostname, "keyword": keyword},
-                    )
-                )
+    findings.extend(
+        Finding(
+            rule_id="L4-SC-005",
+            severity=Severity.HIGH,
+            message=f"Suspicious DNS query during execution: {dns.hostname}",
+            location=dns.hostname,
+            evidence={"hostname": dns.hostname, "keyword": keyword},
+        )
+        for dns in profile.dns_queries
+        for keyword in suspicious_keywords
+        if keyword in dns.hostname.lower()
+    )
 
     return findings

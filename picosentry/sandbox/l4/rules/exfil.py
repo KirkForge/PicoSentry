@@ -15,18 +15,17 @@ def detect_exfiltration(
     private_ips = re.compile(r"^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)")
 
     for call in profile.network_calls:
-
-        for tld in suspicious_tlds:
-            if call.address.endswith(tld):
-                findings.append(
-                    Finding(
-                        rule_id="L4-EXFIL-001",
-                        severity=Severity.HIGH,
-                        message=f"Network call to suspicious TLD: {call.address}",
-                        location=call.address,
-                        evidence={"address": call.address, "port": call.port, "tld": tld},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-EXFIL-001",
+                severity=Severity.HIGH,
+                message=f"Network call to suspicious TLD: {call.address}",
+                location=call.address,
+                evidence={"address": call.address, "port": call.port, "tld": tld},
+            )
+            for tld in suspicious_tlds
+            if call.address.endswith(tld)
+        )
 
 
         if call.port not in (0, 80, 443, 8080, 8443) and not private_ips.match(call.address):
@@ -54,18 +53,18 @@ def detect_exfiltration(
         )
 
 
-    for dns in profile.dns_queries:
-        for tld in suspicious_tlds:
-            if dns.hostname.endswith(tld):
-                findings.append(
-                    Finding(
-                        rule_id="L4-EXFIL-004",
-                        severity=Severity.MEDIUM,
-                        message=f"DNS query to suspicious domain: {dns.hostname}",
-                        location=dns.hostname,
-                        evidence={"hostname": dns.hostname},
-                    )
-                )
+    findings.extend(
+        Finding(
+            rule_id="L4-EXFIL-004",
+            severity=Severity.MEDIUM,
+            message=f"DNS query to suspicious domain: {dns.hostname}",
+            location=dns.hostname,
+            evidence={"hostname": dns.hostname},
+        )
+        for dns in profile.dns_queries
+        for tld in suspicious_tlds
+        if dns.hostname.endswith(tld)
+    )
 
 
     sensitive_patterns = [

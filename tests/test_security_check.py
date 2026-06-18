@@ -9,6 +9,7 @@ from unittest.mock import patch
 import pytest
 
 from picosentry._core.security_check import (
+    _DEV_BYPASS_VARS,
     DeploymentFinding,
     assert_deployment_secure,
     check_deployment_security,
@@ -112,7 +113,11 @@ class TestAssertDeploymentSecure:
 class TestMainCLI:
     """Tests for the security_check main() CLI."""
 
-    def test_clean_exit_code(self, capsys: pytest.CaptureFixture[str]) -> None:
+    def test_clean_exit_code(
+        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        for var, _, _ in _DEV_BYPASS_VARS:
+            monkeypatch.delenv(var, raising=False)
         assert main([]) == 0
         assert "No deployment-security findings" in capsys.readouterr().out
 

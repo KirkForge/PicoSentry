@@ -601,31 +601,30 @@ def run_daemon(
             )
             sys.exit(e.exit_code)
         print("  Enterprise: ON (fail-closed enforced)")
-    else:
-        if auth_config.mode == "off":
-            if host not in ("127.0.0.1", "localhost", "::1"):
-                logger.critical(
-                    "SECURITY: auth=off on non-loopback interface %s — refusing to start. "
-                    "Bind to 127.0.0.1 or enable authentication (PICOSENTRY_AUTH_MODE=token).",
-                    host,
-                )
-                print(
-                    f"  FATAL: auth=off on non-loopback {host} — refusing to start. "
-                    "Bind to 127.0.0.1 or set PICOSENTRY_AUTH_MODE=token.",
-                    file=sys.stderr,
-                )
-                audit(
-                    "daemon.start_denied",
-                    target=f"{host}:{port}",
-                    outcome="failure",
-                    metadata={"reason": "auth=off on non-loopback"},
-                )
-                sys.exit(7)
-            logger.warning(
-                "Daemon running with auth=off (loopback only). Not recommended for production. "
-                "Set PICOSENTRY_ENTERPRISE_MODE=1 to enforce auth."
+    elif auth_config.mode == "off":
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            logger.critical(
+                "SECURITY: auth=off on non-loopback interface %s — refusing to start. "
+                "Bind to 127.0.0.1 or enable authentication (PICOSENTRY_AUTH_MODE=token).",
+                host,
             )
-            print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
+            print(
+                f"  FATAL: auth=off on non-loopback {host} — refusing to start. "
+                "Bind to 127.0.0.1 or set PICOSENTRY_AUTH_MODE=token.",
+                file=sys.stderr,
+            )
+            audit(
+                "daemon.start_denied",
+                target=f"{host}:{port}",
+                outcome="failure",
+                metadata={"reason": "auth=off on non-loopback"},
+            )
+            sys.exit(7)
+        logger.warning(
+            "Daemon running with auth=off (loopback only). Not recommended for production. "
+            "Set PICOSENTRY_ENTERPRISE_MODE=1 to enforce auth."
+        )
+        print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
 
 
     set_gauge("daemon.active_requests", 0)

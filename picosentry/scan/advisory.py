@@ -198,9 +198,8 @@ class AdvisoryDB:
                     if upper_inclusive:
                         if v_tuple > uv:
                             continue
-                    else:
-                        if v_tuple >= uv:
-                            continue
+                    elif v_tuple >= uv:
+                        continue
             return True
 
 

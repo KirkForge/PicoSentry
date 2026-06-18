@@ -202,7 +202,7 @@ class SeccompBackend(SandboxBackend):
                     denied_categories = []
                     if blocked:
                         denied_categories.append(f"blocked={', '.join(sorted(blocked)[:10])}")
-                    if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+                    if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
                         denied_categories.append("default_action=DENY")
 
                     suggestions = []
@@ -271,7 +271,7 @@ class SeccompBackend(SandboxBackend):
     def _build_filter(self, lib: ctypes.CDLL, policy: Policy) -> tuple:
         blocked: set[str] = set()
 
-        if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+        if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
             default_action = SCMP_ACT_KILL_PROCESS
         else:
             default_action = SCMP_ACT_ALLOW

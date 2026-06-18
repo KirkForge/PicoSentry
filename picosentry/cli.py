@@ -467,7 +467,7 @@ def _forward_flag(argv: list[str], args: argparse.Namespace, *flags: str, boolea
         short_dest = flags[1].lstrip("-").replace("-", "_")
         val = getattr(args, short_dest, None)
 
-    if val is None or val == default or val == ():
+    if val is None or val in (default, ()):
         return
 
     if boolean:

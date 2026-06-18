@@ -592,7 +592,7 @@ class TestAdminApp:
     def test_admin_no_post_endpoints(self, admin_client: TestClient) -> None:
         """Admin app does not accept POST requests."""
         response = admin_client.post("/v1/scan/prompt", json={"text": "test"})
-        assert response.status_code == 405 or response.status_code == 404
+        assert response.status_code in {405, 404}
 
 
 class TestInputSizeLimits:

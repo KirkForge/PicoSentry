@@ -82,7 +82,7 @@ class Waiver:
 
         pkg_name, _ = _parse_npm_label(package)
         w_pkg_name, _ = _parse_npm_label(self.package)
-        if w_pkg_name == "*" or w_pkg_name == pkg_name:
+        if w_pkg_name in ("*", pkg_name):
             return True
 
         return self.package == package

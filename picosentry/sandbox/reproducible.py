@@ -179,7 +179,7 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             dt = info.date_time
 
 
-            if dt != (1980, 1, 1, 0, 0, 0) and dt != (1970, 1, 1, 0, 0, 0):
+            if dt not in ((1980, 1, 1, 0, 0, 0), (1970, 1, 1, 0, 0, 0)):
                 timestamp_violations.append(
                     f"{info.filename}: {dt[0]:04d}-{dt[1]:02d}-{dt[2]:02d}T{dt[3]:02d}:{dt[4]:02d}:{dt[5]:02d}"
                 )

@@ -498,7 +498,7 @@ def _run_scan(
 
 
     config_str = json.dumps(
-        {k: v for k, v in sorted(config.__dict__.items()) if v is not None and v != [] and v != {} and v != ""},
+        {k: v for k, v in sorted(config.__dict__.items()) if v is not None and v not in ([], {}, "")},
         sort_keys=True,
     )
     result.config_digest = "sha256:" + hashlib.sha256(config_str.encode()).hexdigest()[:32]

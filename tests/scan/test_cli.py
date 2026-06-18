@@ -881,7 +881,7 @@ class TestGitHubFormat:
             text=True,
             timeout=30,
         )
-        assert proc.returncode == 0 or proc.returncode == 1  # may have findings
+        assert proc.returncode in {0, 1}  # may have findings
         assert sarif_path.exists(), "SARIF file should be created"
         sarif_data = json.loads(sarif_path.read_text())
         assert sarif_data["version"] == "2.1.0"

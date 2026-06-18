@@ -57,7 +57,7 @@ def build_event_from_intel(
     confidence_val = intel.get("confidence", 0.5)
 
 
-    if intel_type in ("metrics",):
+    if intel_type == "metrics":
         return None
 
 

@@ -133,7 +133,7 @@ class TestMetricsEndpoint:
         if resp.status_code == 200:
             # HELP and TYPE lines should use picoshogun_, not picopicoshogun_
             for line in resp.text.split("\n"):
-                if line.startswith("# HELP") or line.startswith("# TYPE"):
+                if line.startswith(("# HELP", "# TYPE")):
                     assert "picopicoshogun" not in line, f"Double prefix in: {line}"
             assert "picoshogun_" in resp.text
 

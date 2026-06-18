@@ -68,7 +68,7 @@ def detect_filesystem_anomalies(
                 )
 
 
-        if op.operation in ("delete",):
+        if op.operation == "delete":
             findings.extend(
                 Finding(
                     rule_id="L4-FS-003",

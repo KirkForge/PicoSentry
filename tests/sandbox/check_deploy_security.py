@@ -105,7 +105,7 @@ def _load_yaml_file(path: Path) -> dict | list | None:
                     result[key] = int(val)
                 else:
                     result[key] = val
-        return result if result else None
+        return result or None
     except Exception:
         return None
 
@@ -474,7 +474,7 @@ def check_source_hardcoded_secrets(findings: list[Finding], src_dir: Path | None
         for i, line in enumerate(lines, 1):
             # Skip comments and docstrings
             stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+            if stripped.startswith(("#", '"""', "'''")):
                 continue
 
             # Hardcoded tokens/passwords (but not in docstrings, comments, or config params)

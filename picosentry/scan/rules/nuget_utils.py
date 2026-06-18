@@ -117,7 +117,7 @@ def parse_packages_config(target: Path) -> list[tuple[str, str]] | None:
         if pkg_id:
             packages.append((pkg_id, version))
 
-    return packages if packages else None
+    return packages or None
 
 
 def parse_nuget_lock(target: Path) -> list[dict] | None:
@@ -144,7 +144,7 @@ def parse_nuget_lock(target: Path) -> list[dict] | None:
                 "type": pkg_info.get("type", "Transitive"),
             })
 
-    return packages if packages else None
+    return packages or None
 
 
 def collect_nuget_deps(target: Path) -> list[tuple[str, str, str]]:

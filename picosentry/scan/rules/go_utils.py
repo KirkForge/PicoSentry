@@ -101,7 +101,7 @@ def parse_go_mod(target: Path) -> dict | None:
             m = _GO_MOD_REPLACE_RE.match(line)
             if m:
                 original = m.group(1)
-                replacement = m.group(2) if m.group(2) else ""
+                replacement = m.group(2) or ""
                 result["replace"][original] = replacement
 
 

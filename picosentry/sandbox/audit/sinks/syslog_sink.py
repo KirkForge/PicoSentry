@@ -88,8 +88,6 @@ class SyslogSink(AuditSink):
                 self._sock.close()
             self._sock = None
 
-    def flush(self) -> None:
-        return
 
     def send(self, event: AuditEvent) -> None:
         if self._sock is None:

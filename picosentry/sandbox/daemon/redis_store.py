@@ -186,12 +186,7 @@ class RedisScanJobStore:
             pipe.hgetall(f"{_JOB_KEY_PREFIX}{job_id}")
         results = pipe.execute()
 
-        jobs = []
-        for data in results:
-            if data:
-                jobs.append(self._deserialize_job(data))
-
-        return jobs
+        return [self._deserialize_job(data) for data in results if data]
 
     def _deserialize_job(self, data: dict[str, str]) -> dict[str, Any]:
         job: dict[str, Any] = dict(data)

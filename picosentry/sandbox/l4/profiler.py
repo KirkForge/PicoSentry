@@ -128,17 +128,14 @@ def profile_from_trace(trace_text: str, package: str = "unknown") -> BehavioralP
 
 
 def _extract_timing_points(output: str) -> list[TimingPoint]:
-    points: list[TimingPoint] = []
     pattern = re.compile(r"\[TIMING\]\s+(\S+)\s+(\d+)\s*ms", re.IGNORECASE)
-
-    for match in pattern.finditer(output):
-        points.append(
-            TimingPoint(
-                label=match.group(1),
-                elapsed_ms=int(match.group(2)),
-            )
+    return [
+        TimingPoint(
+            label=match.group(1),
+            elapsed_ms=int(match.group(2)),
         )
-    return points
+        for match in pattern.finditer(output)
+    ]
 
 
 def _parse_ip_port(output: str) -> list[tuple[str, int]]:

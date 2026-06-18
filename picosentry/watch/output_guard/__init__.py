@@ -138,9 +138,7 @@ class OutputGuard:
 
         required = schema.get("required", [])
         if isinstance(data, dict) and required:
-            for field in required:
-                if field not in data:
-                    violations.append(f"out_fmt_missing_required_{field}")
+            violations.extend(f"out_fmt_missing_required_{field}" for field in required if field not in data)
 
         return violations
 

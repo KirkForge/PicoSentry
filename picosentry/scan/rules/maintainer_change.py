@@ -215,24 +215,24 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
 
 
     if author_names:
-        for author in author_names:
-            if len(author) <= 2:
-                findings.append(
-                    Finding(
-                        rule_id="L2-MAINT-001",
-                        severity=Severity.LOW,
-                        confidence=Confidence.MEDIUM,
-                        package=pkg_label,
-                        file=str(pkg_json),
-                        message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
-                        evidence=f"author = '{author}'",
-                        remediation=(
-                            "Very short author names may indicate a pseudonymous publisher. "
-                            "Verify the author's identity through npm or GitHub."
-                        ),
-                        references=[],
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L2-MAINT-001",
+                severity=Severity.LOW,
+                confidence=Confidence.MEDIUM,
+                package=pkg_label,
+                file=str(pkg_json),
+                message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
+                evidence=f"author = '{author}'",
+                remediation=(
+                    "Very short author names may indicate a pseudonymous publisher. "
+                    "Verify the author's identity through npm or GitHub."
+                ),
+                references=[],
+            )
+            for author in author_names
+            if len(author) <= 2
+        )
 
 
 def detect_maintainer_changes(target: Path) -> list[Finding]:

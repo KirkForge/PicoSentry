@@ -174,12 +174,10 @@ def _collect_maven_deps(target: Path) -> list[tuple[str, str, str]]:
     deps: list[tuple[str, str, str]] = []
     pom_data = parse_pom_xml(target)
     if pom_data:
-        for dep in pom_data.get("dependencies", []):
-            deps.append((dep[0], dep[1], dep[2]))
+        deps.extend((dep[0], dep[1], dep[2]) for dep in pom_data.get("dependencies", []))
     gradle_data = parse_gradle_build(target)
     if gradle_data:
-        for dep in gradle_data.get("dependencies", []):
-            deps.append((dep[0], dep[1], dep[2]))
+        deps.extend((dep[0], dep[1], dep[2]) for dep in gradle_data.get("dependencies", []))
     return deps
 
 

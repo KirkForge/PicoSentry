@@ -186,11 +186,11 @@ def get_pnpm_package(lockfile: PnpmLockfile, name: str, version: str | None = No
 
 
 def find_missing_integrity(lockfile: PnpmLockfile) -> list[tuple[str, str]]:
-    missing = []
-    for pkg in lockfile.packages.values():
-        if not pkg.integrity and not pkg.resolution:
-            missing.append((pkg.name, pkg.version))
-    return missing
+    return [
+        (pkg.name, pkg.version)
+        for pkg in lockfile.packages.values()
+        if not pkg.integrity and not pkg.resolution
+    ]
 
 
 def find_weak_integrity(lockfile: PnpmLockfile) -> list[tuple[str, str, str]]:

@@ -73,7 +73,7 @@ class DiscordNotifier(PluginInterface):
                 if key not in ("severity", "message") and len(str(value)) < 1000:
                     fields.append({"name": key, "value": str(value)[:1000], "inline": True})
 
-        payload = {
+        payload: dict[str, Any] = {
             "embeds": [{
                 "title": "🛡️ PicoShogun Alert",
                 "description": message[:2000],

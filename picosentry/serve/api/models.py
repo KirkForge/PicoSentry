@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 try:
     from pydantic import Extra  # type: ignore[attr-defined,unused-ignore]
 except ImportError:
-    Extra = None
+    Extra = None  # type: ignore[misc,assignment,no-redef,unused-ignore]
 
 
 class ProjectRunRequest(BaseModel):

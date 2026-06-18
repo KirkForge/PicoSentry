@@ -78,11 +78,11 @@ sigstore = [
 ]
 # gRPC transport (PicoDome daemon).  The generated protobuf stubs are
 # committed (scripts/regen_proto.sh) so this extra only needs the
-# runtime grpcio package, not grpcio-tools.  Pin to >=1.50 because
-# ``grpc.ServiceRpcHandlers`` (which our fallback used to call) was
-# removed in 1.50.
+# runtime grpcio package, not grpcio-tools.  Pin to >=1.81.1 because
+# the committed stubs check the runtime grpc version and raise at
+# import time if it is older than the grpcio-tools used to generate them.
 grpc = [
-    "grpcio>=1.50",
+    "grpcio>=1.81.1",
 ]
 # Everything
 all = [

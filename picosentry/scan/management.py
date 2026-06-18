@@ -47,10 +47,7 @@ class OrgConfig:
         config.advisory_url = os.environ.get(ORG_ADVISORY_URL_ENV, "")
 
 
-        search_paths = []
-        if root and root.is_dir():
-            for name in ORG_CONFIG_PATHS[:2]:
-                search_paths.append(root / name)
+        search_paths = [root / name for name in ORG_CONFIG_PATHS[:2]] if root and root.is_dir() else []
         search_paths.append(Path("/etc/picosentry/org.yml"))
 
         for path in search_paths:

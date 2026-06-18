@@ -178,12 +178,7 @@ class AdvisoryDB:
         if not advisories:
             return []
 
-        results: list[Advisory] = []
-        for adv in advisories:
-            if self._version_affected(pkg_version, adv):
-                results.append(adv)
-
-        return results
+        return [adv for adv in advisories if self._version_affected(pkg_version, adv)]
 
     def _version_affected(self, version: str, adv: Advisory) -> bool:
         v_tuple = self._parse_version(version)

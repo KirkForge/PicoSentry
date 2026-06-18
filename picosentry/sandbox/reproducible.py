@@ -111,14 +111,13 @@ def pin_dependencies(lockfile_path: str) -> dict:
         version_op = match.group("op")
 
 
-        hashes: list[dict[str, str]] = []
-        for hmatch in re.finditer(r"--hash=(?P<algo>sha\d+):(?P<hash_val>[a-f0-9]+)", line):
-            hashes.append(
-                {
-                    "algorithm": hmatch.group("algo"),
-                    "hash": hmatch.group("hash_val"),
-                }
-            )
+        hashes = [
+            {
+                "algorithm": hmatch.group("algo"),
+                "hash": hmatch.group("hash_val"),
+            }
+            for hmatch in re.finditer(r"--hash=(?P<algo>sha\d+):(?P<hash_val>[a-f0-9]+)", line)
+        ]
 
         packages.append(
             {
@@ -199,11 +198,11 @@ def verify_reproducible_build(wheel_path: str) -> dict:
         )
 
 
-        nondeterministic = []
-        for name in namelist:
-
-            if "__pycache__" in name and name.endswith(".pyc"):
-                nondeterministic.append(name)
+        nondeterministic = [
+            name
+            for name in namelist
+            if "__pycache__" in name and name.endswith(".pyc")
+        ]
 
 
         if nondeterministic:

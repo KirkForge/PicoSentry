@@ -55,7 +55,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             "type": "auth",
             "status": "ok",
             "user_id": user.get("user_id"),
-            "note": "connected; send {\"action\": \"subscribe\", \"channels\": [...] } to receive events",
+            "note": 'connected; send {"action": "subscribe", "channels": [...] } to receive events',
         }))
 
     try:

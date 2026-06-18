@@ -217,8 +217,8 @@ class TestSeccompTraceBackendEventShapes:
         # Code 0x7fff0000 = ALLOW, not LOG
         log_text = (
             "type=1326 audit(1700000000.123:45): "
-            "auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm=\"python3\" "
-            "exe=\"/usr/bin/python3\" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code=0x7fff0000"
+            'auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm="python3" '
+            'exe="/usr/bin/python3" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code=0x7fff0000'
         )
         events = backend._parse_seccomp_log(log_text, default_policy(), 0.0)
         assert events == []
@@ -228,8 +228,8 @@ class TestSeccompTraceBackendEventShapes:
         backend = SeccompTraceBackend()
         log_text = (
             "type=1326 audit(1700000000.123:45): "
-            "auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm=\"python3\" "
-            "exe=\"/usr/bin/python3\" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f "
+            'auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm="python3" '
+            'exe="/usr/bin/python3" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f '
             f"code={_LOG_ACTION_CODE}"
         )
         events = backend._parse_seccomp_log(log_text, default_policy(), 0.0)
@@ -245,17 +245,17 @@ class TestSeccompTraceBackendEventShapes:
         backend = SeccompTraceBackend()
         line_open = (
             "type=1326 audit(1700000000.123:45): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         line_read = (
             "type=1326 audit(1700000000.456:46): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=0 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         line_connect = (
             "type=1326 audit(1700000000.789:47): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=42 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         events = backend._parse_seccomp_log(

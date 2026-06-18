@@ -34,12 +34,6 @@ class WebhookSink(AuditSink):
         self._auth_token = auth_token
 
 
-    def stop(self) -> None:
-        return
-
-    def flush(self) -> None:
-        return
-
     def start(self) -> None:
         super().start()
 

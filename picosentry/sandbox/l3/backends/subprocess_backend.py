@@ -159,11 +159,11 @@ class SubprocessBackend(SandboxBackend):
         )
 
     def _parse_linux_trace(self, trace_output: str) -> list[dict]:
-        entries = []
-        for name, pattern in _LINUX_TRACE_PATTERNS.items():
-            for match in pattern.finditer(trace_output):
-                entries.append({"syscall": name, "groups": match.groups()})
-        return entries
+        return [
+            {"syscall": name, "groups": match.groups()}
+            for name, pattern in _LINUX_TRACE_PATTERNS.items()
+            for match in pattern.finditer(trace_output)
+        ]
 
     def _analyze_output(
         self,

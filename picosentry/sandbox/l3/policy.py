@@ -236,20 +236,18 @@ NAMED_POLICIES: dict[str, list[dict]] = {
 
 
 def _rules_from_list(rules_data: list) -> list[PolicyRule]:
-    rules = []
-    for r in rules_data:
-        rules.append(
-            PolicyRule(
-                rule_id=r["rule_id"],
-                target=RuleTarget(r["target"]),
-                action=SyscallAction(r["action"]),
-                paths=r.get("paths", []),
-                addresses=r.get("addresses", []),
-                syscalls=r.get("syscalls", []),
-                description=r.get("description", ""),
-            )
+    return [
+        PolicyRule(
+            rule_id=r["rule_id"],
+            target=RuleTarget(r["target"]),
+            action=SyscallAction(r["action"]),
+            paths=r.get("paths", []),
+            addresses=r.get("addresses", []),
+            syscalls=r.get("syscalls", []),
+            description=r.get("description", ""),
         )
-    return rules
+        for r in rules_data
+    ]
 
 
 def load_policy(
@@ -374,9 +372,11 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
     valid_targets = {t.value for t in RuleTarget}
-    for rule in policy.rules:
-        if rule.target.value not in valid_targets:
-            errors.append(f"Invalid target '{rule.target.value}' in rule {rule.rule_id}")
+    errors.extend(
+        f"Invalid target '{rule.target.value}' in rule {rule.rule_id}"
+        for rule in policy.rules
+        if rule.target.value not in valid_targets
+    )
 
 
     valid_actions = {a.value for a in SyscallAction}
@@ -397,19 +397,18 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
 def _policy_from_dict(data: dict) -> Policy:
-    rules = []
-    for r in data.get("rules", []):
-        rules.append(
-            PolicyRule(
-                rule_id=r["rule_id"],
-                target=RuleTarget(r["target"]),
-                action=SyscallAction(r["action"]),
-                paths=r.get("paths", []),
-                addresses=r.get("addresses", []),
-                syscalls=r.get("syscalls", []),
-                description=r.get("description", ""),
-            )
+    rules = [
+        PolicyRule(
+            rule_id=r["rule_id"],
+            target=RuleTarget(r["target"]),
+            action=SyscallAction(r["action"]),
+            paths=r.get("paths", []),
+            addresses=r.get("addresses", []),
+            syscalls=r.get("syscalls", []),
+            description=r.get("description", ""),
         )
+        for r in data.get("rules", [])
+    ]
     return Policy(
         name=data.get("name", "custom"),
         version=data.get("version", "1.0"),

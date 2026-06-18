@@ -12,6 +12,7 @@ Covers:
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 
@@ -173,10 +174,8 @@ class TestFileSinkFailure:
         sink = FileSink(output_dir=read_only_dir)
         # start() will fail to create the dir, but that's ok —
         # send() should handle the failure gracefully
-        try:
+        with contextlib.suppress(Exception):
             sink.send(_make_event())
-        except Exception:
-            pass  # The sink might raise on dir creation
 
         # Stats should show failure
         # (may or may not have failed depending on OS — just ensure no crash)

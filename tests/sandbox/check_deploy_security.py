@@ -359,7 +359,7 @@ def check_helm_templates(findings: list[Finding]) -> None:
 
         for i, line in enumerate(lines, 1):
             # Dev-bypass env vars enabled in templates
-            for var, severity, reason in _DEV_BYPASS_ENV_VARS:
+            for var, severity, _reason in _DEV_BYPASS_ENV_VARS:
                 if var not in line or "comment" in line.lower():
                     continue
                 if _env_var_enabled_in_line(var, line, lines, i):
@@ -443,7 +443,7 @@ def check_dockerfile(findings: list[Finding]) -> None:
 
     if user_lines:
         last_user_line = user_lines[-1][0]
-        for copy_i, copy_l in copy_lines:
+        for copy_i, _copy_l in copy_lines:
             if copy_i > last_user_line:
                 # COPY after last USER is fine (running as non-root)
                 pass

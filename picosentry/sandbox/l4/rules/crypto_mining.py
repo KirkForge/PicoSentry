@@ -87,17 +87,17 @@ def detect_crypto_mining(
 
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
-        for pattern in MINING_DNS_PATTERNS:
-            if pattern in hostname_lower:
-                findings.append(
-                    Finding(
-                        rule_id="L4-CRYPTO-003",
-                        severity=Severity.HIGH,
-                        message=f"DNS query to mining-related domain: {dns.hostname}",
-                        location=dns.hostname,
-                        evidence={"hostname": dns.hostname, "pattern": pattern},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-CRYPTO-003",
+                severity=Severity.HIGH,
+                message=f"DNS query to mining-related domain: {dns.hostname}",
+                location=dns.hostname,
+                evidence={"hostname": dns.hostname, "pattern": pattern},
+            )
+            for pattern in MINING_DNS_PATTERNS
+            if pattern in hostname_lower
+        )
 
 
     has_mining_port = any(call.port in MINING_PORTS for call in profile.network_calls)
@@ -127,32 +127,33 @@ def detect_crypto_mining(
     mining_config_dirs = (".xmrig", ".minerd", ".cgminer", ".bfgminer")
     for op in profile.fs_ops:
         path_lower = op.path.lower()
-        for pattern in mining_config_patterns:
-            if pattern in path_lower and any(d in path_lower for d in mining_config_dirs):
-                findings.append(
-                    Finding(
-                        rule_id="L4-CRYPTO-005",
-                        severity=Severity.HIGH,
-                        message=f"Mining configuration file access: {op.path}",
-                        location=op.path,
-                        evidence={"operation": op.operation, "path": op.path},
-                    )
+        if any(d in path_lower for d in mining_config_dirs):
+            findings.extend(
+                Finding(
+                    rule_id="L4-CRYPTO-005",
+                    severity=Severity.HIGH,
+                    message=f"Mining configuration file access: {op.path}",
+                    location=op.path,
+                    evidence={"operation": op.operation, "path": op.path},
                 )
+                for pattern in mining_config_patterns
+                if pattern in path_lower
+            )
 
 
     mining_arg_patterns = {"--url=stratum", "--pool", "--algo=cryptonight", "--coin", "--donate-level"}
     for spawn in profile.spawns:
         all_args_str = " ".join(spawn.args).lower()
-        for pattern in mining_arg_patterns:
-            if pattern in all_args_str:
-                findings.append(
-                    Finding(
-                        rule_id="L4-CRYPTO-006",
-                        severity=Severity.HIGH,
-                        message=f"Process spawned with mining arguments: {spawn.executable}",
-                        location=spawn.executable,
-                        evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L4-CRYPTO-006",
+                severity=Severity.HIGH,
+                message=f"Process spawned with mining arguments: {spawn.executable}",
+                location=spawn.executable,
+                evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
+            )
+            for pattern in mining_arg_patterns
+            if pattern in all_args_str
+        )
 
     return findings

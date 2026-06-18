@@ -140,11 +140,8 @@ def extract_metadata(path: Path) -> dict | None:
         return None
 
 
-    requires_dist: list[str] = []
     raw = msg.get_all("Requires-Dist", [])
-    for line in raw:
-        if line:
-            requires_dist.append(line)
+    requires_dist = [line for line in raw if line]
 
     return {
         "name": name,

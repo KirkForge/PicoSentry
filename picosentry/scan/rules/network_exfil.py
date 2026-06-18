@@ -283,20 +283,20 @@ def detect_network_exfiltration(target: Path) -> list[Finding]:
                         script_findings = _scan_text_for_exfil(
                             script_value, pkg_label, is_script=True
                         )
-                        for f in script_findings:
-                            findings.append(
-                                Finding(
-                                    rule_id=f.rule_id,
-                                    severity=f.severity,
-                                    confidence=f.confidence,
-                                    package=f.package,
-                                    file=str(root_pkg),
-                                    message=f.message,
-                                    evidence=f"scripts.{script_key}: {f.evidence}",
-                                    remediation=f.remediation,
-                                    references=f.references,
-                                )
+                        findings.extend(
+                            Finding(
+                                rule_id=f.rule_id,
+                                severity=f.severity,
+                                confidence=f.confidence,
+                                package=f.package,
+                                file=str(root_pkg),
+                                message=f.message,
+                                evidence=f"scripts.{script_key}: {f.evidence}",
+                                remediation=f.remediation,
+                                references=f.references,
                             )
+                            for f in script_findings
+                        )
 
             _scan_package_sources(target, pkg_label, findings)
 
@@ -315,20 +315,20 @@ def detect_network_exfiltration(target: Path) -> list[Finding]:
                     script_findings = _scan_text_for_exfil(
                         script_value, pkg_label, is_script=True
                     )
-                    for f in script_findings:
-                        findings.append(
-                            Finding(
-                                rule_id=f.rule_id,
-                                severity=f.severity,
-                                confidence=f.confidence,
-                                package=f.package,
-                                file=str(pkg_json),
-                                message=f.message,
-                                evidence=f"scripts.{script_key}: {f.evidence}",
-                                remediation=f.remediation,
-                                references=f.references,
-                            )
+                    findings.extend(
+                        Finding(
+                            rule_id=f.rule_id,
+                            severity=f.severity,
+                            confidence=f.confidence,
+                            package=f.package,
+                            file=str(pkg_json),
+                            message=f.message,
+                            evidence=f"scripts.{script_key}: {f.evidence}",
+                            remediation=f.remediation,
+                            references=f.references,
                         )
+                        for f in script_findings
+                    )
 
 
         pkg_dir = pkg_json.parent

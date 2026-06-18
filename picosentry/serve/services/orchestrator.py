@@ -199,7 +199,8 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 cmd,
                 capture_output=True,
                 text=True,
-                timeout=timeout
+                timeout=timeout,
+                check=False,
             )
 
             duration = time.time() - start_time

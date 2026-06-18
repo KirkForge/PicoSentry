@@ -174,7 +174,8 @@ class JobScheduler:
                     ["bash", "scripts/run_category.sh", category],
                     capture_output=True,
                     text=True,
-                    timeout=3600
+                    timeout=3600,
+                    check=False,
                 )
                 status = "completed" if result.returncode == 0 else "failed"
                 _output = result.stdout + result.stderr

@@ -48,6 +48,7 @@ def _check_minisign() -> bool:
                 ["minisign", "-V"],
                 capture_output=True,
                 timeout=5,
+                check=False,
             )
 
             _HAS_MINISIGN = result.returncode is not None
@@ -191,6 +192,7 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
 
         if result.returncode != 0:
@@ -208,6 +210,7 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
                 capture_output=True,
                 text=True,
                 timeout=5,
+                check=False,
             )
             signer = "minisign-key"
         except Exception:
@@ -310,6 +313,7 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
 
         if result.returncode == 0:

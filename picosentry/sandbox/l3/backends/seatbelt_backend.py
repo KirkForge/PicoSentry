@@ -49,6 +49,7 @@ class SeatbeltBackend(SandboxBackend):
                 ["sandbox-exec", "-h"],
                 capture_output=True,
                 timeout=2,
+                check=False,
             )
             return True
         except (FileNotFoundError, subprocess.TimeoutExpired):

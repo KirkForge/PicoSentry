@@ -157,6 +157,7 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
                     capture_output=True,
                     text=True,
                     timeout=5,
+                    check=False,
                 )
                 if result.returncode == 0:
                     info["cert_details"] = result.stdout.strip()

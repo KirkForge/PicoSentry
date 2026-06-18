@@ -55,9 +55,11 @@ class PodSecurityValidator:
 
 
         if self.deny_host_path:
-            for vol in spec.get("volumes", []):
-                if "hostPath" in vol:
-                    violations.append(f"hostPath volume '{vol.get('name', 'unknown')}' is not allowed")
+            violations.extend(
+                f"hostPath volume '{vol.get('name', 'unknown')}' is not allowed"
+                for vol in spec.get("volumes", [])
+                if "hostPath" in vol
+            )
 
 
         if self.require_non_root and not pod_security.get("runAsNonRoot", False):

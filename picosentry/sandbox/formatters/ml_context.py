@@ -38,8 +38,10 @@ def _l3_ml_context(result: SandboxResult, token_budget: int) -> str:
 
     if result.events:
         lines.append(f"events: {len(result.events)}")
-        for event in result.events:
-            lines.append(f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}")
+        lines.extend(
+            f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}"
+            for event in result.events
+        )
     else:
         lines.append("events: 0")
 
@@ -78,8 +80,10 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
 
     if result.drift_results:
         lines.append(f"\ndrift: {len(result.drift_results)}")
-        for d in result.drift_results:
-            lines.append(f"  baseline={d.baseline_name} score={d.score:.0%}")
+        lines.extend(
+            f"  baseline={d.baseline_name} score={d.score:.0%}"
+            for d in result.drift_results
+        )
 
     output = "\n".join(lines)
     return _truncate_to_budget(output, token_budget)

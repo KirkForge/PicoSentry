@@ -211,7 +211,7 @@ def parse_cargo_lock(target: Path) -> list[dict] | None:
     if in_package and current_pkg.get("name"):
         packages.append(current_pkg)
 
-    return packages if packages else None
+    return packages or None
 
 
 def get_cargo_dep_names(cargo_toml_data: dict) -> set[str]:

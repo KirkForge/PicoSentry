@@ -220,5 +220,5 @@ def test_no_dead_import_plugins_branch(reloaded_manager):
     # And the bundled dir should be the canonical
     # picosentry/serve/plugins/ in the installed package.
     bundled = pm.bundled_plugin_dir
-    assert bundled.endswith("serve/plugins") or bundled.endswith("serve" + os.sep + "plugins")
+    assert bundled.endswith(("serve/plugins", "serve" + os.sep + "plugins"))
     assert os.path.isdir(bundled)

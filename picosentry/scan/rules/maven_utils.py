@@ -325,7 +325,7 @@ def detect_private_maven_repository(target: Path) -> bool:
     gradle_data = parse_gradle_build(target)
     if gradle_data:
         for repo in gradle_data.get("repositories", []):
-            if repo and repo not in ("mavenLocal",) and not _is_public_repo_url(repo):
+            if repo and repo != "mavenLocal" and not _is_public_repo_url(repo):
                 return True
         if gradle_data.get("has_maven_publish"):
             return True

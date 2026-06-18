@@ -25,7 +25,7 @@ def parse_pom_xml_for_lock(path: Path) -> list[tuple[str, str, str]]:
     results: list[tuple[str, str, str]] = []
     for dep in pom_data.get("dependencies", []):
         artifact_id = dep[1]
-        version = dep[2] if dep[2] else ""
+        version = dep[2] or ""
         if artifact_id:
             results.append((artifact_id, version, "pom.xml"))
 
@@ -41,7 +41,7 @@ def parse_gradle_for_lock(path: Path) -> list[tuple[str, str, str]]:
     for dep in gradle_data.get("dependencies", []):
 
         artifact = dep[1]
-        version = dep[2] if dep[2] else ""
+        version = dep[2] or ""
         if artifact:
             results.append((artifact, version, "build.gradle"))
 

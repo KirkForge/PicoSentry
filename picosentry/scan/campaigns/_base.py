@@ -273,7 +273,7 @@ class CampaignPackage:
                             f"or replace with an alternative."
                         ),
                         references=self.references(),
-                        ecosystem=pkg_json.parent.parent.name if pkg_json.parent.parent.name in {"node_modules"} else "npm",
+                        ecosystem=pkg_json.parent.parent.name if pkg_json.parent.parent.name == "node_modules" else "npm",
                     )
                 )
         return findings

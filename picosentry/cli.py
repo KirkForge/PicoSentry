@@ -589,7 +589,7 @@ def _handle_sandbox(args: argparse.Namespace) -> None:
     if args.timeout:
         sandbox_argv.extend(["--timeout", str(args.timeout)])
 
-    sandbox_main(argv=sandbox_argv if sandbox_argv else None)
+    sandbox_main(argv=sandbox_argv or None)
 
 
 def _handle_sandbox_subcommand(args: argparse.Namespace) -> None:
@@ -652,7 +652,7 @@ def _handle_watch(args: argparse.Namespace) -> None:
     else:
         watch_argv.append("--help")
 
-    watch_main(argv=watch_argv if watch_argv else None)
+    watch_main(argv=watch_argv or None)
 
 
 def _handle_serve(args: argparse.Namespace) -> None:

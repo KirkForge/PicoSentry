@@ -65,7 +65,7 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
         if name_part:
             entries.append((
                 name_part,
-                version if version else "*",
+                version or "*",
                 {"extras": extras_list, "marker": marker, "specifier": specifier},
             ))
 
@@ -140,26 +140,3 @@ def parse_uv_lock(path: Path) -> list[LockEntry]:
     return entries
 
 
-def parse_pypi_lockfile(path: Path) -> list[LockEntry] | None:
-    if not path.is_file():
-        return None
-
-    name = path.name
-
-    if name in ("poetry.lock",):
-        return parse_poetry_lock(path)
-    if name in ("uv.lock",):
-        return parse_uv_lock(path)
-    if name in ("requirements.txt",) or name.endswith("-requirements.txt") or name == "Pipfile.lock":
-        return parse_requirements_txt(path)
-
-
-    for parser in (parse_poetry_lock, parse_uv_lock):
-        try:
-            result = parser(path)
-            if result:
-                return result
-        except Exception:
-            continue
-
-    return None

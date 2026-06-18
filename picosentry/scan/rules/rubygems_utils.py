@@ -100,7 +100,7 @@ def parse_gemfile(target: Path) -> dict | None:
         gem_match = _GEMFILE_GEM_RE.match(stripped)
         if gem_match:
             gem_name = gem_match.group(1)
-            version = gem_match.group(2) if gem_match.group(2) else ""
+            version = gem_match.group(2) or ""
 
 
             git_match = _GEMFILE_GIT_RE.match(stripped)
@@ -191,7 +191,7 @@ def parse_gemfile_lock(target: Path) -> list[dict] | None:
     if current_gem.get("name"):
         gems.append(current_gem)
 
-    return gems if gems else None
+    return gems or None
 
 
 def get_rubygems_dep_names(gemfile_data: dict) -> set[str]:

@@ -357,7 +357,7 @@ class TestMavenIntegration:
         (tmp_path / "package.json").write_text("{}")
         engine = create_default_engine()
         result = engine.scan(tmp_path)
-        npm_rule_ids = {rid for rid in engine.list_rules() if rid.startswith("L2-POST-") or rid.startswith("L2-OBFS-")}
+        npm_rule_ids = {rid for rid in engine.list_rules() if rid.startswith(("L2-POST-", "L2-OBFS-"))}
         assert len(npm_rule_ids) > 0
         # No Maven rules should run against npm project
         maven_findings = [f for f in result.findings if "L2-MAVEN" in f.rule_id]

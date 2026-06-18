@@ -212,7 +212,7 @@ class ScanCache:
         except ImportError:
             pass
 
-        return cast(dict[str, Any] | None, entry.get("result"))
+        return cast("dict[str, Any] | None", entry.get("result"))
 
     def put(self, lockfile_hash: str, corpus_hash: str, rule_version: str, result: dict) -> None:
         key = self._cache_key(lockfile_hash, corpus_hash, rule_version)

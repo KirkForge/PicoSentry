@@ -73,7 +73,7 @@ def detect_process_anomalies(
 
         best = find_best_baseline(profile, baselines)
         if best and best[1].spawn_drift:
-            spawn_extras = len(profile.spawns) - (best[0].expected_spawns if best[0].expected_spawns >= 0 else 0)
+            spawn_extras = len(profile.spawns) - (max(best[0].expected_spawns, 0))
             if spawn_extras > 3:
                 findings.append(
                     Finding(

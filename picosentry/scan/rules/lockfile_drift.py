@@ -60,14 +60,12 @@ def _load_lockfile_v2(content: str) -> dict[str, str]:
 
 def _load_pnpm_lockfile(content: str) -> dict[str, str]:
     lockfile = parse_pnpm_lockfile(content)
-    deps: dict[str, str] = {}
-
-
-    for importer_deps in lockfile.importers.values():
-        for name, version_info in importer_deps.items():
-            if isinstance(version_info, str):
-
-                deps[name] = version_info
+    deps: dict[str, str] = {
+        name: version_info
+        for importer_deps in lockfile.importers.values()
+        for name, version_info in importer_deps.items()
+        if isinstance(version_info, str)
+    }
 
 
     for pkg in lockfile.packages.values():

@@ -59,11 +59,7 @@ class Normalizer:
         return self.deobfuscate_markdown(result)
 
     def decode_and_rescan(self, text: str) -> list[str]:
-        decoded_texts: list[str] = []
-
-
-        for decoded in self.decode_base64(text):
-            decoded_texts.append(decoded)
+        decoded_texts = list(self.decode_base64(text))
 
 
         rot13_pattern = re.compile(

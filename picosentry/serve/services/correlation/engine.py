@@ -326,8 +326,7 @@ class CorrelationEngine:
             max_sev_weight = 0.0
             for event in events:
                 sev_weight = SEVERITY_WEIGHTS.get(event.severity.value, 0.0)
-                if sev_weight > max_sev_weight:
-                    max_sev_weight = sev_weight
+                max_sev_weight = max(max_sev_weight, sev_weight)
 
             total_weighted += max_sev_weight * phase_weight
             total_weight += phase_weight

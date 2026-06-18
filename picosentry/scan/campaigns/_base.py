@@ -159,8 +159,7 @@ class CampaignPackage:
             for sig in signatures:
                 if sig in content:
                     file_display = str(file_path)
-                    if file_display.startswith(target_prefix):
-                        file_display = file_display[len(target_prefix):]
+                    file_display = file_display.removeprefix(target_prefix)
                     findings.append(
                         Finding(
                             rule_id=self.rule_id,
@@ -204,8 +203,7 @@ class CampaignPackage:
                 continue
             if file_path.name in names:
                 file_display = str(file_path)
-                if file_display.startswith(target_prefix):
-                    file_display = file_display[len(target_prefix):]
+                file_display = file_display.removeprefix(target_prefix)
                 findings.append(
                     Finding(
                         rule_id=self.rule_id,

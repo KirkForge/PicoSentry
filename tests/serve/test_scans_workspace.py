@@ -108,7 +108,7 @@ def test_operator_inside_workspace_returns_200(
             self.target = target_str
             self.engine_version = "0.0.0-stub"
             self.findings: list = []
-            self.stats = type("S", (), {"to_dict": staticmethod(lambda: {})})()
+            self.stats = type("S", (), {"to_dict": staticmethod(dict)})()
 
     class _StubEngine:
         def scan(self, *args, **kwargs):

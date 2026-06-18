@@ -16,6 +16,7 @@ from picosentry.scan.models import Severity
 # ── Fixture helpers ────────────────────────────────────────────────────
 
 FIXTURES = Path(__file__).parent / "fixtures"
+CORPUS_DIR = FIXTURES.parent.parent / "picosentry" / "scan" / "corpus"
 
 
 def _gem_clean() -> Path:
@@ -96,7 +97,7 @@ class TestRubyGemsTyposquat:
 
     def test_detects_typosquat_in_malicious(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
-        findings = detect_rubygems_typosquat(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_typosquat(_gem_malicious(), CORPUS_DIR)
         typo_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-TYPO-001"]
         assert len(typo_findings) >= 1
         # "raisl" is edit distance 1 from "rails"
@@ -278,7 +279,7 @@ class TestRubyGemsIntegration:
 
     def test_findings_have_rubygems_ecosystem(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
-        findings = detect_rubygems_typosquat(_gem_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_rubygems_typosquat(_gem_malicious(), CORPUS_DIR)
         for f in findings:
             assert f.ecosystem == "rubygems"
 

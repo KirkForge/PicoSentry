@@ -309,7 +309,10 @@ class TestTyposquatUtils:
     def test_keyboard_distance(self):
         from picosentry.scan.rules.typosquat_utils import keyboard_distance
         kd = keyboard_distance("reqct", "react")
-        ed = __import__("picosentry.scan.rules.typosquat_utils", fromlist=["edit_distance"]).edit_distance("reqct", "react")
+        ed = (
+            __import__("picosentry.scan.rules.typosquat_utils", fromlist=["edit_distance"])
+            .edit_distance("reqct", "react")
+        )
         # Keyboard distance should be ≤ edit distance for adjacent keys
         assert kd < ed, f"keyboard_distance {kd} should be < edit_distance {ed} for adjacent-key typos"
 

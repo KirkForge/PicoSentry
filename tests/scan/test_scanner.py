@@ -905,7 +905,8 @@ class TestCorpusVersioning:
         engine_b = ScanEngine(corpus_dir=corpus_b)
 
         assert engine_a._corpus_version != engine_b._corpus_version, (
-            f"Different corpus content should produce different hashes: {engine_a._corpus_version} == {engine_b._corpus_version}"
+            "Different corpus content should produce different hashes: "
+            f"{engine_a._corpus_version} == {engine_b._corpus_version}"
         )
 
     def test_corpus_version_in_scan_result(self, tmp_path):

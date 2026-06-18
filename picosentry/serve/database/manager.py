@@ -445,7 +445,7 @@ class DatabaseManager:
         if isinstance(self._pool, SQLitePool):
             return dict(row)
         cols = [desc[0] for desc in cursor.description] if cursor.description else []
-        return dict(zip(cols, row))
+        return dict(zip(cols, row, strict=False))
 
     def execute(self, sql: str, params: tuple = ()) -> list:
         with self._lock:

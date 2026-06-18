@@ -72,9 +72,11 @@ class DeterministicGuard(_CoreGuard):
             violations.append(f"timestamp is non-deterministic: {result.timestamp}")
 
 
-        for event in result.events:
-            if _UUID_PATTERN.search(event.detail):
-                violations.append(f"event {event.rule_id} contains UUID in detail: {event.detail[:80]}")
+        violations.extend(
+            f"event {event.rule_id} contains UUID in detail: {event.detail[:80]}"
+            for event in result.events
+            if _UUID_PATTERN.search(event.detail)
+        )
 
 
         d = result.to_dict(deterministic=True)
@@ -87,14 +89,18 @@ class DeterministicGuard(_CoreGuard):
         violations: list[str] = []
 
 
-        for f in result.findings:
-            if f.finding_id and _UUID_PATTERN.fullmatch(f.finding_id):
-                violations.append(f"Finding {f.rule_id} has UUID finding_id: {f.finding_id}")
+        violations.extend(
+            f"Finding {f.rule_id} has UUID finding_id: {f.finding_id}"
+            for f in result.findings
+            if f.finding_id and _UUID_PATTERN.fullmatch(f.finding_id)
+        )
 
 
-        for f in result.findings:
-            if hasattr(f, "timestamp") and f.timestamp:
-                violations.append(f"Finding {f.rule_id} has timestamp: {f.timestamp}")
+        violations.extend(
+            f"Finding {f.rule_id} has timestamp: {f.timestamp}"
+            for f in result.findings
+            if hasattr(f, "timestamp") and f.timestamp
+        )
 
 
         def _sort_tuple(f):

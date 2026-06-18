@@ -229,8 +229,7 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.NETWORK_OUT:
             parts.append("network-outbound")
             if rule.addresses:
-                for addr in rule.addresses:
-                    parts.append(f'(remote ip "{_escape_seatbelt_path(addr)}")')
+                parts.extend(f'(remote ip "{_escape_seatbelt_path(addr)}")' for addr in rule.addresses)
 
         elif rule.target == RuleTarget.NETWORK_IN:
             parts.append("network-inbound")
@@ -265,8 +264,7 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.FILE_WRITE:
             parts.append("file-write*")
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(subpath "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(subpath "{_escape_seatbelt_path(path)}")' for path in rule.paths)
         elif rule.target == RuleTarget.FILE_READ:
             if rule.paths:
                 for path in rule.paths:

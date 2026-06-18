@@ -152,7 +152,11 @@ class TestCheckLicense:
             assert info.tier == LicenseTier.PERSONAL
 
     def test_env_key(self):
-        with patch.dict(os.environ, {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"}, clear=False):
+        with patch.dict(
+            os.environ,
+            {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"},
+            clear=False,
+        ):
             _reset_cache()
             info = check_license()
             assert info.tier == LicenseTier.COMMERCIAL
@@ -200,7 +204,11 @@ class TestRequireCommercial:
             assert result is False
 
     def test_commercial_returns_true(self):
-        with patch.dict(os.environ, {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"}, clear=False):
+        with patch.dict(
+            os.environ,
+            {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"},
+            clear=False,
+        ):
             _reset_cache()
             result = require_commercial()
             assert result is True

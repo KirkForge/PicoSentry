@@ -210,6 +210,9 @@ ignore = [
 "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
 "tests/scan/fixtures/validation/positive/pypi_obfs_marshal_load/_evil.py" = ["SIM115"]
 "tests/scan/fixtures/**/*.py" = ["Q000"]
+# Fixture lockfiles contain long cryptographic hashes that cannot be wrapped
+# without breaking the YAML format.
+"tests/scan/test_pnpm_lock_parser.py" = ["E501"]
 # Tests spawn subprocesses and explicitly assert on return codes/text output;
 # requiring an explicit `check` argument on every call is noise without value.
 "tests/**/*.py" = ["PLW1510"]

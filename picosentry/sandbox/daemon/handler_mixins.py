@@ -203,9 +203,8 @@ class PicoDomeAuthMixin:
         if _ENTERPRISE_MODE:
             if base_name not in self.ALLOWED_COMMANDS:
                 return f"Command '{base_name}' is not in enterprise allowlist"
-        else:
-            if base_name in self.DENIED_COMMANDS:
-                return f"Command '{base_name}' is denied by server policy"
+        elif base_name in self.DENIED_COMMANDS:
+            return f"Command '{base_name}' is denied by server policy"
         return None
 
     def _get_token(self: PicoDomeHandler) -> str | None:

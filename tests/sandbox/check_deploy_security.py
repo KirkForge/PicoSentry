@@ -590,16 +590,15 @@ def check_gitignore_secrets(findings: list[Finding]) -> None:
                         str(gitignore_path),
                     )
                 )
-        else:
-            if pattern not in content:
-                findings.append(
-                    Finding(
-                        "LOW",
-                        "gitignore-missing",
-                        f".gitignore missing '{pattern}' — {reason}",
-                        str(gitignore_path),
-                    )
+        elif pattern not in content:
+            findings.append(
+                Finding(
+                    "LOW",
+                    "gitignore-missing",
+                    f".gitignore missing '{pattern}' — {reason}",
+                    str(gitignore_path),
                 )
+            )
 
 
 # ── Main ───────────────────────────────────────────────────────────────

@@ -380,9 +380,11 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
     valid_actions = {a.value for a in SyscallAction}
-    for rule in policy.rules:
-        if rule.action.value not in valid_actions:
-            errors.append(f"Invalid action '{rule.action.value}' in rule {rule.rule_id}")
+    errors.extend(
+        f"Invalid action '{rule.action.value}' in rule {rule.rule_id}"
+        for rule in policy.rules
+        if rule.action.value not in valid_actions
+    )
 
 
     for rule in policy.rules:

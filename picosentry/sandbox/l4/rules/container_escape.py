@@ -84,17 +84,17 @@ def detect_container_escape(
         "100.100.100.200",  # Alibaba Cloud metadata
         "fd00:ec2::254",    # AWS IPv6 metadata
     }
-    for call in profile.network_calls:
-        if call.address in cloud_metadata_addresses:
-            findings.append(
-                Finding(
-                    rule_id="L4-CONTAINER-003",
-                    severity=Severity.CRITICAL,
-                    message=f"Cloud metadata endpoint access: {call.address}:{call.port}",
-                    location=f"{call.address}:{call.port}",
-                    evidence={"address": call.address, "port": call.port, "protocol": call.protocol},
-                )
-            )
+    findings.extend(
+        Finding(
+            rule_id="L4-CONTAINER-003",
+            severity=Severity.CRITICAL,
+            message=f"Cloud metadata endpoint access: {call.address}:{call.port}",
+            location=f"{call.address}:{call.port}",
+            evidence={"address": call.address, "port": call.port, "protocol": call.protocol},
+        )
+        for call in profile.network_calls
+        if call.address in cloud_metadata_addresses
+    )
 
 
     for op in profile.fs_ops:

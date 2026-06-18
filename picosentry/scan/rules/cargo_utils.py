@@ -14,25 +14,25 @@ _CARGO_DEP_SIMPLE_RE = re.compile(
 
 
 _CARGO_DEP_TABLE_RE = re.compile(
-    r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{'
+    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{"
 )
 
 _CARGO_DEP_PATH_RE = re.compile(
-    r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*path\s*='
+    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*path\s*="
 )
 
 _CARGO_DEP_GIT_RE = re.compile(
-    r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*git\s*='
+    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*git\s*="
 )
 
 
-_CARGO_LOCK_PACKAGE_START = re.compile(r'^\[\[package\]\]$')
+_CARGO_LOCK_PACKAGE_START = re.compile(r"^\[\[package\]\]$")
 _CARGO_LOCK_NAME_RE = re.compile(r'^name\s*=\s*"([^"]+)"')
 _CARGO_LOCK_VERSION_RE = re.compile(r'^version\s*=\s*"([^"]+)"')
 _CARGO_LOCK_SOURCE_RE = re.compile(r'^source\s*=\s*"([^"]+)"')
 
 
-_CARGO_SECTION_RE = re.compile(r'^\[([a-zA-Z_][a-zA-Z0-9_.-]*)\]$')
+_CARGO_SECTION_RE = re.compile(r"^\[([a-zA-Z_][a-zA-Z0-9_.-]*)\]$")
 
 
 def detect_cargo_project(target: Path) -> bool:
@@ -99,7 +99,7 @@ def parse_cargo_toml(target: Path) -> dict | None:
 
 
         if in_patch_target and "=" in stripped and ("path" in stripped or "git" in stripped):
-            pkg_match = re.match(r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{', stripped)
+            pkg_match = re.match(r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{", stripped)
             if pkg_match:
                 crate = pkg_match.group(1)
                 path_match = re.search(r'path\s*=\s*"([^"]+)"', stripped)
@@ -243,10 +243,10 @@ def detect_private_cargo_registry(target: Path) -> bool:
             try:
                 content = config_path.read_text(encoding="utf-8", errors="replace")
 
-                if re.search(r'^\s*\[registries\]', content, re.MULTILINE):
+                if re.search(r"^\s*\[registries\]", content, re.MULTILINE):
                     return True
 
-                if re.search(r'^\s*\[registries\.', content, re.MULTILINE):
+                if re.search(r"^\s*\[registries\.", content, re.MULTILINE):
                     return True
             except OSError:
                 pass

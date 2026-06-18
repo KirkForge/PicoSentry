@@ -79,12 +79,12 @@ class SubprocessBackend(SandboxBackend):
                     for k, v in os.environ.items()
                     if k
                     in (
-                        'PATH', 'HOME', 'USER', 'LANG', 'LC_ALL', 'LC_CTYPE',
-                        'TERM', 'TMPDIR', 'TEMP', 'TMP',
-                        'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
-                        'PYTHONPATH', 'PYTHONHOME', 'PYTHONIOENCODING',
-                        'NODE_PATH', 'NPM_CONFIG_PREFIX',
-                        'PICODOME_SANDBOX_BACKEND', 'PICODOME_ALLOW_DEGRADED',
+                        "PATH", "HOME", "USER", "LANG", "LC_ALL", "LC_CTYPE",
+                        "TERM", "TMPDIR", "TEMP", "TMP",
+                        "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
+                        "PYTHONPATH", "PYTHONHOME", "PYTHONIOENCODING",
+                        "NODE_PATH", "NPM_CONFIG_PREFIX",
+                        "PICODOME_SANDBOX_BACKEND", "PICODOME_ALLOW_DEGRADED",
                     )
                 }
 

@@ -485,7 +485,7 @@ class TestSpoofGuard:
                     address="1.2.3.4",
                 ),
             ],
-            stdout='writing to /etc/shadow',
+            stdout="writing to /etc/shadow",
             stderr="",
         )
         profile = profile_from_sandbox_result(result)

@@ -156,7 +156,7 @@ class IntelligenceEngine:
         after = text[match_end:min(len(text), match_end + 40)]
 
 
-        if '/' in before[-30:] or '\\' in before[-30:]:
+        if "/" in before[-30:] or "\\" in before[-30:]:
 
             stripped_before = before.rstrip()
             if not stripped_before.endswith(("://", ":\\", "http:", "https:", "ftp:")):
@@ -181,7 +181,7 @@ class IntelligenceEngine:
 
                 num_backslashes = 0
                 j = i - 1
-                while j >= 0 and before[j] == '\\':
+                while j >= 0 and before[j] == "\\":
                     num_backslashes += 1
                     j -= 1
                 if num_backslashes % 2 == 0:
@@ -191,14 +191,14 @@ class IntelligenceEngine:
             if ch == "'":
                 num_backslashes = 0
                 j = i - 1
-                while j >= 0 and before[j] == '\\':
+                while j >= 0 and before[j] == "\\":
                     num_backslashes += 1
                     j -= 1
                 if num_backslashes % 2 == 0:
                     return True  # Inside single-quoted string
                 i -= 1
                 continue
-            if ch == '\n':
+            if ch == "\n":
                 break  # Reached start of line — not inside quotes
             i -= 1
         return False

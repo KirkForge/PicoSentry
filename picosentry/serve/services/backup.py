@@ -97,7 +97,7 @@ class BackupManager:
 
                 for member in tar.getmembers():
                     member_path = os.path.normpath(member.name)
-                    if member_path.startswith('..') or os.path.isabs(member.name):
+                    if member_path.startswith("..") or os.path.isabs(member.name):
                         logger.warning("Skipping unsafe path in archive: %s", member.name)
                         continue
                     tar.extract(member, str(temp_dir))
@@ -107,7 +107,7 @@ class BackupManager:
             if meta_path.exists():
                 with open(meta_path) as f:
                     meta = json.load(f)
-                logger.info("Restoring backup from %s", meta['created'])
+                logger.info("Restoring backup from %s", meta["created"])
 
 
             db_backup = temp_dir / "database.sqlite3"

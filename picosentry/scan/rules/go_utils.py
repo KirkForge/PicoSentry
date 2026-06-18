@@ -9,16 +9,16 @@ logger = logging.getLogger("picosentry.go_utils")
 
 
 _GO_MOD_REQUIRE_RE = re.compile(
-    r'^require\s+(\S+)\s+(\S+)'  # column-0 single require line (real-world go.mod format)
+    r"^require\s+(\S+)\s+(\S+)"  # column-0 single require line (real-world go.mod format)
 )
 _GO_MOD_PAREN_REQUIRE_RE = re.compile(
-    r'\t(\S+)\s+(\S+)'  # tab-indented line within require () block
+    r"\t(\S+)\s+(\S+)"  # tab-indented line within require () block
 )
 _GO_MOD_REPLACE_RE = re.compile(
-    r'^\t?replace\s+(\S+)\s*=>\s*(\S+)'  # replace directive with => separator
+    r"^\t?replace\s+(\S+)\s*=>\s*(\S+)"  # replace directive with => separator
 )
 _GO_MOD_EXCLUDE_RE = re.compile(
-    r'\texclude\s+(\S+)\s+(\S+)'
+    r"\texclude\s+(\S+)\s+(\S+)"
 )
 
 

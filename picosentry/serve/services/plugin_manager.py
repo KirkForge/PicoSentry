@@ -274,7 +274,7 @@ class PluginManager:
 
                     issues = self._validate_manifest(meta)
                     if issues:
-                        logger.error("Plugin '%s' manifest validation failed: %s", entry, '; '.join(issues))
+                        logger.error("Plugin '%s' manifest validation failed: %s", entry, "; ".join(issues))
                         continue
 
                     if self._load_plugin(plugin_path, meta):

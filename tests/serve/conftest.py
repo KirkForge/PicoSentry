@@ -36,7 +36,7 @@ def _find_and_clear_rate_limiter(app):
             obj.ip_requests.clear()
             obj.org_requests.clear()
             return
-        if hasattr(obj, 'app'):
+        if hasattr(obj, "app"):
             obj = obj.app
         else:
             break

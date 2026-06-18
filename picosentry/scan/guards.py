@@ -69,10 +69,12 @@ class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with
             violations.append(f"scan_id mismatch: expected {expected_id}, got {result.scan_id}")
 
 
-        for f in result.findings:
-            for pattern in FORBIDDEN_IN_FINDINGS:
-                if pattern in f.evidence or pattern in f.message or pattern in f.remediation:
-                    violations.append(f"forbidden pattern '{pattern}' in finding {f.rule_id} {f.package}")
+        violations.extend(
+            f"forbidden pattern '{pattern}' in finding {f.rule_id} {f.package}"
+            for f in result.findings
+            for pattern in FORBIDDEN_IN_FINDINGS
+            if pattern in f.evidence or pattern in f.message or pattern in f.remediation
+        )
 
 
         for f in result.findings:

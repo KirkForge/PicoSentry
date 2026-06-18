@@ -42,8 +42,10 @@ def format_github(result: ScanResult, sarif_path: str = "sarif.json") -> str:
         lines.append("|------|---------|------|----------|---------|")
 
         shown = result.findings[:50]
-        for f in shown:
-            lines.append(f"| {f.rule_id} | `{f.package}` | `{f.file}` | {f.severity.value} | {f.message} |")
+        lines.extend(
+            f"| {f.rule_id} | `{f.package}` | `{f.file}` | {f.severity.value} | {f.message} |"
+            for f in shown
+        )
 
         remaining = len(result.findings) - 50
         if remaining > 0:

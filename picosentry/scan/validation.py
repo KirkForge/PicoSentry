@@ -193,11 +193,11 @@ class ValidationReport:
         lines.append(
             f"  {'rule_id':<28} {'TP':>4} {'FP':>4} {'FN':>4} {'precision':>10} {'recall':>8}"
         )
-        for m in sorted(self.rule_metrics, key=lambda r: r.rule_id):
-            lines.append(
-                f"  {m.rule_id:<28} {m.true_positives:>4} {m.false_positives:>4} "
-                f"{m.false_negatives:>4} {m.precision:>10.2%} {m.recall:>8.2%}"
-            )
+        lines.extend(
+            f"  {m.rule_id:<28} {m.true_positives:>4} {m.false_positives:>4} "
+            f"{m.false_negatives:>4} {m.precision:>10.2%} {m.recall:>8.2%}"
+            for m in sorted(self.rule_metrics, key=lambda r: r.rule_id)
+        )
         lines.append("")
         lines.append("Per-fixture outcome:")
         for name, outcome, details in self.fixture_results:

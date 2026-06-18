@@ -435,19 +435,18 @@ class FleetManager:
         }
 
     def compliance_report(self) -> dict[str, Any]:
-        targets_report = []
-        for target in self._targets.values():
-            targets_report.append(
-                {
-                    "id": target.id,
-                    "name": target.name,
-                    "stage": target.stage,
-                    "compliant": target.compliant,
-                    "policy_digest": target.policy_digest[:16] if target.policy_digest else "none",
-                    "last_scan_at": target.last_scan_at,
-                    "last_scan_verdict": target.last_scan_verdict,
-                }
-            )
+        targets_report = [
+            {
+                "id": target.id,
+                "name": target.name,
+                "stage": target.stage,
+                "compliant": target.compliant,
+                "policy_digest": target.policy_digest[:16] if target.policy_digest else "none",
+                "last_scan_at": target.last_scan_at,
+                "last_scan_verdict": target.last_scan_verdict,
+            }
+            for target in self._targets.values()
+        ]
 
         health = self.fleet_health()
         return {

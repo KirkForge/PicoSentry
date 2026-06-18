@@ -291,9 +291,11 @@ class TestBackendDetection:
         """On non-Linux/macOS without degraded, auto-detect should raise."""
         from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
 
-        with patch("picosentry.sandbox.l3.engine.platform.system", return_value="FreeBSD"):
-            with pytest.raises(BackendUnavailableError, match="No enforcement backend"):
-                _detect_backend(allow_degraded=False)
+        with (
+            patch("picosentry.sandbox.l3.engine.platform.system", return_value="FreeBSD"),
+            pytest.raises(BackendUnavailableError, match="No enforcement backend"),
+        ):
+            _detect_backend(allow_degraded=False)
 
     def test_allow_degraded_env_var(self):
         import os

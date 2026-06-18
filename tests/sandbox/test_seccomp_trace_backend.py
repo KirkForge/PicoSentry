@@ -435,26 +435,36 @@ class TestSeccompTraceBackendDispatch:
 
     def test_auto_detect_does_not_pick_seccomp_trace(self) -> None:
         """Auto-detect never returns seccomp-trace — it's explicit-only in v2.0.8."""
-        with patch.object(SeccompTraceBackend, "is_available", return_value=True):
-            with patch("picosentry.sandbox.l3.backends.seccomp_backend.SeccompBackend.is_available", return_value=False):
-                with patch("picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.is_available", return_value=True):
-                    with patch(
-                        "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.run",
-                        return_value=MagicMock(),
-                    ):
-                        backend = _detect_backend(allow_degraded=True)
-                        assert backend.name != "seccomp-trace"
+        with (
+            patch.object(SeccompTraceBackend, "is_available", return_value=True),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.SeccompBackend.is_available",
+                return_value=False,
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.is_available",
+                return_value=True,
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.run",
+                return_value=MagicMock(),
+            ),
+        ):
+            backend = _detect_backend(allow_degraded=True)
+            assert backend.name != "seccomp-trace"
 
     def test_get_backend_reads_env_var(self) -> None:
         """PICODOME_SANDBOX_BACKEND=seccomp-trace routes to SeccompTraceBackend."""
-        with patch.object(SeccompTraceBackend, "is_available", return_value=True):
-            with patch.dict(os.environ, {"PICODOME_SANDBOX_BACKEND": "seccomp-trace"}):
+        with (
+            patch.object(SeccompTraceBackend, "is_available", return_value=True),
+            patch.dict(os.environ, {"PICODOME_SANDBOX_BACKEND": "seccomp-trace"}),
+        ):
+            reset_backend()
+            try:
+                backend = get_backend()
+                assert backend.name == "seccomp-trace"
+            finally:
                 reset_backend()
-                try:
-                    backend = get_backend()
-                    assert backend.name == "seccomp-trace"
-                finally:
-                    reset_backend()
 
 
 # ─── TestSeccompTraceBackendProfilerRoundtrip ──────────────────────────

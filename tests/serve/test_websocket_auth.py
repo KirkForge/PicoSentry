@@ -86,9 +86,11 @@ def test_invalid_token_query_string_closes_with_4001() -> None:
     from starlette.websockets import WebSocketDisconnect
 
     client = TestClient(app)
-    with client.websocket_connect("/ws?token=this-is-not-a-valid-jwt") as ws:
-        with pytest.raises(WebSocketDisconnect) as excinfo:
-            ws.receive_text()
+    with (
+        client.websocket_connect("/ws?token=this-is-not-a-valid-jwt") as ws,
+        pytest.raises(WebSocketDisconnect) as excinfo,
+    ):
+        ws.receive_text()
     assert excinfo.value.code == 4001
 
 

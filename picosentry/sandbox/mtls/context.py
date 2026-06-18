@@ -201,7 +201,7 @@ def _create_dev_ssl_context() -> ssl.SSLContext:
             ],
             check=True,
             capture_output=True,
-            timeout=10,
+            timeout=30,
         )
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.exception("Failed to generate dev TLS cert: %s", e)

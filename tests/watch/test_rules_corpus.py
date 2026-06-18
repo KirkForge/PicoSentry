@@ -88,9 +88,7 @@ class TestRulesCorpus:
                 if data is None:
                     continue
                 rule_dicts = data if isinstance(data, list) else [data]
-                for rd in rule_dicts:
-                    if isinstance(rd, dict):
-                        all_ids.append(rd["id"])
+                all_ids.extend(rd["id"] for rd in rule_dicts if isinstance(rd, dict))
         assert len(all_ids) == len(set(all_ids)), f"Duplicate rule IDs: {[x for x in all_ids if all_ids.count(x) > 1]}"
 
     def test_corpus_hash_reproducible(self) -> None:

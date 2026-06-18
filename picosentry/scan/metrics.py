@@ -120,8 +120,10 @@ class MetricsSnapshot:
             safe_name = name.replace(".", "_").replace("-", "_")
             lines.append(f"# HELP picosentry_{safe_name} Histogram for {name}")
             lines.append(f"# TYPE picosentry_{safe_name} summary")
-            for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg"):
-                lines.append(f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}')
+            lines.extend(
+                f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}'
+                for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg")
+            )
 
         return "\n".join(lines) + "\n"
 

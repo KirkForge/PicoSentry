@@ -65,8 +65,7 @@ class TestTokenBucketLimiter:
         results = []
 
         def worker():
-            for _ in range(20):
-                results.append(limiter.allow("shared-actor"))
+            results.extend(limiter.allow("shared-actor") for _ in range(20))
 
         threads = [threading.Thread(target=worker) for _ in range(5)]
         for t in threads:

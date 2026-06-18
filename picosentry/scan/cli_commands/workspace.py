@@ -110,8 +110,7 @@ def cmd(args: argparse.Namespace) -> int:
         if wr.errors:
             lines.append("")
             lines.append("Errors:")
-            for err in wr.errors:
-                lines.append(f"  * {err}")
+            lines.extend(f"  * {err}" for err in wr.errors)
         output = "\n".join(lines)
 
     if args.output:

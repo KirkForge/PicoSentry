@@ -49,11 +49,13 @@ class AuditSink(ABC):
     def start(self) -> None:
         self._stats["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-    def stop(self) -> None:  # noqa: B027
-        pass
+    @abstractmethod
+    def stop(self) -> None:
+        """Release any resources held by this sink."""
 
-    def flush(self) -> None:  # noqa: B027
-        pass
+    @abstractmethod
+    def flush(self) -> None:
+        """Flush any buffered events."""
 
 
     @abstractmethod
@@ -98,6 +100,12 @@ class AuditSink(ABC):
 
 
 class NullSink(AuditSink):
+
+    def stop(self) -> None:
+        return
+
+    def flush(self) -> None:
+        return
 
     def send(self, event: AuditEvent) -> None:
         logger.debug("NullSink: discarding event %s (%s)", event.event_id[:8], event.event_type.value)

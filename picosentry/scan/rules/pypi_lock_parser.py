@@ -22,8 +22,8 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
     except OSError:
         return entries
 
-    for line in text.splitlines():
-        line = line.strip()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith(("#", "-")):
             continue
 
@@ -43,10 +43,9 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
         extras_list: list[str] = []
         version = ""
         specifier = ""
-        raw_line = line
 
         for sep in ("===", ">=", "<=", "!=", "~=", "==", ">", "<"):
-            if sep in raw_line:
+            if sep in line:
                 name_part, version = raw_line.split(sep, 1)
                 name_part = name_part.strip()
                 version = version.strip()

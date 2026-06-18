@@ -123,8 +123,8 @@ def load_baseline(path: Path) -> set:
 
 
     fingerprints = set()
-    for line in text.splitlines():
-        line = line.strip()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split(":", 3)

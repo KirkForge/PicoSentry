@@ -124,8 +124,8 @@ def parse_go_sum(target: Path) -> list[tuple[str, str, str]]:
         return []
 
     entries: list[tuple[str, str, str]] = []
-    for line in lines:
-        line = line.strip()
+    for raw_line in lines:
+        line = raw_line.strip()
         if not line:
             continue
 
@@ -166,8 +166,8 @@ def detect_goproxy_private(target: Path) -> bool:
     if go_env.is_file():
         try:
             content = go_env.read_text(encoding="utf-8", errors="replace")
-            for line in content.splitlines():
-                line = line.strip()
+            for raw_line in content.splitlines():
+                line = raw_line.strip()
                 if line.startswith("GOPROXY=") and "proxy.golang.org" not in line and "direct" not in line:
                     return True
                 if line.startswith(("GONOSUMDB=", "GONOSUMCHECK=")):

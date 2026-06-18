@@ -130,8 +130,8 @@ class LogManager:
                 continue
             try:
                 with open(log_file) as f:
-                    for line in f:
-                        line = line.strip()
+                    for raw_line in f:
+                        line = raw_line.strip()
                         if not line:
                             continue
                         if level_pattern and not level_pattern.search(line):

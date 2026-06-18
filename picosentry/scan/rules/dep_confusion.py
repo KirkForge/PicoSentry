@@ -548,8 +548,8 @@ def _get_npm_internal_scopes() -> frozenset[str]:
     scopes = set(_NPM_INTERNAL_SCOPES)
     env = os.environ.get("PICOSENTRY_INTERNAL_SCOPES", "")
     if env:
-        for s in env.split(","):
-            s = s.strip()
+        for raw_scope in env.split(","):
+            s = raw_scope.strip()
             if s and s.startswith("@") and s.endswith("/"):
                 scopes.add(s)
     return frozenset(scopes)

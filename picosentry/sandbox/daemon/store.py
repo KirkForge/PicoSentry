@@ -68,8 +68,8 @@ class PersistentScanJobStore:
         jobs: dict[str, dict[str, Any]] = {}
         try:
             with open(self._store_file, encoding="utf-8") as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
+                for line_num, raw_line in enumerate(f, 1):
+                    line = raw_line.strip()
                     if not line:
                         continue
                     try:
@@ -102,8 +102,8 @@ class PersistentScanJobStore:
         jobs: dict[str, dict[str, Any]] = {}
         try:
             with open(self._store_file, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
+                for raw_line in f:
+                    line = raw_line.strip()
                     if not line:
                         continue
                     try:

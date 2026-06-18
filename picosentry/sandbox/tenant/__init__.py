@@ -150,8 +150,8 @@ def load_tenants_from_env() -> TenantRegistry:
 
     tenants_str = os.environ.get("PICODOME_TENANTS", "")
     if tenants_str:
-        for entry in tenants_str.split(";"):
-            entry = entry.strip()
+        for raw_entry in tenants_str.split(";"):
+            entry = raw_entry.strip()
             if not entry:
                 continue
             parts = entry.split(":", 1)
@@ -167,8 +167,8 @@ def load_tenants_from_env() -> TenantRegistry:
 
     token_map_str = os.environ.get("PICODOME_TENANT_TOKEN_MAP", "")
     if token_map_str:
-        for entry in token_map_str.split(","):
-            entry = entry.strip()
+        for raw_entry in token_map_str.split(","):
+            entry = raw_entry.strip()
             if not entry:
                 continue
             parts = entry.split(":", 1)

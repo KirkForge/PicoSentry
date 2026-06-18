@@ -98,8 +98,8 @@ class APIVersionNegotiator:
 
     def _extract_from_accept(self, accept: str) -> str | None:
         if "vnd.picodome" in accept:
-            for part in accept.split(","):
-                part = part.strip()
+            for raw_part in accept.split(","):
+                part = raw_part.strip()
                 if "vnd.picodome." in part:
                     start = part.index("vnd.picodome.") + len("vnd.picodome.")
                     end = part.index("+", start) if "+" in part[start:] else len(part)

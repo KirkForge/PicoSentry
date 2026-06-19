@@ -281,20 +281,6 @@ class SeccompTraceBackend(SandboxBackend):
     ) -> tuple[bytes, bytes, int, str]:
         return process_manager.wait_with_timeout(pid, out_fd, err_fd, timeout, log_path)
 
-    def _setup_lib(self, lib: ctypes.CDLL) -> None:
-        filter_builder.setup(lib)
-
-    def _resolve(self, lib: ctypes.CDLL, name: str) -> int:
-        return filter_builder.resolve(lib, name, self._syscall_cache)
-
-    def _target_to_syscalls(self, target) -> set[str]:
-        from picosentry.sandbox.l3.backends._seccomp_common import target_to_syscalls
-
-        return target_to_syscalls(target)
-
-    def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
-        return event_parser.compute_verdict(events, exit_code)
-
     def _fallback_run(
         self,
         command: list[str],

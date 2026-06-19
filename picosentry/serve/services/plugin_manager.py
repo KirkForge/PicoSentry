@@ -1,5 +1,5 @@
 import hashlib
-import importlib
+import importlib.util
 import inspect
 import json
 import logging
@@ -10,14 +10,7 @@ from dataclasses import dataclass
 from typing import Any
 
 
-HAS_NACL = False
-try:
-    import nacl.exceptions
-    import nacl.signing  # noqa: F401
-
-    HAS_NACL = True
-except ImportError:
-    pass
+HAS_NACL = importlib.util.find_spec("nacl") is not None
 
 
 logger = logging.getLogger("picoshogun.Plugins")

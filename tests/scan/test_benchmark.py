@@ -20,7 +20,6 @@ They validate that enterprise-grade performance targets are met.
 from __future__ import annotations
 
 import json
-import os
 import tempfile
 import time
 from pathlib import Path
@@ -238,8 +237,8 @@ def test_bench_determinism_verify(engine, small_project):
         assert exit_code == 0, f"Determinism failed: {output}"
         print(f"  determinism: ✓ identical ({len(result1.findings)} findings)")
     finally:
-        os.unlink(tmp1)
-        os.unlink(tmp2)
+        Path(tmp1).unlink()
+        Path(tmp2).unlink()
 
 
 # ── Report ───────────────────────────────────────────────

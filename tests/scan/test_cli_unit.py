@@ -9,6 +9,7 @@ and checks return codes / stdout / stderr.
 import json
 import os
 import tempfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from picosentry.scan.cli import (
@@ -674,7 +675,7 @@ class TestCmdPolicy:
 
     def test_policy_init(self, tmp_path, capsys):
         """Policy init should create .picosentry-org.yml."""
-        old_cwd = os.getcwd()
+        old_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
             org_path = tmp_path / ".picosentry-org.yml"
@@ -689,7 +690,7 @@ class TestCmdPolicy:
 
     def test_policy_init_already_exists(self, tmp_path, capsys):
         """Policy init on existing file should return 1."""
-        old_cwd = os.getcwd()
+        old_cwd = Path.cwd()
         os.chdir(tmp_path)
         try:
             org_path = tmp_path / ".picosentry-org.yml"

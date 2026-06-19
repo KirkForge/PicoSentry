@@ -215,7 +215,7 @@ class PicoDomeDaemon:
 
     def install_signal_handlers(self) -> None:
 
-        def _handle_shutdown(signum: int, frame: Any) -> None:
+        def _handle_shutdown(signum: int, _frame: Any) -> None:
             sig_name = signal.Signals(signum).name
             logger.info("Received %s, shutting down gracefully...", sig_name)
             self.stop()
@@ -226,7 +226,7 @@ class PicoDomeDaemon:
 
         if hasattr(signal, "SIGHUP"):
 
-            def _handle_hup(signum: int, frame: Any) -> None:
+            def _handle_hup(signum: int, _frame: Any) -> None:
                 logger.info("Received SIGHUP — reloading configuration")
                 try:
                     from picosentry.sandbox.mtls import reload_ssl_context

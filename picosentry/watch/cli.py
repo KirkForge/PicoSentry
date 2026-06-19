@@ -129,7 +129,7 @@ def _serve(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     run_server(config=config, host=args.host, port=args.port)
 
 
-def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
+def _rules(_args: argparse.Namespace, config: PicoWatchConfig) -> None:
     guard = PromptGuard(config=config)
     rules_list = [
         {"id": r.id, "category": r.category, "weight": r.weight, "description": r.description} for r in guard.rules
@@ -137,7 +137,7 @@ def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     print(json.dumps(rules_list, indent=2))
 
 
-def _run_picoshogun_plugin(config: PicoWatchConfig) -> None:
+def _run_picoshogun_plugin() -> None:
     from picosentry.watch.picoshogun import PicoWatchPlugin
 
     plugin = PicoWatchPlugin()
@@ -193,7 +193,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     if args.picoshogun_plugin:
-        _run_picoshogun_plugin(config)
+        _run_picoshogun_plugin()
     elif args.command == "scan-prompt":
         _scan_prompt(args, config)
     elif args.command == "validate-output":

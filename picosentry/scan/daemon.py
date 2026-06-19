@@ -651,7 +651,7 @@ def run_daemon(
     server_name = f"{host}:{port}"
 
 
-    def shutdown(signum: int, frame) -> None:
+    def shutdown(signum: int, _frame) -> None:
         logger.info("Received signal %d, shutting down daemon...", signum)
         audit("daemon.stop", target=f"{host}:{port}", metadata={"signal": signum})
         server.shutdown()

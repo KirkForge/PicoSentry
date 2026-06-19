@@ -333,7 +333,7 @@ def main() -> None:
 
     import uvicorn
 
-    def _graceful_shutdown(signum, frame):
+    def _graceful_shutdown(signum, _frame):
         sig_name = signal.strsignal(signum) or str(signum)
         logger.info("Received %s — initiating graceful shutdown", sig_name)
         anomaly_detector.stop()

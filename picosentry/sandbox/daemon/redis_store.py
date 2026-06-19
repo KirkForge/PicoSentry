@@ -68,17 +68,6 @@ class RedisScanJobStore:
             self._get_client()
         return self._available
 
-    def _check_available(self) -> bool:
-        if self._client is None:
-            return False
-        try:
-            self._client.ping()
-        except Exception:
-            self._available = False
-            return False
-        self._available = True
-        return True
-
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
         client = self._get_client()
         if not self._available:

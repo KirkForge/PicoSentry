@@ -187,7 +187,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RSE", "LOG"]
 ignore = [
     "N806", "N818", "N802", "N812",
     "A002",

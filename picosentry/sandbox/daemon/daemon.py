@@ -22,6 +22,7 @@ class PicoDomeDaemon:
         metrics_port: int | None = None,
         job_store_dir: str | None = None,
         store_backend: str | None = None,
+        cluster_config: dict[str, Any] | None = None,
     ) -> None:
         self._host = host or os.environ.get("PICODOME_DAEMON_HOST", "127.0.0.1")
         self._port = port or int(os.environ.get("PICODOME_DAEMON_PORT", "8443"))
@@ -32,6 +33,8 @@ class PicoDomeDaemon:
         self._metrics_server: HTTPServer | None = None
         self._job_store_dir = job_store_dir or os.environ.get("PICODOME_JOB_STORE_DIR")
         self._store_backend = store_backend or os.environ.get("PICODOME_STORE_BACKEND", "jsonl")
+        self._cluster_config = cluster_config or {}
+        self._cluster_manager: Any | None = None
 
         backend = self._store_backend.lower()
         if backend == "sqlite":
@@ -121,6 +124,8 @@ class PicoDomeDaemon:
     def start(self, background: bool = False) -> None:
         from picosentry.sandbox.mtls import create_ssl_context
 
+        self._start_cluster_manager()
+
         server = HTTPServer((self._host, self._port), PicoDomeHandler)
         ssl_ctx = create_ssl_context()
         if ssl_ctx:
@@ -181,12 +186,65 @@ class PicoDomeDaemon:
             except KeyboardInterrupt:
                 self.stop()
 
+    def _start_cluster_manager(self) -> None:
+        """Start the cluster manager if cluster mode is configured."""
+        token = self._cluster_config.get("cluster_token") or os.environ.get("PICODOME_CLUSTER_TOKEN", "")
+        if not token:
+            return
+
+        from picosentry.sandbox.cluster.backends import MemoryStateBackend, SQLiteStateBackend
+        from picosentry.sandbox.cluster.manager import setup_cluster_manager
+        from picosentry.sandbox.cluster.models import DEFAULT_HEARTBEAT_INTERVAL, DEFAULT_HEARTBEAT_TIMEOUT
+
+        backend_name = self._cluster_config.get("backend", os.environ.get("PICODOME_CLUSTER_BACKEND", "memory"))
+        backend = SQLiteStateBackend() if backend_name == "sqlite" else MemoryStateBackend()
+
+        cluster_address = self._cluster_config.get("address", os.environ.get("PICODOME_CLUSTER_ADDRESS", self._host))
+        cluster_port = self._cluster_config.get("port")
+        if cluster_port is None:
+            cluster_port = int(os.environ.get("PICODOME_CLUSTER_PORT", str(self._port)))
+
+        heartbeat_interval = self._cluster_config.get(
+            "heartbeat_interval",
+            int(os.environ.get("PICODOME_CLUSTER_HEARTBEAT_INTERVAL", str(DEFAULT_HEARTBEAT_INTERVAL))),
+        )
+        heartbeat_timeout = self._cluster_config.get(
+            "heartbeat_timeout",
+            int(os.environ.get("PICODOME_CLUSTER_HEARTBEAT_TIMEOUT", str(DEFAULT_HEARTBEAT_TIMEOUT))),
+        )
+
+        self._cluster_manager = setup_cluster_manager(
+            address=cluster_address,
+            port=cluster_port,
+            backend=backend,
+            heartbeat_interval=heartbeat_interval,
+            heartbeat_timeout=heartbeat_timeout,
+            cluster_token=token,
+            tls_cert_path=self._cluster_config.get("tls_cert_path", os.environ.get("PICODOME_CLUSTER_TLS_CERT", "")),
+            tls_key_path=self._cluster_config.get("tls_key_path", os.environ.get("PICODOME_CLUSTER_TLS_KEY", "")),
+            tls_ca_path=self._cluster_config.get("tls_ca_path", os.environ.get("PICODOME_CLUSTER_TLS_CA", "")),
+        )
+        self._cluster_manager.start()
+        logger.info(
+            "Cluster manager started on %s:%d (backend=%s)",
+            cluster_address,
+            cluster_port,
+            backend_name,
+        )
+
     def stop(self) -> None:
         if self._server:
             self._server.shutdown()
 
         if self._metrics_server:
             self._metrics_server.shutdown()
+
+        if self._cluster_manager is not None:
+            try:
+                self._cluster_manager.stop()
+            except Exception as exc:
+                logger.warning("Failed to stop cluster manager: %s", exc)
+            self._cluster_manager = None
 
         for sink in self._sinks:
             try:

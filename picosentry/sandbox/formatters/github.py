@@ -115,7 +115,7 @@ def _append_github_summary(summary: str) -> None:
     gh_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_summary:
         try:
-            with open(gh_summary, "a", encoding="utf-8") as f:
+            with Path(gh_summary).open("a", encoding="utf-8") as f:
                 f.write(summary + "\n")
         except OSError:
             pass  # Non-fatal — summary still goes to stdout

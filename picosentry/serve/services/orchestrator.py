@@ -83,7 +83,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
     def _load_registry(self):
         if REGISTRY_PATH.exists():
-            with open(REGISTRY_PATH) as f:
+            with REGISTRY_PATH.open() as f:
                 data = json.load(f)
                 for pid, pdict in data.items():
                     self.registry[pid] = ProjectMeta(**pdict)

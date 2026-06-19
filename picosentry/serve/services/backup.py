@@ -40,7 +40,7 @@ class BackupManager:
                 "include_logs": include_logs,
             }
 
-            with open(temp_dir / "metadata.json", "w") as f:
+            with (temp_dir / "metadata.json").open("w") as f:
                 json.dump(meta, f, indent=2)
 
             if include_logs:
@@ -91,7 +91,7 @@ class BackupManager:
 
             meta_path = temp_dir / "metadata.json"
             if meta_path.exists():
-                with open(meta_path) as f:
+                with meta_path.open() as f:
                     meta = json.load(f)
                 logger.info("Restoring backup from %s", meta["created"])
 

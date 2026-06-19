@@ -103,7 +103,7 @@ class AnomalyDetector:
     def _load_rules(self):
         if CONFIG_PATH.exists():
             try:
-                with open(CONFIG_PATH) as f:
+                with CONFIG_PATH.open() as f:
                     rule_dicts = json.load(f)
                 self.rules = [
                     AnomalyRule(
@@ -124,7 +124,7 @@ class AnomalyDetector:
                 pass
 
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_PATH, "w") as f:
+        with CONFIG_PATH.open("w") as f:
             json.dump(DEFAULT_RULES, f, indent=2)
         self.rules = [
             AnomalyRule(
@@ -362,5 +362,5 @@ class AnomalyDetector:
 
     def _save_rules(self):
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(CONFIG_PATH, "w") as f:
+        with CONFIG_PATH.open("w") as f:
             json.dump([asdict(r) for r in self.rules], f, indent=2)

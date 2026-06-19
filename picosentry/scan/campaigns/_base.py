@@ -107,7 +107,7 @@ class CampaignPackage:
 
     @staticmethod
     def _load_iocs(path: Path) -> dict:
-        with open(path, encoding="utf-8") as f:
+        with path.open(encoding="utf-8") as f:
             data = json.load(f)
         for required in ("campaign_id", "schema_version", "severity", "description", "ecosystem", "rule_id"):
             if required not in data:

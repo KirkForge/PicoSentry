@@ -307,7 +307,7 @@ def generate_build_manifest(output_dir: str) -> str:
 
 def _file_sha256(path: Path) -> str:
     h = hashlib.sha256()
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         while True:
             chunk = f.read(_WHEEL_HASH_CHUNK_SIZE)
             if not chunk:

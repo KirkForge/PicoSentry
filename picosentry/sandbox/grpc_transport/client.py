@@ -117,13 +117,13 @@ class PicoDomeGRPCClient:
         import grpc
 
         try:
-            with open(mtls_config.cert_path, "rb") as f:
+            with mtls_config.cert_path.open("rb") as f:
                 cert_chain = f.read()
-            with open(mtls_config.key_path, "rb") as f:
+            with mtls_config.key_path.open("rb") as f:
                 private_key = f.read()
 
             if mtls_config.ca_path:
-                with open(mtls_config.ca_path, "rb") as f:
+                with mtls_config.ca_path.open("rb") as f:
                     root_certs = f.read()
             else:
                 root_certs = None

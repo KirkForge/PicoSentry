@@ -44,7 +44,7 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
             return {}
 
     try:
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             data: dict[str, Any] = tomllib.load(f)
             return data
     except Exception:

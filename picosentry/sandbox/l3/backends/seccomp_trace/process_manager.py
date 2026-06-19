@@ -7,6 +7,7 @@ import os
 import signal
 import time
 import warnings
+from pathlib import Path
 
 from picosentry.sandbox.l3.backends._seccomp_common import SCMP_ACT_LOG
 
@@ -86,10 +87,10 @@ def wait_with_timeout(
 
 
 def read_proc_seccomp(log_path: str) -> str:
-    if not log_path or not os.path.exists(log_path):
+    if not log_path or not Path(log_path).exists():
         return ""
     try:
-        with open(log_path, encoding="utf-8", errors="replace") as f:
+        with Path(log_path).open(encoding="utf-8", errors="replace") as f:
             return f.read()
     except OSError as e:
         logger.debug("seccomp-trace: cannot read %s: %s", log_path, e)

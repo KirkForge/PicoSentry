@@ -277,7 +277,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         from dataclasses import fields as dc_fields
 
         logger = logging.getLogger("picoshogun.config")
-        with open(path) as f:
+        with path.open() as f:
             data = json.load(f)
 
         known_hints = get_type_hints(cls)
@@ -299,7 +299,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         return cls(**data)
 
     def to_file(self, path: Path):
-        with open(path, "w") as f:
+        with path.open("w") as f:
             json.dump(self.__dict__, f, indent=2, default=str)
 
 

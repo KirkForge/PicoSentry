@@ -73,7 +73,7 @@ class FileSink(AuditSink):
             self._rotate()
 
         if self._fh is None:
-            self._fh = open(self._file_path, "a", encoding="utf-8")  # noqa: SIM115
+            self._fh = self._file_path.open("a", encoding="utf-8")
         self._fh.write(line + "\n")
         self._fh.flush()
 
@@ -86,7 +86,7 @@ class FileSink(AuditSink):
                 shutil.move(str(src), str(dst))
 
         one_path = self._file_path.with_suffix(".1.jsonl.gz")
-        with open(self._file_path, "rb") as f_in, gzip.open(one_path, "wb") as f_out:
+        with self._file_path.open("rb") as f_in, gzip.open(one_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
         if self._fh is not None:

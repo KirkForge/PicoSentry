@@ -186,9 +186,9 @@ class PicoDomeAuthMixin:
         if not command:
             return "Empty command"
         base = command[0]
-        import os as _os
+        from pathlib import Path as _Path
 
-        base_name = _os.path.basename(base)
+        base_name = _Path(base).name
 
         if _ENTERPRISE_MODE:
             if base_name not in self.ALLOWED_COMMANDS:

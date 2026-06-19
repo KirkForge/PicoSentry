@@ -9,6 +9,7 @@ import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any
 
 from picosentry.scan.auth import AuthConfig, AuthResult, RateLimiter, check_auth, check_authorization
@@ -244,7 +245,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Missing 'target' field", "request_id": request_id}, request_id, start_time)
             return
 
-        if os.path.isabs(target) or ".." in target:
+        if Path(target).is_absolute() or ".." in target:
             self._send_json(
                 400,
                 {"error": "Scan target must be a relative path under the workspace root", "request_id": request_id},
@@ -252,15 +253,15 @@ class HealthHandler(BaseHTTPRequestHandler):
                 start_time,
             )
             return
-        scan_root = os.environ.get("PICOSENTRY_SCAN_ROOT", os.getcwd())
-        scan_root_real = os.path.realpath(scan_root)
-        resolved = os.path.realpath(os.path.join(scan_root, target))
-        if resolved != scan_root_real and not resolved.startswith(scan_root_real + os.sep):
+        scan_root = Path(os.environ.get("PICOSENTRY_SCAN_ROOT") or Path.cwd())
+        scan_root_real = scan_root.resolve()
+        resolved = (scan_root_real / target).resolve()
+        if not resolved.is_relative_to(scan_root_real):
             self._send_json(
                 400, {"error": "Scan target escapes workspace root", "request_id": request_id}, request_id, start_time
             )
             return
-        target = resolved
+        target = str(resolved)
 
         try:
             from picosentry.scan.engine import create_default_engine

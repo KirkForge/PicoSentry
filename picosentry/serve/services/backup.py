@@ -84,7 +84,7 @@ class BackupManager:
             with tarfile.open(str(backup_path), "r:gz") as tar:
                 for member in tar.getmembers():
                     member_path = os.path.normpath(member.name)
-                    if member_path.startswith("..") or os.path.isabs(member.name):
+                    if member_path.startswith("..") or Path(member.name).is_absolute():
                         logger.warning("Skipping unsafe path in archive: %s", member.name)
                         continue
                     tar.extract(member, str(temp_dir))

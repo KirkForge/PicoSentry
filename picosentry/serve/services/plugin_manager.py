@@ -71,7 +71,7 @@ class PluginInterface:
         pass
 
 
-DEFAULT_USER_PLUGIN_DIR = os.path.expanduser("~/.picosentry/plugins")
+DEFAULT_USER_PLUGIN_DIR = str(Path("~/.picosentry/plugins").expanduser())
 
 
 def _split_plugin_dir_env(raw: str) -> list[str]:
@@ -89,10 +89,10 @@ class PluginManager:
         # actual package is `picosentry.serve.plugins`) and has been
         # removed. The relative `../plugins` fallback is the canonical
         # path in both layouts.
-        self.bundled_plugin_dir: str = os.path.realpath(os.path.join(os.path.dirname(__file__), "../plugins"))
+        self.bundled_plugin_dir: str = str((Path(__file__).parent / "../plugins").resolve())
 
         if plugin_dir is not None:
-            self._explicit_plugin_dir: str = os.path.realpath(plugin_dir)
+            self._explicit_plugin_dir: str = str(Path(plugin_dir).resolve())
         else:
             self._explicit_plugin_dir = ""
 
@@ -102,9 +102,9 @@ class PluginManager:
         # extra wiring; runtime reload (see `reload()`) is how the CLI
         # injects additional dirs after Settings have been parsed.
         env_dirs = _split_plugin_dir_env(os.environ.get("PICOSHOGUN_PLUGIN_DIR", ""))
-        user_default = [DEFAULT_USER_PLUGIN_DIR] if os.path.isdir(DEFAULT_USER_PLUGIN_DIR) else []
+        user_default = [DEFAULT_USER_PLUGIN_DIR] if Path(DEFAULT_USER_PLUGIN_DIR).is_dir() else []
         self.extra_plugin_dirs: list[str] = [
-            os.path.realpath(p) for p in (list(extra_plugin_dirs or []) + env_dirs + user_default)
+            str(Path(p).resolve()) for p in (list(extra_plugin_dirs or []) + env_dirs + user_default)
         ]
 
         self.plugins: dict[str, PluginInterface] = {}
@@ -137,7 +137,7 @@ class PluginManager:
             if not raw:
                 continue
             try:
-                rp = os.path.realpath(raw)
+                rp = str(Path(raw).resolve())
             except OSError:
                 continue
             if rp in seen:
@@ -157,7 +157,7 @@ class PluginManager:
         """
         if extra_dirs:
             for p in extra_dirs:
-                rp = os.path.realpath(p)
+                rp = str(Path(p).resolve())
                 if rp not in self.extra_plugin_dirs:
                     self.extra_plugin_dirs.append(rp)
         self._load_plugins()
@@ -236,23 +236,23 @@ class PluginManager:
         dirs = self.resolved_dirs()
         loaded_count = 0
         for d in dirs:
-            if not os.path.isdir(d):
+            d_path = Path(d)
+            if not d_path.is_dir():
                 logger.info("Plugin directory not found: %s", d)
                 continue
-            for entry in os.listdir(d):
-                plugin_path = os.path.join(d, entry)
-                manifest_path = os.path.join(plugin_path, "plugin.json")
+            for plugin_path in d_path.iterdir():
+                manifest_path = plugin_path / "plugin.json"
 
-                if not os.path.isdir(plugin_path) or not os.path.exists(manifest_path):
+                if not plugin_path.is_dir() or not manifest_path.exists():
                     continue
 
-                real_plugin_path = os.path.realpath(plugin_path)
+                real_plugin_path = str(plugin_path.resolve())
 
                 # Containment check: a symlinked subdir must resolve
                 # back into the directory we are scanning. This is the
                 # symlink-escape guard from the original code, kept
                 # verbatim per directory.
-                if not real_plugin_path.startswith(d + os.sep) and real_plugin_path != d:
+                if not plugin_path.resolve().is_relative_to(d_path.resolve()):
                     logger.error("Plugin path escapes plugin_dir: %s -> %s", plugin_path, real_plugin_path)
                     continue
 
@@ -262,25 +262,25 @@ class PluginManager:
                     continue
 
                 try:
-                    with Path(manifest_path).open() as f:
+                    with manifest_path.open() as f:
                         meta = json.load(f)
 
                     issues = self._validate_manifest(meta)
                     if issues:
-                        logger.error("Plugin '%s' manifest validation failed: %s", entry, "; ".join(issues))
+                        logger.error("Plugin '%s' manifest validation failed: %s", plugin_path.name, "; ".join(issues))
                         continue
 
-                    if self._load_plugin(plugin_path, meta):
+                    if self._load_plugin(str(plugin_path), meta):
                         self._loaded_plugin_paths.add(real_plugin_path)
                         loaded_count += 1
                 except Exception:
-                    logger.exception("Failed to load plugin %s", entry)
+                    logger.exception("Failed to load plugin %s", plugin_path.name)
 
         logger.info(
             "Resolved plugin dirs: %s; loaded %d plugin(s) from %d dir(s)",
             dirs,
             loaded_count,
-            sum(1 for d in dirs if os.path.isdir(d)),
+            sum(1 for d in dirs if Path(d).is_dir()),
         )
 
     def _load_plugin(self, path: str, meta: dict) -> bool:
@@ -290,10 +290,10 @@ class PluginManager:
         name = meta["name"]
         entry = meta["entry_point"]
 
-        module_file = os.path.join(path, f"{entry}.py")
+        module_file = Path(path) / f"{entry}.py"
         module_checksum = ""
-        if os.path.exists(module_file):
-            with Path(module_file).open("rb") as f:
+        if module_file.exists():
+            with module_file.open("rb") as f:
                 module_checksum = hashlib.sha256(f.read()).hexdigest()
             logger.info("Plugin '%s' entry module checksum: sha256:%s", name, module_checksum[:16])
         else:

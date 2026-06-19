@@ -134,7 +134,7 @@ def _validate_key(key: str) -> LicenseInfo | None:
     )
 
 
-def _load_license_file(path: str) -> LicenseInfo | None:
+def _load_license_file(path: str | Path) -> LicenseInfo | None:
     import json
 
     try:

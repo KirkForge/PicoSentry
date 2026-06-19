@@ -34,7 +34,6 @@ __all__ = [
     "deterministic_hash",
     "diff_results",
     "validate_findings_deterministic",
-    "validate_result_sorted",
     "verify_determinism",
 ]
 
@@ -129,21 +128,6 @@ def validate_findings_deterministic(findings: list) -> list[str]:
         if _UUID_PATTERN.search(evidence_str):
             violations.append(f"finding {f.rule_id} has UUID in evidence")
 
-    return violations
-
-
-def validate_result_sorted(result_dict: dict) -> list[str]:
-    violations: list[str] = []
-
-    def _check_sorted(d: dict, path: str = "") -> None:
-        keys = list(d.keys())
-        if keys != sorted(keys):
-            violations.append(f"keys not sorted at {path or 'root'}: {keys}")
-        for k, v in d.items():
-            if isinstance(v, dict):
-                _check_sorted(v, f"{path}.{k}" if path else k)
-
-    _check_sorted(result_dict)
     return violations
 
 

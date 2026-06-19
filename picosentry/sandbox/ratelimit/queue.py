@@ -148,12 +148,6 @@ class JobQueue:
         with self._lock:
             return self._completed.get(job_id)
 
-    def list_pending(self, limit: int = 50) -> list[QueuedJob]:
-        with self._lock:
-            pending = [j for j in self._jobs.values() if j.status == "queued"]
-            pending.sort()
-            return pending[:limit]
-
     def size(self) -> int:
         with self._lock:
             return len(self._heap)

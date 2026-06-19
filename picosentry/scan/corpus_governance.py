@@ -229,12 +229,6 @@ class FreshnessReport:
     def stale_sources(self, max_age_days: int = 30) -> list[CorpusSource]:
         return [s for s in self.sources if s.is_stale(max_age_days)]
 
-    def sources_by_trust(self) -> dict[str, list[CorpusSource]]:
-        groups: dict[str, list[CorpusSource]] = {}
-        for s in self.sources:
-            groups.setdefault(s.trust_level, []).append(s)
-        return groups
-
     def total_ioc_count(self) -> int:
         return sum(s.ioc_count for s in self.sources)
 
@@ -354,9 +348,6 @@ class CorpusGovernance:
             return True
         audit("corpus.remove_source", target=name, outcome="not_found")
         return False
-
-    def freshness_report(self) -> FreshnessReport:
-        return FreshnessReport(sources=list(self._sources.values()))
 
     def report_false_positive(self, report: FalsePositiveReport) -> None:
         report_id = hashlib.sha256(f"{report.finding_id}:{report.package}:{report.reported_at}".encode()).hexdigest()[

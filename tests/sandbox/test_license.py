@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -174,7 +175,7 @@ class TestCheckLicense:
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("os.getcwd", return_value=str(tmp_path)),
-            patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or os.path.isfile(p)),
+            patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or Path(p).is_file()),
         ):
             _reset_cache()
             info = check_license()

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """PicoDome — Deployment Security Checker.
 
 Validates that deployment manifests and configuration don't contain
@@ -75,14 +74,14 @@ def _load_yaml_file(path: Path) -> dict | list | None:
     try:
         import yaml
 
-        with open(path) as f:
+        with path.open() as f:
             return yaml.safe_load(f)
     except ImportError:
         pass
 
     # Minimal YAML parser for simple key: value files
     try:
-        with open(path) as f:
+        with path.open() as f:
             text = f.read()
         # Try JSON first (some .yaml files are actually JSON)
         try:

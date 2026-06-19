@@ -205,11 +205,8 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Intentional / pre-existing typographic and stylistic choices:
 # - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
-# - E741 single-letter `l` for `layer` in correlation scoring
-# - RUF001/RUF002 en-dashes in docstrings ("0.0–1.0" range notation) and ℹ emoji icon
+# - RUF001 in security output formatters that intentionally use ℹ️ icons
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
-"picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
-"picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
 "picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC"]
 "picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]

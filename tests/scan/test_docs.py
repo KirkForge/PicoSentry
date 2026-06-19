@@ -1,6 +1,7 @@
 """Tests for rule documentation completeness."""
 
 import os
+from pathlib import Path
 
 from picosentry.scan.rules import RULE_COUNT, RULE_INFO
 
@@ -44,6 +45,6 @@ class TestRuleDocs:
         for rule_id in RULE_INFO:
             doc_path = os.path.join(RULES_DIR, f"{rule_id}.md")
             if os.path.exists(doc_path):
-                with open(doc_path) as f:
+                with Path(doc_path).open() as f:
                     content = f.read()
                 assert len(content) > 200, f"Rule {rule_id} doc is too short ({len(content)} chars)"

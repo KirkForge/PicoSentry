@@ -121,7 +121,7 @@ class TestFileSinkRotation:
 
         # Count total events across current + rotated files
         total = 0
-        with open(tmp_path / "audit_sink.jsonl") as f:
+        with (tmp_path / "audit_sink.jsonl").open() as f:
             for line in f:
                 if line.strip():
                     total += 1

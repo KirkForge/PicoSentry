@@ -122,9 +122,8 @@ class ImageScanner:
         except URLError as exc:
             if self._fail_closed:
                 logger.exception(
-                    "Cannot reach PicoDome daemon for image scan '%s': %s — denying (fail-closed)",
+                    "Cannot reach PicoDome daemon for image scan '%s' — denying (fail-closed)",
                     image,
-                    exc,
                 )
                 return False, f"daemon unreachable: image '{image}' scan could not be performed"
             logger.warning(
@@ -136,7 +135,7 @@ class ImageScanner:
 
         except Exception as exc:
             if self._fail_closed:
-                logger.exception("Image scan failed for '%s': %s — denying (fail-closed)", image, exc)
+                logger.exception("Image scan failed for '")
                 return False, f"scan failed: image '{image}' scan error: {exc}"
             logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
             return True, ""

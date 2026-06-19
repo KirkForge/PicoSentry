@@ -333,8 +333,8 @@ class ClusterManager:
                 if node:
                     node.last_heartbeat = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     self._state.update_node(node)
-            except Exception as e:
-                logger.exception("Heartbeat update failed: %s", e)
+            except Exception:
+                logger.exception("Heartbeat update failed")
 
             self._stop_event.wait(timeout=self._heartbeat_interval)
 
@@ -342,8 +342,8 @@ class ClusterManager:
         while self._running:
             try:
                 self._check_node_health()
-            except Exception as e:
-                logger.exception("Health check failed: %s", e)
+            except Exception:
+                logger.exception("Health check failed")
 
             self._stop_event.wait(timeout=self._heartbeat_timeout)
 
@@ -399,8 +399,8 @@ class ClusterManager:
                         self._fetch_and_merge_peer(peer)
                     except Exception as e:
                         logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
-            except Exception as e:
-                logger.exception("Gossip loop error: %s", e)
+            except Exception:
+                logger.exception("Gossip loop error")
 
             self._stop_event.wait(timeout=gossip_interval)
 

@@ -267,7 +267,7 @@ class PicoDomePostRoutesMixin:
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 error=str(e),
             )
-            logger.exception("Scan job %s failed", job_id)
+            logger.exception("Scan job")
             self._send_error(ErrorCodes.SCAN_FAILED, detail=str(e))
 
     def _handle_create_policy(self: PicoDomeHandler, token: str) -> None:

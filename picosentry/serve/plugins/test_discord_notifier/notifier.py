@@ -91,5 +91,5 @@ class DiscordNotifier(PluginInterface):
             )
             resp.raise_for_status()
             logger.debug("[DiscordNotifier] Delivered %s alert", severity)
-        except Exception as exc:
-            logger.exception("[DiscordNotifier] Delivery failed: %s", exc)
+        except Exception:
+            logger.exception("[DiscordNotifier] Delivery failed")

@@ -218,8 +218,8 @@ def detect_custom_iocs(target: Path) -> list[Finding]:
 
     try:
         iocs = load_all_iocs()
-    except (OSError, json.JSONDecodeError, ValueError) as e:
-        logger.exception("Failed to load IoCs — IoC detection rule cannot run: %s", e)
+    except (OSError, json.JSONDecodeError, ValueError):
+        logger.exception("Failed to load IoCs — IoC detection rule cannot run")
         return findings
     except Exception as e:
         logger.critical("Unexpected error loading IoCs — this may indicate a corrupted corpus: %s", e)

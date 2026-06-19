@@ -65,7 +65,7 @@ class FileSink(AuditSink):
                 self._write_line(line)
             self._record_success()
         except Exception as exc:
-            logger.exception("FileSink write failed: %s", exc)
+            logger.exception("FileSink write failed")
             self._record_failure(str(exc))
 
 

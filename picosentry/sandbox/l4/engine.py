@@ -77,7 +77,7 @@ class L4Engine:
                 all_findings.extend(findings)
                 logger.debug("L4 rule %s: %d findings", rule_id, len(findings))
             except Exception:
-                logger.exception("L4 rule %s raised an exception", rule_id)
+                logger.exception("L4 rule")
 
 
         if not deterministic:

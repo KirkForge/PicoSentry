@@ -75,8 +75,8 @@ class EventBus:
         for callback in callbacks:
             try:
                 callback(event)
-            except Exception as e:
-                logger.exception("Event handler failed for %s: %s", event_type, e)
+            except Exception:
+                logger.exception("Event handler failed for %s", event_type)
 
         logger.debug("Event published: %s (%s)", event_type, event.id)
         return event

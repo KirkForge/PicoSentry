@@ -100,8 +100,8 @@ class AuditSink:
                 with self.path.open("a", encoding="utf-8") as f:
                     f.write(line)
                     f.flush()
-            except OSError as e:
-                logger.exception("Failed to write audit event: %s", e)
+            except OSError:
+                logger.exception("Failed to write audit event")
 
     def _rotate_if_needed(self) -> None:
         if not self.path.exists():
@@ -124,8 +124,8 @@ class AuditSink:
         try:
             self.path.rename(rotated)
             logger.info("Rotated audit log to %s", rotated)
-        except OSError as e:
-            logger.exception("Failed to rotate audit log: %s", e)
+        except OSError:
+            logger.exception("Failed to rotate audit log")
 
     def _cleanup_old_files(self) -> None:
         if self.retention_days <= 0:
@@ -234,6 +234,6 @@ def audit(
             logger.critical("Failed to emit audit event (fail-closed): %s", e)
             raise
 
-        logger.exception("Failed to emit audit event: %s", e)
+        logger.exception("Failed to emit audit event")
 
     return event

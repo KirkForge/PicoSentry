@@ -51,8 +51,8 @@ def load_key() -> bytes | None:
         try:
             content = Path(key_file).read_text().strip()
             return bytes.fromhex(content)
-        except (OSError, ValueError) as exc:
-            logger.exception("Failed to read policy key file '%s': %s", key_file, exc)
+        except (OSError, ValueError):
+            logger.exception("Failed to read policy key file '%s'", key_file)
             return None
 
 

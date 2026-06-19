@@ -97,8 +97,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         user_agent
                     )
                 )
-            except Exception as e:
-                logger.exception("Audit DB insert failed: %s", e)
+            except Exception:
+                logger.exception("Audit DB insert failed")
 
         logger.info("API %s %s - %s (%.3fs) user=%s", method, path, status_code, duration, _user_id)
 

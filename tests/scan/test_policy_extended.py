@@ -10,7 +10,6 @@ strict config mode (unknown keys), and all edge cases.
 
 import hashlib
 import json
-import os
 import tempfile
 import unittest
 from datetime import datetime, timedelta, timezone
@@ -420,7 +419,7 @@ waivers:
                 self.assertEqual(len(p.waivers), 1)
                 self.assertEqual(p.waivers[0].id, "w1")
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_valid_json_fallback(self):
         """Test JSON loading when yaml is not importable."""
@@ -433,7 +432,7 @@ waivers:
                 self.assertEqual(p.fail_on_severity, "low")
                 self.assertEqual(p.allow_licenses, ["ISC"])
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_non_mapping_yaml(self):
         """A YAML file that resolves to a non-dict should return defaults."""
@@ -444,7 +443,7 @@ waivers:
                 p = Policy.from_file(Path(f.name))
                 self.assertEqual(p.fail_on_severity, "high")  # default
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_unknown_keys_warning(self):
         """Unknown policy keys should trigger a warning log."""
@@ -457,7 +456,7 @@ waivers:
                     Policy.from_file(Path(f.name))
                 self.assertTrue(any("unknown_key" in msg for msg in cm.output))
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
 
 # ── Policy.get_active_waivers / is_finding_waived ──
@@ -795,7 +794,7 @@ class TestPolicyBundle(unittest.TestCase):
                     import_policy_bundle(Path(f.name), verify=False, verify_crypto=False)
                 self.assertIn("missing 'policy' key", str(ctx.exception))
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_import_digest_mismatch(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -810,7 +809,7 @@ class TestPolicyBundle(unittest.TestCase):
                     import_policy_bundle(Path(f.name), verify=True, verify_crypto=False)
                 self.assertIn("digest mismatch", str(ctx.exception))
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_import_digest_valid(self):
         with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
@@ -827,7 +826,7 @@ class TestPolicyBundle(unittest.TestCase):
                 imported = import_policy_bundle(Path(f.name), verify=True, verify_crypto=False)
                 self.assertEqual(imported.fail_on_severity, "high")
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_export_without_signer(self):
         p = Policy()
@@ -922,7 +921,7 @@ class TestStrictConfigMode(unittest.TestCase):
                     Policy.from_file(Path(f.name))
                 self.assertTrue(any("weird_key" in msg for msg in cm.output))
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_known_keys_no_warning(self):
         yaml_content = "version: 1\nfail_on:\n  severity: high\n"
@@ -934,7 +933,7 @@ class TestStrictConfigMode(unittest.TestCase):
                 p = Policy.from_file(Path(f.name))
                 self.assertEqual(p.fail_on_severity, "high")
             finally:
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
 
 # ── Policy.check_packages edge cases ──

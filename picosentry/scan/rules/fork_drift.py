@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -88,33 +87,26 @@ def _extract_repo_url(pkg: dict) -> str | None:
 def _is_fork_repo(url: str, pkg_name: str, author: str = "") -> bool:
     url_lower = url.lower()
 
-
     for prefix in AUTHORITATIVE_PREFIXES:
         if url_lower.startswith(prefix.lower()):
             return False
-
 
     match = _GITHUB_URL_RE.search(url)
     if match:
         org = match.group(1).lower()
 
-
         normalized_name = pkg_name.lower().replace("@", "").split("/")[0]
         if org == normalized_name:
             return False
-
 
         author_str = str(author).strip().lower() if author else ""
         if author_str and (org in author_str or author_str in org):
             return False
 
-
         for prefix in AUTHORITATIVE_PREFIXES:
-
             prefix_org = prefix.split("/")[-2].lower() if "/" in prefix else ""
             if normalized_name == prefix_org and org != prefix_org:
                 return True
-
 
         org_aliases = {
             "fb": "facebook",
@@ -126,33 +118,26 @@ def _is_fork_repo(url: str, pkg_name: str, author: str = "") -> bool:
         }
         resolved_org = org_aliases.get(org, org)
 
-
         for prefix in AUTHORITATIVE_PREFIXES:
             prefix_org = prefix.split("/")[-2].lower()
             if prefix_org in (resolved_org, org):
                 return False
-
 
     url_path = url_lower.split(".com/")[-1] if ".com/" in url_lower else url_lower
     for indicator in FORK_INDICATORS:
         if indicator in url_path:
             return True
 
-
     if match:
         repo_path = url_lower.split(match.group(0).lower())[-1]
         normalized_name = pkg_name.lower().replace("@", "").replace("/", "-")
         if normalized_name in repo_path and match.group(1).lower() != normalized_name:
-
-
             author_str = str(author).strip().lower() if author else ""
             org_lower = match.group(1).lower()
             if not author_str:
-
                 pass
             elif org_lower not in author_str and author_str not in org_lower:
                 return True
-
 
     return False
 
@@ -160,13 +145,11 @@ def _is_fork_repo(url: str, pkg_name: str, author: str = "") -> bool:
 def detect_fork_drift(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_fork(pkg, root_pkg))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_fork(pkg, pkg_json))
@@ -202,7 +185,6 @@ def _check_fork(pkg: dict, pkg_json: Path) -> list[Finding]:
         )
         return findings
 
-
     author = pkg.get("author", "")
     if isinstance(author, dict):
         author = author.get("name", "")
@@ -235,11 +217,9 @@ def _check_fork(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-
     if pkg_name.startswith("@") and "/" in pkg_name:
         scope = pkg_name.split("/")[0]
         if scope.lower() not in AUTHORITATIVE_SCOPES:
-
             match = _GITHUB_URL_RE.search(repo_url)
             if match:
                 org = match.group(1).lower()

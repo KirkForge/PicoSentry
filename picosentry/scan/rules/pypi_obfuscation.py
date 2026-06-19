@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -10,12 +9,28 @@ from .pypi_utils import detect_pypi_project
 __all__ = ["detect_pypi_obfuscation"]
 
 
-SKIP_EXTENSIONS = frozenset({
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-    ".woff", ".woff2", ".ttf", ".eot",
-    ".map", ".lock", ".pyc", ".pyo", ".pyd",
-    ".so", ".dll", ".dylib",
-})
+SKIP_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
+        ".lock",
+        ".pyc",
+        ".pyo",
+        ".pyd",
+        ".so",
+        ".dll",
+        ".dylib",
+    }
+)
 
 
 MAX_FILE_BYTES = 512_000
@@ -27,11 +42,21 @@ MAX_FILES_PER_PACKAGE = 200
 PY_EXTENSIONS = {".py"}
 
 
-SKIP_DIRS = frozenset({
-    "dist", "build", "out", ".cache",
-    "__pycache__", ".git", ".hg", ".svn",
-    "*.egg-info", "*.dist-info", "node_modules",
-})
+SKIP_DIRS = frozenset(
+    {
+        "dist",
+        "build",
+        "out",
+        ".cache",
+        "__pycache__",
+        ".git",
+        ".hg",
+        ".svn",
+        "*.egg-info",
+        "*.dist-info",
+        "node_modules",
+    }
+)
 
 
 EVAL_PATTERN = re.compile(
@@ -86,7 +111,6 @@ def _scan_python_file(file_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-
     parts = file_path.parts
     pkg_label = "unknown"
     py_markers = ("site-packages", ".venv", "venv")
@@ -103,27 +127,55 @@ def _scan_python_file(file_path: Path) -> list[Finding]:
                 break
 
     patterns: list[tuple[str, re.Pattern, Severity, str, str]] = [
-        ("L2-PYPI-OBFS-001", EVAL_PATTERN, Severity.CRITICAL,
-         "Dynamic code execution via {func}",
-         "Remove exec/eval calls. Use static imports instead."),
-        ("L2-PYPI-OBFS-002", BASE64_DECODE_PATTERN, Severity.HIGH,
-         "Base64-decoded string detected",
-         "Remove base64-encoded payloads from source code."),
-        ("L2-PYPI-OBFS-003", HEX_STRING_PATTERN, Severity.HIGH,
-         "Hex-encoded string detected",
-         "Decode the hex string and replace with readable literal."),
-        ("L2-PYPI-OBFS-004", UNICODE_OBFUSCATION_PATTERN, Severity.HIGH,
-         "Unicode character arithmetic obfuscation detected",
-         "Replace chr()/ord() arithmetic with readable string literals."),
-        ("L2-PYPI-OBFS-005", COMPRESSED_PAYLOAD_PATTERN, Severity.CRITICAL,
-         "Compressed (zlib) payload imported for execution",
-         "Remove zlib-compressed payloads from source code."),
-        ("L2-PYPI-OBFS-006", MARSHAL_LOAD_PATTERN, Severity.CRITICAL,
-         "Marshal deserialization detected (arbitrary code execution)",
-         "Replace marshal.loads() with safe deserialization."),
-        ("L2-PYPI-OBFS-007", BASE64_EXEC_PATTERN, Severity.CRITICAL,
-         "Base64 decode followed by exec/eval",
-         "Never decode base64 and exec the result. Replace with static config."),
+        (
+            "L2-PYPI-OBFS-001",
+            EVAL_PATTERN,
+            Severity.CRITICAL,
+            "Dynamic code execution via {func}",
+            "Remove exec/eval calls. Use static imports instead.",
+        ),
+        (
+            "L2-PYPI-OBFS-002",
+            BASE64_DECODE_PATTERN,
+            Severity.HIGH,
+            "Base64-decoded string detected",
+            "Remove base64-encoded payloads from source code.",
+        ),
+        (
+            "L2-PYPI-OBFS-003",
+            HEX_STRING_PATTERN,
+            Severity.HIGH,
+            "Hex-encoded string detected",
+            "Decode the hex string and replace with readable literal.",
+        ),
+        (
+            "L2-PYPI-OBFS-004",
+            UNICODE_OBFUSCATION_PATTERN,
+            Severity.HIGH,
+            "Unicode character arithmetic obfuscation detected",
+            "Replace chr()/ord() arithmetic with readable string literals.",
+        ),
+        (
+            "L2-PYPI-OBFS-005",
+            COMPRESSED_PAYLOAD_PATTERN,
+            Severity.CRITICAL,
+            "Compressed (zlib) payload imported for execution",
+            "Remove zlib-compressed payloads from source code.",
+        ),
+        (
+            "L2-PYPI-OBFS-006",
+            MARSHAL_LOAD_PATTERN,
+            Severity.CRITICAL,
+            "Marshal deserialization detected (arbitrary code execution)",
+            "Replace marshal.loads() with safe deserialization.",
+        ),
+        (
+            "L2-PYPI-OBFS-007",
+            BASE64_EXEC_PATTERN,
+            Severity.CRITICAL,
+            "Base64 decode followed by exec/eval",
+            "Never decode base64 and exec the result. Replace with static config.",
+        ),
     ]
 
     for rule_id, pattern, severity, msg_tmpl, remediation_text in patterns:
@@ -160,14 +212,12 @@ def detect_pypi_obfuscation(target: Path) -> list[Finding]:
     if not detect_pypi_project(target):
         return findings
 
-
     if target.is_dir():
         for ext in PY_EXTENSIONS:
             for f in target.glob(f"*{ext}"):
                 if not f.is_file() or f.is_symlink():
                     continue
                 findings.extend(_scan_python_file(f))
-
 
         for site_dir in _find_site_dirs(target):
             if site_dir.is_dir():

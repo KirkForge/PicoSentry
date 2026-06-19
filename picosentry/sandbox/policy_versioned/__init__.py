@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from picosentry.sandbox.policy_versioned.signing import (

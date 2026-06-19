@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -17,7 +16,6 @@ FLEET_VERSION = "1.0"
 
 
 class RolloutStage:
-
     CANARY = "canary"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -38,7 +36,6 @@ class RolloutStage:
 
 @dataclass
 class RolloutPolicy:
-
     name: str = ""
     policy_digest: str = ""
     policy_path: str = ""
@@ -83,7 +80,6 @@ class RolloutPolicy:
 
 @dataclass
 class RolloutStatus:
-
     name: str = ""
     current_stage: str = ""
     started_at: str = ""
@@ -124,7 +120,6 @@ class RolloutStatus:
 
 @dataclass
 class FleetTarget:
-
     id: str = ""  # e.g., "repo:org/project" or "pipeline:ci/deploy"
     name: str = ""
     stage: str = RolloutStage.PRODUCTION
@@ -161,7 +156,6 @@ class FleetTarget:
 
 
 class FleetManager:
-
     def __init__(self, data_dir: Path | None = None) -> None:
         self.data_dir = data_dir or Path.home() / ".local" / "share" / "picosentry" / "fleet"
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -199,7 +193,6 @@ class FleetManager:
             "previous_policies": self._previous_policies,
         }
         state_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-
 
     def register_target(self, target: FleetTarget) -> None:
         self._targets[target.id] = target
@@ -247,7 +240,6 @@ class FleetManager:
             metadata={"verdict": verdict, "compliant": compliant},
         )
 
-
     def create_rollout(
         self,
         name: str,
@@ -263,7 +255,6 @@ class FleetManager:
 
         stages = stages or list(RolloutStage.ORDER)
         canary_targets = canary_targets or []
-
 
         policy_digest = ""
         if policy:
@@ -287,7 +278,6 @@ class FleetManager:
             created_by=created_by,
         )
         self._rollouts[name] = rollout
-
 
         initial_stage = stages[0] if stages else RolloutStage.CANARY
         status = RolloutStatus(
@@ -329,7 +319,6 @@ class FleetManager:
         next_idx = current_idx + 1
         if next_idx >= len(rollout.stages):
             raise ValueError(f"Rollout '{name}' is already at the last stage")
-
 
         old_stage = status.current_stage
         new_stage = rollout.stages[next_idx]
@@ -407,7 +396,6 @@ class FleetManager:
             ]
         return sorted(rollouts, key=lambda r: r.created_at, reverse=True)
 
-
     def fleet_health(self) -> dict[str, Any]:
         total = len(self._targets)
         compliant = sum(1 for t in self._targets.values() if t.compliant)
@@ -416,7 +404,6 @@ class FleetManager:
             1 for s in self._statuses.values() if s.started_at and not s.completed_at and not s.failed
         )
         failed_rollouts = sum(1 for s in self._statuses.values() if s.failed)
-
 
         stage_counts: dict[str, int] = {}
         for t in self._targets.values():

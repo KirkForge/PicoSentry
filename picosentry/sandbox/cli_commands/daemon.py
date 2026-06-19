@@ -47,7 +47,6 @@ def cmd(args: argparse.Namespace) -> int:
         grpc_port = getattr(args, "grpc_port", 50051)
         host = args.host
 
-
         mtls_config = None
         try:
             from picosentry.sandbox.mtls.context import MTLSConfig
@@ -74,7 +73,6 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"gRPC daemon error: {e}", file=sys.stderr)
             return 1
     else:
-
         from picosentry.sandbox.daemon import PicoDomeDaemon
 
         store_backend = getattr(args, "store_backend", None) or "jsonl"
@@ -86,7 +84,6 @@ def cmd(args: argparse.Namespace) -> int:
             metrics_port=metrics_port,
             store_backend=store_backend,
         )
-
 
         if not args.background:
             daemon.install_signal_handlers()

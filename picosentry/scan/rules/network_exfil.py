@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -28,20 +27,27 @@ MAX_FILE_BYTES = 512_000
 MAX_FILES_PER_PACKAGE = 200
 
 
-SKIP_DIRS = frozenset(
-    {"dist", "build", "out", ".cache", "__pycache__", ".git", ".hg", ".svn"}
-)
+SKIP_DIRS = frozenset({"dist", "build", "out", ".cache", "__pycache__", ".git", ".hg", ".svn"})
 
 SKIP_EXTENSIONS = frozenset(
     {
-        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-        ".woff", ".woff2", ".ttf", ".eot", ".map", ".lock",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
+        ".lock",
     }
 )
 
 
 C2_DOMAINS: list[tuple[str, str, Severity, str]] = [
-
     (r"\bshai-hulud\.cc\b", "Shai-Hulud C2", Severity.CRITICAL, "Shai-Hulud worm C2 domain"),
     (r"\bfirebase\.su\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
     (r"\bdieorsuffer\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
@@ -119,7 +125,9 @@ ENV_EXFIL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
     ),
     (
         "scavenger_dll",
-        re.compile(r"\b(?:node-gyp\.(?:dll|so)|loader\.(?:dll|so)|version\.(?:dll|so)|umpdc\.(?:dll|so)|profapi\.(?:dll|so)|libumpdc\.so|libprofapi\.so)\b"),
+        re.compile(
+            r"\b(?:node-gyp\.(?:dll|so)|loader\.(?:dll|so)|version\.(?:dll|so)|umpdc\.(?:dll|so)|profapi\.(?:dll|so)|libumpdc\.so|libprofapi\.so)\b"
+        ),
         Severity.CRITICAL,
         "Scavenger malware DLL/SO file reference detected",
         "Known Scavenger malware native library files (CVE-2025-54313).",
@@ -135,7 +143,6 @@ def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) 
     for name, pattern, severity, desc, _remediation_key in patterns:
         for match in pattern.finditer(text):
             matched_text = match.group(0)[:120]
-
 
             if "C2" in name or name in ("Shai-Hulud exfil", "Scavenger C2"):
                 remediation = (
@@ -165,9 +172,7 @@ def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) 
                     "Remove this dependency immediately and audit all systems."
                 )
             else:
-                remediation = (
-                    "Suspicious network pattern detected. Review this dependency carefully."
-                )
+                remediation = "Suspicious network pattern detected. Review this dependency carefully."
 
             findings.append(
                 Finding(
@@ -216,7 +221,6 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
             line_num = content[: match.start()].count("\n") + 1
             matched_text = match.group(0)[:120]
 
-
             if "C2" in name or name == "Shai-Hulud exfil":
                 remediation = (
                     "Known supply chain attack C2 domain detected in source. "
@@ -224,8 +228,7 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
                 )
             elif "IMDS" in name or "metadata" in name.lower():
                 remediation = (
-                    "Cloud metadata endpoint access in source. "
-                    "This can exfiltrate IAM credentials. Block IMDS access."
+                    "Cloud metadata endpoint access in source. This can exfiltrate IAM credentials. Block IMDS access."
                 )
             elif "phishing" in name.lower() or "typosquat" in name.lower():
                 remediation = "Phishing/typosquat domain in source. Remove this dependency."
@@ -236,8 +239,7 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
                 )
             elif "Scavenger" in name or "scavenger" in name:
                 remediation = (
-                    "Scavenger malware indicator in source (CVE-2025-54313). "
-                    "Remove this dependency immediately."
+                    "Scavenger malware indicator in source (CVE-2025-54313). Remove this dependency immediately."
                 )
             else:
                 remediation = "Suspicious network pattern in source. Review carefully."
@@ -280,7 +282,6 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
 def detect_network_exfiltration(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
@@ -289,15 +290,12 @@ def detect_network_exfiltration(target: Path) -> list[Finding]:
             pkg_version = pkg.get("version", "unknown")
             pkg_label = f"{pkg_name}@{pkg_version}"
 
-
             scripts = pkg.get("scripts", {})
             if isinstance(scripts, dict):
                 for script_key in INSTALL_SCRIPT_KEYS:
                     if script_key in scripts:
                         script_value = str(scripts[script_key])
-                        script_findings = _scan_text_for_exfil(
-                            script_value, pkg_label, is_script=True
-                        )
+                        script_findings = _scan_text_for_exfil(script_value, pkg_label, is_script=True)
                         findings.extend(
                             Finding(
                                 rule_id=f.rule_id,
@@ -315,21 +313,17 @@ def detect_network_exfiltration(target: Path) -> list[Finding]:
 
             _scan_package_sources(target, pkg_label, findings)
 
-
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)
         pkg_version = pkg.get("version", "unknown")
         pkg_label = f"{pkg_name}@{pkg_version}"
-
 
         scripts = pkg.get("scripts", {})
         if isinstance(scripts, dict):
             for script_key in INSTALL_SCRIPT_KEYS:
                 if script_key in scripts:
                     script_value = str(scripts[script_key])
-                    script_findings = _scan_text_for_exfil(
-                        script_value, pkg_label, is_script=True
-                    )
+                    script_findings = _scan_text_for_exfil(script_value, pkg_label, is_script=True)
                     findings.extend(
                         Finding(
                             rule_id=f.rule_id,
@@ -344,7 +338,6 @@ def detect_network_exfiltration(target: Path) -> list[Finding]:
                         )
                         for f in script_findings
                     )
-
 
         pkg_dir = pkg_json.parent
         _scan_package_sources(pkg_dir, pkg_label, findings)

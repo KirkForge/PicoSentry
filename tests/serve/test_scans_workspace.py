@@ -74,9 +74,7 @@ def test_viewer_is_rejected_with_403(fresh_viewer: dict[str, Any]) -> None:
         json={"target": "/tmp", "rules": None, "format": "json"},
         headers={"Authorization": f"Bearer {fresh_viewer['token']}"},
     )
-    assert resp.status_code == 403, (
-        f"viewer should be rejected; got {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 403, f"viewer should be rejected; got {resp.status_code}: {resp.text}"
 
 
 def test_operator_inside_workspace_returns_200(
@@ -126,9 +124,7 @@ def test_operator_inside_workspace_returns_200(
         json={"target": str(target), "rules": None, "format": "json"},
         headers={"Authorization": f"Bearer {fresh_admin['token']}"},
     )
-    assert resp.status_code == 200, (
-        f"operator-inside-workspace should succeed; got {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 200, f"operator-inside-workspace should succeed; got {resp.status_code}: {resp.text}"
     data = resp.json()
     assert "scan_id" in data
 
@@ -148,8 +144,7 @@ def test_operator_outside_workspace_is_rejected(fresh_admin: dict[str, Any]) -> 
             headers={"Authorization": f"Bearer {fresh_admin['token']}"},
         )
         assert resp.status_code == 403, (
-            f"target {outside!r} should be rejected (outside /tmp); "
-            f"got {resp.status_code}: {resp.text}"
+            f"target {outside!r} should be rejected (outside /tmp); got {resp.status_code}: {resp.text}"
         )
         # The response should NOT echo the rejected path back to the
         # caller — that's the kind of echo that turns a 403 into a
@@ -174,17 +169,11 @@ def test_no_workspace_configured_returns_503(fresh_admin: dict[str, Any], monkey
         json={"target": "/tmp", "rules": None, "format": "json"},
         headers={"Authorization": f"Bearer {fresh_admin['token']}"},
     )
-    assert resp.status_code == 503, (
-        f"unset workspace should return 503; got {resp.status_code}: {resp.text}"
-    )
-    assert "SCANS_WORKSPACE_ROOT" in resp.text, (
-        "503 response should point operators at the env var to set"
-    )
+    assert resp.status_code == 503, f"unset workspace should return 503; got {resp.status_code}: {resp.text}"
+    assert "SCANS_WORKSPACE_ROOT" in resp.text, "503 response should point operators at the env var to set"
 
 
-def test_workspace_root_is_resolved_against_symlinks(
-    fresh_admin: dict[str, Any], tmp_path
-) -> None:
+def test_workspace_root_is_resolved_against_symlinks(fresh_admin: dict[str, Any], tmp_path) -> None:
     """``Path.resolve()`` follows symlinks before we check
     ``relative_to``; the path-traversal class of bypass depends on
     this.  Build a symlink that points OUTSIDE the workspace and
@@ -204,6 +193,4 @@ def test_workspace_root_is_resolved_against_symlinks(
         json={"target": str(symlink_path), "rules": None, "format": "json"},
         headers={"Authorization": f"Bearer {fresh_admin['token']}"},
     )
-    assert resp.status_code == 403, (
-        f"symlink-resolved target should be rejected; got {resp.status_code}: {resp.text}"
-    )
+    assert resp.status_code == 403, f"symlink-resolved target should be rejected; got {resp.status_code}: {resp.text}"

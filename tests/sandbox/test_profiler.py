@@ -387,26 +387,19 @@ class TestIPv6NetworkExtraction:
 
     def test_ipv6_strace_connect(self):
         output = (
-            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
-            'sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
+            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
         )
         calls = _extract_network_calls(output)
         assert any(c.address == "2001:db8::1" for c in calls)
 
     def test_ipv4_strace_inet_addr(self):
-        output = (
-            'connect(3, {sa_family=AF_INET, sin_port=htons(4444), '
-            'sin_addr=inet_addr("1.2.3.4")}, 16)'
-        )
+        output = 'connect(3, {sa_family=AF_INET, sin_port=htons(4444), sin_addr=inet_addr("1.2.3.4")}, 16)'
         calls = _extract_network_calls(output)
         assert any(c.address == "1.2.3.4" and c.port == 4444 for c in calls)
 
     def test_no_dup_strace_and_plain(self):
         """An address in a strace block should not also appear from plain match."""
-        output = (
-            'connect(3, {sa_family=AF_INET, sin_port=htons(443), '
-            'sin_addr=inet_addr("1.2.3.4")}, 16)'
-        )
+        output = 'connect(3, {sa_family=AF_INET, sin_port=htons(443), sin_addr=inet_addr("1.2.3.4")}, 16)'
         calls = _extract_network_calls(output)
         matches = [c for c in calls if c.address == "1.2.3.4"]
         assert len(matches) == 1
@@ -465,9 +458,7 @@ class TestSpoofGuard:
         )
         profile = profile_from_sandbox_result(result)
         # Events exist (filesystem), so network should not be scraped from text
-        assert len(profile.network_calls) == 0, (
-            "Text-derived phantom network injected despite events existing"
-        )
+        assert len(profile.network_calls) == 0, "Text-derived phantom network injected despite events existing"
 
     def test_events_block_phantom_text_fs(self):
         """When events exist, empty fs_ops from events means NO text-derived fs."""
@@ -489,9 +480,7 @@ class TestSpoofGuard:
             stderr="",
         )
         profile = profile_from_sandbox_result(result)
-        assert len(profile.fs_ops) == 0, (
-            "Text-derived /etc/shadow phantom injected despite events existing"
-        )
+        assert len(profile.fs_ops) == 0, "Text-derived /etc/shadow phantom injected despite events existing"
 
     def test_events_block_phantom_text_spawn(self):
         """When events exist, empty spawns from events means NO text-derived spawn."""
@@ -513,9 +502,7 @@ class TestSpoofGuard:
             stderr="",
         )
         profile = profile_from_sandbox_result(result)
-        assert len(profile.spawns) == 0, (
-            "Text-derived /bin/malware phantom injected despite events existing"
-        )
+        assert len(profile.spawns) == 0, "Text-derived /bin/malware phantom injected despite events existing"
 
 
 class TestStraceIPv6RealFormat:
@@ -524,24 +511,19 @@ class TestStraceIPv6RealFormat:
     def test_real_strace_ipv6_connect(self):
         """Real strace IPv6 format — inet_pton with IP as 2nd arg, &sin6_addr as 3rd."""
         output = (
-            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+            "connect(3, {sa_family=AF_INET6, sin6_port=htons(443), "
             'inet_pton(AF_INET6, "2606:4700::1", &sin6_addr)}, 28) = 0'
         )
         calls = _extract_network_calls(output)
-        assert any(c.address == "2606:4700::1" for c in calls), (
-            "Real strace IPv6 not parsed"
-        )
+        assert any(c.address == "2606:4700::1" for c in calls), "Real strace IPv6 not parsed"
 
     def test_synthetic_strace_ipv6_still_works(self):
         """The synthetic format used in existing tests must still parse."""
         output = (
-            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
-            'sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
+            'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), sin6_addr=inet_pton(AF_INET6, "2001:db8::1")}, 28)'
         )
         calls = _extract_network_calls(output)
-        assert any(c.address == "2001:db8::1" for c in calls), (
-            "Synthetic strace IPv6 broke"
-        )
+        assert any(c.address == "2001:db8::1" for c in calls), "Synthetic strace IPv6 broke"
 
 
 class TestExfilReadOnEventsPath:
@@ -568,9 +550,7 @@ class TestExfilReadOnEventsPath:
         )
         profile = profile_from_sandbox_result(result)
         assert len(profile.fs_ops) == 1
-        assert profile.fs_ops[0].operation == "read", (
-            "file_read event must produce 'read' op for EXFIL-005"
-        )
+        assert profile.fs_ops[0].operation == "read", "file_read event must produce 'read' op for EXFIL-005"
 
     def test_file_write_still_write_on_events_path(self):
         """file_write_* events still produce FileOperation(operation='write')."""
@@ -623,7 +603,7 @@ class TestEventsFirstIntegration:
             stdout="",
             stderr=(
                 'openat(AT_FDCWD, "/home/user/.aws/credentials", O_RDONLY) = 3\n'
-                'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+                "connect(3, {sa_family=AF_INET6, sin6_port=htons(443), "
                 'sin6_addr=inet_pton(AF_INET6, "2607:f8b0:4005:802::200e")}, 28) = 0\n'
             ),
         )
@@ -642,7 +622,7 @@ class TestEventsFirstIntegration:
             stdout="",
             stderr=(
                 'openat(AT_FDCWD, "/home/user/.aws/credentials", O_RDONLY) = 3\n'
-                'connect(3, {sa_family=AF_INET6, sin6_port=htons(443), '
+                "connect(3, {sa_family=AF_INET6, sin6_port=htons(443), "
                 'sin6_addr=inet_pton(AF_INET6, "2607:f8b0:4005:802::200e")}, 28) = 0\n'
             ),
         )

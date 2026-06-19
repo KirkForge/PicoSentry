@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -14,7 +13,6 @@ logger = logging.getLogger("picowatch.rules")
 
 
 class RuleEngine:
-
     def __init__(self, rules_dir: Path | None = None) -> None:
         self._rules_dir = rules_dir
         self._rules: list[Rule] = []
@@ -89,11 +87,9 @@ class RuleEngine:
                 self._load_errors.append(msg)
                 continue
 
-
         raw_rules.sort(key=lambda r: r.id)
         self._rules = raw_rules
         self._rules_expected = expected_count
-
 
         for rule in self._rules:
             try:
@@ -103,7 +99,6 @@ class RuleEngine:
                 logger.warning(msg)
                 self._load_errors.append(msg)
 
-
         if hash_parts:
             hasher = hashlib.sha256()
             for part in hash_parts:
@@ -111,7 +106,6 @@ class RuleEngine:
             self._corpus_hash = hasher.hexdigest()[:16]
         else:
             self._corpus_hash = "no-rules-loaded"
-
 
         loaded = len(self._rules)
         errors = len(self._load_errors)

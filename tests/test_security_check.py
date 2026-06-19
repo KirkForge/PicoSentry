@@ -60,9 +60,7 @@ class TestCheckDeploymentSecurity:
         assert check_deployment_security(env) == []
 
     def test_enterprise_mode_with_tls_dev_is_critical(self) -> None:
-        findings = check_deployment_security(
-            {"PICODOME_ENTERPRISE_MODE": "1", "PICODOME_TLS_DEV": "1"}
-        )
+        findings = check_deployment_security({"PICODOME_ENTERPRISE_MODE": "1", "PICODOME_TLS_DEV": "1"})
         severities = {f.severity for f in findings}
         assert "CRITICAL" in severities
         assert any(f.check == "enterprise-mode-with-tls-dev" for f in findings)
@@ -74,9 +72,7 @@ class TestCheckDeploymentSecurity:
             assert findings[0].severity == "CRITICAL"
 
     def test_realistic_secret_passes(self) -> None:
-        findings = check_deployment_security(
-            {"PICOSHOGUN_SECRET_KEY": "a-strong-random-secret-value"}
-        )
+        findings = check_deployment_security({"PICOSHOGUN_SECRET_KEY": "a-strong-random-secret-value"})
         assert findings == []
 
 
@@ -113,9 +109,7 @@ class TestAssertDeploymentSecure:
 class TestMainCLI:
     """Tests for the security_check main() CLI."""
 
-    def test_clean_exit_code(
-        self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_clean_exit_code(self, capsys: pytest.CaptureFixture[str], monkeypatch: pytest.MonkeyPatch) -> None:
         for var, _, _ in _DEV_BYPASS_VARS:
             monkeypatch.delenv(var, raising=False)
         assert main([]) == 0
@@ -128,9 +122,7 @@ class TestMainCLI:
         assert "FAIL" in capsys.readouterr().out
 
     def test_json_output(self, capsys: pytest.CaptureFixture[str]) -> None:
-        code = main(
-            ["--json", "--env", "PICOSHOGUN_SKIP_SECURE_ASSERT=1", "--env", "PICODOME_DEV_MODE=1"]
-        )
+        code = main(["--json", "--env", "PICOSHOGUN_SKIP_SECURE_ASSERT=1", "--env", "PICODOME_DEV_MODE=1"])
         assert code == 1
         out = capsys.readouterr().out
         data = json.loads(out.splitlines()[0])

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import atexit
@@ -17,8 +16,6 @@ logger = logging.getLogger("picodome.mtls")
 
 @dataclass(frozen=True)
 class MTLSConfig:
-
-
     cert_path: str = ""
 
     key_path: str = ""
@@ -71,20 +68,16 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
         logger.warning("mTLS enabled but cert/key not configured")
         return None
 
-
     ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
-
 
     with contextlib.suppress(AttributeError):
         ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-
 
     try:
         ctx.load_cert_chain(certfile=config.cert_path, keyfile=config.key_path)
     except (ssl.SSLError, OSError):
         logger.exception("Failed to load TLS cert/key")
         raise
-
 
     if config.verify_client and config.ca_path:
         try:
@@ -94,18 +87,14 @@ def create_ssl_context(config: MTLSConfig | None = None) -> ssl.SSLContext | Non
             raise
         ctx.verify_mode = ssl.CERT_REQUIRED
     elif config.verify_client:
-
         ctx.set_default_verify_paths()
         ctx.verify_mode = ssl.CERT_REQUIRED
     else:
         ctx.verify_mode = ssl.CERT_NONE
 
-
     ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
-
     ctx.options |= ssl.OP_NO_COMPRESSION
-
 
     with contextlib.suppress(AttributeError):
         ctx.verify_flags |= ssl.VERIFY_CRL_CHECK_LEAF
@@ -137,7 +126,6 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
         "ca_path": config.ca_path,
     }
 
-
     if config.is_configured and not config.dev_mode:
         cert_path = Path(config.cert_path) if config.cert_path else None
         key_path = Path(config.key_path) if config.key_path else None
@@ -146,7 +134,6 @@ def get_tls_config_info(config: MTLSConfig | None = None) -> dict[str, Any]:
         info["cert_exists"] = cert_path.is_file() if cert_path else False
         info["key_exists"] = key_path.is_file() if key_path else False
         info["ca_exists"] = ca_path.is_file() if ca_path else False
-
 
         if cert_path and cert_path.is_file():
             try:

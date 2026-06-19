@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -31,7 +30,6 @@ ALLOWED_COLUMNS = frozenset(
 
 
 class RedisScanJobStore:
-
     def __init__(
         self,
         redis_url: str | None = None,
@@ -84,7 +82,6 @@ class RedisScanJobStore:
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
         client = self._get_client()
         if not self._available:
-
             logger.warning("Redis unavailable, job %s not persisted", job_id)
             return {
                 "job_id": job_id,
@@ -113,7 +110,6 @@ class RedisScanJobStore:
         pipe.hset(key, mapping=job)
         pipe.zadd(_JOB_LIST_KEY, {job_id: time.time()})
         pipe.execute()
-
 
         return {
             "job_id": job_id,
@@ -148,7 +144,6 @@ class RedisScanJobStore:
         if not existing:
             return None
 
-
         updates = {}
         for k, v in kwargs.items():
             if k not in ALLOWED_COLUMNS:
@@ -166,7 +161,6 @@ class RedisScanJobStore:
 
         client.hset(key, mapping=updates)
 
-
         data = client.hgetall(key)
         return self._deserialize_job(data)
 
@@ -175,11 +169,9 @@ class RedisScanJobStore:
         if not self._available:
             return []
 
-
         job_ids = client.zrevrange(_JOB_LIST_KEY, 0, limit - 1)
         if not job_ids:
             return []
-
 
         pipe = client.pipeline()
         for job_id in job_ids:

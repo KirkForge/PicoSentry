@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -43,8 +42,18 @@ SKIP_DIRS = frozenset(
 
 SKIP_EXTENSIONS = frozenset(
     {
-        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-        ".woff", ".woff2", ".ttf", ".eot", ".map", ".lock",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
+        ".lock",
     }
 )
 
@@ -259,7 +268,6 @@ def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
 
-
     has_lifecycle_script = any(k in scripts for k in INSTALL_SCRIPT_KEYS)
     for dep_field in ("dependencies", "optionalDependencies", "devDependencies", "peerDependencies"):
         deps = pkg.get(dep_field, {})
@@ -384,14 +392,12 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
 def detect_worm_propagation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_scan_scripts_for_worm(pkg, root_pkg))
             _scan_package_sources(target, pkg.get("name", "root"), findings)
-
 
     nm = target / "node_modules"
     if nm.is_dir():
@@ -406,7 +412,6 @@ def detect_worm_propagation(target: Path) -> list[Finding]:
                     pkg_label = f"{pkg.get('name', child.name)}@{pkg.get('version', 'unknown')}"
                     findings.extend(_scan_scripts_for_worm(pkg, pkg_json))
                     _scan_package_sources(child, pkg_label, findings)
-
 
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):

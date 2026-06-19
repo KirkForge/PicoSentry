@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -50,7 +49,6 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
     sections = _get_dep_sections(pkg)
 
-
     for section_name, deps in sections.items():
         for dep_name, version_str in sorted(deps.items()):
             if _is_dangerous_range(str(version_str)):
@@ -76,7 +74,6 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                         ],
                     )
                 )
-
 
     optional_deps = pkg.get("optionalDependencies", {})
     if isinstance(optional_deps, dict) and optional_deps:
@@ -117,13 +114,11 @@ def _check_manifest(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 def detect_manifest_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_manifest(pkg, root_pkg))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_manifest(pkg, pkg_json))

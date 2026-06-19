@@ -27,13 +27,13 @@ _advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
 
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
     import time
+
     cache_key = (advisory_db_path or "", str(corpus_dir))
     if cache_key in _advisory_db_cache:
         db, load_time = _advisory_db_cache[cache_key]
         if time.time() - load_time > 86400:
             logger.warning("Advisory DB is stale (loaded > 24h ago). Run 'picosentry advisories fetch' to refresh.")
         return db
-
 
     if advisory_db_path:
         path = Path(advisory_db_path)
@@ -45,7 +45,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
 
-
     candidate = corpus_dir / "advisories"
     if candidate.is_dir():
         db = AdvisoryDB(candidate)
@@ -53,7 +52,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
             logger.info("Loaded advisory DB from corpus: %d advisories", db.advisory_count)
             _advisory_db_cache[cache_key] = (db, time.time())
             return db
-
 
     default_dir = default_advisory_dir()
     if default_dir.is_dir():
@@ -68,7 +66,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
 
 @dataclass(frozen=True)
 class AdvisoryConfig:
-
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
@@ -163,13 +160,11 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
         deps = project_section.get("dependencies", [])
         if isinstance(deps, list):
             for dep in deps:
-
                 if isinstance(dep, str) and dep:
                     name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
                     if name and (name, "unknown") not in seen:
                         seen.add((name, "unknown"))
                         packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))
-
 
     for lock_parser, lock_file in [
         (parse_poetry_lock, "poetry.lock"),
@@ -234,7 +229,6 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
 
     gemfile_data = parse_gemfile(target)
     if gemfile_data:
-
         for entry in gemfile_data.get("dependencies", []):
             if not isinstance(entry, tuple) or len(entry) < 2:
                 continue

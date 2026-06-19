@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -46,7 +45,6 @@ VALID_LOG_FORMATS = frozenset({"text", "json"})
 
 
 class PicoDomeConfig:
-
     def __init__(self) -> None:
 
         self.format: str = "table"
@@ -54,40 +52,29 @@ class PicoDomeConfig:
         self.exit_code: bool = False
         self.deterministic_output: bool = False
 
-
         self.fail_on: str | None = None  # None means no threshold
-
 
         self.baseline: str | None = None
 
-
         self.severity_overrides: dict[str, str] = {}
-
 
         self.token_budget: int = 4096
 
-
         self.timeout: float = 30.0
-
 
         self.policy: str | None = None
 
-
         self.rules: list[str] | None = None
-
 
         self.log_format: str = "text"
 
-
         self.store_backend: str = "sqlite"
         self.sqlite_path: str | None = None
-
 
         self.cors_origins: str = ""
 
     def merge_from_cli(self, args: Any) -> PicoDomeConfig:
         merged = PicoDomeConfig()
-
 
         merged.format = self.format
         merged.no_color = self.no_color
@@ -104,7 +91,6 @@ class PicoDomeConfig:
         merged.store_backend = self.store_backend
         merged.sqlite_path = self.sqlite_path
         merged.cors_origins = self.cors_origins
-
 
         if not hasattr(args, "format"):
             return merged
@@ -201,12 +187,12 @@ class PicoDomeConfig:
 
 
 class _MtlsCertCheck:
-
     def __init__(self, config: PicoDomeConfig) -> None:
         self._config = config
 
     def check(self) -> SecurityViolation | None:
         import os as _os
+
         env = _os.environ.get("PICODOME_ENV", "development")
         if env in ("production", "staging"):
             mtls_cert = _os.environ.get("PICODOME_TLS_CERT", "")
@@ -302,7 +288,6 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except ImportError:
-
         try:
             import json
 
@@ -318,9 +303,7 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-
     _validate_config_keys(data, config_path)
-
 
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(
@@ -426,9 +409,7 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
     if "cors_origins" in data:
         config.cors_origins = str(data["cors_origins"])
 
-
     return apply_env_overrides(config)
-
 
 
 def _find_config(target_dir: Path) -> Path | None:

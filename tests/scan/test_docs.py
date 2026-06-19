@@ -6,7 +6,10 @@ from picosentry.scan.rules import RULE_COUNT, RULE_INFO
 
 RULES_DIR = os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-    "picosentry", "scan", "docs", "rules",
+    "picosentry",
+    "scan",
+    "docs",
+    "rules",
 )
 
 

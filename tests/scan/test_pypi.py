@@ -36,14 +36,17 @@ class TestPyPIDetection:
 
     def test_detects_pyproject_toml(self):
         from picosentry.scan.rules.pypi_utils import detect_pypi_project
+
         assert detect_pypi_project(_pypi_clean())
 
     def test_detects_setup_py(self):
         from picosentry.scan.rules.pypi_utils import detect_pypi_project
+
         assert detect_pypi_project(_pypi_malicious())
 
     def test_no_indicator_returns_false(self, tmp_path):
         from picosentry.scan.rules.pypi_utils import detect_pypi_project
+
         assert not detect_pypi_project(tmp_path)
 
 
@@ -65,8 +68,7 @@ class TestEcosystemFiltering:
     def test_pypi_project_ignores_npm_rules(self, tmp_path):
         """A PyPI project should trigger PyPI rules, not npm-specific ones."""
         (tmp_path / "pyproject.toml").write_text(
-            '[project]\nname = "test"\nversion = "0.1.0"\n'
-            'dependencies = ["company-internal-lib>=1.0"]\n'
+            '[project]\nname = "test"\nversion = "0.1.0"\ndependencies = ["company-internal-lib>=1.0"]\n'
         )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
@@ -96,6 +98,7 @@ class TestPyPITyposquat:
     def test_detects_typosquat_in_requirements(self):
         """requirements.txt with 'requsts' should trigger typosquat."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
+
         target = _pypi_malicious()
         findings = detect_pypi_typosquat(target, Path(""))
         typos = [f for f in findings if "requsts" in f.package]
@@ -106,6 +109,7 @@ class TestPyPITyposquat:
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
+
         target = _pypi_clean()
         findings = detect_pypi_typosquat(target, Path(""))
         pyproject_typos = [f for f in findings if "numpyy" in f.package or "requsts" in f.package]
@@ -121,6 +125,7 @@ class TestPyPIDependencyConfusion:
     def test_detects_internal_dep_without_private_index(self):
         """internal-secrets without private index should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
+
         target = _pypi_malicious()
         findings = detect_pypi_dep_confusion(target)
         internal = [f for f in findings if "internal-" in f.package]
@@ -130,6 +135,7 @@ class TestPyPIDependencyConfusion:
     def test_clean_project_no_confusion(self):
         """Clean project without internal deps should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
+
         target = _pypi_clean()
         findings = detect_pypi_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
@@ -137,6 +143,7 @@ class TestPyPIDependencyConfusion:
     def test_private_index_skips_flags(self, tmp_path):
         """When a private index is configured, internal deps are safe."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_pypi_dep_confusion
+
         # Create a project with a pip.conf pointing to a private registry
         (tmp_path / "pip.conf").write_text("[global]\nindex-url = https://private-pypi.example.com/simple/\n")
         (tmp_path / "requirements.txt").write_text("internal-secrets==0.1.0\n")
@@ -154,6 +161,7 @@ class TestPyPIPostInstall:
     def test_detects_malicious_setup_py(self):
         """setup.py with subprocess/os.system/eval should be flagged."""
         from picosentry.scan.rules.pypi_post_install import detect_pypi_post_install
+
         target = _pypi_malicious()
         findings = detect_pypi_post_install(target)
         assert len(findings) >= 1, f"Expected findings from malicious setup.py, got: {len(findings)}"
@@ -165,6 +173,7 @@ class TestPyPIPostInstall:
     def test_clean_project_no_post_install(self):
         """Clean project without setup.py should have no post-install findings."""
         from picosentry.scan.rules.pypi_post_install import detect_pypi_post_install
+
         target = _pypi_clean()
         findings = detect_pypi_post_install(target)
         assert len(findings) == 0, f"Clean project should have no post-install findings: {findings}"
@@ -179,6 +188,7 @@ class TestPyPIObfuscation:
     def test_detects_exec_eval_obfuscation(self):
         """eval() calls in Python files should be flagged."""
         from picosentry.scan.rules.pypi_obfuscation import detect_pypi_obfuscation
+
         target = _pypi_malicious()
         findings = detect_pypi_obfuscation(target)
         eval_findings = [f for f in findings if f.rule_id == "L2-PYPI-OBFS-001"]
@@ -187,6 +197,7 @@ class TestPyPIObfuscation:
     def test_non_python_project_returns_empty(self, tmp_path):
         """A non-Python project should return no obfuscation findings."""
         from picosentry.scan.rules.pypi_obfuscation import detect_pypi_obfuscation
+
         (tmp_path / "package.json").write_text('{"name": "test", "version": "1.0.0"}')
         findings = detect_pypi_obfuscation(tmp_path)
         assert len(findings) == 0
@@ -245,6 +256,7 @@ class TestPyPILockfileParsing:
 
     def test_parse_requirements(self):
         from picosentry.scan.rules.pypi_lock_parser import parse_requirements_txt
+
         entries = parse_requirements_txt(_pypi_clean() / "requirements.txt")
         names = {e[0] for e in entries}
         assert "requests" in names
@@ -253,6 +265,7 @@ class TestPyPILockfileParsing:
 
     def test_parse_malicious_requirements(self):
         from picosentry.scan.rules.pypi_lock_parser import parse_requirements_txt
+
         entries = parse_requirements_txt(_pypi_malicious() / "requirements.txt")
         names = {e[0] for e in entries}
         assert "requsts" in names
@@ -267,6 +280,7 @@ class TestPyPIUtils:
 
     def test_extract_pip_package_name(self):
         from picosentry.scan.rules.pypi_utils import _extract_pip_package_name
+
         assert _extract_pip_package_name("requests>=2.0.0") == "requests"
         assert _extract_pip_package_name("urllib3") == "urllib3"
         assert _extract_pip_package_name("git+https://...") is None
@@ -274,6 +288,7 @@ class TestPyPIUtils:
 
     def test_get_python_dep_names_pyproject(self):
         from picosentry.scan.rules.pypi_utils import get_python_dep_names
+
         data = {
             "dependencies": ["fastapi>=0.100.0", "pydantic"],
             "optional-dependencies": {"dev": ["pytest>=7.0"]},
@@ -285,6 +300,7 @@ class TestPyPIUtils:
 
     def test_get_python_dep_names_metadata(self):
         from picosentry.scan.rules.pypi_utils import get_python_dep_names
+
         meta = {"requires_dist": ["requests>=2.0.0", "urllib3"]}
         deps = get_python_dep_names(meta)
         assert "requests" in deps
@@ -292,6 +308,7 @@ class TestPyPIUtils:
 
     def test_parse_dist_info_name(self):
         from picosentry.scan.rules.pypi_utils import _parse_dist_info_name
+
         assert _parse_dist_info_name("requests-2.31.0.dist-info") == "requests"
         assert _parse_dist_info_name("python-dateutil-2.8.2.dist-info") == "python-dateutil"
         assert _parse_dist_info_name(".not-a-dist-info") is None
@@ -302,22 +319,24 @@ class TestTyposquatUtils:
 
     def test_edit_distance(self):
         from picosentry.scan.rules.typosquat_utils import edit_distance
+
         assert edit_distance("reqct", "react") == 1
         assert edit_distance("hello", "hello") == 0
         assert edit_distance("abc", "") == 3
 
     def test_keyboard_distance(self):
         from picosentry.scan.rules.typosquat_utils import keyboard_distance
+
         kd = keyboard_distance("reqct", "react")
-        ed = (
-            __import__("picosentry.scan.rules.typosquat_utils", fromlist=["edit_distance"])
-            .edit_distance("reqct", "react")
+        ed = __import__("picosentry.scan.rules.typosquat_utils", fromlist=["edit_distance"]).edit_distance(
+            "reqct", "react"
         )
         # Keyboard distance should be ≤ edit distance for adjacent keys
         assert kd < ed, f"keyboard_distance {kd} should be < edit_distance {ed} for adjacent-key typos"
 
     def test_check_typosquat_finds_match(self):
         from picosentry.scan.rules.typosquat_utils import check_typosquat
+
         matches = check_typosquat("reqct", {"react", "express", "lodash"})
         assert len(matches) >= 1
         match_names = [m[0] for m in matches]
@@ -325,11 +344,13 @@ class TestTyposquatUtils:
 
     def test_check_typosquat_no_match(self):
         from picosentry.scan.rules.typosquat_utils import check_typosquat
+
         matches = check_typosquat("unique-name-xyz", {"react", "express"})
         assert len(matches) == 0
 
     def test_load_corpus_missing_file_uses_builtin(self, tmp_path):
         from picosentry.scan.rules.typosquat_utils import BUILTIN_PYPI_TOP_100, load_corpus_for_ecosystem
+
         corpus = load_corpus_for_ecosystem(tmp_path, "pypi", BUILTIN_PYPI_TOP_100)
         assert len(corpus) > 0
         assert "pip" in corpus

@@ -12,8 +12,8 @@ from picosentry.serve.config.version import __version__
 
 logger = logging.getLogger("picoshogun.Backup")
 
-class BackupManager:
 
+class BackupManager:
     def __init__(self):
         self.backup_dir = Path(settings.database.backup_dir)
         self.db_path = Path(settings.database.path)
@@ -30,27 +30,23 @@ class BackupManager:
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:
-
             db_backup = temp_dir / "database.sqlite3"
             shutil.copy2(str(self.db_path), str(db_backup))
-
 
             meta = {
                 "version": __version__,
                 "created": datetime.now(timezone.utc).isoformat(),
                 "database_size": db_backup.stat().st_size,
-                "include_logs": include_logs
+                "include_logs": include_logs,
             }
 
             with open(temp_dir / "metadata.json", "w") as f:
                 json.dump(meta, f, indent=2)
 
-
             if include_logs:
                 logs_dir = self.backup_dir.parent / "logs"
                 if logs_dir.exists():
                     shutil.copytree(str(logs_dir), str(temp_dir / "logs"), dirs_exist_ok=True)
-
 
             with tarfile.open(str(backup_path), "w:gz") as tar:
                 for item in temp_dir.iterdir():
@@ -60,19 +56,13 @@ class BackupManager:
 
             logger.info("Backup created: %s (%s bytes)", backup_path, backup_size)
 
-            return {
-                "path": str(backup_path),
-                "name": name,
-                "size": backup_size,
-                "metadata": meta
-            }
+            return {"path": str(backup_path), "name": name, "size": backup_size, "metadata": meta}
 
         except Exception:
             logger.exception("Backup failed")
             return None
 
         finally:
-
             if temp_dir.exists():
                 shutil.rmtree(str(temp_dir))
 
@@ -83,7 +73,6 @@ class BackupManager:
             logger.error("Backup not found: %s", backup_path)
             return False
 
-
         if not force:
             current_db_size = self.db_path.stat().st_size if self.db_path.exists() else 0
             logger.warning("About to restore over database (%s bytes). Use force=True to confirm.", current_db_size)
@@ -92,9 +81,7 @@ class BackupManager:
         temp_dir = self.backup_dir / f"restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
 
         try:
-
             with tarfile.open(str(backup_path), "r:gz") as tar:
-
                 for member in tar.getmembers():
                     member_path = os.path.normpath(member.name)
                     if member_path.startswith("..") or os.path.isabs(member.name):
@@ -102,24 +89,19 @@ class BackupManager:
                         continue
                     tar.extract(member, str(temp_dir))
 
-
             meta_path = temp_dir / "metadata.json"
             if meta_path.exists():
                 with open(meta_path) as f:
                     meta = json.load(f)
                 logger.info("Restoring backup from %s", meta["created"])
 
-
             db_backup = temp_dir / "database.sqlite3"
             if db_backup.exists():
-
                 current_backup = f"{self.db_path}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
                 shutil.copy2(str(self.db_path), current_backup)
 
-
                 shutil.copy2(str(db_backup), str(self.db_path))
                 logger.info("Database restored")
-
 
             logs_backup = temp_dir / "logs"
             if logs_backup.exists():
@@ -147,12 +129,14 @@ class BackupManager:
 
         for backup_file in self.backup_dir.glob("*.tar.gz"):
             stat = backup_file.stat()
-            backups.append({
-                "name": backup_file.stem.replace(".tar", ""),
-                "path": str(backup_file),
-                "size": stat.st_size,
-                "created": datetime.fromtimestamp(stat.st_ctime).isoformat()
-            })
+            backups.append(
+                {
+                    "name": backup_file.stem.replace(".tar", ""),
+                    "path": str(backup_file),
+                    "size": stat.st_size,
+                    "created": datetime.fromtimestamp(stat.st_ctime).isoformat(),
+                }
+            )
 
         return sorted(backups, key=lambda x: x["created"], reverse=True)
 
@@ -172,10 +156,7 @@ class BackupManager:
         return removed
 
     def auto_backup(self) -> dict | None:
-        result = self.create_backup(
-            name=f"auto_{datetime.now(timezone.utc).strftime('%Y%m%d')}",
-            include_logs=True
-        )
+        result = self.create_backup(name=f"auto_{datetime.now(timezone.utc).strftime('%Y%m%d')}", include_logs=True)
 
         if result:
             self.cleanup_old_backups()

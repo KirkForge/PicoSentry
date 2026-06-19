@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -16,13 +15,38 @@ MAX_FILE_BYTES = 512_000
 MAX_FILES_PER_PACKAGE = 200
 
 
-SKIP_DIRS = frozenset({
-    "dist", "build", "out", ".cache", "__pycache__", ".git", ".hg", ".svn",
-})
-SKIP_EXTENSIONS = frozenset({
-    ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico", ".woff", ".woff2",
-    ".ttf", ".eot", ".map", ".lock", ".so", ".dll", ".dylib", ".exe",
-})
+SKIP_DIRS = frozenset(
+    {
+        "dist",
+        "build",
+        "out",
+        ".cache",
+        "__pycache__",
+        ".git",
+        ".hg",
+        ".svn",
+    }
+)
+SKIP_EXTENSIONS = frozenset(
+    {
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
+        ".lock",
+        ".so",
+        ".dll",
+        ".dylib",
+        ".exe",
+    }
+)
 
 
 # Patterns that, when present in a build-time file, indicate malicious behavior.

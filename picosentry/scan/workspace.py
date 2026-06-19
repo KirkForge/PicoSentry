@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -61,11 +60,9 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
         except (PermissionError, OSError):
             continue
 
-
         names = {p.name for p in entries}
         if "package.json" in names:
             projects.add(current.resolve())
-
 
         for entry in entries:
             if entry.is_symlink():
@@ -110,7 +107,6 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
             if match.is_dir() and (match / "package.json").exists():
                 projects.add(match.resolve())
 
-
             elif match.is_dir():
                 pkg_json = match / "package.json"
                 if pkg_json.exists():
@@ -120,7 +116,6 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
 
 
 class WorkspaceResult:
-
     def __init__(self) -> None:
         self.results: dict[str, object] = {}  # project_path -> ScanResult
         self.total_findings = 0
@@ -173,7 +168,6 @@ def scan_workspace(
         config = load_config(root)
 
     start = time.monotonic()
-
 
     projects = discover_pnpm_workspace(root)
     if not projects:
@@ -245,6 +239,7 @@ def scan_workspace(
                         ]
                     )
                 from picosentry.scan.models import SEVERITY_ORDER
+
                 if config.severity_threshold:
                     threshold = config.severity_threshold
                     min_level = SEVERITY_ORDER[threshold.lower()]

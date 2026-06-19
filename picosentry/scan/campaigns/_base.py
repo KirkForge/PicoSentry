@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -22,7 +21,6 @@ logger = logging.getLogger("picosentry.campaigns")
 
 @dataclass(frozen=True)
 class IndicatorSet:
-
     named_signatures: tuple[str, ...] = ()
     c2_domains: tuple[str, ...] = ()
     phishing_domains: tuple[str, ...] = ()
@@ -44,36 +42,55 @@ class IndicatorSet:
 
 _CONTENT_EXTENSIONS = frozenset(
     {
-        ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx",
-        ".json", ".yaml", ".yml", ".toml", ".py",
-        ".sh", ".bash", ".rb", ".go", ".rs",
-        ".md", ".txt", ".env", ".cfg", ".ini",
+        ".js",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".json",
+        ".yaml",
+        ".yml",
+        ".toml",
+        ".py",
+        ".sh",
+        ".bash",
+        ".rb",
+        ".go",
+        ".rs",
+        ".md",
+        ".txt",
+        ".env",
+        ".cfg",
+        ".ini",
     }
 )
 _SKIP_DIRS = frozenset(
     {
-        ".git", "__pycache__", ".cache", ".hg", ".svn",
-        "node_modules/.cache", "dist", "build", "out",
+        ".git",
+        "__pycache__",
+        ".cache",
+        ".hg",
+        ".svn",
+        "node_modules/.cache",
+        "dist",
+        "build",
+        "out",
     }
 )
 _MAX_FILE_BYTES = 512_000  # 512 KB — same budget as network_exfil rule
 
 
 class CampaignPackage:
-
-
     campaign_id: str = ""
     rule_id: str = ""
     iocs_path: Path = Path()
-
 
     ecosystems: tuple[str, ...] = ()
 
     def __init_subclass__(cls, **kwargs: object) -> None:
 
-
         super().__init_subclass__(**kwargs)
-
 
     def __init__(self) -> None:
         if not self.campaign_id:
@@ -84,9 +101,7 @@ class CampaignPackage:
                 f"(see scan/rules/__init__.py taxonomy); got {self.rule_id!r}"
             )
         if not self.iocs_path or not Path(self.iocs_path).is_file():
-            raise FileNotFoundError(
-                f"{type(self).__name__}: iocs.json not found at {self.iocs_path!r}"
-            )
+            raise FileNotFoundError(f"{type(self).__name__}: iocs.json not found at {self.iocs_path!r}")
         self._data: dict = self._load_iocs(self.iocs_path)
         self._indicators = self._compile_indicators(self._data.get("indicators", {}))
 
@@ -98,7 +113,6 @@ class CampaignPackage:
             if required not in data:
                 raise ValueError(f"iocs.json {path}: missing required field {required!r}")
         if data["rule_id"] != data.get("rule_id"):
-
             pass
         return data
 
@@ -111,7 +125,6 @@ class CampaignPackage:
             payload_filenames=tuple(raw.get("payload_filenames", ())),
             bundle_hashes_sha256=dict(raw.get("bundle_hashes_sha256", {})),
         )
-
 
     def iocs(self) -> dict:
         return self._data
@@ -134,10 +147,7 @@ class CampaignPackage:
     def compromised_packages(self) -> list[dict]:
         return list(self._data.get("indicators", {}).get("compromised_packages", []))
 
-
-    def detect_named_signatures(
-        self, target: Path, *, confidence: Confidence = Confidence.HIGH
-    ) -> list[Finding]:
+    def detect_named_signatures(self, target: Path, *, confidence: Confidence = Confidence.HIGH) -> list[Finding]:
         if not self._indicators.has_named_signatures:
             return []
 
@@ -145,7 +155,6 @@ class CampaignPackage:
         signatures: tuple[str, ...] = self._indicators.named_signatures
         sev = Severity.CRITICAL
         target_prefix = str(target.resolve()) + "/"
-
 
         for file_path in _iter_scannable_files(target):
             if file_path.is_symlink():
@@ -167,10 +176,7 @@ class CampaignPackage:
                             confidence=confidence,
                             package=self.campaign_id,
                             file=file_display,
-                            message=(
-                                f"Named-signature match for {self.campaign_id}: "
-                                f"literal {sig!r} found in source"
-                            ),
+                            message=(f"Named-signature match for {self.campaign_id}: literal {sig!r} found in source"),
                             evidence=(
                                 f"named_signature={sig!r}, "
                                 f"campaign={self.campaign_id}, "
@@ -211,14 +217,8 @@ class CampaignPackage:
                         confidence=Confidence.MEDIUM,
                         package=self.campaign_id,
                         file=file_display,
-                        message=(
-                            f"Payload filename {file_path.name!r} matches "
-                            f"known indicator for {self.campaign_id}"
-                        ),
-                        evidence=(
-                            f"payload_filename={file_path.name!r}, "
-                            f"campaign={self.campaign_id}"
-                        ),
+                        message=(f"Payload filename {file_path.name!r} matches known indicator for {self.campaign_id}"),
+                        evidence=(f"payload_filename={file_path.name!r}, campaign={self.campaign_id}"),
                         remediation=(
                             f"Verify whether this file is part of the "
                             f"{self.campaign_id} attack chain or a legitimate "
@@ -274,14 +274,11 @@ class CampaignPackage:
                         ),
                         references=self.references(),
                         ecosystem=(
-                            pkg_json.parent.parent.name
-                            if pkg_json.parent.parent.name == "node_modules"
-                            else "npm"
+                            pkg_json.parent.parent.name if pkg_json.parent.parent.name == "node_modules" else "npm"
                         ),
                     )
                 )
         return findings
-
 
     def detect(self, target: Path) -> list[Finding]:
         findings: list[Finding] = []
@@ -290,9 +287,7 @@ class CampaignPackage:
         findings.extend(self.detect_packages(target))
         return findings
 
-
     def register(self, engine: object) -> None:
-
 
         engine.register(self.rule_id, self.detect)  # type: ignore[attr-defined]
         logger.debug("Registered campaign %s as rule %s", self.campaign_id, self.rule_id)
@@ -314,10 +309,25 @@ def _iter_scannable_files(target: Path) -> Iterable[Path]:
         if any(part in _SKIP_DIRS for part in file.parts):
             continue
         if file.suffix in _CONTENT_EXTENSIONS or file.name in {
-            "package.json", "package-lock.json", "pnpm-lock.yaml", "yarn.lock",
-            ".npmrc", "pnpm-workspace.yaml", "requirements.txt", "pyproject.toml",
-            "setup.py", "Pipfile", "go.mod", "go.sum", "Cargo.toml", "Cargo.lock",
-            "pom.xml", "build.gradle", "Gemfile", "Gemfile.lock", "Makefile",
+            "package.json",
+            "package-lock.json",
+            "pnpm-lock.yaml",
+            "yarn.lock",
+            ".npmrc",
+            "pnpm-workspace.yaml",
+            "requirements.txt",
+            "pyproject.toml",
+            "setup.py",
+            "Pipfile",
+            "go.mod",
+            "go.sum",
+            "Cargo.toml",
+            "Cargo.lock",
+            "pom.xml",
+            "build.gradle",
+            "Gemfile",
+            "Gemfile.lock",
+            "Makefile",
         }:
             yield file
 
@@ -344,7 +354,6 @@ def iter_campaigns() -> Iterable[CampaignPackage]:
         except Exception as exc:
             logger.warning("Failed to import campaign %s: %s", camp_path.name, exc)
             continue
-
 
         for sub in CampaignPackage.__subclasses__():
             if sub not in subclasses:

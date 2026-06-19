@@ -4,7 +4,6 @@ from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class StateBackend:
-
     def save_node(self, node: ClusterNode) -> None:
         raise NotImplementedError
 

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +14,6 @@ def _is_enterprise_mode() -> bool:
 
 
 class AuthError(Exception):
-
     def __init__(self, message: str, status: int = 401) -> None:
         self.message = message
         self.status = status
@@ -31,7 +29,6 @@ def _constant_time_equal(a: str, b: str) -> bool:
 
 
 class Role:
-
     SUBMITTER = "submitter"
     READER = "reader"
     ADMIN = "admin"
@@ -50,7 +47,6 @@ MIN_TOKEN_LENGTH = 32
 
 
 class RBAC:
-
     def __init__(self) -> None:
 
         self._role_map: dict[str, str] = {}
@@ -80,8 +76,6 @@ class RBAC:
 
 
 class TokenAuth:
-
-
     MAX_FAILED_ATTEMPTS = 5
     BACKOFF_BASE_SECONDS = 1.0
     BACKOFF_MAX_SECONDS = 16.0
@@ -112,7 +106,6 @@ class TokenAuth:
             token = raw_token.strip()
             if token:
                 self._add_token(token)
-
 
         token_file = Path.home() / ".picodome" / "api-tokens"
         if token_file.is_file():
@@ -145,14 +138,12 @@ class TokenAuth:
 
         self._token_hashes.add(token_hash)
 
-
         if token.startswith("picodome-"):
             parts = token.split("-", 2)
             if len(parts) >= 3:
                 role = parts[1]
                 self._rbac.register_token(token, role)
         else:
-
             self._rbac.register_token(token, Role.READER)
 
     def _check_brute_force(self, token_hash: str) -> float | None:
@@ -199,12 +190,10 @@ class TokenAuth:
     def validate(self, token: str) -> bool:
         token_hash = _hash_token(token)
 
-
         wait_time = self._check_brute_force(token_hash)
         if wait_time is not None:
             logger.warning("Rate limited: token hash %s… must wait %.1fs", token_hash[:8], wait_time)
             return False
-
 
         if self._is_enterprise:
             if not self._token_hashes:
@@ -222,7 +211,6 @@ class TokenAuth:
                     return True
             self._record_failure(token_hash)
             return False
-
 
         if not self._token_hashes:
             if os.environ.get("PICODOME_DEV_MODE", "").lower() in ("1", "true", "yes"):

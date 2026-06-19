@@ -15,8 +15,7 @@ router = APIRouter()
 async def list_webhooks(user: dict = Depends(get_current_user)):
     return {
         "webhooks": {
-            name: {"url": w.url, "events": w.events, "active": w.active}
-            for name, w in webhook_manager.webhooks.items()
+            name: {"url": w.url, "events": w.events, "active": w.active} for name, w in webhook_manager.webhooks.items()
         }
     }
 
@@ -28,8 +27,10 @@ async def create_webhook(
 ):
     try:
         webhook_id = webhook_manager.create(
-            name=request.name, url=request.url,
-            events=request.events, secret=request.secret,
+            name=request.name,
+            url=request.url,
+            events=request.events,
+            secret=request.secret,
         )
         return {"id": webhook_id, "url": request.url, "events": request.events}
     except ValueError as e:

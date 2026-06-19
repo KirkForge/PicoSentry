@@ -198,11 +198,13 @@ class TestThreeNodeCluster:
             load=99,
             version=original_version - 1,
         )
-        state.merge_state({
-            "nodes": [old_node.to_dict()],
-            "scans": [],
-            "cluster_token": TOKEN,
-        })
+        state.merge_state(
+            {
+                "nodes": [old_node.to_dict()],
+                "scans": [],
+                "cluster_token": TOKEN,
+            }
+        )
 
         winner = state.get_node("versioned")
         assert winner.address == "10.0.0.1"
@@ -219,11 +221,13 @@ class TestThreeNodeCluster:
 
             class MockResponse:
                 def read(self):
-                    return json.dumps({
-                        "nodes": [],
-                        "scans": [],
-                        "cluster_token": TOKEN,
-                    }).encode()
+                    return json.dumps(
+                        {
+                            "nodes": [],
+                            "scans": [],
+                            "cluster_token": TOKEN,
+                        }
+                    ).encode()
 
                 def __enter__(self):
                     return self
@@ -260,11 +264,13 @@ class TestThreeNodeCluster:
 
             class MockResponse:
                 def read(self):
-                    return json.dumps({
-                        "nodes": [],
-                        "scans": [],
-                        "cluster_token": TOKEN,
-                    }).encode()
+                    return json.dumps(
+                        {
+                            "nodes": [],
+                            "scans": [],
+                            "cluster_token": TOKEN,
+                        }
+                    ).encode()
 
                 def __enter__(self):
                     return self

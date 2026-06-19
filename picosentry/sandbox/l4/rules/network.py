@@ -1,4 +1,3 @@
-
 import re
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
@@ -29,7 +28,6 @@ def detect_network_anomalies(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     findings.extend(
         Finding(
             rule_id="L4-NET-001",
@@ -59,7 +57,6 @@ def detect_network_anomalies(
                 )
                 break
 
-
         findings.extend(
             Finding(
                 rule_id="L4-NET-003",
@@ -71,7 +68,6 @@ def detect_network_anomalies(
             for tld in SUSPICIOUS_TLDS
             if hostname.endswith(tld)
         )
-
 
     if len(profile.network_calls) > 20:
         addresses = [c.address for c in profile.network_calls]
@@ -85,14 +81,14 @@ def detect_network_anomalies(
             )
         )
 
-
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
         best = find_best_baseline(profile, baselines)
         if best and best[0].expected_network_calls == 0:
             private_calls = [
-                c for c in profile.network_calls
+                c
+                for c in profile.network_calls
                 if _PRIVATE_IP_RE.match(c.address) and c.address not in ("127.0.0.1", "0.0.0.0")
             ]
             findings.extend(

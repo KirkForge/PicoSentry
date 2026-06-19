@@ -19,7 +19,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(NAME, help="Manage custom IoC corpus packs (export/import/list)")
     sub = parser.add_subparsers(dest="corpus_action", help="Corpus actions")
 
-
     export = sub.add_parser("export", help="Export custom IoCs as a shareable pack")
     export.add_argument("output", type=str, help="Output file path (.json)")
     export.add_argument("--name", type=str, default="my-iocs", help="Pack name")
@@ -37,7 +36,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         default="",
         help="Path to minisign secret key (for --sign minisign)",
     )
-
 
     import_ = sub.add_parser("import", help="Import a corpus pack into your IoC registry")
     import_.add_argument("path", type=str, help="Path to corpus pack .json file")
@@ -57,13 +55,10 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
     import_.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
 
-
     validate = sub.add_parser("validate", help="Validate a corpus pack without importing")
     validate.add_argument("path", type=str, help="Path to corpus pack .json file")
 
-
     sub.add_parser("list", help="List available corpus packs (built-in + user)")
-
 
     sign = sub.add_parser("sign", help="Sign a corpus pack with cryptographic signature")
     sign.add_argument("path", type=str, help="Path to corpus pack .json file to sign")

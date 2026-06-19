@@ -6,7 +6,6 @@ logger = logging.getLogger("picoshogun.RBAC")
 
 
 class Permission(str, Enum):
-
     READ_PROJECTS = "read:projects"
     READ_INTELLIGENCE = "read:intelligence"
     READ_ALERTS = "read:alerts"
@@ -20,11 +19,9 @@ class Permission(str, Enum):
     READ_BACKUPS = "read:backups"
     READ_AUDIT = "read:audit"
 
-
     RUN_PROJECTS = "run:projects"
     WRITE_WEBHOOKS = "write:webhooks"
     WRITE_INTELLIGENCE = "write:intelligence"
-
 
     ADMIN_USERS = "admin:users"
     ADMIN_ORGS = "admin:orgs"
@@ -62,7 +59,6 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.WRITE_INTELLIGENCE,
     },
     "admin": {
-
         *Permission.__members__.values(),
     },
 }
@@ -75,7 +71,9 @@ def has_permission(user: dict[str, Any], permission: Permission) -> bool:
     if not granted:
         logger.debug(
             "RBAC deny: role=%s needs %s (has %s)",
-            role, permission.value, [p.value for p in perms],
+            role,
+            permission.value,
+            [p.value for p in perms],
         )
     return granted
 

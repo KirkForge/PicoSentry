@@ -9,7 +9,6 @@ from picosentry.serve.services.event_bus import Event, event_bus
 
 
 class ConnectionManager:
-
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
         self.client_channels: dict[WebSocket, set[str]] = {}
@@ -41,23 +40,19 @@ class ConnectionManager:
             del self.client_channels[websocket]
 
     async def broadcast(self, event_type: str, payload: dict):
-        message = json.dumps({
-            "type": event_type,
-            "payload": payload,
-            "timestamp": datetime.now().isoformat()
-        })
-
+        message = json.dumps({"type": event_type, "payload": payload, "timestamp": datetime.now().isoformat()})
 
         for ws in self.connections.get("*", set()).copy():
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
 
-
         for ws in self.connections.get(event_type, set()).copy():
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
 
+
 ws_manager = ConnectionManager()
+
 
 def websocket_event_handler(event: Event):
     payload = {
@@ -67,12 +62,8 @@ def websocket_event_handler(event: Event):
     }
     try:
         loop = asyncio.get_running_loop()
-        loop.call_soon_threadsafe(
-            lambda: loop.create_task(ws_manager.broadcast(event.type, payload))
-        )
+        loop.call_soon_threadsafe(lambda: loop.create_task(ws_manager.broadcast(event.type, payload)))
     except RuntimeError:
-
-
         pass
 
 

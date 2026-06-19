@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -16,7 +15,6 @@ logger = logging.getLogger("picosentry.ioc_registry")
 
 
 class IoCRecord:
-
     def __init__(self, data: dict) -> None:
         self.id: str = data.get("id", "")
         self.name: str = data.get("name", "")
@@ -30,7 +28,6 @@ class IoCRecord:
         self.added_at: str = data.get("added_at", "")
         self.source: str = data.get("source", "custom")
         self.expires_at: str | None = data.get("expires_at")
-
 
         if not self.id:
             content = json.dumps(
@@ -147,7 +144,6 @@ def remove_ioc(ioc_id: str) -> bool:
 def load_all_iocs() -> list[dict]:
     all_iocs: dict[str, dict] = {}
 
-
     corpus_dir = Path(__file__).parent / "corpus"
     builtin_dir = corpus_dir / "ioc"
     if builtin_dir.exists():
@@ -160,7 +156,6 @@ def load_all_iocs() -> list[dict]:
                 all_iocs[key] = data
             except (json.JSONDecodeError, OSError):
                 pass
-
 
     for record in list_custom_iocs():
         key = f"{record.package_name}@{record.version_range}"

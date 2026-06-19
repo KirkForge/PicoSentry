@@ -36,8 +36,7 @@ def test_rule_id_aliases_is_non_empty() -> None:
         assert ids, f"RULE_ID_ALIASES[{fn_name!r}] is an empty list"
         # Each alias group must have a primary (first) + at least one sub.
         assert len(ids) >= 2, (
-            f"RULE_ID_ALIASES[{fn_name!r}] has only {len(ids)} id — "
-            "single-ID entries belong in RULE_INFO, not here"
+            f"RULE_ID_ALIASES[{fn_name!r}] has only {len(ids)} id — single-ID entries belong in RULE_INFO, not here"
         )
 
 
@@ -50,9 +49,7 @@ def test_rule_id_aliases_cover_known_multi_id_functions() -> None:
         "detect_pypi_obfuscation",
     }
     actual_keys = set(RULE_ID_ALIASES.keys())
-    assert expected_keys.issubset(actual_keys), (
-        f"Missing alias entries for: {expected_keys - actual_keys}"
-    )
+    assert expected_keys.issubset(actual_keys), f"Missing alias entries for: {expected_keys - actual_keys}"
 
 
 def test_aliases_preserve_primary_first_convention() -> None:
@@ -65,15 +62,12 @@ def test_aliases_preserve_primary_first_convention() -> None:
         subs = ids[1:]
         # Primary must exist in RULE_INFO (sub-rules may not — they sometimes
         # live only in the alias doc).
-        assert primary in RULE_INFO, (
-            f"Primary rule_id {primary!r} for {fn_name!r} missing from RULE_INFO"
-        )
+        assert primary in RULE_INFO, f"Primary rule_id {primary!r} for {fn_name!r} missing from RULE_INFO"
         # Subs should share the same prefix family (e.g. L2-OBFS-*).
         prefix = "-".join(primary.split("-")[:-1])  # "L2-OBFS"
         for sub in subs:
             assert sub.startswith(prefix + "-"), (
-                f"Sub-rule {sub!r} under {fn_name!r} does not share prefix "
-                f"{prefix!r} with primary {primary!r}"
+                f"Sub-rule {sub!r} under {fn_name!r} does not share prefix {prefix!r} with primary {primary!r}"
             )
 
 
@@ -146,10 +140,7 @@ def test_aliases_and_rule_info_are_consistent() -> None:
             if 2 <= suffix <= 99:
                 # Check whether this sub-rule is in any alias group
                 # (e.g. "L2-OBFS-002" is in the "detect_obfuscation" group).
-                in_any_alias = any(
-                    rid in ids
-                    for ids in RULE_ID_ALIASES.values()
-                )
+                in_any_alias = any(rid in ids for ids in RULE_ID_ALIASES.values())
                 if not in_any_alias:
                     # Allow if the rule is a primary (suffix 001) of its family.
                     assert suffix == 1, (

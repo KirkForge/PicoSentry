@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -25,8 +24,6 @@ _request_counter = 0
 
 
 class HealthHandler(BaseHTTPRequestHandler):
-
-
     auth_config: AuthConfig = AuthConfig()
     rate_limiter: RateLimiter = RateLimiter()
     _engine_cache: Any = None
@@ -70,7 +67,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def _check_auth(self, request_id: str) -> AuthResult:
         headers = self._get_headers_dict()
-
 
         path = self.path.split("?")[0].split("#")[0]
         if path in self.auth_config.public_endpoints and self.auth_config.mode != "off":
@@ -194,7 +190,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             else:
                 self.send_error(404, "Not Found")
         finally:
-
             from picosentry.scan.logging import clear_request_context
 
             clear_request_context()
@@ -214,7 +209,6 @@ class HealthHandler(BaseHTTPRequestHandler):
                 auth_result = self._check_auth(request_id)
                 if not auth_result.ok:
                     return
-
 
                 from picosentry.scan.auth import check_authorization
 
@@ -249,7 +243,6 @@ class HealthHandler(BaseHTTPRequestHandler):
         if not target:
             self._send_json(400, {"error": "Missing 'target' field", "request_id": request_id}, request_id, start_time)
             return
-
 
         if os.path.isabs(target) or ".." in target:
             self._send_json(
@@ -356,7 +349,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
         metrics = get_metrics().snapshot()
 
-
         advisory_status = "not_loaded"
         advisory_count = 0
         has_errors = False
@@ -371,14 +363,12 @@ class HealthHandler(BaseHTTPRequestHandler):
             advisory_status = "error"
             has_errors = True
 
-
         tenant_summary = {"enabled": 0, "disabled": 0, "total": 0}
         try:
             from picosentry.scan.tenant import TenantManager
 
             tm = TenantManager()
             if tenant_id:
-
                 health = tm.tenant_health(tenant_id)
                 if health.get("status") == "not_found":
                     self._send_json(
@@ -402,7 +392,6 @@ class HealthHandler(BaseHTTPRequestHandler):
                 }
         except Exception:
             pass
-
 
         fleet_summary = {"active_rollouts": 0, "failed_rollouts": 0, "total_targets": 0}
         try:
@@ -509,7 +498,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 @dataclass
 class TLSConfig:
-
     cert_file: str = ""
     key_file: str = ""
     mtls_ca: str = ""
@@ -545,7 +533,6 @@ class TLSConfig:
         else:
             ctx.verify_mode = ssl.CERT_NONE
 
-
         ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
         return ctx
@@ -563,7 +550,6 @@ def run_daemon(
     from picosentry.scan.metrics import increment, set_gauge
 
     if auth_config is None:
-
         from pathlib import Path
 
         from picosentry.scan.config import load_config
@@ -575,13 +561,10 @@ def run_daemon(
             logger.debug("Config file not found or invalid, falling back to env vars", exc_info=True)
             auth_config = AuthConfig.from_env()
 
-
     rate_limiter = RateLimiter(rps=auth_config.rate_limit_rps)
-
 
     HealthHandler.auth_config = auth_config
     HealthHandler.rate_limiter = rate_limiter
-
 
     if is_enterprise_mode():
         try:
@@ -626,14 +609,11 @@ def run_daemon(
         )
         print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
 
-
     set_gauge("daemon.active_requests", 0)
     increment("daemon.start")
 
-
     if tls_config is None:
         tls_config = TLSConfig.from_env()
-
 
     ssl_ctx = None
     if tls_config and tls_config.is_enabled():
@@ -649,7 +629,6 @@ def run_daemon(
     if ssl_ctx:
         server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
     server_name = f"{host}:{port}"
-
 
     def shutdown(signum: int, _frame) -> None:
         logger.info("Received signal %d, shutting down daemon...", signum)
@@ -685,4 +664,6 @@ def run_daemon(
     finally:
         server.server_close()
         logger.info("Daemon stopped.")
+
+
 _request_counter_lock = threading.Lock()

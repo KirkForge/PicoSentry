@@ -14,6 +14,7 @@ HAS_NACL = False
 try:
     import nacl.exceptions
     import nacl.signing  # noqa: F401
+
     HAS_NACL = True
 except ImportError:
     pass
@@ -27,8 +28,12 @@ VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
 REQUIRED_MANIFEST_FIELDS = {"name": str, "entry_point": str}
 OPTIONAL_MANIFEST_FIELDS = {
-    "version": str, "author": str, "description": str,
-    "hooks": list, "dependencies": list, "config": dict,
+    "version": str,
+    "author": str,
+    "description": str,
+    "hooks": list,
+    "dependencies": list,
+    "config": dict,
 }
 
 
@@ -50,7 +55,6 @@ class PluginMetadata:
 
 
 class PluginInterface:
-
     def initialize(self, config: dict[str, Any]) -> bool:
         raise NotImplementedError
 
@@ -82,9 +86,7 @@ def _split_plugin_dir_env(raw: str) -> list[str]:
 
 
 class PluginManager:
-
-    def __init__(self, plugin_dir: str | None = None,
-                 extra_plugin_dirs: list[str] | None = None):
+    def __init__(self, plugin_dir: str | None = None, extra_plugin_dirs: list[str] | None = None):
         # The bundled plugin directory (shipped inside the wheel as
         # picosentry/serve/plugins/) is the lowest-priority source — it
         # must work in both the dev tree and a wheel install. A previous
@@ -93,9 +95,7 @@ class PluginManager:
         # actual package is `picosentry.serve.plugins`) and has been
         # removed. The relative `../plugins` fallback is the canonical
         # path in both layouts.
-        self.bundled_plugin_dir: str = os.path.realpath(
-            os.path.join(os.path.dirname(__file__), "../plugins")
-        )
+        self.bundled_plugin_dir: str = os.path.realpath(os.path.join(os.path.dirname(__file__), "../plugins"))
 
         if plugin_dir is not None:
             self._explicit_plugin_dir: str = os.path.realpath(plugin_dir)
@@ -172,7 +172,6 @@ class PluginManager:
     def _validate_manifest(meta: dict) -> list[str]:
         issues: list[str] = []
 
-
         for field, expected_type in REQUIRED_MANIFEST_FIELDS.items():
             if field not in meta:
                 issues.append(f"Missing required field: {field}")
@@ -182,14 +181,12 @@ class PluginManager:
         if issues:
             return issues  # Can't validate further without name/entry_point
 
-
         entry_point = meta["entry_point"]
         if not _ENTRY_POINT_RE.match(entry_point):
             issues.append(
                 f"entry_point '{entry_point}' is not a valid Python module identifier "
                 f"(must match {_ENTRY_POINT_RE.pattern})"
             )
-
 
         hooks = meta.get("hooks", [])
         if not isinstance(hooks, list):
@@ -198,7 +195,6 @@ class PluginManager:
             unknown = [h for h in hooks if h not in VALID_HOOKS]
             if unknown:
                 issues.append(f"Unknown hooks: {unknown}. Valid hooks: {sorted(VALID_HOOKS)}")
-
 
         name = meta.get("name", "")
         if not isinstance(name, str) or not name.strip():
@@ -209,17 +205,20 @@ class PluginManager:
     @staticmethod
     def _compute_manifest_signature_content(meta: dict, module_checksum: str) -> str:
         hooks = meta.get("hooks", [])
-        return json.dumps({
-            "name": meta.get("name", ""),
-            "version": meta.get("version", ""),
-            "entry_point": meta.get("entry_point", ""),
-            "hooks": sorted(hooks) if isinstance(hooks, list) else [],
-            "module_sha256": module_checksum,
-        }, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            {
+                "name": meta.get("name", ""),
+                "version": meta.get("version", ""),
+                "entry_point": meta.get("entry_point", ""),
+                "hooks": sorted(hooks) if isinstance(hooks, list) else [],
+                "module_sha256": module_checksum,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @staticmethod
-    def verify_manifest_signature(meta: dict, module_checksum: str,
-                                  signature_hex: str, public_key_hex: str) -> bool:
+    def verify_manifest_signature(meta: dict, module_checksum: str, signature_hex: str, public_key_hex: str) -> bool:
         if not HAS_NACL:
             logger.warning("pynacl not installed — cannot verify Ed25519 signatures")
             return False
@@ -285,7 +284,9 @@ class PluginManager:
 
         logger.info(
             "Resolved plugin dirs: %s; loaded %d plugin(s) from %d dir(s)",
-            dirs, loaded_count, sum(1 for d in dirs if os.path.isdir(d)),
+            dirs,
+            loaded_count,
+            sum(1 for d in dirs if os.path.isdir(d)),
         )
 
     def _load_plugin(self, path: str, meta: dict) -> bool:
@@ -294,7 +295,6 @@ class PluginManager:
         tracking the path so `reload()` is idempotent."""
         name = meta["name"]
         entry = meta["entry_point"]
-
 
         module_file = os.path.join(path, f"{entry}.py")
         module_checksum = ""
@@ -305,7 +305,6 @@ class PluginManager:
         else:
             logger.warning("Plugin '%s' entry module not found at %s", name, module_file)
 
-
         require_signed = os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() in ("1", "true", "yes")
         sig_hex = meta.get("signature")
         pub_key_hex = meta.get("public_key")
@@ -313,8 +312,7 @@ class PluginManager:
         if require_signed:
             if not sig_hex or not pub_key_hex:
                 logger.error(
-                    "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 "
-                    "but no signature/public_key in manifest",
+                    "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no signature/public_key in manifest",
                     name,
                 )
                 return False
@@ -326,16 +324,13 @@ class PluginManager:
                 return False
             logger.info("Plugin '%s': Ed25519 signature verified", name)
         elif sig_hex and pub_key_hex and module_checksum and HAS_NACL:
-
             if self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
                 logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
             else:
                 logger.warning(
-                    "Plugin '%s': Ed25519 signature present but INVALID "
-                    "— loading anyway (not required)",
+                    "Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)",
                     name,
                 )
-
 
         sys.path.insert(0, path)
         try:
@@ -348,13 +343,10 @@ class PluginManager:
             sys.modules.pop(entry, None)
             module = importlib.import_module(entry)
 
-
             plugin_class = None
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if (inspect.isclass(attr) and
-                    issubclass(attr, PluginInterface) and
-                    attr != PluginInterface):
+                if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr != PluginInterface:
                     plugin_class = attr
                     break
 
@@ -380,7 +372,6 @@ class PluginManager:
                 signature=sig_hex if meta.get("signature") else None,
                 signed=require_signed or bool(sig_hex and pub_key_hex),
             )
-
 
             for hook in meta.get("hooks", []):
                 if hook in self.hooks:

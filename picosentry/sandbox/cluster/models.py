@@ -13,7 +13,6 @@ DEFAULT_CLUSTER_PORT = 8444  # cluster communication port (distinct from daemon 
 
 
 class NodeStatus(str, Enum):
-
     ONLINE = "online"
     OFFLINE = "offline"
     DRAINING = "draining"
@@ -21,7 +20,6 @@ class NodeStatus(str, Enum):
 
 @dataclass
 class ClusterNode:
-
     node_id: str
     address: str
     port: int = DEFAULT_CLUSTER_PORT
@@ -71,7 +69,6 @@ class ClusterNode:
 
 @dataclass
 class ScanRequest:
-
     scan_id: str
     command: list[str]
     priority: int = 0  # higher = more urgent

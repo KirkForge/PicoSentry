@@ -1,4 +1,3 @@
-
 import contextlib
 import json
 from pathlib import Path
@@ -20,7 +19,6 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
     if not has_pnpm_lock:
         return findings
 
-
     pkg_data = {}
     if pkg_path.exists():
         with contextlib.suppress(json.JSONDecodeError, UnicodeDecodeError):
@@ -29,7 +27,6 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
     pnpm_config = pkg_data.get("pnpm", {})
     pnpm_overrides = pnpm_config.get("overrides", {})
     pnpm_patches = pnpm_config.get("patchedDependencies", {})
-
 
     if has_npmrc:
         npmrc_path = target / ".npmrc"
@@ -64,7 +61,6 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                     )
                 )
 
-
     if pnpm_config.get("dangerouslyAllowAllBuilds"):
         findings.append(
             Finding(
@@ -77,8 +73,7 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                 message="package.json enables dangerouslyAllowAllBuilds — all install scripts run without allowlist",
                 evidence="pnpm.dangerouslyAllowAllBuilds: true",
                 remediation=(
-                    "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies "
-                    "to allowlist specific packages."
+                    "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages."
                 ),
                 references=[
                     "https://pnpm.io/settings#dangerouslyallowallbuilds",
@@ -86,7 +81,6 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                 ],
             )
         )
-
 
     if has_pnpm_lock and not has_npmrc:
         findings.append(
@@ -104,10 +98,8 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
             )
         )
 
-
     if pnpm_overrides:
         for override_key in pnpm_overrides:
-
             override_val = pnpm_overrides[override_key]
             findings.append(
                 Finding(
@@ -126,7 +118,6 @@ def detect_pnpm_config(target_path: Path) -> list[Finding]:
                     references=["https://pnpm.io/package_json#pnpmoverrides"],
                 )
             )
-
 
     if pnpm_patches:
         findings.append(

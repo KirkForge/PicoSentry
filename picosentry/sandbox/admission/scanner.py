@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -25,7 +24,6 @@ SEVERITY_LEVELS = {
 
 
 class ImageScanner:
-
     def __init__(
         self,
         enabled: bool | None = None,
@@ -41,7 +39,6 @@ class ImageScanner:
         self.daemon_url = daemon_url or os.environ.get("PICODOME_ADMISSION_DAEMON_URL", _DEFAULT_DAEMON_URL)
         self.timeout = timeout
         self._min_level = SEVERITY_LEVELS.get(min_severity, 3)
-
 
         if fail_closed is None:
             self._fail_closed = os.environ.get("PICODOME_ADMISSION_FAIL_CLOSED", "").lower() in ("1", "true", "yes")
@@ -77,7 +74,6 @@ class ImageScanner:
 
     def _scan_image(self, image: str, container_name: str) -> tuple[bool, str]:
         try:
-
             url = f"{self.daemon_url}/api/v1/scan"
             payload = json.dumps(
                 {
@@ -96,13 +92,11 @@ class ImageScanner:
             response = urlopen(req, timeout=self.timeout)
             result = json.loads(response.read())
 
-
             verdict = result.get("verdict", "CLEAN")
             findings = result.get("findings", [])
 
             if verdict == "DENY":
                 return False, (f"container '{container_name}' image '{image}' denied: {len(findings)} findings")
-
 
             blocking_findings = [
                 f for f in findings if SEVERITY_LEVELS.get(f.get("severity", "low"), 0) >= self._min_level

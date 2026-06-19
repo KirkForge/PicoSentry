@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -22,7 +21,6 @@ logger = logging.getLogger("picowatch")
 
 @dataclass
 class TelemetryConfig:
-
     audit_db_path: Path = field(default_factory=lambda: Path("picowatch_audit.db"))
     audit_retention_days: int = 30
     otel_endpoint: str | None = None
@@ -31,7 +29,6 @@ class TelemetryConfig:
 
 
 class TelemetrySink:
-
     def __init__(self, config: TelemetryConfig | None = None) -> None:
         self._config = config or TelemetryConfig()
         self._start_time = time.monotonic()
@@ -85,8 +82,10 @@ class TelemetrySink:
             cls._cached_audit_key = key.encode("utf-8")
             return cls._cached_audit_key
         if key and len(key) >= 16:
-            logger.warning("PICOWATCH_AUDIT_HMAC_KEY is shorter than 32 chars — "
-                           "cryptographic strength reduced; recommend ≥32 chars")
+            logger.warning(
+                "PICOWATCH_AUDIT_HMAC_KEY is shorter than 32 chars — "
+                "cryptographic strength reduced; recommend ≥32 chars"
+            )
             cls._cached_audit_key = key.encode("utf-8")
             return cls._cached_audit_key
         if key:
@@ -127,7 +126,6 @@ class TelemetrySink:
             labels={"guard_type": "prompt"},
         )
 
-
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": "warn" if result.blocked else "info",
@@ -140,7 +138,6 @@ class TelemetrySink:
             "latency_ms": result.duration_ms,
         }
         logger.info(json.dumps(log_entry))
-
 
         self._audit_write(
             event_type="prompt_scan",
@@ -171,7 +168,6 @@ class TelemetrySink:
             labels={"guard_type": "output"},
         )
 
-
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": "warn" if not result.valid else "info",
@@ -184,7 +180,6 @@ class TelemetrySink:
             "latency_ms": result.duration_ms,
         }
         logger.info(json.dumps(log_entry))
-
 
         self._audit_write(
             event_type="output_validation",
@@ -228,7 +223,6 @@ class TelemetrySink:
             )
             conn.commit()
         except sqlite3.Error:
-
             logger.warning("Failed to write audit log entry")
         finally:
             if conn:
@@ -257,7 +251,6 @@ class TelemetrySink:
     def render_prometheus(self) -> str:
         lines: list[str] = []
 
-
         lines.append("# HELP picowatch_requests_total Total requests processed")
         lines.append("# TYPE picowatch_requests_total counter")
         lines.append(f"picowatch_requests_total {self._metrics['picowatch_requests_total']}")
@@ -277,7 +270,6 @@ class TelemetrySink:
         lines.append("# HELP picowatch_scan_duration_ms_sum Cumulative scan duration in ms")
         lines.append("# TYPE picowatch_scan_duration_ms_sum counter")
         lines.append(f"picowatch_scan_duration_ms_sum {self._metrics['picowatch_scan_duration_ms_sum']}")
-
 
         if self._prometheus._histograms:
             lines.append("")

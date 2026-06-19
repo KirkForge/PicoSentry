@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -10,22 +9,16 @@ from .utils import load_package_json
 __all__ = ["detect_credential_reading"]
 
 CREDENTIAL_PATTERNS = (
-
     re.compile(r"process\.env\.(?:AWS_|GITHUB_|NPM_|TOKEN|SECRET|KEY|PASS|AUTH|CREDENTIAL)", re.IGNORECASE),
-
     re.compile(
         r"""(?:readFileSync|readFile|fs\.read|cat\s+|type\s+)['"].*?(?:\.npmrc|\.env|\.aws|\.ssh|\.gitconfig|id_rsa|id_ed25519)""",
         re.IGNORECASE,
     ),
-
     re.compile(r"""['"/](?:\.npmrc|\.env|\.aws[/\\]|\.ssh[/\\])['"/]""", re.IGNORECASE),
-
     re.compile(
         r"(?:password|passwd|secret|token|api_key|apikey|access_key)\s*[:=]\s*['\"][^'\"]{8,}['\"]", re.IGNORECASE
     ),
-
     re.compile(r"process\.env(?!\.\w)", re.IGNORECASE),
-
     re.compile(r"(?:curl|wget|fetch|http\.get|http\.post|request|axios|got)\s*.*process\.env", re.IGNORECASE),
 )
 
@@ -74,7 +67,6 @@ def redact_secret_evidence(text: str) -> str:
     if not text:
         return text
 
-
     redacted = re.sub(
         r"""(['\"])([A-Za-z0-9_\-+/=]{8,})(['\"])""",
         r"\1<REDACTED>\3",
@@ -118,7 +110,6 @@ def _scan_scripts_for_creds(pkg: dict, pkg_json: Path) -> list[Finding]:
     for script_key, script_value in sorted(scripts.items()):
         script_str = str(script_value)
 
-
         has_env_read = "process.env" in script_str or "$" in script_str
         has_network = any(p in script_str for p in ("curl", "wget", "fetch", "http://", "https://", "nc ", "ncat"))
 
@@ -147,7 +138,6 @@ def _scan_scripts_for_creds(pkg: dict, pkg_json: Path) -> list[Finding]:
                 )
             )
         elif has_env_read:
-
             env_vars = re.findall(r"process\.env\.\w+", script_str)
             shell_vars = re.findall(r"\$\{?\w+\}?", script_str)
             all_vars = env_vars + shell_vars
@@ -181,7 +171,6 @@ def _scan_scripts_for_creds(pkg: dict, pkg_json: Path) -> list[Finding]:
 def _scan_source_for_creds(file_path: Path, pkg_label: str) -> list[Finding]:
     findings: list[Finding] = []
 
-
     if _should_skip_path(file_path):
         return findings
 
@@ -203,10 +192,8 @@ def _scan_source_for_creds(file_path: Path, pkg_label: str) -> list[Finding]:
             line_num = content[: match.start()].count("\n") + 1
             matched_text = match.group(0)[:120]
 
-
             severity = Severity.MEDIUM
             confidence = Confidence.MEDIUM
-
 
             if "process.env" in matched_text and any(p in matched_text for p in ("curl", "wget", "fetch", "http")):
                 severity = Severity.CRITICAL
@@ -243,7 +230,6 @@ def _scan_source_for_creds(file_path: Path, pkg_label: str) -> list[Finding]:
 def detect_credential_reading(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     root_pkg_label = "root"
     if root_pkg.is_file():
@@ -252,9 +238,7 @@ def detect_credential_reading(target: Path) -> list[Finding]:
             root_pkg_label = f"{pkg.get('name', 'root')}@{pkg.get('version', 'unknown')}"
             findings.extend(_scan_scripts_for_creds(pkg, root_pkg))
 
-
     _scan_package_sources(target, root_pkg_label, findings)
-
 
     nm = target / "node_modules"
     if nm.is_dir():
@@ -269,9 +253,7 @@ def detect_credential_reading(target: Path) -> list[Finding]:
                     pkg_label = f"{pkg.get('name', child.name)}@{pkg.get('version', 'unknown')}"
                     findings.extend(_scan_scripts_for_creds(pkg, pkg_json))
 
-
                     _scan_package_sources(child, pkg_label, findings)
-
 
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):

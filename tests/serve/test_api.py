@@ -1,4 +1,5 @@
 """Tests for the PicoShogun Command Centre API endpoints."""
+
 import contextlib
 import os
 import sys
@@ -19,6 +20,7 @@ def client():
     from fastapi.testclient import TestClient
 
     from picosentry.serve.api.server import app
+
     return TestClient(app)
 
 
@@ -31,10 +33,13 @@ def auth_token(client):
         # for tests that need one lives in
         # ``tests/serve/test_admin_role_seed.py`` (provisioned via the
         # service layer, not the registration endpoint).
-        client.post("/auth/register", json={
-            "username": "pytest_user",
-            "password": "testpassword123",
-        })
+        client.post(
+            "/auth/register",
+            json={
+                "username": "pytest_user",
+                "password": "testpassword123",
+            },
+        )
 
     try:
         resp = client.post("/auth/login?username=pytest_user&password=testpassword123")
@@ -46,6 +51,7 @@ def auth_token(client):
 
     # Fallback: create directly via AuthService
     from picosentry.serve.api.server import auth_service
+
     token = auth_service.authenticate("pytest_user", "testpassword123")
     if token:
         return token
@@ -226,8 +232,10 @@ class TestAPIVersion:
 
     def test_api_info(self, client):
         from picosentry.serve.api.server import app
+
         assert app.title == "PicoShogun Command Centre API"
         from picosentry.serve.config.version import __version__
+
         assert app.version == __version__
 
 
@@ -253,11 +261,15 @@ class TestAuthEndpoints:
 
     def test_register_new_user(self, client):
         import time
+
         username = f"test_user_{int(time.time() * 1000)}"
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-        })
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "user_id" in data
@@ -267,24 +279,35 @@ class TestAuthEndpoints:
 
     def test_register_duplicate_user(self, client):
         import time
+
         username = f"test_dup_{int(time.time() * 1000)}"
-        client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-        })
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-        })
+        client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         assert resp.status_code in (400, 409)
 
     def test_login_returns_token(self, client):
         import time
+
         username = f"test_login_{int(time.time() * 1000)}"
-        client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-        })
+        client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         resp = client.post(f"/auth/login?username={username}&password=testpassword123")
         assert resp.status_code == 200
         data = resp.json()
@@ -312,12 +335,16 @@ class TestAuthEndpoints:
         the field would silently start creating elevated accounts.
         """
         import time
+
         username = f"rolecheck_{client_role}_{int(time.time() * 1000)}"
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-            "role": client_role,
-        })
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+                "role": client_role,
+            },
+        )
         assert resp.status_code == 422, (
             f"client_supplied role={client_role!r} should be rejected, got {resp.status_code}: {resp.text}"
         )
@@ -332,18 +359,19 @@ class TestAuthEndpoints:
         from picosentry.serve.database.manager import db
 
         username = f"dbcheck_{int(time.time() * 1000)}"
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-        })
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         assert resp.status_code == 200, resp.text
         assert resp.json()["role"] == "viewer"
 
         row = db.execute_one("SELECT role FROM users WHERE username = ?", (username,))
         assert row is not None
-        assert row["role"] == "viewer", (
-            f"DB row for {username!r} has role={row['role']!r}; expected 'viewer'"
-        )
+        assert row["role"] == "viewer", f"DB row for {username!r} has role={row['role']!r}; expected 'viewer'"
 
 
 class TestSchedulerEndpoints:
@@ -358,20 +386,26 @@ class TestSchedulerEndpoints:
 
     def test_create_and_delete_job(self, client, auth_token):
         import time
+
         headers = auth_headers(auth_token)
         if not auth_token:
             pytest.skip("No auth token available")
         # Create org first (required by API)
-        client.post("/orgs", json={
-            "name": f"sched_org_{int(time.time()*1000)}",
-            "slug": f"schedorg{int(time.time()*1000)}"
-        }, headers=headers)
-        resp = client.post("/scheduler/jobs", json={
-            "name": f"test_job_{int(time.time()*1000)}",
-            "cron": "*/10 * * * *",
-            "command": "batch",
-            "params": {"category": "monitoring"}
-        }, headers=headers)
+        client.post(
+            "/orgs",
+            json={"name": f"sched_org_{int(time.time() * 1000)}", "slug": f"schedorg{int(time.time() * 1000)}"},
+            headers=headers,
+        )
+        resp = client.post(
+            "/scheduler/jobs",
+            json={
+                "name": f"test_job_{int(time.time() * 1000)}",
+                "cron": "*/10 * * * *",
+                "command": "batch",
+                "params": {"category": "monitoring"},
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "job_id" in data
@@ -414,11 +448,13 @@ class TestObservabilityModule:
 
     def test_import_observability(self):
         from picosentry.serve.services.observability import get_tracer, init_telemetry
+
         assert init_telemetry is not None
         assert get_tracer is not None
 
     def test_noop_tracer(self):
         from picosentry.serve.services.observability import NoOpTracer
+
         tracer = NoOpTracer()
         span = tracer.start_span("test")
         assert span is not None
@@ -427,29 +463,36 @@ class TestObservabilityModule:
 
     def test_noop_meter(self):
         from picosentry.serve.services.observability import NoOpMeter
+
         meter = NoOpMeter()
         counter = meter.create_counter("test_counter")
         counter.add(1)
 
     def test_init_telemetry_no_endpoint(self):
         from picosentry.serve.services.observability import init_telemetry
+
         result = init_telemetry(service_name="test")
         assert result is False
 
     def test_trace_span_decorator(self):
         from picosentry.serve.services.observability import trace_span
+
         @trace_span("test_operation", attributes={"key": "value"})
         def test_func():
             return 42
+
         result = test_func()
         assert result == 42
 
     def test_trace_async_span_decorator(self):
         from picosentry.serve.services.observability import trace_async_span
+
         @trace_async_span("test_async_operation")
         async def test_async_func():
             return 99
+
         import asyncio
+
         result = asyncio.run(test_async_func())
         assert result == 99
 
@@ -459,10 +502,12 @@ class TestDatabaseManager:
 
     def test_db_module_imports(self):
         from picosentry.serve.database.manager import db
+
         assert db is not None
 
     def test_settings_module_imports(self):
         from picosentry.serve.config.settings import settings
+
         assert settings.api.port == 8765
         assert settings.database.journal_mode == "WAL"
         assert settings.security.jwt_algorithm == "HS256"
@@ -475,6 +520,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_test_{int(time.time() * 1000)}"
         user_id = auth.create_user(username, "testpassword123", role="viewer")
@@ -484,6 +530,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_auth_{int(time.time() * 1000)}"
         auth.create_user(username, "testpassword123", role="admin")
@@ -495,6 +542,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_round_{int(time.time() * 1000)}"
         auth.create_user(username, "testpassword123", role="admin")
@@ -505,6 +553,7 @@ class TestAuthService:
 
     def test_invalid_token_returns_none(self):
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         result = auth.validate_token("invalid_token")
         assert result is None
@@ -515,6 +564,7 @@ class TestSchedulerService:
 
     def test_get_status_returns_list(self):
         from picosentry.serve.services.scheduler import scheduler
+
         status = scheduler.get_status()
         assert isinstance(status, list)
 
@@ -524,16 +574,19 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_localhost(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("http://127.0.0.1/hook")
         assert not is_safe
 
     def test_blocks_private_ip(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("http://10.0.0.1/hook")
         assert not is_safe
 
     def test_allows_public_url(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         # Use a resolvable public hostname
         is_safe, reason = _is_safe_webhook_url("https://httpbin.org/webhook")
         # SSRF check should pass for public, resolvable domains
@@ -542,6 +595,7 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_file_scheme(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("file:///etc/passwd")
         assert not is_safe
 
@@ -551,6 +605,7 @@ class TestMetricsCollector:
 
     def test_counter(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         mc.counter("test_counter", 1, {"label": "value"})
         data = mc.to_dict()
@@ -558,6 +613,7 @@ class TestMetricsCollector:
 
     def test_prometheus_export(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         mc.counter("test_counter", 1)
         output = mc.to_prometheus()
@@ -567,5 +623,6 @@ class TestMetricsCollector:
 
     def test_uptime(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         assert mc.uptime_seconds() > 0

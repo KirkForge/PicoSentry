@@ -1,26 +1,49 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 PROTECTED_WRITE_PATHS = {
-    "/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/hosts",
-    "/etc/ssh/sshd_config", "/etc/crontab",
-    "/boot", "/sys", "/proc", "/dev",
-    "/root/.ssh", "/root/.bashrc", "/root/.profile",
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/sudoers",
+    "/etc/hosts",
+    "/etc/ssh/sshd_config",
+    "/etc/crontab",
+    "/boot",
+    "/sys",
+    "/proc",
+    "/dev",
+    "/root/.ssh",
+    "/root/.bashrc",
+    "/root/.profile",
 }
 
 
 SUSPICIOUS_WRITE_EXTENSIONS = {
-    ".sh", ".bat", ".cmd", ".ps1", ".vbs", ".dll", ".so", ".dylib",
-    ".exe", ".msi", ".deb", ".rpm",
+    ".sh",
+    ".bat",
+    ".cmd",
+    ".ps1",
+    ".vbs",
+    ".dll",
+    ".so",
+    ".dylib",
+    ".exe",
+    ".msi",
+    ".deb",
+    ".rpm",
 }
 
 
 CRITICAL_DELETE_PATHS = {
-    "/etc/passwd", "/etc/shadow", "/etc/sudoers",
-    "/bin/sh", "/bin/bash", "/usr/bin/sudo",
-    "/usr/bin/passwd", "/etc/hosts",
+    "/etc/passwd",
+    "/etc/shadow",
+    "/etc/sudoers",
+    "/bin/sh",
+    "/bin/bash",
+    "/usr/bin/sudo",
+    "/usr/bin/passwd",
+    "/etc/hosts",
 }
 
 
@@ -31,7 +54,6 @@ def detect_filesystem_anomalies(
 
     for op in profile.fs_ops:
         path = op.path
-
 
         if op.operation in ("write", "create"):
             findings.extend(
@@ -45,7 +67,6 @@ def detect_filesystem_anomalies(
                 for protected in PROTECTED_WRITE_PATHS
                 if path.startswith(protected) or path == protected
             )
-
 
         if op.operation in ("write", "create"):
             matched_ext = next(
@@ -67,7 +88,6 @@ def detect_filesystem_anomalies(
                     )
                 )
 
-
         if op.operation == "delete":
             findings.extend(
                 Finding(
@@ -81,7 +101,6 @@ def detect_filesystem_anomalies(
                 if path == critical or path.startswith(critical + "/")
             )
 
-
         if "../" in path or "..\\" in path:
             findings.append(
                 Finding(
@@ -93,10 +112,8 @@ def detect_filesystem_anomalies(
                 )
             )
 
-
         if op.operation == "chmod" and "path" in op.path.lower():
             pass  # chmod events don't have a separate field; skip for now
-
 
     write_ops = [op for op in profile.fs_ops if op.operation in ("write", "create")]
     if len(write_ops) > 100:

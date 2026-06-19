@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -81,7 +80,6 @@ def cache_from_config(config: Any = None) -> ScanCache:
 
 
 class ScanCache:
-
     def __init__(
         self,
         cache_dir: Path | None = None,
@@ -188,7 +186,6 @@ class ScanCache:
             path.unlink(missing_ok=True)
             return None
 
-
         stored_hmac = entry.pop("_hmac", None)
         if stored_hmac:
             recomputed = self._hmac(json.dumps(entry, sort_keys=True))
@@ -196,7 +193,6 @@ class ScanCache:
                 logger.warning("Cache integrity check failed for %s — evicting", key[:8])
                 path.unlink(missing_ok=True)
                 return None
-
 
         cached_at = entry.get("cached_at", 0)
         if time.time() - cached_at > self.ttl:
@@ -228,13 +224,11 @@ class ScanCache:
         }
         entry["_hmac"] = self._hmac(json.dumps(entry, sort_keys=True))
 
-
         tmp_path = path.with_suffix(".tmp")
         tmp_path.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp_path.replace(path)
 
         logger.debug("Cached scan result: %s", key[:8])
-
 
         self._enforce_caps()
 
@@ -275,12 +269,10 @@ class ScanCache:
                 count += 1
                 continue
 
-
             if age_days > 0:
                 cached_at = entry.get("cached_at", 0)
                 if cached_at > cutoff_time:
                     continue  # Too young, skip
-
 
             if corpus_hash and entry.get("corpus_hash") != corpus_hash:
                 continue

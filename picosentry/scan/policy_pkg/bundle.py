@@ -82,11 +82,9 @@ def import_policy_bundle(
         if data["digest"] != actual:
             raise ValueError(f"Policy bundle digest mismatch: expected={data['digest']} actual={actual}")
 
-
     if verify_crypto:
         sig_data = read_detached_signature(path)
         if sig_data is None:
-
             crypto_data = data.get("_crypto")
             if crypto_data and isinstance(crypto_data, dict):
                 sig_data = SignatureBundle.from_dict(crypto_data)
@@ -101,7 +99,6 @@ def import_policy_bundle(
                 f"Policy bundle is not cryptographically signed "
                 f"(provider={sig_data.provider}). Use verify_crypto=False to skip."
             )
-
 
         canonical = json.dumps(data["policy"], sort_keys=True, separators=(",", ":"))
         try:

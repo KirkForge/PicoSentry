@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -42,7 +41,6 @@ DETERMINISTIC_FIELDS = frozenset(
 
 
 class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with PicoSentry-specific scan checks
-
     def assert_deterministic(self, result: ScanResult) -> None:
         violations = self.check(result)
         if violations:
@@ -51,23 +49,19 @@ class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with
     def check(self, result: ScanResult) -> list[str]:
         violations: list[str] = []
 
-
         sorted_findings = sorted(result.findings, key=lambda f: f.sort_key())
         if result.findings != sorted_findings:
             violations.append("findings not sorted by (rule_id, package, file, line)")
 
-
         fingerprints = [f.fingerprint() for f in result.findings]
         if len(fingerprints) != len(set(fingerprints)):
             violations.append("duplicate findings detected (same rule_id, package, file)")
-
 
         expected_id = hashlib.sha256(
             f"{result.target}:{result.corpus_version}:{result.engine_version}".encode()
         ).hexdigest()[:16]
         if result.scan_id != expected_id:
             violations.append(f"scan_id mismatch: expected {expected_id}, got {result.scan_id}")
-
 
         violations.extend(
             f"forbidden pattern '{pattern}' in finding {f.rule_id} {f.package}"
@@ -76,13 +70,11 @@ class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with
             if pattern in f.evidence or pattern in f.message or pattern in f.remediation
         )
 
-
         for f in result.findings:
             if not f.rule_id:
                 violations.append(f"finding missing rule_id: {f}")
             if not f.package:
                 violations.append(f"finding missing package: {f}")
-
 
         if result.stats.findings_by_severity or result.stats.findings_by_rule:
             by_sev: dict[str, int] = {}
@@ -100,7 +92,6 @@ class DeterministicGuard(_CoreGuard):  # rationale: extends pico_core guard with
                 violations.append(
                     f"findings_by_rule mismatch: stats={result.stats.findings_by_rule} actual={expected_rule}"
                 )
-
 
         result_dict = json.loads(result.to_json(deterministic_output=True))
         violations.extend(self.check_dict(result_dict))
@@ -171,7 +162,6 @@ def diff_scans(
             )
         return (0, "\n".join(lines))
 
-
     lines = [
         "✗ Scans DIFFER — determinism violation detected",
         f"  scan_a: id={id_a} sha256={det_hash_a[:16]}...",
@@ -179,7 +169,6 @@ def diff_scans(
         f"  findings_a: {len(data_a.get('findings', []))}",
         f"  findings_b: {len(data_b.get('findings', []))}",
     ]
-
 
     for key in sorted(set(list(data_a.keys()) + list(data_b.keys()))):
         if key == "findings":

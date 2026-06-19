@@ -71,10 +71,8 @@ def main(argv: list[str] | None = None) -> int:
 
     args = parser.parse_args(argv)
 
-
     if hasattr(args, "log_format") and args.log_format == "json":
         configure_logging(log_format="json")
-
 
     if args.version:
         return version.cmd(args)

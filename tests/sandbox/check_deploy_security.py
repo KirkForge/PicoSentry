@@ -66,8 +66,7 @@ def _env_var_enabled_in_line(var: str, line: str, lines: list[str], i: int) -> b
     if var not in line:
         return False
     return bool(
-        re.search(rf"{re.escape(var)}.*1", line)
-        or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
+        re.search(rf"{re.escape(var)}.*1", line) or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
     )
 
 

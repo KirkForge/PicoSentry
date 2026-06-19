@@ -24,9 +24,8 @@ def build_filter(
     syscall_cache: dict[str, int],
 ) -> tuple[ctypes.c_void_p | None, set[str]]:
     blocked: set[str] = set()
-    has_kill = (
-        policy.default_action in (SyscallAction.DENY, SyscallAction.KILL)
-        or any(r.action in (SyscallAction.DENY, SyscallAction.KILL) for r in policy.rules)
+    has_kill = policy.default_action in (SyscallAction.DENY, SyscallAction.KILL) or any(
+        r.action in (SyscallAction.DENY, SyscallAction.KILL) for r in policy.rules
     )
     default_action = SCMP_ACT_KILL_PROCESS if has_kill else SCMP_ACT_LOG
 
@@ -49,7 +48,6 @@ def build_filter(
                 if num >= 0:
                     add_rule_safely(lib, ctx, SCMP_ACT_KILL_PROCESS, num, name)
                     blocked.add(name)
-
 
     for name in SAFE_SYSCALLS:
         num = resolve_syscall(lib, name, syscall_cache)

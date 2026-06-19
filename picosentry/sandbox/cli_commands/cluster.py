@@ -12,7 +12,6 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     cluster_parser = subparsers.add_parser(NAME, help="Manage daemon cluster mode")
     cluster_sub = cluster_parser.add_subparsers(dest="cluster_action", help="cluster sub-commands")
 
-
     cluster_join = cluster_sub.add_parser("join", help="Join a cluster via peer address")
     cluster_join.add_argument("peer_address", help="Peer address (host:port)")
     cluster_join.add_argument("--port", type=int, default=8444, help="Local cluster port (default: 8444)")
@@ -50,12 +49,10 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         help="CA bundle path to verify peer certificates (also PICODOME_CLUSTER_TLS_CA env)",
     )
 
-
     cluster_status = cluster_sub.add_parser("status", help="Show cluster node status")
     cluster_status.add_argument(
         "--format", "-f", choices=["json", "table"], default="table", help="Output format (default: table)"
     )
-
 
     _cluster_leave = cluster_sub.add_parser("leave", help="Gracefully leave the cluster")
 
@@ -73,7 +70,6 @@ def cmd(args: argparse.Namespace) -> int:
     action = getattr(args, "cluster_action", None)
 
     if action == "join":
-
         peer = args.peer_address
         if ":" in peer:
             peer_host, peer_port_str = peer.rsplit(":", 1)
@@ -85,7 +81,6 @@ def cmd(args: argparse.Namespace) -> int:
         else:
             peer_host = peer
             peer_port = 8444
-
 
         backend = MemoryStateBackend() if args.backend == "memory" else SQLiteStateBackend()
 
@@ -103,7 +98,6 @@ def cmd(args: argparse.Namespace) -> int:
         )
         manager.start()
 
-
         peer_node = ClusterNode(
             node_id=f"peer-{peer_host}-{peer_port}",
             address=peer_host,
@@ -113,7 +107,6 @@ def cmd(args: argparse.Namespace) -> int:
             load=0,
         )
         manager.state.add_node(peer_node)
-
 
         manager.state.elect_leader()
 
@@ -130,7 +123,6 @@ def cmd(args: argparse.Namespace) -> int:
         return 0
 
     if action == "status":
-
         manager = get_cluster_manager()
         status = manager.get_status()
 

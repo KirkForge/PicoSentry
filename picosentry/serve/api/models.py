@@ -92,6 +92,7 @@ class RegisterRequest(BaseModel):
     # and v2 (``model_config``) so tests pass regardless of which version is
     # installed.
     if pydantic.VERSION.startswith("1."):
+
         class Config:
             extra = Extra.forbid
     else:

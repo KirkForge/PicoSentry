@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import base64
@@ -17,7 +16,6 @@ _DEFAULT_HOST = "127.0.0.1"
 
 
 class AdmissionRequest:
-
     def __init__(
         self,
         uid: str,
@@ -47,7 +45,6 @@ class AdmissionRequest:
 
 
 class AdmissionResponse:
-
     def __init__(
         self,
         uid: str,
@@ -79,8 +76,6 @@ class AdmissionResponse:
 
 
 class AdmissionHandler(BaseHTTPRequestHandler):
-
-
     validator: ClassVar[Callable[[AdmissionRequest], tuple[bool, str]] | None] = None
 
     def do_POST(self) -> None:
@@ -104,7 +99,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
 
         req = AdmissionRequest.from_dict(request_data)
 
-
         validator = AdmissionHandler.validator
         if validator:
             allowed, reason = validator(req)
@@ -116,7 +110,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
             allowed=allowed,
             reason=reason,
         )
-
 
         review_response = {
             "apiVersion": "admission.k8s.io/v1",
@@ -152,7 +145,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
 
 
 class AdmissionWebhookServer:
-
     def __init__(
         self,
         host: str = _DEFAULT_HOST,

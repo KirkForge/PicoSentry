@@ -36,6 +36,7 @@ def require_role(required: str):
                 detail=f"Requires role: {required} (have: {user_role})",
             )
         return user
+
     return _check_role
 
 
@@ -48,6 +49,7 @@ def require_permission(permission: Permission):
                 detail=f"Requires permission: {permission.value} (role: {role})",
             )
         return user
+
     return _check_permission
 
 
@@ -64,7 +66,8 @@ async def get_current_org(
             if org["id"] not in user_org_ids:
                 logger.warning(
                     "Cross-tenant org access rejected: user %s attempted org %s",
-                    user.get("username"), org.get("slug"),
+                    user.get("username"),
+                    org.get("slug"),
                 )
                 raise HTTPException(
                     status_code=403,

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -24,7 +23,6 @@ except ImportError:
 
 
 class _NoopSpan:
-
     def __enter__(self):
         return self
 
@@ -48,7 +46,6 @@ class _NoopSpan:
 
 
 class _NoopTracer:
-
     def start_as_current_span(self, name: str, **kwargs: Any) -> _NoopSpan:
         return _NoopSpan()
 

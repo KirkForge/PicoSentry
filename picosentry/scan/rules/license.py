@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -73,29 +72,23 @@ def _check_license_value(license_value: str) -> tuple:
     if lic.upper() == "UNLICENSED" or lic == "SEE LICENSE IN LICENSE":
         return False, False, True, False
 
-
     for copyleft in COPYLEFT_LICENSES:
         if copyleft.lower() in lic.lower():
             return True, False, False, False
 
-
     if "GPL" in lic.upper() or "AGPL" in lic.upper():
         return True, False, False, False
-
 
     for permissive in PERMISSIVE_LICENSES:
         if permissive.lower() == lic.lower():
             return False, True, False, False
 
-
     lic_lower = lic.lower()
     if any(p in lic_lower for p in ("mit", "bsd", "apache", "isc", "0bsd")):
         return False, True, False, False
 
-
     if lic.startswith("(MIT OR Apache-2.0)"):
         return False, True, False, False
-
 
     if " OR " in lic and ("MIT" in lic or "Apache" in lic):
         return False, True, False, False
@@ -112,7 +105,6 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     pkg_name = data.get("name", pkg_json.parent.name)
     pkg_version = data.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
-
 
     license_field = data.get("license")
 
@@ -213,11 +205,9 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
 def detect_license_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         findings.extend(_scan_package_json(root_pkg))
-
 
     for pkg_json, _pkg in iter_node_modules(target):
         findings.extend(_scan_package_json(pkg_json))

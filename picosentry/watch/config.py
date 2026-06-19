@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -54,7 +53,6 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
 
 @dataclass
 class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from PicoWatchConfig for injection (PR-02)
-
     rules_dir: Path = field(default_factory=lambda: DEFAULT_RULES_DIR)
     threshold_block: float = DEFAULT_THRESHOLD_BLOCK
     threshold_warn: float = DEFAULT_THRESHOLD_WARN
@@ -64,20 +62,17 @@ class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from Pi
 
 @dataclass
 class OutputGuardConfig:  # rationale: L6 output guard config, extracted from PicoWatchConfig (PR-02)
-
     schema_dir: Path | None = None
 
 
 @dataclass
 class TelemetryConfig:
-
     otel_endpoint: str | None = None
     audit_retention_days: int = DEFAULT_AUDIT_RETENTION_DAYS
 
 
 @dataclass
 class ServerConfig:
-
     host: str = DEFAULT_HOST
     port: int = DEFAULT_PORT
     admin_port: int = DEFAULT_ADMIN_PORT
@@ -88,17 +83,13 @@ class ServerConfig:
 
 @dataclass
 class PicoWatchConfig:  # rationale: composed config with injectable sub-configs for testing (PR-02)
-
-
     prompt_guard: PromptGuardConfig = field(default_factory=PromptGuardConfig)
     output_guard: OutputGuardConfig = field(default_factory=OutputGuardConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
 
-
     verify_determinism: bool = False
     verbose: bool = False
-
 
     @property
     def rules_dir(self) -> Path:
@@ -217,6 +208,7 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
 
         if _os.environ.get("PICOWATCH_SKIP_SECURE_ASSERT") == "1":
             import logging as _logging
+
             _logging.getLogger("picowatch.config").warning(
                 "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
             )
@@ -245,8 +237,10 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             )
 
         if self.host == "0.0.0.0" and not self.api_key:
-            issues.append("SECURITY: Binding to 0.0.0.0 without API key — "
-                          "write endpoints are publicly accessible. Set PICOWATCH_API_KEY or bind to 127.0.0.1")
+            issues.append(
+                "SECURITY: Binding to 0.0.0.0 without API key — "
+                "write endpoints are publicly accessible. Set PICOWATCH_API_KEY or bind to 127.0.0.1"
+            )
 
         if not self.api_key:
             issues.append(
@@ -255,7 +249,6 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             )
 
         return issues
-
 
     @classmethod
     def from_env(cls, config_path: Path | None = None) -> PicoWatchConfig:
@@ -270,13 +263,10 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 file_config = _load_toml_config(discovered)
                 config_file_path = discovered
 
-
         if config_file_path:
             check_config_permissions()
 
-
         picowatch_conf: dict[str, Any] = file_config.get("picowatch", file_config)  # type: ignore[assignment]
-
 
         def _env_or_file(key: str, env_var: str, default: Any, cast: type = str) -> Any:
             val = os.environ.get(env_var)
@@ -286,7 +276,6 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             if file_val is not None:
                 return cast(file_val) if not isinstance(file_val, cast) else file_val
             return default
-
 
         rules_dir_str = os.environ.get("PICOWATCH_RULES_DIR") or picowatch_conf.get("rules_dir")
         schema_dir_str = os.environ.get("PICOWATCH_SCHEMA_DIR") or picowatch_conf.get("schema_dir")
@@ -336,14 +325,12 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             ),
         )
 
-
         _validate_env_ranges(config)
 
         return config
 
 
 class _ApiKeyLengthCheck:
-
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
 
@@ -358,7 +345,6 @@ class _ApiKeyLengthCheck:
 
 
 class _BindWithoutAuthCheck:
-
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
 
@@ -371,8 +357,10 @@ class _BindWithoutAuthCheck:
             )
         return None
 
+
 def _validate_env_ranges(config: PicoWatchConfig) -> None:
     import logging as _logging
+
     _logger = _logging.getLogger("picowatch.config")
 
     if not (0.0 <= config.threshold_block <= 1.0):
@@ -380,8 +368,11 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.threshold_block = max(0.0, min(1.0, config.threshold_block))
 
     if not (0.0 <= config.threshold_warn <= config.threshold_block):
-        _logger.warning("PICOWATCH_THRESHOLD_WARN=%s invalid (must be <= threshold_block=%s)",
-                        config.threshold_warn, config.threshold_block)
+        _logger.warning(
+            "PICOWATCH_THRESHOLD_WARN=%s invalid (must be <= threshold_block=%s)",
+            config.threshold_warn,
+            config.threshold_block,
+        )
         config.threshold_warn = min(config.threshold_warn, config.threshold_block)
 
     if config.port < 1 or config.port > 65535:
@@ -389,8 +380,9 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.port = DEFAULT_PORT
 
     if config.admin_port < 1 or config.admin_port > 65535:
-        _logger.warning("PICOWATCH_ADMIN_PORT=%s out of range [1,65535]; using default %d",
-                        config.admin_port, DEFAULT_ADMIN_PORT)
+        _logger.warning(
+            "PICOWATCH_ADMIN_PORT=%s out of range [1,65535]; using default %d", config.admin_port, DEFAULT_ADMIN_PORT
+        )
         config.admin_port = DEFAULT_ADMIN_PORT
 
     if config.rate_limit < 1:
@@ -398,8 +390,11 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.rate_limit = DEFAULT_RATE_LIMIT
 
     if config.audit_retention_days < 0:
-        _logger.warning("PICOWATCH_AUDIT_RETENTION_DAYS=%s must be >=0; using default %d",
-                        config.audit_retention_days, DEFAULT_AUDIT_RETENTION_DAYS)
+        _logger.warning(
+            "PICOWATCH_AUDIT_RETENTION_DAYS=%s must be >=0; using default %d",
+            config.audit_retention_days,
+            DEFAULT_AUDIT_RETENTION_DAYS,
+        )
         config.audit_retention_days = DEFAULT_AUDIT_RETENTION_DAYS
 
     if config.api_key and len(config.api_key) < 32:
@@ -431,7 +426,6 @@ def check_config_permissions() -> list[str]:
 
             try:
                 content = path.read_text(encoding="utf-8")
-
 
                 lines = [line.split("#")[0].strip() for line in content.splitlines()]
                 has_real_api_key = any(

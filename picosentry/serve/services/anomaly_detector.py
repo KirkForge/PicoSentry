@@ -1,4 +1,3 @@
-
 import json
 import logging
 import threading
@@ -24,7 +23,7 @@ DEFAULT_RULES = [
         "comparison": "gt",
         "duration_seconds": 300,
         "alert_channel": "all",
-        "description": "Error rate > 10 in 5 minutes"
+        "description": "Error rate > 10 in 5 minutes",
     },
     {
         "id": "high_latency",
@@ -33,7 +32,7 @@ DEFAULT_RULES = [
         "comparison": "gt",
         "duration_seconds": 60,
         "alert_channel": "all",
-        "description": "API latency > 5s sustained for 1 minute"
+        "description": "API latency > 5s sustained for 1 minute",
     },
     {
         "id": "disk_space_low",
@@ -42,7 +41,7 @@ DEFAULT_RULES = [
         "comparison": "gt",
         "duration_seconds": 0,
         "alert_channel": "all",
-        "description": "Disk usage > 85%"
+        "description": "Disk usage > 85%",
     },
     {
         "id": "project_failures",
@@ -51,7 +50,7 @@ DEFAULT_RULES = [
         "comparison": "gt",
         "duration_seconds": 600,
         "alert_channel": "all",
-        "description": "More than 5 project failures in 10 minutes"
+        "description": "More than 5 project failures in 10 minutes",
     },
     {
         "id": "health_degraded",
@@ -60,8 +59,8 @@ DEFAULT_RULES = [
         "comparison": "gte",
         "duration_seconds": 0,
         "alert_channel": "all",
-        "description": "Any health check shows warning or critical status"
-    }
+        "description": "Any health check shows warning or critical status",
+    },
 ]
 
 
@@ -91,7 +90,6 @@ class AnomalyAlert:
 
 
 class AnomalyDetector:
-
     def __init__(self, db: DatabaseManager, alert_hub=None):
         self.db = db
         self.alert_hub = alert_hub
@@ -117,14 +115,13 @@ class AnomalyDetector:
                         alert_channel=r.get("alert_channel", "all"),
                         description=r.get("description", ""),
                         labels=r.get("labels", {}),
-                        enabled=r.get("enabled", True)
+                        enabled=r.get("enabled", True),
                     )
                     for r in rule_dicts
                 ]
                 return
             except Exception:
                 pass
-
 
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with open(CONFIG_PATH, "w") as f:
@@ -139,7 +136,7 @@ class AnomalyDetector:
                 alert_channel=r.get("alert_channel", "all"),
                 description=r.get("description", ""),
                 labels=r.get("labels", {}),
-                enabled=r.get("enabled", True)
+                enabled=r.get("enabled", True),
             )
             for r in DEFAULT_RULES
         ]
@@ -160,12 +157,8 @@ class AnomalyDetector:
             if not metric_list:
                 return None
 
-
             if rule.labels:
-                filtered = [
-                    m for m in metric_list
-                    if all(m.labels.get(k) == v for k, v in rule.labels.items())
-                ]
+                filtered = [m for m in metric_list if all(m.labels.get(k) == v for k, v in rule.labels.items())]
                 if not filtered:
                     return None
                 return filtered[-1].value
@@ -202,7 +195,6 @@ class AnomalyDetector:
             if not rule.enabled:
                 continue
 
-
             value = self._get_health_value() if rule.metric_name == "health_status" else self._get_metric_value(rule)
 
             if value is None:
@@ -210,9 +202,7 @@ class AnomalyDetector:
 
             if self._compare(value, rule.threshold, rule.comparison):
                 severity = (
-                    "critical"
-                    if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5
-                    else "warning"
+                    "critical" if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5 else "warning"
                 )
                 alert = AnomalyAlert(
                     rule_id=rule.id,
@@ -222,7 +212,7 @@ class AnomalyDetector:
                     comparison=rule.comparison,
                     timestamp=datetime.now(timezone.utc).isoformat(),
                     description=rule.description,
-                    severity=severity
+                    severity=severity,
                 )
                 alerts.append(alert)
 
@@ -241,9 +231,8 @@ class AnomalyDetector:
                     f"Severity: {alert.severity}\n"
                     f"Description: {alert.description}"
                 ),
-                channels=["syslog"]
+                channels=["syslog"],
             )
-
 
         try:
             self.db.execute_insert(
@@ -254,13 +243,17 @@ class AnomalyDetector:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    alert.rule_id, alert.metric_name, alert.value,
-                    alert.threshold, alert.comparison, alert.severity,
-                    alert.description, alert.timestamp,
+                    alert.rule_id,
+                    alert.metric_name,
+                    alert.value,
+                    alert.threshold,
+                    alert.comparison,
+                    alert.severity,
+                    alert.description,
+                    alert.timestamp,
                 ),
             )
         except Exception:
-
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS anomaly_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,9 +275,14 @@ class AnomalyDetector:
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
-                    alert.rule_id, alert.metric_name, alert.value,
-                    alert.threshold, alert.comparison, alert.severity,
-                    alert.description, alert.timestamp,
+                    alert.rule_id,
+                    alert.metric_name,
+                    alert.value,
+                    alert.threshold,
+                    alert.comparison,
+                    alert.severity,
+                    alert.description,
+                    alert.timestamp,
                 ),
             )
 
@@ -293,10 +291,12 @@ class AnomalyDetector:
     def _run_check_cycle(self):
         alerts = self.check_rules()
         for alert in alerts:
-
-            recent = [a for a in self.alert_history
-                       if a.rule_id == alert.rule_id
-                       and (datetime.now(timezone.utc) - datetime.fromisoformat(a.timestamp)).total_seconds() < 300]
+            recent = [
+                a
+                for a in self.alert_history
+                if a.rule_id == alert.rule_id
+                and (datetime.now(timezone.utc) - datetime.fromisoformat(a.timestamp)).total_seconds() < 300
+            ]
             if not recent:
                 self._fire_alert(alert)
 
@@ -322,17 +322,25 @@ class AnomalyDetector:
 
     def get_alerts(self, limit: int = 50) -> list[dict[str, Any]]:
         try:
-            rows = self.db.execute("""
+            rows = self.db.execute(
+                """
                 SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at
                 FROM anomaly_alerts
                 ORDER BY created_at DESC
                 LIMIT ?
-            """, (limit,))
+            """,
+                (limit,),
+            )
             return [
                 {
-                    "rule_id": r[0], "metric_name": r[1], "value": r[2],
-                    "threshold": r[3], "comparison": r[4], "severity": r[5],
-                    "description": r[6], "timestamp": r[7]
+                    "rule_id": r[0],
+                    "metric_name": r[1],
+                    "value": r[2],
+                    "threshold": r[3],
+                    "comparison": r[4],
+                    "severity": r[5],
+                    "description": r[6],
+                    "timestamp": r[7],
                 }
                 for r in rows
             ]

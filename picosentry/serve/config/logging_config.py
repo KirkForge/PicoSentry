@@ -7,7 +7,6 @@ from typing import Any
 
 
 class JSONFormatter(logging.Formatter):
-
     def __init__(self, structured: bool = True):
         super().__init__()
         self.structured = structured
@@ -20,16 +19,13 @@ class JSONFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
-
         if hasattr(record, "request_id"):
             entry["request_id"] = record.request_id
-
 
         for attr in ("component", "project_id", "duration_ms", "status_code", "user_id", "ip"):
             val = getattr(record, attr, None)
             if val is not None:
                 entry[attr] = val
-
 
         if record.exc_info and record.exc_info[1]:
             entry["exception"] = {
@@ -53,14 +49,11 @@ def configure_logging(
     root_logger = logging.getLogger()
     root_logger.setLevel(getattr(logging, level.upper(), logging.INFO))
 
-
     root_logger.handlers.clear()
-
 
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(JSONFormatter(structured=structured))
     root_logger.addHandler(console_handler)
-
 
     if log_dir:
         from logging.handlers import RotatingFileHandler
@@ -73,7 +66,6 @@ def configure_logging(
         )
         file_handler.setFormatter(JSONFormatter(structured=structured))
         root_logger.addHandler(file_handler)
-
 
     for noisy in ("uvicorn", "uvicorn.access", "urllib3", "requests", "httpcore"):
         logging.getLogger(noisy).setLevel(logging.WARNING)

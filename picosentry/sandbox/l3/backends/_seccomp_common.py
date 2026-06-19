@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import ctypes
@@ -106,11 +105,9 @@ PROCESS_SYSCALLS = {
     "vfork",
     "clone",
     "clone3",
-
     "wait4",
     "waitid",
     "waitpid",
-
     "kill",
     "setsid",
     "sigprocmask",
@@ -208,29 +205,21 @@ SAFE_SYSCALLS = {
     "memfd_create",
     "capget",
     "capset",
-
     "wait4",
     "waitid",
     "waitpid",
-
     "close_range",
-
     "kill",
     "setsid",
     "sigprocmask",
-
     "statx",
     "getppid",
     "umask",
-
     "io_uring_setup",
     "io_uring_enter",
-
     "sched_getparam",
     "sched_getscheduler",
-
     "fadvise64",
-
     "fsync",
 }
 

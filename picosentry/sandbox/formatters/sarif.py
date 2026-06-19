@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -37,7 +36,6 @@ def _l3_sarif(result: SandboxResult) -> str:
         }
         for event in result.events
     ]
-
 
     seen_rules: dict[str, dict] = {}
     for e in result.events:

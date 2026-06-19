@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -40,9 +39,7 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
     engines = pkg.get("engines")
 
-
     if engines is None or engines == {}:
-
         scripts = pkg.get("scripts", {})
         has_install_script = isinstance(scripts, dict) and any(
             k in scripts for k in ("install", "postinstall", "preinstall")
@@ -70,7 +67,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                 )
             )
         else:
-
             findings.append(
                 Finding(
                     rule_id="L2-ENGIN-001",
@@ -93,7 +89,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
     if not isinstance(engines, dict):
         return findings
-
 
     node_version = engines.get("node")
     if node_version is not None:
@@ -142,7 +137,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                 )
             )
 
-
     if "npm" in engines and "node" not in engines:
         findings.append(
             Finding(
@@ -169,13 +163,11 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 def detect_engine_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_engines(pkg, root_pkg))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_engines(pkg, pkg_json))

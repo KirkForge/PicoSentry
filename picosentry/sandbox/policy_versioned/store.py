@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -22,7 +21,6 @@ _DEFAULT_STORE_DIR = Path.home() / ".picodome" / "policies"
 
 @dataclass(frozen=True)
 class PolicyVersion:
-
     policy: Policy
     version: int
     author: str
@@ -55,7 +53,6 @@ class PolicyVersion:
 
 
 class VersionedPolicyStore:
-
     def __init__(self, store_dir: Path | None = None) -> None:
         self._store_dir = store_dir or _DEFAULT_STORE_DIR
         self._store_dir.mkdir(parents=True, exist_ok=True)
@@ -69,7 +66,6 @@ class VersionedPolicyStore:
         name = policy.name
         policy_dir = self._store_dir / name
         policy_dir.mkdir(parents=True, exist_ok=True)
-
 
         existing = self._list_versions(name)
         next_version = max(v.version for v in existing) + 1 if existing else 1
@@ -96,7 +92,6 @@ class VersionedPolicyStore:
             os.unlink(tmp_path)
             raise
 
-
         latest_path = policy_dir / "latest.json"
         tmp_fd2, tmp_path2 = tempfile.mkstemp(suffix=".json", dir=policy_dir)
         try:
@@ -119,7 +114,6 @@ class VersionedPolicyStore:
 
     def load(self, name: str, version: int | None = None) -> PolicyVersion | None:
         if version is None:
-
             latest_path = self._store_dir / name / "latest.json"
             if latest_path.is_file():
                 return self._read_version_file(latest_path)
@@ -201,7 +195,6 @@ class VersionedPolicyStore:
                 )
 
         return violations
-
 
     def _list_versions(self, name: str) -> list[PolicyVersion]:
         policy_dir = self._store_dir / name

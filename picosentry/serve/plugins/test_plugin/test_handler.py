@@ -5,8 +5,8 @@ from picosentry.serve.services.plugin_manager import PluginInterface
 
 logger = logging.getLogger("picoshogun.Plugin.Test")
 
-class TestHandler(PluginInterface):
 
+class TestHandler(PluginInterface):
     def initialize(self, config: dict[str, Any]) -> bool:
         logger.info("TestHandler initialized")
         return True

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -14,7 +13,6 @@ logger = logging.getLogger("picodome.audit.sink")
 
 
 class SinkHealth(str, Enum):
-
     HEALTHY = "healthy"
     DEGRADED = "degraded"  # recent failures but still trying
     FAILED = "failed"  # permanently failed (will not retry)
@@ -22,7 +20,6 @@ class SinkHealth(str, Enum):
 
 @dataclass(frozen=True)
 class SinkConfig:
-
     enabled: bool = True
     batch_size: int = 1
     flush_interval: float = 0.0
@@ -32,7 +29,6 @@ class SinkConfig:
 
 
 class AuditSink(ABC):
-
     def __init__(self, config: SinkConfig | None = None) -> None:
         self._config = config or SinkConfig()
         self._stats: dict[str, Any] = {
@@ -45,7 +41,6 @@ class AuditSink(ABC):
         }
         self._health = SinkHealth.HEALTHY
 
-
     def start(self) -> None:
         self._stats["started_at"] = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
@@ -57,14 +52,12 @@ class AuditSink(ABC):
         """Flush any buffered events. Default no-op."""
         return None
 
-
     @abstractmethod
     def send(self, event: AuditEvent) -> None:
         """Send an audit event to the external system.
 
         Must never raise. On failure, log the error and update stats.
         """
-
 
     @property
     def health(self) -> SinkHealth:
@@ -93,14 +86,12 @@ class AuditSink(ABC):
     def _record_dropped(self) -> None:
         self._stats["events_dropped"] += 1
 
-
     @property
     def name(self) -> str:
         return self.__class__.__name__
 
 
 class NullSink(AuditSink):
-
     def send(self, event: AuditEvent) -> None:
         logger.debug("NullSink: discarding event %s (%s)", event.event_id[:8], event.event_type.value)
 

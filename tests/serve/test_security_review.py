@@ -133,6 +133,7 @@ class TestProductionConfig:
 
     def test_short_secret_key_blocked(self, monkeypatch):
         from picosentry._core.config import assert_secure
+
         violations = assert_secure(
             secret_key="short",
             bind_host="127.0.0.1",
@@ -155,6 +156,7 @@ class TestProductionConfig:
 
     def test_bind_all_interfaces_warned(self, monkeypatch):
         from picosentry._core.config import assert_secure
+
         violations = assert_secure(
             secret_key="x" * 32,
             bind_host="0.0.0.0",
@@ -176,10 +178,12 @@ class TestProductionDocsRestriction:
         async def homepage(request):
             return PlainTextResponse("ok")
 
-        starlette_app = Starlette(routes=[
-            Route("/", homepage),
-            Route("/docs", homepage),
-        ])
+        starlette_app = Starlette(
+            routes=[
+                Route("/", homepage),
+                Route("/docs", homepage),
+            ]
+        )
         starlette_app.add_middleware(DocsRestrictionMiddleware, enabled=True)
 
         sc = StarletteTestClient(starlette_app)
@@ -199,6 +203,7 @@ class TestScansWorkspace:
 
     def test_scan_inside_workspace_allowed(self, client, auth_token, monkeypatch, tmp_path):
         from picosentry.serve.api.deps import auth_service
+
         suffix = uuid.uuid4().hex[:8]
         admin_id = auth_service.create_user(
             username=f"admin-{suffix}",

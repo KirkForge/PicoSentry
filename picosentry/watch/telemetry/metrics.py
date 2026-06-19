@@ -1,9 +1,7 @@
-
 from __future__ import annotations
 
 
 class PrometheusMetrics:
-
     def __init__(self) -> None:
         self._counters: dict[str, float] = {}
         self._gauges: dict[str, float] = {}
@@ -26,7 +24,6 @@ class PrometheusMetrics:
     def render(self) -> str:
         lines: list[str] = []
 
-
         for key, value in sorted(self._counters.items()):
             name, labels = self._parse_key(key)
             lines.append(f"# HELP {name} {name}")
@@ -37,7 +34,6 @@ class PrometheusMetrics:
             else:
                 lines.append(f"{name} {value}")
 
-
         for key, value in sorted(self._gauges.items()):
             name, labels = self._parse_key(key)
             lines.append(f"# HELP {name} {name}")
@@ -47,7 +43,6 @@ class PrometheusMetrics:
                 lines.append(f"{name}{{{label_str}}} {value}")
             else:
                 lines.append(f"{name} {value}")
-
 
         DEFAULT_BUCKETS = (0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0)
         for key, observations in sorted(self._histograms.items()):

@@ -59,7 +59,6 @@ _DAEMON_BACKEND_MAP: dict[str, str] = {
 
 
 class PicoDomePostRoutesMixin:
-
     def _handle_post(self: PicoDomeHandler) -> None:
 
         content_length = self.headers.get("Content-Length")
@@ -112,10 +111,8 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.MISSING_COMMAND)
             return
 
-
         deny_error = self._validate_command(command)
         if deny_error:
-
             actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
             try:
                 audit = get_audit_logger()
@@ -136,11 +133,9 @@ class PicoDomePostRoutesMixin:
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
 
-
         tenant_id = self._resolve_tenant(token)
 
         self.job_store.add(job_id, command, actor)
-
 
         try:
             audit = get_audit_logger()
@@ -155,7 +150,6 @@ class PicoDomePostRoutesMixin:
             pass
 
         try:
-
             policy_name = data.get("policy")
             if policy_name:
                 try:
@@ -165,7 +159,6 @@ class PicoDomePostRoutesMixin:
                     policy = default_policy()
             else:
                 policy = default_policy()
-
 
             backend_name = data.get("backend", "auto")
             backend: SandboxBackend | None = None
@@ -193,7 +186,6 @@ class PicoDomePostRoutesMixin:
                     self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=str(e))
                     return
 
-
             sandbox_result = sandbox_run(
                 command=command,
                 policy=policy,
@@ -202,11 +194,9 @@ class PicoDomePostRoutesMixin:
                 deterministic=False,
             )
 
-
             engine = create_default_engine()
             profile = profile_from_sandbox_result(sandbox_result)
             analysis_result = engine.analyze(profile, deterministic=False)
-
 
             result = {
                 "job_id": job_id,
@@ -230,11 +220,9 @@ class PicoDomePostRoutesMixin:
                 result=result,
             )
 
-
             self._scan_count += 1
             self._scan_total_ms += sandbox_result.duration_ms
             self._alert_count += len(analysis_result.findings)
-
 
             try:
                 audit = get_audit_logger()
@@ -247,7 +235,6 @@ class PicoDomePostRoutesMixin:
                 )
             except Exception:
                 pass
-
 
             try:
                 rm = get_retention_manager()
@@ -337,12 +324,14 @@ class PicoDomePostRoutesMixin:
                 detail=f"Merged peer snapshot: {before_nodes}→{after_nodes} nodes",
             )
 
-            self._send_json({
-                "status": "merged",
-                "nodes_before": before_nodes,
-                "nodes_after": after_nodes,
-                "leader_id": mgr.state.get_leader_id(),
-            })
+            self._send_json(
+                {
+                    "status": "merged",
+                    "nodes_before": before_nodes,
+                    "nodes_after": after_nodes,
+                    "leader_id": mgr.state.get_leader_id(),
+                }
+            )
         except json.JSONDecodeError:
             self._send_error(400, "invalid JSON body")
         except Exception:

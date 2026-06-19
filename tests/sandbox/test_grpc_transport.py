@@ -626,9 +626,7 @@ class TestGRPCClientRetry:
 
         with (
             patch.object(client, "_ensure_channel"),
-            patch.object(
-                client, "_do_scan", side_effect=[ConnectionError("fail"), good_result]
-            ),
+            patch.object(client, "_do_scan", side_effect=[ConnectionError("fail"), good_result]),
         ):
             result = client.scan(command=["echo", "hello"])
             assert result.verdict == "ALLOW"

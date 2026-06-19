@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,7 +16,6 @@ DEP_FIELDS = (
 
 
 PROTOCOL_PATTERNS: list[tuple[str, str, Severity, str]] = [
-
     (
         "git+ssh://",
         "git+ssh:// dependency — bypasses registry integrity, uses SSH",
@@ -102,13 +100,11 @@ def _extract_protocol_deps(pkg_data: dict, pkg_json_path: str = "package.json") 
 def detect_sideloading(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         data = load_package_json(root_pkg)
         if data:
             findings.extend(_extract_protocol_deps(data, str(root_pkg)))
-
 
     for pkg_json, pkg_data in iter_node_modules(target):
         findings.extend(_extract_protocol_deps(pkg_data, str(pkg_json)))

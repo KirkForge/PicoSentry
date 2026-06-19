@@ -32,11 +32,8 @@ class PicoDomeHandler(
     PicoDomePostRoutesMixin,
     BaseHTTPRequestHandler,
 ):
-
-
     MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10 MB
     API_VERSION = API_VERSION  # exposed as self.API_VERSION for route mixins
-
 
     rbac: RBAC = RBAC()
     auth: TokenAuth = TokenAuth(rbac=rbac)
@@ -46,7 +43,6 @@ class PicoDomeHandler(
     _scan_count: int = 0
     _scan_total_ms: int = 0
     _alert_count: int = 0
-
 
     def do_OPTIONS(self) -> None:
         self.send_response(204)

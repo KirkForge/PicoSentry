@@ -11,12 +11,8 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         NAME,
         help="Start PicoDome K8s admission webhook server (TLS required)",
     )
-    parser.add_argument(
-        "--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)"
-    )
-    parser.add_argument(
-        "--port", type=int, default=8443, help="Bind port (default: 8443)"
-    )
+    parser.add_argument("--host", default="127.0.0.1", help="Bind address (default: 127.0.0.1)")
+    parser.add_argument("--port", type=int, default=8443, help="Bind port (default: 8443)")
     parser.add_argument(
         "--cert-file",
         required=True,
@@ -27,9 +23,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         required=True,
         help="Path to TLS private key file (PEM, required — K8s requires TLS)",
     )
-    parser.add_argument(
-        "--background", action="store_true", help="Run in background"
-    )
+    parser.add_argument("--background", action="store_true", help="Run in background")
     parser.add_argument(
         "--scan-enabled",
         action="store_true",
@@ -88,9 +82,7 @@ def cmd(args: argparse.Namespace) -> int:
     try:
         server.start(background=args.background)
         if args.background:
-            print(
-                f"PicoDome admission webhook started on {args.host}:{args.port}"
-            )
+            print(f"PicoDome admission webhook started on {args.host}:{args.port}")
         return 0
     except KeyboardInterrupt:
         server.stop()

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -27,18 +26,15 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
         if not line or line.startswith(("#", "-")):
             continue
 
-
         if " #" in line:
             line = line[: line.index(" #")].strip()
         if "  #" in line:
             line = line[: line.index("  #")].strip()
 
-
         marker = ""
         if ";" in line:
             line, marker = line.split(";", 1)
             marker = marker.strip()
-
 
         extras_list: list[str] = []
         version = ""
@@ -54,7 +50,6 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
         else:
             name_part = raw_line.strip()
 
-
         bracket_match = re.search(r"\[([^\]]+)\]", name_part)
         if bracket_match:
             extras_str = bracket_match.group(1)
@@ -62,11 +57,13 @@ def parse_requirements_txt(path: Path) -> list[LockEntry]:
             name_part = name_part[: bracket_match.start()].strip()
 
         if name_part:
-            entries.append((
-                name_part,
-                version or "*",
-                {"extras": extras_list, "marker": marker, "specifier": specifier},
-            ))
+            entries.append(
+                (
+                    name_part,
+                    version or "*",
+                    {"extras": extras_list, "marker": marker, "specifier": specifier},
+                )
+            )
 
     return entries
 
@@ -137,5 +134,3 @@ def parse_uv_lock(path: Path) -> list[LockEntry]:
             entries.append((name, version, extras))
 
     return entries
-
-

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import inspect
@@ -25,7 +24,6 @@ DetectorRule = Callable[..., list[Finding]]
 
 
 class L4Engine:
-
     def __init__(self) -> None:
         self._rules: dict[str, DetectorRule] = {}
 
@@ -70,7 +68,6 @@ class L4Engine:
 
         for rule_id, rule_fn in selected.items():
             try:
-
                 sig = inspect.signature(rule_fn)
                 param_count = len(sig.parameters)
                 findings = rule_fn(profile, baselines) if param_count >= 2 else rule_fn(profile)
@@ -78,7 +75,6 @@ class L4Engine:
                 logger.debug("L4 rule %s: %d findings", rule_id, len(findings))
             except Exception:
                 logger.exception("L4 rule")
-
 
         if not deterministic:
             filled_findings = []
@@ -99,16 +95,13 @@ class L4Engine:
 
         duration = int(_now_ms() - start_ms)
 
-
         drift_results: list[DriftResult] = []
         best_match = find_best_baseline(profile, baselines)
         if best_match:
             _, drift = best_match
             drift_results.append(drift)
 
-
         overall = _compute_verdict(all_findings)
-
 
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}

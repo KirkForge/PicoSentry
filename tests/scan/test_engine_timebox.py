@@ -55,9 +55,7 @@ def test_slow_rule_times_out_within_2_5s(tmp_path: Path) -> None:
     assert elapsed < 2.5, f"Scan took {elapsed:.2f}s — timebox did not fire"
 
     slow_exec = next(e for e in result.rule_executions if e.rule_id == "L2-SLOW-001")
-    assert slow_exec.status == "timeout", (
-        f"Expected L2-SLOW-001 status='timeout', got {slow_exec.status!r}"
-    )
+    assert slow_exec.status == "timeout", f"Expected L2-SLOW-001 status='timeout', got {slow_exec.status!r}"
     assert slow_exec.findings_count == 0
     assert "timebox" in (slow_exec.error or "").lower()
 
@@ -79,9 +77,7 @@ def test_fast_rules_still_complete_after_timeout() -> None:
     result = engine.scan(Path("."), rule_timeout=0.5)
 
     fast_exec = next(e for e in result.rule_executions if e.rule_id == "L2-FAST-002")
-    assert fast_exec.status == "ok", (
-        f"Expected L2-FAST-002 status='ok', got {fast_exec.status!r}"
-    )
+    assert fast_exec.status == "ok", f"Expected L2-FAST-002 status='ok', got {fast_exec.status!r}"
 
 
 def test_timeout_status_coexists_with_ok_and_failed() -> None:
@@ -122,8 +118,7 @@ def test_create_default_engine_inherits_default_timebox() -> None:
     result = engine.scan(Path("."), rule_timeout=30.0)
     timeouts = [e for e in result.rule_executions if e.status == "timeout"]
     assert not timeouts, (
-        f"Default engine should not time out on a small target; got: "
-        f"{[(e.rule_id, e.error) for e in timeouts]}"
+        f"Default engine should not time out on a small target; got: {[(e.rule_id, e.error) for e in timeouts]}"
     )
 
 
@@ -151,6 +146,4 @@ def test_sub_rule_aliases_all_get_timeout_status() -> None:
     # All three must show status=timeout.
     statuses = {e.rule_id: e.status for e in result.rule_executions}
     for rid in ("L2-MULTI-A", "L2-MULTI-B", "L2-MULTI-C"):
-        assert statuses.get(rid) == "timeout", (
-            f"Expected {rid} status='timeout', got {statuses.get(rid)!r}"
-        )
+        assert statuses.get(rid) == "timeout", f"Expected {rid} status='timeout', got {statuses.get(rid)!r}"

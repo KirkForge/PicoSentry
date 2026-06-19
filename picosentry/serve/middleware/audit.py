@@ -9,27 +9,32 @@ logger = logging.getLogger("picoshogun.Audit")
 
 _auth_svc = None
 
+
 def _get_auth_service():
     global _auth_svc
     if _auth_svc is None:
         try:
             from picosentry.serve.services.auth import AuthService
+
             _auth_svc = AuthService()
         except ImportError:
             pass
     return _auth_svc
 
+
 def _get_db():
     try:
         from picosentry.serve.database.manager import db
+
         return db
     except ImportError:
         return None
 
-class AuditMiddleware(BaseHTTPMiddleware):
 
+class AuditMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         import time
+
         start_time = time.time()
 
         response = await call_next(request)
@@ -76,7 +81,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
             "path": path,
             "query": query,
             "status_code": status_code,
-            "duration_ms": round(duration * 1000, 2)
+            "duration_ms": round(duration * 1000, 2),
         }
 
         db = _get_db()
@@ -94,8 +99,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         path,
                         json.dumps(details),
                         ip_address,
-                        user_agent
-                    )
+                        user_agent,
+                    ),
                 )
             except Exception:
                 logger.exception("Audit DB insert failed")

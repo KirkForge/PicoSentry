@@ -1057,15 +1057,19 @@ class TestGossipMerge:
 
         # Node A reports node-x with an old heartbeat
         old_node = ClusterNode(
-            node_id="node-x", address="10.0.0.1",
-            last_heartbeat="2026-06-13T00:00:00Z", load=0,
+            node_id="node-x",
+            address="10.0.0.1",
+            last_heartbeat="2026-06-13T00:00:00Z",
+            load=0,
         )
         state_a.add_node(old_node)
 
         # Node B reports the same node with a newer heartbeat + higher load
         new_node = ClusterNode(
-            node_id="node-x", address="10.0.0.1",
-            last_heartbeat="2026-06-13T12:00:00Z", load=5,
+            node_id="node-x",
+            address="10.0.0.1",
+            last_heartbeat="2026-06-13T12:00:00Z",
+            load=5,
         )
         state_b.add_node(new_node)
 
@@ -1089,8 +1093,10 @@ class TestGossipMerge:
 
         # Node B completed the scan
         scan_completed = ScanRequest(
-            scan_id="s1", command=["echo", "hi"],
-            status="completed", assigned_node="node-b",
+            scan_id="s1",
+            command=["echo", "hi"],
+            status="completed",
+            assigned_node="node-b",
         )
         state_b.add_scan(scan_completed)
 
@@ -1098,9 +1104,7 @@ class TestGossipMerge:
         snap_b = state_b.get_state_snapshot()
         state_a.merge_state(snap_b)
 
-        merged_scans = [
-            s for s in state_a._backend.load_all_scans() if s.scan_id == "s1"
-        ]
+        merged_scans = [s for s in state_a._backend.load_all_scans() if s.scan_id == "s1"]
         assert len(merged_scans) == 1
         assert merged_scans[0].status == "completed"
 
@@ -1175,7 +1179,8 @@ class TestGossipMerge:
 
         # Both know about node-x as ONLINE
         nx = ClusterNode(
-            node_id="node-x", address="10.0.0.99",
+            node_id="node-x",
+            address="10.0.0.99",
             status=NodeStatus.ONLINE,
             last_heartbeat="2026-06-13T00:00:00Z",
         )
@@ -1184,7 +1189,8 @@ class TestGossipMerge:
 
         # Node B detects node-x is down (newer heartbeat, OFFLINE)
         nx_offline = ClusterNode(
-            node_id="node-x", address="10.0.0.99",
+            node_id="node-x",
+            address="10.0.0.99",
             status=NodeStatus.OFFLINE,
             last_heartbeat="2026-06-13T12:00:00Z",
         )
@@ -1237,17 +1243,33 @@ class TestGossipLoop:
 
         mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
         mgr._running = True
-        mgr._state.add_node(ClusterNode(
-            node_id="self-node", address="127.0.0.1", port=8443,
-        ))
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="self-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
 
         # Mock the HTTP response
         peer_snapshot = {
             "nodes": [
-                {"node_id": "peer-a", "address": "10.0.0.2", "port": 8443,
-                 "status": "online", "last_heartbeat": "2026-06-13T12:00:00Z", "load": 0},
-                {"node_id": "peer-b", "address": "10.0.0.3", "port": 8443,
-                 "status": "online", "last_heartbeat": "2026-06-13T12:00:00Z", "load": 2},
+                {
+                    "node_id": "peer-a",
+                    "address": "10.0.0.2",
+                    "port": 8443,
+                    "status": "online",
+                    "last_heartbeat": "2026-06-13T12:00:00Z",
+                    "load": 0,
+                },
+                {
+                    "node_id": "peer-b",
+                    "address": "10.0.0.3",
+                    "port": 8443,
+                    "status": "online",
+                    "last_heartbeat": "2026-06-13T12:00:00Z",
+                    "load": 2,
+                },
             ],
             "scans": [],
             "leader_id": "peer-a",
@@ -1257,6 +1279,7 @@ class TestGossipLoop:
             class MockResponse:
                 def read(self):
                     import json
+
                     return json.dumps(peer_snapshot).encode()
 
                 def __enter__(self):
@@ -1264,6 +1287,7 @@ class TestGossipLoop:
 
                 def __exit__(self, exc_type, exc, tb):
                     return False
+
             return MockResponse()
 
         monkeypatch.setattr(
@@ -1286,9 +1310,13 @@ class TestGossipLoop:
 
         mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
         mgr._running = True
-        mgr._state.add_node(ClusterNode(
-            node_id="self-node", address="127.0.0.1", port=8443,
-        ))
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="self-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
 
         def mock_urlopen(req, timeout=None):
             class MockResponse:
@@ -1300,6 +1328,7 @@ class TestGossipLoop:
 
                 def __exit__(self, exc_type, exc, tb):
                     return False
+
             return MockResponse()
 
         monkeypatch.setattr(
@@ -1319,18 +1348,27 @@ class TestGossipLoop:
         from picosentry.sandbox.cluster.models import ClusterNode
 
         mgr = ClusterManager(
-            address="127.0.0.1", port=8443, node_id="test-node",
+            address="127.0.0.1",
+            port=8443,
+            node_id="test-node",
             heartbeat_interval=1,
         )
-        mgr._state.add_node(ClusterNode(
-            node_id="test-node", address="127.0.0.1", port=8443,
-        ))
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="test-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
 
         # Start just the gossip loop manually (don't want heartbeat/health threads)
         import threading
+
         mgr._running = True
         mgr._gossip_thread = threading.Thread(
-            target=mgr._gossip_loop, daemon=True, name="test-gossip",
+            target=mgr._gossip_loop,
+            daemon=True,
+            name="test-gossip",
         )
         mgr._gossip_thread.start()
 

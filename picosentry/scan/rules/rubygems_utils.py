@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -12,21 +11,13 @@ _GEMFILE_GEM_RE = re.compile(
     r"^\s*gem\s+['\"]([^'\"]+)['\"]\s*(?:,\s*['\"]([^'\"]+)['\"])?\s*(?:,\s*(?:git|path|group|require|platforms)\s*:.*)?$"
 )
 
-_GEMFILE_GIT_RE = re.compile(
-    r"^\s*gem\s+['\"]([^'\"]+)['\"].*,\s*git:\s*['\"]([^'\"]+)['\"]"
-)
+_GEMFILE_GIT_RE = re.compile(r"^\s*gem\s+['\"]([^'\"]+)['\"].*,\s*git:\s*['\"]([^'\"]+)['\"]")
 
-_GEMFILE_PATH_RE = re.compile(
-    r"^\s*gem\s+['\"]([^'\"]+)['\"].*,\s*path:\s*['\"]([^'\"]+)['\"]"
-)
+_GEMFILE_PATH_RE = re.compile(r"^\s*gem\s+['\"]([^'\"]+)['\"].*,\s*path:\s*['\"]([^'\"]+)['\"]")
 
-_GEMFILE_SOURCE_RE = re.compile(
-    r"^\s*source\s+['\"]([^'\"]+)['\"]"
-)
+_GEMFILE_SOURCE_RE = re.compile(r"^\s*source\s+['\"]([^'\"]+)['\"]")
 
-_GEMFILE_GROUP_START_RE = re.compile(
-    r"^\s*group\s+:"
-)
+_GEMFILE_GROUP_START_RE = re.compile(r"^\s*group\s+:")
 
 _GEMFILE_END_RE = re.compile(r"^\s*end\s*$")
 
@@ -74,10 +65,8 @@ def parse_gemfile(target: Path) -> dict | None:
     for line in lines:
         stripped = line.strip()
 
-
         if not stripped or stripped.startswith("#"):
             continue
-
 
         if _GEMFILE_GROUP_START_RE.match(stripped):
             in_group += 1
@@ -88,7 +77,6 @@ def parse_gemfile(target: Path) -> dict | None:
                 in_group -= 1
             continue
 
-
         source_match = _GEMFILE_SOURCE_RE.match(stripped)
         if source_match:
             url = source_match.group(1)
@@ -96,12 +84,10 @@ def parse_gemfile(target: Path) -> dict | None:
                 result["sources"].append(url)
             continue
 
-
         gem_match = _GEMFILE_GEM_RE.match(stripped)
         if gem_match:
             gem_name = gem_match.group(1)
             version = gem_match.group(2) or ""
-
 
             git_match = _GEMFILE_GIT_RE.match(stripped)
             path_match = _GEMFILE_PATH_RE.match(stripped)
@@ -142,7 +128,6 @@ def parse_gemfile_lock(target: Path) -> list[dict] | None:
         if not stripped:
             continue
 
-
         if _GEMFILE_LOCK_GEM_START.match(stripped):
             current_section = "GEM"
             current_source_type = "gem"
@@ -167,16 +152,13 @@ def parse_gemfile_lock(target: Path) -> list[dict] | None:
         if _GEMFILE_LOCK_SPECS_START.match(stripped):
             continue
 
-
         remote_match = _GEMFILE_LOCK_REMOTE_RE.match(rline)
         if remote_match and current_section in ("GEM", "GIT", "PATH"):
             current_remote = remote_match.group(1)
             continue
 
-
         spec_match = _GEMFILE_LOCK_SPEC_RE.match(rline)
         if spec_match and current_section in ("GEM", "GIT", "PATH"):
-
             if current_gem.get("name"):
                 gems.append(current_gem)
             current_gem = {
@@ -186,7 +168,6 @@ def parse_gemfile_lock(target: Path) -> list[dict] | None:
                 "source_type": current_source_type,
             }
             continue
-
 
     if current_gem.get("name"):
         gems.append(current_gem)
@@ -208,18 +189,15 @@ def detect_private_rubygems_source(target: Path) -> bool:
 
     gemfile_data = parse_gemfile(target)
     if gemfile_data:
-
         for url in gemfile_data.get("sources", []):
             url_lower = url.lower().rstrip("/")
             if "rubygems.org" not in url_lower:
                 return True
 
-
         if gemfile_data.get("git_deps"):
             return True
         if gemfile_data.get("path_deps"):
             return True
-
 
     gemrc_path = target / ".gemrc"
     if gemrc_path.is_file():
@@ -230,7 +208,6 @@ def detect_private_rubygems_source(target: Path) -> bool:
                     return True
         except OSError:
             pass
-
 
     bundle_config = target / ".bundle" / "config"
     if bundle_config.is_file():

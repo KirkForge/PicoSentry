@@ -143,6 +143,7 @@ class TestCheckOidcAuth(unittest.TestCase):
     def _has_jwt():
         try:
             import jwt  # noqa: F401
+
             return True
         except ImportError:
             return False

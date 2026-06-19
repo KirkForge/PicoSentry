@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -13,7 +12,6 @@ logger = logging.getLogger("picodome.grpc_transport.client")
 
 
 class ScanResult:
-
     def __init__(
         self,
         result_json: str = "",
@@ -57,7 +55,6 @@ class ScanResult:
 
 
 class PicoDomeGRPCClient:
-
     def __init__(
         self,
         target: str = "localhost:50051",
@@ -92,7 +89,6 @@ class PicoDomeGRPCClient:
             self._channel = grpc.insecure_channel(self._target)
             logger.info("gRPC client connected (plaintext) to %s", self._target)
 
-
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc
 
@@ -112,7 +108,6 @@ class PicoDomeGRPCClient:
             return None
 
         if mtls_config.dev_mode:
-
             return None
 
         if not mtls_config.cert_path or not mtls_config.key_path:
@@ -207,7 +202,6 @@ class PicoDomeGRPCClient:
                 findings_count=response.findings_count,
             )
         except ImportError:
-
             return self._do_scan_manual(command, policy, timeout, cwd)
 
     def _do_scan_manual(
@@ -219,7 +213,6 @@ class PicoDomeGRPCClient:
     ) -> ScanResult:
         import grpc
 
-
         request_data = json.dumps(
             {
                 "command": command,
@@ -228,7 +221,6 @@ class PicoDomeGRPCClient:
                 "cwd": cwd or "",
             }
         ).encode("utf-8")
-
 
         try:
             response_data = self._channel.unary_unary(
@@ -255,9 +247,7 @@ class PicoDomeGRPCClient:
         try:
             loop = asyncio.get_running_loop()
             logger.debug("scan_async: running synchronous scan in thread pool")
-            return await loop.run_in_executor(
-                None, self.scan, command, policy, timeout, cwd
-            )
+            return await loop.run_in_executor(None, self.scan, command, policy, timeout, cwd)
         except RuntimeError:
             logger.debug("scan_async: no event loop, delegating to synchronous scan")
             return self.scan(command=command, policy=policy, timeout=timeout, cwd=cwd)
@@ -281,7 +271,6 @@ class PicoDomeGRPCClient:
                 "uptime_seconds": response.uptime_seconds,
             }
         except ImportError:
-
             import grpc
 
             try:

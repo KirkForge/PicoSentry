@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,7 +6,6 @@ from typing import Any, Protocol, runtime_checkable
 
 
 class Severity(str, Enum):
-
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -25,14 +23,12 @@ SEVERITY_ORDER: dict[str, int] = {
 
 
 class Verdict(str, Enum):
-
     ALLOW = "ALLOW"
     DENY = "DENY"
     KILL = "KILL"
 
 
 class Confidence(str, Enum):
-
     EXACT = "EXACT"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -41,7 +37,6 @@ class Confidence(str, Enum):
 
 @dataclass(frozen=True)
 class ScanStats:
-
     packages_scanned: int = 0
     files_scanned: int = 0
     duration_ms: int = 0
@@ -62,7 +57,6 @@ class ScanStats:
 
 @runtime_checkable
 class FindingProtocol(Protocol):
-
     rule_id: str
     severity: Severity
 

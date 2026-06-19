@@ -1,4 +1,3 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
@@ -40,7 +39,6 @@ def detect_privilege_escalation(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for op in profile.fs_ops:
         if op.operation not in ("write", "create", "chmod", "chown", "delete"):
             continue
@@ -56,7 +54,6 @@ def detect_privilege_escalation(
                     )
                 )
 
-
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in PRIV_ESC_BINARIES:
@@ -69,7 +66,6 @@ def detect_privilege_escalation(
                     evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
             )
-
 
     for op in profile.fs_ops:
         if op.operation == "chmod":
@@ -86,7 +82,6 @@ def detect_privilege_escalation(
                     )
                     break
 
-
     cap_keywords = {"setcap", "getcap", "cap_setuid", "cap_net_raw", "cap_sys_admin", "cap_dac_override"}
     for spawn in profile.spawns:
         exe_lower = spawn.executable.lower()
@@ -101,7 +96,6 @@ def detect_privilege_escalation(
                     evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
             )
-
 
     for op in profile.fs_ops:
         path_lower = op.path.lower()

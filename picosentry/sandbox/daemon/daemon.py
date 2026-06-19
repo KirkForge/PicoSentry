@@ -15,7 +15,6 @@ logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomeDaemon:
-
     def __init__(
         self,
         host: str | None = None,
@@ -34,7 +33,6 @@ class PicoDomeDaemon:
         self._job_store_dir = job_store_dir or os.environ.get("PICODOME_JOB_STORE_DIR")
         self._store_backend = store_backend or os.environ.get("PICODOME_STORE_BACKEND", "jsonl")
 
-
         backend = self._store_backend.lower()
         if backend == "sqlite":
             from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
@@ -51,7 +49,6 @@ class PicoDomeDaemon:
             PicoDomeHandler.job_store = PersistentScanJobStore(store_dir=store_dir)
             logger.info("Using JSONL job store backend")
 
-
         global_rps = float(os.environ.get("PICODOME_GLOBAL_RPS", "25.0"))
         rate_per_second = float(os.environ.get("PICODOME_RATE_PER_SECOND", "2.0"))
         PicoDomeHandler.rate_limiter = TokenBucketLimiter(
@@ -60,7 +57,6 @@ class PicoDomeDaemon:
                 global_rps=global_rps,
             )
         )
-
 
         self._sinks = self._init_sinks()
 
@@ -132,7 +128,6 @@ class PicoDomeDaemon:
             logger.info("mTLS: TLS enabled on %s:%d", self._host, self._port)
         self._server = server
 
-
         try:
             audit = get_audit_logger()
 
@@ -151,7 +146,6 @@ class PicoDomeDaemon:
             pass
 
         logger.info("PicoDome daemon starting on %s:%d", self._host, self._port)
-
 
         if self._metrics_port and self._metrics_port != self._port:
             metrics_handler = type(
@@ -194,7 +188,6 @@ class PicoDomeDaemon:
         if self._metrics_server:
             self._metrics_server.shutdown()
 
-
         for sink in self._sinks:
             try:
                 sink.stop()
@@ -222,7 +215,6 @@ class PicoDomeDaemon:
 
         signal.signal(signal.SIGTERM, _handle_shutdown)
         signal.signal(signal.SIGINT, _handle_shutdown)
-
 
         if hasattr(signal, "SIGHUP"):
 

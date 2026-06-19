@@ -47,13 +47,6 @@ def sample_event():
     )
 
 
-def _count_events(engine) -> int:
-    from picosentry.serve.database import manager as db_module
-
-    row = db_module.db.execute_one("SELECT COUNT(*) AS c FROM correlation_events")
-    return row["c"] if row else 0
-
-
 def _count_chains(engine) -> int:
     from picosentry.serve.database import manager as db_module
 

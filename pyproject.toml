@@ -187,7 +187,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC", "ARG"]
 ignore = [
     "N806", "N818", "N802", "N812",
     "A002",
@@ -207,7 +207,7 @@ ignore = [
 # - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
 # - RUF001 in security output formatters that intentionally use ℹ️ icons
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
-"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC", "ARG002"]
 "picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
 "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
@@ -218,7 +218,24 @@ ignore = [
 "tests/scan/test_pnpm_lock_parser.py" = ["E501"]
 # Tests spawn subprocesses and explicitly assert on return codes/text output;
 # requiring an explicit `check` argument on every call is noise without value.
-"tests/**/*.py" = ["PLW1510"]
+"tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005"]
+
+# ARG (unused-argument) noise is expected in these patterns:
+# - generated gRPC stubs and their implementations have fixed method signatures
+# - backend method overrides must keep base-class parameter names
+# - NoOp tracer/meter implementations intentionally ignore parameters
+# - plugin interface methods declare contract parameters not all callers use
+# - router endpoints receive injected auth dependencies that individual handlers
+#   may not need
+# - test helpers and mocks often accept parameters for API compatibility
+"picosentry/serve/api/routers/*.py" = ["ARG001"]
+"picosentry/sandbox/grpc_transport/_servicer.py" = ["ARG002"]
+"picosentry/sandbox/l3/backends/*.py" = ["ARG002"]
+"picosentry/sandbox/tracing.py" = ["ARG002"]
+"picosentry/serve/services/observability.py" = ["ARG002"]
+"picosentry/serve/services/plugin_manager.py" = ["ARG002"]
+"picosentry/serve/database/pools.py" = ["ARG002"]
+"picosentry/serve/plugins/test_plugin/test_handler.py" = ["ARG002"]
 
 [tool.ruff.format]
 quote-style = "double"

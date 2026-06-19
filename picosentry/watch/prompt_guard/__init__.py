@@ -74,7 +74,7 @@ class PromptGuard:
             decoded_matches = self._engine.evaluate(decoded_normalized)
             matches.extend(decoded_matches)
 
-        score, matched_ids = self._scorer.score(matches, self._engine.rules)
+        score, matched_ids = self._scorer.score(matches)
 
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
 

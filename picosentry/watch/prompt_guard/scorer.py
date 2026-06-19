@@ -17,7 +17,6 @@ class Scorer:
     def score(
         self,
         matches: list[tuple[Rule, re.Match[str]]],
-        all_rules: list[Rule],
     ) -> tuple[float, list[str]]:
         if not matches:
             return 0.0, []

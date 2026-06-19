@@ -281,12 +281,6 @@ class SeccompTraceBackend(SandboxBackend):
     ) -> tuple[bytes, bytes, int, str]:
         return process_manager.wait_with_timeout(pid, out_fd, err_fd, timeout, log_path)
 
-    def _read_proc_seccomp(self, log_path: str) -> str:
-        return process_manager.read_proc_seccomp(log_path)
-
-    def _probe_log_emits(self, lib: ctypes.CDLL) -> bool:
-        return process_manager.probe_log_emits(lib)
-
     def _setup_lib(self, lib: ctypes.CDLL) -> None:
         filter_builder.setup(lib)
 

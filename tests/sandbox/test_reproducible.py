@@ -377,7 +377,7 @@ class TestGenerateBuildManifest:
     def test_manifest_contains_source_files(self, source_dir):
         """Manifest should list hashed source files."""
         manifest_path = generate_build_manifest(source_dir)
-        with open(manifest_path, encoding="utf-8") as f:
+        with Path(manifest_path).open(encoding="utf-8") as f:
             manifest = json.load(f)
         assert "source_files" in manifest
         assert manifest["total_source_files"] > 0
@@ -388,7 +388,7 @@ class TestGenerateBuildManifest:
     def test_manifest_contains_config(self, source_dir):
         """Manifest should contain hermetic build config."""
         manifest_path = generate_build_manifest(source_dir)
-        with open(manifest_path, encoding="utf-8") as f:
+        with Path(manifest_path).open(encoding="utf-8") as f:
             manifest = json.load(f)
         assert "config" in manifest
         assert "python_hash_seed" in manifest
@@ -406,7 +406,7 @@ class TestGenerateBuildManifest:
         """Manifest should respect SOURCE_DATE_EPOCH env var."""
         with mock.patch.dict(os.environ, {"SOURCE_DATE_EPOCH": "1700000000"}):
             manifest_path = generate_build_manifest(source_dir)
-        with open(manifest_path, encoding="utf-8") as f:
+        with Path(manifest_path).open(encoding="utf-8") as f:
             manifest = json.load(f)
         assert manifest["source_date_epoch"] == 1700000000
 

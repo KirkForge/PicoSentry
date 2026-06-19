@@ -29,14 +29,6 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
 
             exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(exporter))
-        else:
-            try:
-                from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-
-                exporter = OTLPSpanExporter()
-                provider.add_span_processor(BatchSpanProcessor(exporter))
-            except Exception:
-                logger.warning("OTLP exporter not configured. Traces will be dropped.")
 
         trace.set_tracer_provider(provider)
         _tracer = trace.get_tracer("picowatch", "1.0.1")
@@ -47,6 +39,27 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
     except ImportError:
         logger.debug("OpenTelemetry dependencies not installed. Tracing disabled.")
         return False
+
+
+def shutdown_tracing() -> None:
+    """Shut down the OpenTelemetry tracer provider and reset module state.
+
+    Call this during test teardown or application shutdown to stop background
+    export threads that would otherwise keep the process alive.
+    """
+    global _tracer, _initialized
+
+    try:
+        from opentelemetry import trace
+
+        provider = trace.get_tracer_provider()
+        if hasattr(provider, "shutdown"):
+            provider.shutdown()
+    except Exception:
+        logger.debug("Tracer provider shutdown failed or was not initialized", exc_info=True)
+    finally:
+        _tracer = None
+        _initialized = False
 
 
 def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> None:

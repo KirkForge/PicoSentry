@@ -93,7 +93,7 @@ class TestCargoTyposquat:
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
 
         target = _cargo_malicious()
-        findings = detect_cargo_typosquat(target, Path(""))
+        findings = detect_cargo_typosquat(target, Path())
         typos = [f for f in findings if f.rule_id == "L2-CARGO-TYPO-001"]
         assert len(typos) >= 1, f"Expected typosquat finding, got: {[f.package for f in findings]}"
         tymsg = typos[0].message.lower()
@@ -105,7 +105,7 @@ class TestCargoTyposquat:
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
 
         target = _cargo_clean()
-        findings = detect_cargo_typosquat(target, Path(""))
+        findings = detect_cargo_typosquat(target, Path())
         assert len(findings) == 0, f"Clean project should have no typos: {findings}"
 
 

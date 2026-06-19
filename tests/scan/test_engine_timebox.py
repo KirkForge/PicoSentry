@@ -74,7 +74,7 @@ def test_fast_rules_still_complete_after_timeout() -> None:
     engine.register("L2-SLOW-002", slow_rule)
     engine.register("L2-FAST-002", fast_rule)
 
-    result = engine.scan(Path("."), rule_timeout=0.5)
+    result = engine.scan(Path(), rule_timeout=0.5)
 
     fast_exec = next(e for e in result.rule_executions if e.rule_id == "L2-FAST-002")
     assert fast_exec.status == "ok", f"Expected L2-FAST-002 status='ok', got {fast_exec.status!r}"
@@ -115,7 +115,7 @@ def test_create_default_engine_inherits_default_timebox() -> None:
 
     engine = create_default_engine()
     # Generous override: the v2 repo's PyPI obfuscation rule is real work.
-    result = engine.scan(Path("."), rule_timeout=30.0)
+    result = engine.scan(Path(), rule_timeout=30.0)
     timeouts = [e for e in result.rule_executions if e.status == "timeout"]
     assert not timeouts, (
         f"Default engine should not time out on a small target; got: {[(e.rule_id, e.error) for e in timeouts]}"
@@ -141,7 +141,7 @@ def test_sub_rule_aliases_all_get_timeout_status() -> None:
     engine.register("L2-MULTI-B", slow_rule)
     engine.register("L2-MULTI-C", slow_rule)
 
-    result = engine.scan(Path("."), rule_timeout=0.5)
+    result = engine.scan(Path(), rule_timeout=0.5)
 
     # All three must show status=timeout.
     statuses = {e.rule_id: e.status for e in result.rule_executions}

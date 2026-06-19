@@ -218,7 +218,7 @@ class PicoDomeDaemon:
 
         if hasattr(signal, "SIGHUP"):
 
-            def _handle_hup(signum: int, _frame: Any) -> None:
+            def _handle_hup(_signum: int, _frame: Any) -> None:
                 logger.info("Received SIGHUP — reloading configuration")
                 try:
                     from picosentry.sandbox.mtls import reload_ssl_context

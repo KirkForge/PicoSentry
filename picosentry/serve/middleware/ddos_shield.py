@@ -1,5 +1,7 @@
 import logging
+import time
 from typing import ClassVar
+from collections.abc import Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -23,9 +25,16 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         "/health/ready",
     )
 
-    def __init__(self, app, enabled: bool = True):
+    def __init__(
+        self,
+        app,
+        enabled: bool = True,
+        *,
+        _now: Callable[[], float] = time.monotonic,
+    ):
         super().__init__(app)
         self.enabled = enabled
+        self._now = _now
         self._path_buckets: dict[str, list[float]] = {}
         self._global_bucket: list[float] = []
         self._burst_limit = 50  # requests per 10-second window per path
@@ -51,9 +60,7 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         if self._is_health_path(request.url.path):
             return await call_next(request)
 
-        import time
-
-        now = time.monotonic()
+        now = self._now()
         cutoff = now - 10.0  # 10-second window
 
         self._global_bucket = [t for t in self._global_bucket if t > cutoff]

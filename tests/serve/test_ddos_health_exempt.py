@@ -14,7 +14,7 @@ contract for the bypass.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -25,11 +25,19 @@ from starlette.testclient import TestClient
 from picosentry.serve.middleware.ddos_shield import DDoSShieldMiddleware
 
 
-def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShieldMiddleware]:
+def _build_app(
+    extra_routes: Iterable[Route] = (),
+    *,
+    _now: Callable[[], float] | None = None,
+) -> tuple[TestClient, DDoSShieldMiddleware]:
     """Build a tiny Starlette app with the DDoS shield mounted and a
     catch-all GET route that echoes the path back.  Returns both the
     client and the constructed middleware so tests can read
-    ``_global_limit`` etc. without guessing at the values."""
+    ``_global_limit`` etc. without guessing at the values.
+
+    ``_now`` is injected into the middleware to make tests independent of
+    wall-clock timing; production uses ``time.monotonic`` by default.
+    """
 
     async def catch_all(request: Request) -> JSONResponse:
         return JSONResponse({"path": request.url.path})
@@ -40,8 +48,9 @@ def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShie
     # Build the middleware manually so we can hold a reference to it.
     # Starlette's add_middleware wraps it in a closure we can't easily
     # reach; the underlying class is what we want anyway.
-    shield = DDoSShieldMiddleware(app, enabled=True)
-    app.add_middleware(DDoSShieldMiddleware, enabled=True)
+    kwargs = {"_now": _now} if _now is not None else {}
+    shield = DDoSShieldMiddleware(app, enabled=True, **kwargs)
+    app.add_middleware(DDoSShieldMiddleware, enabled=True, **kwargs)
     return TestClient(app), shield
 
 
@@ -82,8 +91,19 @@ def test_health_subpaths_are_exempt() -> None:
 
 def test_non_health_paths_still_rate_limited() -> None:
     """The bypass must NOT leak to user traffic.  Hammering an
-    arbitrary path past the global limit must return 429."""
-    client, shield = _build_app()
+    arbitrary path past the global limit must return 429.
+
+    A fixed clock that advances a small delta each request keeps the
+    10-second window open for the whole run, so the result is
+    independent of wall-clock timing and test-machine speed."""
+    now = 0.0
+
+    def fake_now() -> float:
+        nonlocal now
+        now += 0.001
+        return now
+
+    client, shield = _build_app(_now=fake_now)
     last_status = None
     for _ in range(shield._global_limit + 50):
         resp = client.get("/api/v1/something")

@@ -333,7 +333,7 @@ class ScanEngine:
                         )
                     )
             except Exception as exc:
-                logger.exception("Rule %s raised an exception: %s", primary_rule_id, exc)
+                logger.exception("Rule %s raised an exception", primary_rule_id)
                 logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
                 elapsed = int(_now_ms() - rule_start)
                 for rid in rule_ids_for_fn:

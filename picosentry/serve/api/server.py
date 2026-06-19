@@ -129,8 +129,8 @@ async def lifespan(app: FastAPI):
                     "event_count": sum(len(e) for e in chain.phases.values()),
                 },
             )
-        except Exception as exc:
-            logger.exception("Chain escalation alert failed: %s", exc)
+        except Exception:
+            logger.exception("Chain escalation alert failed")
 
     def _chain_escalated_webhook(chain):
         try:
@@ -143,8 +143,8 @@ async def lifespan(app: FastAPI):
                     "chain": chain.to_dict(),
                 },
             )
-        except Exception as exc:
-            logger.exception("Chain escalation webhook failed: %s", exc)
+        except Exception:
+            logger.exception("Chain escalation webhook failed")
 
     correlation_engine.on_chain_escalated(_chain_escalated_alert)
     correlation_engine.on_chain_escalated(_chain_escalated_webhook)

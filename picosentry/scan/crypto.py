@@ -278,11 +278,11 @@ def verify_content_sigstore(
         logger.warning("Sigstore verification failed: %s", result)
         return False
 
-    except sigstore.errors.VerificationError as e:
-        logger.exception("Sigstore verification error: %s", e)
+    except sigstore.errors.VerificationError:
+        logger.exception("Sigstore verification error")
         raise
-    except Exception as e:
-        logger.exception("Sigstore verification failed: %s", e)
+    except Exception:
+        logger.exception("Sigstore verification failed")
         return False
 
 

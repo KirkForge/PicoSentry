@@ -280,8 +280,8 @@ class PluginManager:
                     if self._load_plugin(plugin_path, meta):
                         self._loaded_plugin_paths.add(real_plugin_path)
                         loaded_count += 1
-                except Exception as e:
-                    logger.exception("Failed to load plugin %s: %s", entry, e)
+                except Exception:
+                    logger.exception("Failed to load plugin %s", entry)
 
         logger.info(
             "Resolved plugin dirs: %s; loaded %d plugin(s) from %d dir(s)",
@@ -388,8 +388,8 @@ class PluginManager:
 
             logger.info("Plugin loaded: %s v%s", name, self.metadata[name].version)
             return True
-        except Exception as e:
-            logger.exception("Failed to load plugin '%s': %s", name, e)
+        except Exception:
+            logger.exception("Failed to load plugin '%s'", name)
             return False
         finally:
             # Also drop the imported module — the plugin owns the
@@ -418,8 +418,8 @@ class PluginManager:
                     result = method(**kwargs)
                     if result:
                         results.append({"plugin": plugin_name, "result": result})
-            except Exception as e:
-                logger.exception("Plugin %s hook %s failed: %s", plugin_name, hook, e)
+            except Exception:
+                logger.exception("Plugin %s hook %s failed", plugin_name, hook)
 
         return results
 
@@ -444,8 +444,8 @@ class PluginManager:
             try:
                 plugin.shutdown()
                 logger.info("Plugin unloaded: %s", name)
-            except Exception as e:
-                logger.exception("Plugin %s shutdown failed: %s", name, e)
+            except Exception:
+                logger.exception("Plugin %s shutdown failed", name)
 
         self.plugins.clear()
         self.metadata.clear()

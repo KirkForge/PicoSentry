@@ -76,8 +76,8 @@ class AlertHub:
                     UPDATE alerts SET sent = 1 WHERE id = ?
                 """, (alert_ids[i],))
                 success = True
-            except Exception as e:
-                logger.exception("Alert delivery failed (%s): %s", channel, e)
+            except Exception:
+                logger.exception("Alert delivery failed (%s)", channel)
 
                 db.execute("""
                     UPDATE alerts SET retry_count = retry_count + 1 WHERE id = ?
@@ -141,8 +141,8 @@ class AlertHub:
                 timeout=5,
                 headers={"Content-Type": "application/json"}
             )
-        except Exception as e:
-            logger.exception("Discord webhook failed: %s", e)
+        except Exception:
+            logger.exception("Discord webhook failed")
 
     def _slack_notify(self, project_id: str, severity: str, message: str,
                      metadata: dict | None = None):
@@ -183,8 +183,8 @@ class AlertHub:
                 json=payload,
                 timeout=5
             )
-        except Exception as e:
-            logger.exception("Slack webhook failed: %s", e)
+        except Exception:
+            logger.exception("Slack webhook failed")
 
     def _email_notify(self, project_id: str, severity: str, message: str):
         import smtplib
@@ -235,8 +235,8 @@ Time: {datetime.now(timezone.utc).isoformat()}
             server.quit()
             logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
 
-        except Exception as e:
-            logger.exception("Email notification failed: %s", e)
+        except Exception:
+            logger.exception("Email notification failed")
 
     def _syslog_notify(self, project_id: str, severity: str, message: str):
         import sys

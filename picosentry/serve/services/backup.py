@@ -67,8 +67,8 @@ class BackupManager:
                 "metadata": meta
             }
 
-        except Exception as e:
-            logger.exception("Backup failed: %s", e)
+        except Exception:
+            logger.exception("Backup failed")
             return None
 
         finally:
@@ -131,8 +131,8 @@ class BackupManager:
 
             return True
 
-        except Exception as e:
-            logger.exception("Restore failed: %s", e)
+        except Exception:
+            logger.exception("Restore failed")
             return False
 
         finally:

@@ -185,6 +185,6 @@ class PicoDomeGRPCServer:
 
             logger.info("gRPC TLS credentials created (verify_client=%s)", mtls_config.verify_client)
             return credentials
-        except Exception as e:
-            logger.exception("Failed to create gRPC TLS credentials: %s", e)
+        except Exception:
+            logger.exception("Failed to create gRPC TLS credentials")
             return None

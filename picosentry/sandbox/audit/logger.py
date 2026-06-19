@@ -167,7 +167,7 @@ class AuditLogger:
         line_num = 0
 
         try:
-            with open(path, encoding="utf-8") as f:
+            with path.open(encoding="utf-8") as f:
                 for line_num, raw_line in enumerate(f, start=1):
                     line = raw_line.strip()
                     if not line:
@@ -209,7 +209,7 @@ class AuditLogger:
             return results
 
         try:
-            with open(self._log_path, encoding="utf-8") as f:
+            with self._log_path.open(encoding="utf-8") as f:
                 for raw_line in f:
                     line = raw_line.strip()
                     if not line:
@@ -266,7 +266,7 @@ class AuditLogger:
         stat = self._log_path.stat()
         events = 0
         try:
-            with open(self._log_path, encoding="utf-8") as f:
+            with self._log_path.open(encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         events += 1
@@ -304,7 +304,7 @@ class AuditLogger:
         if self._log_path.exists() and self._log_path.stat().st_size >= self._max_bytes:
             self._rotate()
 
-        with open(self._log_path, "a", encoding="utf-8") as f:
+        with self._log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
 
         with contextlib.suppress(OSError):
@@ -319,7 +319,7 @@ class AuditLogger:
                 shutil.move(str(src), str(dst))
 
         one_path = self._log_path.with_suffix(".1.jsonl.gz")
-        with open(self._log_path, "rb") as f_in, gzip.open(one_path, "wb") as f_out:
+        with self._log_path.open("rb") as f_in, gzip.open(one_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
         self._log_path.write_text("", encoding="utf-8")
@@ -330,7 +330,7 @@ class AuditLogger:
 
         last_line = ""
         try:
-            with open(self._log_path, encoding="utf-8") as f:
+            with self._log_path.open(encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         last_line = line.strip()

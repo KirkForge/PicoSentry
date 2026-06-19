@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger("picodome.license")
 
@@ -137,7 +138,7 @@ def _load_license_file(path: str) -> LicenseInfo | None:
     import json
 
     try:
-        with open(path) as f:
+        with Path(path).open() as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Failed to load license file %s: %s", path, e)

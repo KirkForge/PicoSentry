@@ -67,7 +67,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
 
         try:
-            with open(args.entry) as f:
+            with args.entry.open() as f:
                 entry = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
@@ -110,7 +110,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
 
         try:
-            with open(args.entry) as f:
+            with args.entry.open() as f:
                 entry = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)

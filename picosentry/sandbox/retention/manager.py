@@ -199,17 +199,17 @@ class RetentionManager:
         try:
             size = path.stat().st_size
 
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(b"\x00" * size)
                 f.flush()
                 os.fsync(f.fileno())
 
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(os.urandom(size))
                 f.flush()
                 os.fsync(f.fileno())
 
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.truncate(0)
                 f.flush()
                 os.fsync(f.fileno())

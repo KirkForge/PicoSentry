@@ -85,7 +85,7 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
         return discover_projects(root)
 
     try:
-        with open(workspace_yaml, encoding="utf-8") as f:
+        with workspace_yaml.open(encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except Exception as e:
         logger.warning("Failed to parse pnpm-workspace.yaml: %s", e)

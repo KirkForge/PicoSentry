@@ -38,7 +38,7 @@ def cmd(args: argparse.Namespace) -> int:
         print("Error: --input file required and must exist", file=sys.stderr)
         return 1
 
-    with open(args.input) as f:
+    with args.input.open() as f:
         data = json.load(f)
 
     from picosentry.sandbox.l3.models import SandboxEvent, Verdict

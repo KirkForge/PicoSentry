@@ -283,7 +283,7 @@ def load_policy(
                 raise ValueError(f"Policy signature verification failed for {path}: {result.error}")
             data = json.loads(content)
         else:
-            with open(path) as f:
+            with path.open() as f:
                 data = json.load(f)
         return _policy_from_dict(data)
 
@@ -329,7 +329,7 @@ def python_policy() -> Policy:
 def export_policy(policy: Policy, path: Path) -> None:
     data = policy.to_dict()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
     logger.info("Exported policy '%s' to %s", policy.name, path)
 
@@ -338,7 +338,7 @@ def import_policy(path: Path) -> Policy:
     if not path.exists():
         raise FileNotFoundError(f"Policy file not found: {path}")
 
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     policy = _policy_from_dict(data)

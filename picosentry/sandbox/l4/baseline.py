@@ -88,7 +88,7 @@ def register_baseline(baseline: Baseline) -> None:
 
 
 def load_baselines_from_path(path: Path) -> dict[str, Baseline]:
-    with open(path) as f:
+    with path.open() as f:
         data = json.load(f)
 
     baselines: dict[str, Baseline] = {}

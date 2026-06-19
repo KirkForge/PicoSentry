@@ -63,7 +63,7 @@ class PersistentScanJobStore:
 
         jobs: dict[str, dict[str, Any]] = {}
         try:
-            with open(self._store_file, encoding="utf-8") as f:
+            with self._store_file.open(encoding="utf-8") as f:
                 for line_num, raw_line in enumerate(f, 1):
                     line = raw_line.strip()
                     if not line:
@@ -95,7 +95,7 @@ class PersistentScanJobStore:
 
         jobs: dict[str, dict[str, Any]] = {}
         try:
-            with open(self._store_file, encoding="utf-8") as f:
+            with self._store_file.open(encoding="utf-8") as f:
                 for raw_line in f:
                     line = raw_line.strip()
                     if not line:
@@ -119,7 +119,7 @@ class PersistentScanJobStore:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
+            with tmp_file.open("w", encoding="utf-8") as f:
                 for job in sorted_jobs:
                     f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
             tmp_file.replace(self._store_file)
@@ -134,7 +134,7 @@ class PersistentScanJobStore:
     def _append_to_disk(self, job: dict[str, Any]) -> None:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         try:
-            with open(self._store_file, "a", encoding="utf-8") as f:
+            with self._store_file.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
         except OSError as e:
             logger.warning("Failed to persist job %s: %s", job.get("job_id", "?"), e)
@@ -189,7 +189,7 @@ class PersistentScanJobStore:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
+            with tmp_file.open("w", encoding="utf-8") as f:
                 f.writelines(json.dumps(job, sort_keys=True, default=str) + "\n" for job in self._jobs.values())
             tmp_file.replace(self._store_file)
         except OSError as e:

@@ -66,7 +66,7 @@ class LogManager:
         first = Path(f"{target}.1")
         if first.exists():
             gz_path = Path(f"{target}.1.gz")
-            with open(first, "rb") as f_in, gzip.open(gz_path, "wb") as f_out:
+            with first.open("rb") as f_in, gzip.open(gz_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
             first.unlink()
 
@@ -126,7 +126,7 @@ class LogManager:
             if log_file.suffix != ".log":
                 continue
             try:
-                with open(log_file) as f:
+                with log_file.open() as f:
                     for raw_line in f:
                         line = raw_line.strip()
                         if not line:

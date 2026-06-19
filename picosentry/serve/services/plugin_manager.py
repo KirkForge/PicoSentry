@@ -7,6 +7,7 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
@@ -261,7 +262,7 @@ class PluginManager:
                     continue
 
                 try:
-                    with open(manifest_path) as f:
+                    with Path(manifest_path).open() as f:
                         meta = json.load(f)
 
                     issues = self._validate_manifest(meta)
@@ -292,7 +293,7 @@ class PluginManager:
         module_file = os.path.join(path, f"{entry}.py")
         module_checksum = ""
         if os.path.exists(module_file):
-            with open(module_file, "rb") as f:
+            with Path(module_file).open("rb") as f:
                 module_checksum = hashlib.sha256(f.read()).hexdigest()
             logger.info("Plugin '%s' entry module checksum: sha256:%s", name, module_checksum[:16])
         else:

@@ -45,10 +45,6 @@ def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShie
     return TestClient(app), shield
 
 
-def _build_client(extra_routes: Iterable[Route] = ()) -> TestClient:
-    return _build_app(extra_routes)[0]
-
-
 def test_health_paths_bypass_global_bucket() -> None:
     """Firing more than ``_global_limit`` requests at ``/health/live``
     must NEVER return 429.  The shield's per-path bucket limit and

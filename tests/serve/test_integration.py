@@ -40,22 +40,6 @@ def client():
     return tc
 
 
-def _register_user(client, suffix=None):
-    """Register a unique user and return (username, password, response)."""
-    tag = suffix or int(time.time() * 1000)
-    username = f"integ_user_{tag}"
-    password = "IntegrationTest123!"
-    resp = client.post(
-        "/auth/register",
-        json={
-            "username": username,
-            "password": password,
-            "role": "admin",
-        },
-    )
-    return username, password, resp
-
-
 def _login(client, username, password):
     """Log in and return the access token."""
     resp = client.post(f"/auth/login?username={username}&password={password}")

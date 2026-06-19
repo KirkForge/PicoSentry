@@ -87,9 +87,9 @@ class VersionedPolicyStore:
         try:
             with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
                 f.write(json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str))
-            os.replace(tmp_path, path)
+            Path(tmp_path).replace(path)
         except Exception:
-            os.unlink(tmp_path)
+            Path(tmp_path).unlink()
             raise
 
         latest_path = policy_dir / "latest.json"
@@ -97,9 +97,9 @@ class VersionedPolicyStore:
         try:
             with os.fdopen(tmp_fd2, "w", encoding="utf-8") as f:
                 f.write(json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str))
-            os.replace(tmp_path2, latest_path)
+            Path(tmp_path2).replace(latest_path)
         except Exception:
-            os.unlink(tmp_path2)
+            Path(tmp_path2).unlink()
             raise
 
         logger.info(

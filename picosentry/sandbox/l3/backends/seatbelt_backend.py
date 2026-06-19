@@ -5,6 +5,7 @@ import os
 import platform
 import subprocess
 import tempfile
+from pathlib import Path
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -128,7 +129,7 @@ class SeatbeltBackend(SandboxBackend):
                 events.extend(sb._check_suspicious_patterns(stdout, stderr))
 
             finally:
-                os.unlink(profile_path)
+                Path(profile_path).unlink()
 
         except FileNotFoundError:
             events.append(
@@ -276,8 +277,8 @@ class SeatbeltBackend(SandboxBackend):
         if path.startswith("/"):
             return path
         if cwd:
-            return os.path.join(cwd, path)
-        return os.path.abspath(path)
+            return str(Path(cwd) / path)
+        return str(Path(path).resolve())
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
         for event in events:

@@ -74,15 +74,15 @@ def check_license() -> LicenseInfo:
             _cached_license = info
             return info
 
-    local_path = os.path.join(os.getcwd(), ".picodome-license")
-    if os.path.isfile(local_path):
+    local_path = Path.cwd() / ".picodome-license"
+    if local_path.is_file():
         info = _load_license_file(local_path)
         if info:
             _cached_license = info
             return info
 
-    user_path = os.path.expanduser("~/.picodome/license.json")
-    if os.path.isfile(user_path):
+    user_path = Path("~/.picodome/license.json").expanduser()
+    if user_path.is_file():
         info = _load_license_file(user_path)
         if info:
             _cached_license = info

@@ -166,8 +166,8 @@ def _create_dev_ssl_context() -> ssl.SSLContext:
     tmpdir = tempfile.mkdtemp(prefix="picodome_tls_")
     atexit.register(lambda: shutil.rmtree(tmpdir, ignore_errors=True))
 
-    cert_path = os.path.join(tmpdir, "server.crt")
-    key_path = os.path.join(tmpdir, "server.key")
+    cert_path = Path(tmpdir) / "server.crt"
+    key_path = Path(tmpdir) / "server.key"
 
     try:
         subprocess.run(

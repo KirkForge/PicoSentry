@@ -187,7 +187,7 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501"]
 ignore = [
     "N806", "N818", "N802", "N812",
     "A002",
@@ -210,7 +210,7 @@ ignore = [
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
 "picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
 "picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
-"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC"]
 "picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
 "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]

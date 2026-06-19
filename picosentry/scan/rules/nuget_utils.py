@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -49,13 +48,11 @@ def parse_csproj_file(target: Path) -> dict | None:
 
         root = tree.getroot()
 
-
         def _find(tag: str, parent: ET.Element = root) -> ET.Element | None:
             result_elem = parent.find(f".//msbuild:{tag}", _NS)
             if result_elem is not None:
                 return result_elem
             return parent.find(f".//{tag}")
-
 
         def _findall(tag: str, parent: ET.Element = root) -> list[ET.Element]:
             result_elem = parent.findall(f"msbuild:{tag}", _NS)
@@ -63,14 +60,12 @@ def parse_csproj_file(target: Path) -> dict | None:
                 return result_elem
             return parent.findall(tag)
 
-
         if not result["project_name"]:
             asm_name = _find("AssemblyName")
             if asm_name is not None:
                 result["project_name"] = asm_name.text or ""
             if not result["project_name"]:
                 result["project_name"] = csproj_path.stem
-
 
         if not result["target_framework"]:
             tf = _find("TargetFramework")
@@ -80,7 +75,6 @@ def parse_csproj_file(target: Path) -> dict | None:
                 tfs = _find("TargetFrameworks")
                 if tfs is not None:
                     result["target_framework"] = (tfs.text or "").split(";")[0]
-
 
         for pr in _findall("ItemGroup", root):
             for pkg in _findall("PackageReference", pr):
@@ -133,16 +127,17 @@ def parse_nuget_lock(target: Path) -> list[dict] | None:
 
     packages: list[dict] = []
 
-
     deps_section = data.get("dependencies", {})
     for project_info in deps_section.values():
         project_deps = project_info.get("dependencies", {})
         for pkg_name, pkg_info in project_deps.items():
-            packages.append({
-                "name": pkg_name,
-                "version": pkg_info.get("resolved", pkg_info.get("requested", "")),
-                "type": pkg_info.get("type", "Transitive"),
-            })
+            packages.append(
+                {
+                    "name": pkg_name,
+                    "version": pkg_info.get("resolved", pkg_info.get("requested", "")),
+                    "type": pkg_info.get("type", "Transitive"),
+                }
+            )
 
     return packages or None
 
@@ -151,7 +146,6 @@ def collect_nuget_deps(target: Path) -> list[tuple[str, str, str]]:
     deps: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str]] = set()
 
-
     csproj_data = parse_csproj_file(target)
     if csproj_data:
         for pkg_id, version in csproj_data.get("package_references", []):
@@ -159,14 +153,12 @@ def collect_nuget_deps(target: Path) -> list[tuple[str, str, str]]:
                 seen.add((pkg_id, version))
                 deps.append((pkg_id, version, "csproj"))
 
-
     config_packages = parse_packages_config(target)
     if config_packages:
         for pkg_id, version in config_packages:
             if (pkg_id, version) not in seen:
                 seen.add((pkg_id, version))
                 deps.append((pkg_id, version, "packages.config"))
-
 
     lock_packages = parse_nuget_lock(target)
     if lock_packages:
@@ -227,10 +219,8 @@ def detect_private_nuget_source(target: Path) -> bool:
             if url and not _is_public_nuget_url(url):
                 return True
 
-
         for _clear_elem in root.findall(".//clear"):
             return True
-
 
     csproj_data = parse_csproj_file(target)
     return bool(csproj_data and csproj_data.get("project_references"))

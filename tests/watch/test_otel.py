@@ -24,6 +24,7 @@ def _make_config(**overrides) -> PicoWatchConfig:
         setattr(config, k, v)
     return config
 
+
 # ─── Fixtures ────────────────────────────────────────────────────────────
 
 

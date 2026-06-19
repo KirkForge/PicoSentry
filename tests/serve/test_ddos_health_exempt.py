@@ -57,9 +57,7 @@ def test_health_paths_bypass_global_bucket() -> None:
     client, shield = _build_app()
     for _ in range(shield._global_limit + 50):
         resp = client.get("/health/live")
-        assert resp.status_code == 200, (
-            f"/health/live returned {resp.status_code}; the exemption failed"
-        )
+        assert resp.status_code == 200, f"/health/live returned {resp.status_code}; the exemption failed"
 
 
 def test_health_liveness_exact_match() -> None:
@@ -83,9 +81,7 @@ def test_health_subpaths_are_exempt() -> None:
     client, _ = _build_app()
     for path in ("/health/ready", "/health/live", "/health/history"):
         resp = client.get(path)
-        assert resp.status_code == 200, (
-            f"{path} should be exempt; got {resp.status_code}"
-        )
+        assert resp.status_code == 200, f"{path} should be exempt; got {resp.status_code}"
 
 
 def test_non_health_paths_still_rate_limited() -> None:
@@ -97,8 +93,7 @@ def test_non_health_paths_still_rate_limited() -> None:
         resp = client.get("/api/v1/something")
         last_status = resp.status_code
     assert last_status == 429, (
-        f"non-health path should be rate-limited past the global limit; "
-        f"final status was {last_status}"
+        f"non-health path should be rate-limited past the global limit; final status was {last_status}"
     )
 
 

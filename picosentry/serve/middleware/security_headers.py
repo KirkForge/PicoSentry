@@ -3,7 +3,6 @@ from starlette.requests import Request
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
-
     def __init__(self, app, hsts_max_age: int = 31536000, csp: str | None = None):
         super().__init__(app)
         self.hsts_max_age = hsts_max_age
@@ -18,10 +17,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         response = await call_next(request)
 
-
-        response.headers["Strict-Transport-Security"] = (
-            f"max-age={self.hsts_max_age}; includeSubDomains"
-        )
+        response.headers["Strict-Transport-Security"] = f"max-age={self.hsts_max_age}; includeSubDomains"
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["X-XSS-Protection"] = "0"

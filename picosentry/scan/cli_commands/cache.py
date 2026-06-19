@@ -53,7 +53,6 @@ def cmd(args: argparse.Namespace) -> int:
         removed = cache.wipe()
         print(f"Wiped {removed} cache entries")
     else:
-
         stats = cache.stats()
         print(f"Cache directory: {stats['cache_dir']}")
         print(f"Entries: {stats['entries']}")

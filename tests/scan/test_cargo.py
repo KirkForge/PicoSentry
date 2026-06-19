@@ -33,14 +33,17 @@ class TestCargoDetection:
 
     def test_detects_cargo_toml(self):
         from picosentry.scan.rules.cargo_utils import detect_cargo_project
+
         assert detect_cargo_project(_cargo_clean())
 
     def test_detects_cargo_toml_malicious(self):
         from picosentry.scan.rules.cargo_utils import detect_cargo_project
+
         assert detect_cargo_project(_cargo_malicious())
 
     def test_no_indicator_returns_false(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import detect_cargo_project
+
         assert not detect_cargo_project(tmp_path)
 
 
@@ -61,8 +64,7 @@ class TestCargoEcosystemFiltering:
     def test_cargo_project_runs_cargo_rules(self, tmp_path):
         """A Cargo project with internal-looking deps should produce findings."""
         (tmp_path / "Cargo.toml").write_text(
-            '[package]\nname = "test"\nversion = "0.1.0"\n'
-            '[dependencies]\ncompany-internal-lib = "0.1"\n'
+            '[package]\nname = "test"\nversion = "0.1.0"\n[dependencies]\ncompany-internal-lib = "0.1"\n'
         )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
@@ -89,6 +91,7 @@ class TestCargoTyposquat:
     def test_detects_typosquat_in_malicious(self):
         """Cargo.toml with 'srede' (typo for 'serde') should trigger typosquat."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
+
         target = _cargo_malicious()
         findings = detect_cargo_typosquat(target, Path(""))
         typos = [f for f in findings if f.rule_id == "L2-CARGO-TYPO-001"]
@@ -100,6 +103,7 @@ class TestCargoTyposquat:
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_cargo_typosquat
+
         target = _cargo_clean()
         findings = detect_cargo_typosquat(target, Path(""))
         assert len(findings) == 0, f"Clean project should have no typos: {findings}"
@@ -114,6 +118,7 @@ class TestCargoDependencyConfusion:
     def test_detects_internal_dep_without_private_config(self):
         """internal-auth without private registry should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
+
         target = _cargo_malicious()
         findings = detect_cargo_dep_confusion(target)
         internal = [f for f in findings if "internal" in f.package]
@@ -123,6 +128,7 @@ class TestCargoDependencyConfusion:
     def test_detects_my_corp_lib_confusion(self):
         """my-corp-lib without private registry should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
+
         target = _cargo_malicious()
         findings = detect_cargo_dep_confusion(target)
         corp = [f for f in findings if "my-corp" in f.package]
@@ -132,6 +138,7 @@ class TestCargoDependencyConfusion:
     def test_clean_project_no_confusion(self):
         """Clean project with only public crates should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
+
         target = _cargo_clean()
         findings = detect_cargo_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
@@ -139,6 +146,7 @@ class TestCargoDependencyConfusion:
     def test_private_registry_config_skips_flags(self, tmp_path):
         """When private registry is configured, internal deps are safe."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_cargo_dep_confusion
+
         (tmp_path / "Cargo.toml").write_text(
             '[package]\nname = "test"\nversion = "0.1.0"\n\n[dependencies]\ninternal-auth = "0.1.0"\n'
         )
@@ -159,12 +167,14 @@ class TestCargoTomlParsing:
 
     def test_parse_package_name(self):
         from picosentry.scan.rules.cargo_utils import parse_cargo_toml
+
         data = parse_cargo_toml(_cargo_clean())
         assert data is not None
         assert "my-awesome-crate" in data.get("package_name", "")
 
     def test_parse_direct_deps(self):
         from picosentry.scan.rules.cargo_utils import parse_cargo_toml
+
         data = parse_cargo_toml(_cargo_clean())
         assert data is not None
         deps = set(data.get("dependencies", {}).keys())
@@ -174,6 +184,7 @@ class TestCargoTomlParsing:
 
     def test_no_cargo_toml_returns_none(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import parse_cargo_toml
+
         assert parse_cargo_toml(tmp_path) is None
 
 
@@ -182,6 +193,7 @@ class TestCargoLockParsing:
 
     def test_parse_cargo_lock(self):
         from picosentry.scan.rules.cargo_utils import parse_cargo_lock
+
         packages = parse_cargo_lock(_cargo_clean())
         assert packages is not None
         assert len(packages) >= 1
@@ -191,6 +203,7 @@ class TestCargoLockParsing:
 
     def test_no_cargo_lock_returns_none(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import parse_cargo_lock
+
         assert parse_cargo_lock(tmp_path) is None
 
 
@@ -199,6 +212,7 @@ class TestCargoLockfileParser:
 
     def test_parse_cargo_toml_for_lock(self):
         from picosentry.scan.rules.cargo_lock_parser import parse_cargo_toml_for_lock
+
         path = _cargo_clean() / "Cargo.toml"
         entries = parse_cargo_toml_for_lock(path)
         assert len(entries) >= 1
@@ -207,6 +221,7 @@ class TestCargoLockfileParser:
 
     def test_parse_cargo_lock_for_lock(self):
         from picosentry.scan.rules.cargo_lock_parser import parse_cargo_lock_for_lock
+
         path = _cargo_clean() / "Cargo.lock"
         entries = parse_cargo_lock_for_lock(path)
         assert len(entries) >= 1
@@ -215,16 +230,19 @@ class TestCargoLockfileParser:
 
     def test_auto_detect_cargo_toml(self):
         from picosentry.scan.rules.cargo_lock_parser import parse_cargo_lockfile
+
         entries = parse_cargo_lockfile(_cargo_clean() / "Cargo.toml")
         assert len(entries) >= 1
 
     def test_auto_detect_cargo_lock(self):
         from picosentry.scan.rules.cargo_lock_parser import parse_cargo_lockfile
+
         entries = parse_cargo_lockfile(_cargo_clean() / "Cargo.lock")
         assert len(entries) >= 1
 
     def test_no_file_returns_empty(self, tmp_path):
         from picosentry.scan.rules.cargo_lock_parser import parse_cargo_lockfile
+
         assert parse_cargo_lockfile(tmp_path / "nonexistent") == []
 
 
@@ -233,6 +251,7 @@ class TestCargoUtils:
 
     def test_get_cargo_dep_names(self):
         from picosentry.scan.rules.cargo_utils import get_cargo_dep_names
+
         data = {
             "package_name": "test",
             "dependencies": {
@@ -246,11 +265,13 @@ class TestCargoUtils:
 
     def test_detect_private_registry(self):
         from picosentry.scan.rules.cargo_utils import detect_private_cargo_registry
+
         target = _cargo_clean()
         assert not detect_private_cargo_registry(target)
 
     def test_detect_private_registry_with_config(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import detect_private_cargo_registry
+
         cargo_dir = tmp_path / ".cargo"
         cargo_dir.mkdir(parents=True, exist_ok=True)
         (cargo_dir / "config.toml").write_text(
@@ -261,6 +282,7 @@ class TestCargoUtils:
 
     def test_detect_private_registry_with_path_dep(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import detect_private_cargo_registry
+
         (tmp_path / "Cargo.toml").write_text(
             '[package]\nname = "test"\nversion = "0.1.0"\n\n[dependencies]\nmy-lib = { path = "../my-lib" }\n'
         )
@@ -268,6 +290,7 @@ class TestCargoUtils:
 
     def test_detect_private_registry_with_patch(self, tmp_path):
         from picosentry.scan.rules.cargo_utils import detect_private_cargo_registry
+
         (tmp_path / "Cargo.toml").write_text(
             '[package]\nname = "test"\nversion = "0.1.0"\n\n[patch.crates-io]\nserde = { path = "../patched-serde" }\n'
         )

@@ -1,4 +1,3 @@
-
 import math
 from collections import Counter
 
@@ -10,7 +9,6 @@ def detect_entropy_anomalies(
     profile: BehavioralProfile,
 ) -> list[Finding]:
     findings: list[Finding] = []
-
 
     for op in profile.fs_ops:
         name = op.path.split("/")[-1] if "/" in op.path else op.path
@@ -25,7 +23,6 @@ def detect_entropy_anomalies(
                     evidence={"entropy": round(ent, 2), "path": op.path},
                 )
             )
-
 
     for dns in profile.dns_queries:
         host_part = dns.hostname.split(".")[0]

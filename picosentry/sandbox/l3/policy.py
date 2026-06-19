@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -11,7 +10,6 @@ logger = logging.getLogger("picodome.l3.policy")
 
 
 DEFAULT_RULES: list = [
-
     {
         "rule_id": "L3-FILE-R-001",
         "target": "file_read",
@@ -19,7 +17,6 @@ DEFAULT_RULES: list = [
         "paths": ["/usr/lib/**", "/lib/**", "/usr/share/**", "/etc/ld.so.cache", "/etc/localtime", "/proc/self/**"],
         "description": "Read system libraries and locale info",
     },
-
     {
         "rule_id": "L3-FILE-R-002",
         "target": "file_read",
@@ -27,7 +24,6 @@ DEFAULT_RULES: list = [
         "paths": ["/usr/lib/python3*/**", "**/site-packages/**"],
         "description": "Read Python packages",
     },
-
     {
         "rule_id": "L3-FILE-R-003",
         "target": "file_read",
@@ -35,7 +31,6 @@ DEFAULT_RULES: list = [
         "paths": ["./**", "/tmp/**"],
         "description": "Read project and temp files only",
     },
-
     {
         "rule_id": "L3-FILE-R-004",
         "target": "file_read",
@@ -56,7 +51,6 @@ DEFAULT_RULES: list = [
         ],
         "description": "Read project configuration files",
     },
-
     {
         "rule_id": "L3-FILE-W-001",
         "target": "file_write",
@@ -64,18 +58,14 @@ DEFAULT_RULES: list = [
         "paths": ["/tmp/**", "/dev/null", "/dev/stdout", "/dev/stderr"],
         "description": "Write to temp and stdio only",
     },
-
     {
         "rule_id": "L3-NET-OUT-001",
         "target": "network_out",
         "action": "deny",
         "description": "Block all outbound network",
     },
-
     {"rule_id": "L3-DNS-001", "target": "dns_query", "action": "allow", "description": "Allow DNS resolution"},
-
     {"rule_id": "L3-PROC-001", "target": "process_spawn", "action": "deny", "description": "Block process spawning"},
-
     {
         "rule_id": "L3-NET-BIND-001",
         "target": "network_bind",
@@ -271,7 +261,6 @@ def load_policy(
     if name is not None and ("/" in name or "\\" in name or ".." in name):
         raise ValueError(f"Invalid policy name: {name!r}")
 
-
     if name is not None and name in NAMED_POLICIES:
         logger.info("Loading named policy: %s", name)
         rules_data = NAMED_POLICIES[name]
@@ -282,7 +271,6 @@ def load_policy(
             default_action=default_action,
             rules=_rules_from_list(rules_data),
         )
-
 
     if path is not None:
         if verify_signature:
@@ -355,7 +343,6 @@ def import_policy(path: Path) -> Policy:
 
     policy = _policy_from_dict(data)
 
-
     errors = validate_policy(policy)
     if errors:
         raise ValueError(
@@ -369,17 +356,14 @@ def import_policy(path: Path) -> Policy:
 def validate_policy(policy: Policy) -> list[str]:
     errors: list[str] = []
 
-
     if not policy.rules:
         errors.append("Policy has no rules")
-
 
     seen_ids: set[str] = set()
     for rule in policy.rules:
         if rule.rule_id in seen_ids:
             errors.append(f"Duplicate rule ID: {rule.rule_id}")
         seen_ids.add(rule.rule_id)
-
 
     valid_targets = {t.value for t in RuleTarget}
     errors.extend(
@@ -388,14 +372,12 @@ def validate_policy(policy: Policy) -> list[str]:
         if rule.target.value not in valid_targets
     )
 
-
     valid_actions = {a.value for a in SyscallAction}
     errors.extend(
         f"Invalid action '{rule.action.value}' in rule {rule.rule_id}"
         for rule in policy.rules
         if rule.action.value not in valid_actions
     )
-
 
     for rule in policy.rules:
         if (
@@ -404,7 +386,6 @@ def validate_policy(policy: Policy) -> list[str]:
             and rule.action == SyscallAction.ALLOW
         ):
             pass
-
 
     if policy.default_action.value not in valid_actions:
         errors.append(f"Invalid default_action: {policy.default_action.value}")

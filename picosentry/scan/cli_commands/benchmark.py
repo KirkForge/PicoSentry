@@ -84,7 +84,6 @@ def cmd(args: argparse.Namespace) -> int:
             )
         return 0
 
-
     quality = bench.overall_quality()
     print("\nPicoSentry Detection Quality Benchmark")
     print("=" * 45)

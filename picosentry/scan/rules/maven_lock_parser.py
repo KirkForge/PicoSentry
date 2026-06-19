@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -39,7 +38,6 @@ def parse_gradle_for_lock(path: Path) -> list[tuple[str, str, str]]:
 
     results: list[tuple[str, str, str]] = []
     for dep in gradle_data.get("dependencies", []):
-
         artifact = dep[1]
         version = dep[2] or ""
         if artifact:

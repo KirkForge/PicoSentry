@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -29,7 +28,6 @@ ORG_ADVISORY_URL_ENV = "PICOSENTRY_ADVISORY_URL"
 
 
 class OrgConfig:
-
     def __init__(self) -> None:
         self.policy_url: str = ""
         self.advisory_url: str = ""
@@ -42,10 +40,8 @@ class OrgConfig:
 
         config = OrgConfig()
 
-
         config.policy_url = os.environ.get(ORG_POLICY_URL_ENV, "")
         config.advisory_url = os.environ.get(ORG_ADVISORY_URL_ENV, "")
-
 
         search_paths = [root / name for name in ORG_CONFIG_PATHS[:2]] if root and root.is_dir() else []
         search_paths.append(Path("/etc/picosentry/org.yml"))
@@ -102,7 +98,6 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
 def _validate_zip_paths(zf: zipfile.ZipFile, output_dir: Path) -> None:
     root = output_dir.resolve()
     for member in zf.infolist():
-
         if member.filename.startswith("/"):
             raise ValueError(f"Unsafe ZIP path (absolute): {member.filename}")
         if ".." in Path(member.filename).parts:
@@ -137,7 +132,6 @@ def fetch_advisories(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-
     if verify_crypto:
         sig_url = url + ".sig"
         logger.info("Fetching advisory signature from %s", sig_url)
@@ -171,7 +165,6 @@ def fetch_advisories(
         else:
             sig_resp.close()
 
-
     if data[:4] == b"PK\x03\x04":
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
             tf.write(data)
@@ -179,7 +172,6 @@ def fetch_advisories(
 
         try:
             with zipfile.ZipFile(tmp_zip, "r") as zf:
-
                 _validate_zip_paths(zf, output_dir)
                 zf.extractall(output_dir)
         finally:
@@ -271,7 +263,6 @@ def make_authenticated_request(
     token = get_auth_token(api_key)
     headers = {"Accept": "application/json"}
     if token:
-
         if token.startswith("eyJ") or len(token) > 40:
             headers["Authorization"] = f"Bearer {token}"
         else:

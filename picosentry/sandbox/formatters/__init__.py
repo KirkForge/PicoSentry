@@ -1,4 +1,3 @@
-
 from picosentry.sandbox.formatters.cyclonedx import format_cyclonedx
 from picosentry.sandbox.formatters.github import format_github
 from picosentry.sandbox.formatters.json_fmt import format_json, format_pipeline_json

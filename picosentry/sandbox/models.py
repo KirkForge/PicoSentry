@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import time
@@ -33,7 +32,6 @@ class BehavioralVerdict(str, Enum):
 
 @dataclass(frozen=True)
 class Finding:  # rationale: sandbox finding, frozen for determinism, empty finding_id by default
-
     rule_id: str
     severity: Severity
     message: str

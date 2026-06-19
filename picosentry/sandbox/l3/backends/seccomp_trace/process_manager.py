@@ -108,7 +108,6 @@ def probe_log_emits(lib: ctypes.CDLL) -> bool:
         pid = os.fork()
 
     if pid == 0:
-
         ctx = lib.seccomp_init(SCMP_ACT_LOG)
         if not ctx:
             os._exit(127)
@@ -120,7 +119,6 @@ def probe_log_emits(lib: ctypes.CDLL) -> bool:
             os.execve("/bin/true", ["/bin/true"], {})
         except OSError:
             os._exit(127)
-
 
     try:
         _, status = os.waitpid(pid, 0)

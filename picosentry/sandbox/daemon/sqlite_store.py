@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -55,7 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 
 
 class SQLiteScanJobStore:
-
     def __init__(
         self,
         db_path: Path | str | None = None,
@@ -132,7 +130,6 @@ class SQLiteScanJobStore:
                     (json.dumps(command), actor, "pending", now, job_id),
                 )
                 conn.commit()
-
 
         self._prune_old_jobs()
 

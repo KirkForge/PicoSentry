@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -56,7 +55,6 @@ _DEFAULT_APP_NAME = "picodome"
 
 
 class SyslogSink(AuditSink):
-
     def __init__(
         self,
         config: SinkConfig | None = None,
@@ -71,7 +69,6 @@ class SyslogSink(AuditSink):
         self._app_name = app_name
         self._facility = facility
         self._sock: socket.socket | None = None
-
 
     def start(self) -> None:
         super().start()
@@ -88,7 +85,6 @@ class SyslogSink(AuditSink):
                 self._sock.close()
             self._sock = None
 
-
     def send(self, event: AuditEvent) -> None:
         if self._sock is None:
             self._record_failure("socket not initialized")
@@ -104,7 +100,6 @@ class SyslogSink(AuditSink):
             self._record_dropped()
             logger.debug("SyslogSink: UDP send failed: %s", exc)
 
-
     @property
     def host(self) -> str:
         return self._host
@@ -113,14 +108,12 @@ class SyslogSink(AuditSink):
     def port(self) -> int:
         return self._port
 
-
     def _format_message(self, event: AuditEvent) -> str:
         priority = _EVENT_SEVERITY.get(event.event_type.value, PRIORITY_INFO)
         timestamp = event.timestamp or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         hostname = socket.gethostname()
         procid = event.event_id[:36]  # truncate to reasonable length
         msgid = f"picodome.{event.event_type.value}"
-
 
         sd_pairs = [
             f'actor="{event.actor}"',
@@ -134,10 +127,8 @@ class SyslogSink(AuditSink):
 
         sd = f"[{self._app_name} {' '.join(sd_pairs)}]"
 
-
         msg = f"{event.event_type.value} by {event.actor}"
         if event.detail:
             msg += f": {event.detail}"
-
 
         return f"<{priority}>1 {timestamp} {hostname} {self._app_name} {procid} {msgid} {sd} {msg}"

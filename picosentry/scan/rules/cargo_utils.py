@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -8,22 +7,14 @@ from pathlib import Path
 logger = logging.getLogger("picosentry.cargo_utils")
 
 
-_CARGO_DEP_SIMPLE_RE = re.compile(
-    r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*"([^"]+)"'
-)
+_CARGO_DEP_SIMPLE_RE = re.compile(r'^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*"([^"]+)"')
 
 
-_CARGO_DEP_TABLE_RE = re.compile(
-    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{"
-)
+_CARGO_DEP_TABLE_RE = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{")
 
-_CARGO_DEP_PATH_RE = re.compile(
-    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*path\s*="
-)
+_CARGO_DEP_PATH_RE = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*path\s*=")
 
-_CARGO_DEP_GIT_RE = re.compile(
-    r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*git\s*="
-)
+_CARGO_DEP_GIT_RE = re.compile(r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{\s*git\s*=")
 
 
 _CARGO_LOCK_PACKAGE_START = re.compile(r"^\[\[package\]\]$")
@@ -70,17 +61,14 @@ def parse_cargo_toml(target: Path) -> dict | None:
     for line in lines:
         stripped = line.strip()
 
-
         if not stripped or stripped.startswith("#"):
             continue
-
 
         section_match = _CARGO_SECTION_RE.match(stripped)
         if section_match:
             current_section = section_match.group(1)
             in_patch_target = False
             continue
-
 
         if current_section == "package":
             if stripped.startswith("name"):
@@ -93,10 +81,8 @@ def parse_cargo_toml(target: Path) -> dict | None:
                     result["version"] = ver_match.group(1)
             continue
 
-
         if current_section.startswith("patch."):
             in_patch_target = True
-
 
         if in_patch_target and "=" in stripped and ("path" in stripped or "git" in stripped):
             pkg_match = re.match(r"^\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*=\s*\{", stripped)
@@ -110,7 +96,6 @@ def parse_cargo_toml(target: Path) -> dict | None:
                     result["patch"][crate] = f"git:{git_match.group(1)}"
                 continue
 
-
         dep_target = None
         if current_section == "dependencies":
             dep_target = result["dependencies"]
@@ -120,14 +105,12 @@ def parse_cargo_toml(target: Path) -> dict | None:
             dep_target = result["build_dependencies"]
 
         if dep_target is not None:
-
             simple_match = _CARGO_DEP_SIMPLE_RE.match(stripped)
             if simple_match:
                 crate = simple_match.group(1)
                 version = simple_match.group(2)
                 dep_target[crate] = version
                 continue
-
 
             path_match = _CARGO_DEP_PATH_RE.match(stripped)
             if path_match:
@@ -136,13 +119,11 @@ def parse_cargo_toml(target: Path) -> dict | None:
                 result["has_path_deps"].add(crate)
                 continue
 
-
             git_match = _CARGO_DEP_GIT_RE.match(stripped)
             if git_match:
                 crate = git_match.group(1)
                 dep_target[crate] = "git"
                 continue
-
 
             table_match = _CARGO_DEP_TABLE_RE.match(stripped)
             if table_match:
@@ -176,7 +157,6 @@ def parse_cargo_lock(target: Path) -> list[dict] | None:
         stripped = line.strip()
 
         if _CARGO_LOCK_PACKAGE_START.match(stripped):
-
             if in_package and current_pkg.get("name"):
                 packages.append(current_pkg)
             current_pkg = {}
@@ -201,12 +181,10 @@ def parse_cargo_lock(target: Path) -> list[dict] | None:
             current_pkg["source"] = source_match.group(1)
             continue
 
-
         checksum_match = re.match(r'^checksum\s*=\s*"([^"]+)"', stripped)
         if checksum_match:
             current_pkg["checksum"] = checksum_match.group(1)
             continue
-
 
     if in_package and current_pkg.get("name"):
         packages.append(current_pkg)
@@ -251,10 +229,8 @@ def detect_private_cargo_registry(target: Path) -> bool:
             except OSError:
                 pass
 
-
     cargo_toml_data = parse_cargo_toml(target)
     if cargo_toml_data:
-
         if cargo_toml_data.get("has_path_deps"):
             return True
 

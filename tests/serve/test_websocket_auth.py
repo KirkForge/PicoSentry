@@ -126,6 +126,7 @@ def test_valid_token_then_subscribe_receives_broadcast(fresh_user: dict[str, Any
 
         # Probe: inject a broadcast and confirm the socket receives it.
         import asyncio
+
         loop = asyncio.new_event_loop()
         try:
             loop.run_until_complete(ws_manager.broadcast("probe.event", {"hello": "world"}))
@@ -197,6 +198,7 @@ def _json_or_skip(raw: str) -> dict[str, Any] | None:
     sends a non-JSON frame so a regression that emits garbage doesn't
     crash the test."""
     import json
+
     try:
         return json.loads(raw)
     except (TypeError, ValueError):
@@ -205,4 +207,5 @@ def _json_or_skip(raw: str) -> dict[str, Any] | None:
 
 def json_dumps(obj: dict[str, Any]) -> str:
     import json
+
     return json.dumps(obj)

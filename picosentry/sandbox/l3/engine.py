@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -17,7 +16,6 @@ logger = logging.getLogger("picodome.l3.engine")
 
 
 class BackendUnavailableError(RuntimeError):
-
     def __init__(
         self,
         backend_name: str,
@@ -45,7 +43,6 @@ def _detect_backend(
     system = platform.system()
     available: list[str] = ["subprocess"]
 
-
     seccomp_available = False
     seccomp_trace_available = False
     seatbelt_available = False
@@ -62,7 +59,6 @@ def _detect_backend(
             pass
         except Exception:
             logger.debug("Seccomp backend check failed", exc_info=True)
-
 
         try:
             from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
@@ -87,7 +83,6 @@ def _detect_backend(
             pass
         except Exception:
             logger.debug("Seatbelt backend check failed", exc_info=True)
-
 
     if requested is not None:
         requested = requested.lower().strip()
@@ -152,7 +147,6 @@ def _detect_backend(
             available_backends=available,
         )
 
-
     if seccomp_available:
         from picosentry.sandbox.l3.backends.seccomp_backend import SeccompBackend
 
@@ -164,7 +158,6 @@ def _detect_backend(
 
         logger.info("Using seatbelt backend (auto-detected)")
         return SeatbeltBackend()
-
 
     if allow_degraded:
         logger.warning(
@@ -229,7 +222,6 @@ def sandbox_run(
 
     if backend is None:
         if allow_degraded is not None:
-
             be = _detect_backend(requested=None, allow_degraded=allow_degraded)
         else:
             be = get_backend()
@@ -238,10 +230,8 @@ def sandbox_run(
 
     result = be.run(command, policy, timeout=timeout, cwd=cwd, env=env)
 
-
     p_hash = policy_hash(policy) if policy else ""
     p_version = policy.version if policy else ""
-
 
     if deterministic:
         result = SandboxResult(
@@ -261,7 +251,6 @@ def sandbox_run(
             policy_version=p_version,
         )
     else:
-
         result = SandboxResult(
             run_id=_generate_run_id(),
             timestamp=_generate_timestamp(),
@@ -299,7 +288,6 @@ def sandbox_run(
 
 
 class SandboxEngine:
-
     def __init__(self, backend: SandboxBackend | None = None):
         self._backend = backend
 

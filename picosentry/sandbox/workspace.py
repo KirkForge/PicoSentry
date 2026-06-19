@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -58,7 +57,6 @@ SKIP_DIRS = frozenset(
 
 
 class ProjectInfo:
-
     def __init__(
         self,
         path: Path,
@@ -81,7 +79,6 @@ class ProjectInfo:
 
 
 class WorkspaceResult:
-
     def __init__(self) -> None:
         self.projects: dict[str, ProjectInfo] = {}
         self.sandbox_results: dict[str, SandboxResult] = {}
@@ -130,11 +127,9 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                 project_types.add(ptype)
 
         if project_types:
-
             ptype = "mixed" if len(project_types) > 1 else project_types.pop()
             name = ""
             version = ""
-
 
             pkg_json = current / "package.json"
             if pkg_json.is_file():
@@ -144,7 +139,6 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                     version = data.get("version", "")
                 except (json.JSONDecodeError, OSError):
                     name = current.name
-
 
             if not name:
                 pyproject = current / "pyproject.toml"
@@ -167,7 +161,6 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                 name=name,
                 version=version,
             )
-
 
         for entry in entries:
             if entry.is_symlink():
@@ -210,12 +203,10 @@ def scan_workspace(
     if config is None:
         config = load_config(root)
 
-
     if config.timeout:
         timeout = config.timeout
 
     start = time.monotonic()
-
 
     projects = discover_projects(root)
 
@@ -228,7 +219,6 @@ def scan_workspace(
         rel = project.path.relative_to(root) if str(project.path).startswith(str(root)) else project.path.name
         logger.info("Scanning: %s (%s)", rel, project.project_type)
 
-
         project_commands = (
             commands.get(str(project.path), _default_sandbox_commands(project))
             if commands
@@ -239,29 +229,24 @@ def scan_workspace(
             logger.info("  No commands for %s, skipping", rel)
             continue
 
-
         all_findings_count = 0
         project_ok = True
 
         for cmd in project_commands:
             try:
-
                 sandbox_result = sandbox_run(
                     command=cmd,
                     timeout=timeout,
                     cwd=str(project.path),
                 )
 
-
                 profile = profile_from_sandbox_result(sandbox_result)
                 analysis = engine.analyze(profile)
-
 
                 key = str(project.path)
                 result.sandbox_results[f"{key}:{' '.join(cmd)}"] = sandbox_result
                 result.analysis_results[f"{key}:{' '.join(cmd)}"] = analysis
                 all_findings_count += len(analysis.findings)
-
 
                 if fail_on and analysis.findings:
                     severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}

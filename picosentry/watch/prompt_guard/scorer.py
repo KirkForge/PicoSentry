@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -7,7 +6,6 @@ from picosentry.watch.types import Rule
 
 
 class Scorer:
-
     def __init__(
         self,
         threshold_block: float = 0.7,
@@ -24,17 +22,13 @@ class Scorer:
         if not matches:
             return 0.0, []
 
-
         max_score = max(rule.weight for rule, _ in matches)
-
 
         total_weight = sum(rule.weight for rule, _ in matches)
         count = len(matches)
         avg_score = total_weight / count if count > 0 else 0.0
 
-
         final_score = round(max(max_score, avg_score), 6)
-
 
         matched_ids = sorted({rule.id for rule, _ in matches})
 

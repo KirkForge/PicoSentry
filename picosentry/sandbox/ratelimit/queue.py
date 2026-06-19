@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import heapq
@@ -14,7 +13,6 @@ logger = logging.getLogger("picodome.ratelimit.queue")
 
 
 class JobPriority(IntEnum):
-
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
@@ -23,7 +21,6 @@ class JobPriority(IntEnum):
 
 @dataclass(order=False)
 class QueuedJob:
-
     job_id: str
     command: list[str]
     actor: str
@@ -50,7 +47,6 @@ class QueuedJob:
 
 
 class JobQueue:
-
     def __init__(self, max_size: int = 1000) -> None:
         self._heap: list[QueuedJob] = []
         self._jobs: dict[str, QueuedJob] = {}
@@ -75,7 +71,6 @@ class JobQueue:
     ) -> QueuedJob | None:
         with self._not_empty:
             if len(self._heap) >= self._max_size:
-
                 if priority >= JobPriority.LOW:
                     self._stats["dropped"] += 1
                     logger.warning("Job queue full (%d), dropping LOW priority job", len(self._heap))

@@ -1,4 +1,5 @@
 """Shared pytest fixtures and configuration for PicoShogun tests."""
+
 import os
 import sys
 from pathlib import Path
@@ -53,6 +54,7 @@ def _mock_dns_resolver(hostname):
     # that isn't already an IP literal. Private/loopback IPs are still caught
     # by the SSRF network check in _is_safe_webhook_url.
     import ipaddress
+
     try:
         # If it's already an IP, just return it — the SSRF checker handles it
         ipaddress.ip_address(hostname)
@@ -76,6 +78,7 @@ def _mock_dns_resolver(hostname):
 def _patch_webhook_dns():
     """Patch webhook manager to use mock DNS resolver in tests."""
     from picosentry.serve.services.webhooks import webhook_manager
+
     original = webhook_manager.dns_resolver
     webhook_manager.dns_resolver = _mock_dns_resolver
     yield

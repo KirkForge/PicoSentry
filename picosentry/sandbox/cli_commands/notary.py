@@ -73,7 +73,6 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
 
-
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:
             print(
@@ -92,10 +91,8 @@ def cmd(args: argparse.Namespace) -> int:
         else:
             notary = NullNotary(hmac_key=hmac_key)
 
-
         signature = sign_entry(entry, key=hmac_key)
         print(f"HMAC-SHA256 signature: {signature}")
-
 
         try:
             uuid = notary.submit_entry(entry)
@@ -118,7 +115,6 @@ def cmd(args: argparse.Namespace) -> int:
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
-
 
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:

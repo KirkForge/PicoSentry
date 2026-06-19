@@ -1,15 +1,14 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 MINING_PORTS = {
-    3333,   # Default Stratum
-    4444,   # Alternative Stratum
+    3333,  # Default Stratum
+    4444,  # Alternative Stratum
     45558,  # NiceHash
     45700,  # Mining pool
-    5555,   # Mining pool alt
-    8888,   # Mining pool alt
+    5555,  # Mining pool alt
+    8888,  # Mining pool alt
     14433,  # Stratum alt
     14444,  # Stratum alt
     34444,  # Mining pool
@@ -57,7 +56,6 @@ def detect_crypto_mining(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     findings.extend(
         Finding(
             rule_id="L4-CRYPTO-001",
@@ -69,7 +67,6 @@ def detect_crypto_mining(
         for call in profile.network_calls
         if call.port in MINING_PORTS
     )
-
 
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
@@ -83,7 +80,6 @@ def detect_crypto_mining(
                     evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
             )
-
 
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
@@ -99,12 +95,10 @@ def detect_crypto_mining(
             if pattern in hostname_lower
         )
 
-
     has_mining_port = any(call.port in MINING_PORTS for call in profile.network_calls)
     has_network = len(profile.network_calls) > 0
     long_execution = profile.total_runtime_ms > 60000  # > 60s
     if long_execution and has_network and not has_mining_port:
-
         findings.append(
             Finding(
                 rule_id="L4-CRYPTO-004",
@@ -117,7 +111,6 @@ def detect_crypto_mining(
                 },
             )
         )
-
 
     mining_config_patterns = (
         "config.json",  # XMRig config
@@ -139,7 +132,6 @@ def detect_crypto_mining(
                 for pattern in mining_config_patterns
                 if pattern in path_lower
             )
-
 
     mining_arg_patterns = {"--url=stratum", "--pool", "--algo=cryptonight", "--coin", "--donate-level"}
     for spawn in profile.spawns:

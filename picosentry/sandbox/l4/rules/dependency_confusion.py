@@ -1,12 +1,17 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 SUSPICIOUS_REGISTRY_HOSTS = {
-    "npm.company", "npm.internal", "npm.local",
-    "pypi.company", "pypi.internal", "pypi.local",
-    "artifactory.internal", "nexus.internal", "gems.internal",
+    "npm.company",
+    "npm.internal",
+    "npm.local",
+    "pypi.company",
+    "pypi.internal",
+    "pypi.local",
+    "artifactory.internal",
+    "nexus.internal",
+    "gems.internal",
 }
 
 
@@ -49,7 +54,6 @@ def detect_dependency_confusion(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
         findings.extend(
@@ -64,7 +68,6 @@ def detect_dependency_confusion(
             if pattern in hostname_lower
         )
 
-
         if hostname_lower.endswith((".local", ".internal")):
             findings.append(
                 Finding(
@@ -76,11 +79,9 @@ def detect_dependency_confusion(
                 )
             )
 
-
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         all_args_str = " ".join(spawn.args).lower()
-
 
         if exe_base in ("twine", "gem", "cargo") and ("upload" in all_args_str or "publish" in all_args_str):
             findings.append(
@@ -93,7 +94,6 @@ def detect_dependency_confusion(
                 )
             )
 
-
         if exe_base == "npm" and "publish" in all_args_str:
             findings.append(
                 Finding(
@@ -104,7 +104,6 @@ def detect_dependency_confusion(
                     evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
             )
-
 
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
@@ -135,7 +134,6 @@ def detect_dependency_confusion(
                 )
             )
 
-
     findings.extend(
         Finding(
             rule_id="L4-DEP-004",
@@ -149,15 +147,20 @@ def detect_dependency_confusion(
         if pattern.lower() in " ".join(spawn.args).lower()
     )
 
-
     standard_ports = {0, 22, 80, 443}
     for call in profile.network_calls:
         if call.port not in standard_ports and call.port > 0:
-
             addr_lower = call.address.lower()
             registry_keywords = (
-                "pypi", "npmjs", "npm", "registry", "rubygems",
-                "crates", "maven", "nuget", "packagist",
+                "pypi",
+                "npmjs",
+                "npm",
+                "registry",
+                "rubygems",
+                "crates",
+                "maven",
+                "nuget",
+                "packagist",
             )
             if any(kw in addr_lower for kw in registry_keywords):
                 findings.append(
@@ -169,7 +172,6 @@ def detect_dependency_confusion(
                         evidence={"address": call.address, "port": call.port},
                     )
                 )
-
 
     for op in profile.fs_ops:
         path_lower = op.path.lower()

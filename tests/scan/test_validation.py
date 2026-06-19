@@ -50,8 +50,13 @@ def test_validation_report_has_required_fields() -> None:
     r = run_validation()
     d = r.to_dict()
     for key in (
-        "total_fixtures", "total_positive", "total_negative",
-        "mean_precision", "mean_recall", "rule_metrics", "fixture_results",
+        "total_fixtures",
+        "total_positive",
+        "total_negative",
+        "mean_precision",
+        "mean_recall",
+        "rule_metrics",
+        "fixture_results",
     ):
         assert key in d, f"ValidationReport missing field {key!r}"
 
@@ -61,8 +66,14 @@ def test_rule_metrics_shape() -> None:
     m = RuleMetrics(rule_id="L2-EX-001", true_positives=2, false_positives=1, false_negatives=0)
     assert m.precision == 2 / 3
     assert m.recall == 1.0
-    d = {"rule_id": m.rule_id, "true_positives": 2, "false_positives": 1, "false_negatives": 0,
-         "precision": m.precision, "recall": m.recall}
+    d = {
+        "rule_id": m.rule_id,
+        "true_positives": 2,
+        "false_positives": 1,
+        "false_negatives": 0,
+        "precision": m.precision,
+        "recall": m.recall,
+    }
     assert d["rule_id"] == "L2-EX-001"
 
 
@@ -170,9 +181,7 @@ def test_expected_findings_are_deduped() -> None:
         remediation="Remove",
     )
     a_broad = FindingAssertion(rule_id="L2-POST-001")
-    a_narrow = FindingAssertion(
-        rule_id="L2-POST-001", evidence_contains="postinstall"
-    )
+    a_narrow = FindingAssertion(rule_id="L2-POST-001", evidence_contains="postinstall")
 
     seen: set = set()
     assert _matches_finding(f, a_broad, seen=seen), "Broad assertion should match"

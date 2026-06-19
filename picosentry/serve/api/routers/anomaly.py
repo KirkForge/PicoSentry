@@ -7,7 +7,9 @@ from picosentry.serve.api.deps import get_current_user
 
 def _get_anomaly_detector():
     from picosentry.serve.api.server import anomaly_detector
+
     return anomaly_detector
+
 
 logger = logging.getLogger("picoshogun.anomaly")
 

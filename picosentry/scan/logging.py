@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -30,8 +29,6 @@ def clear_request_context() -> None:
 
 
 class JsonFormatter(logging.Formatter):
-
-
     _PROMOTED_FIELDS = frozenset(
         {
             "scan_id",
@@ -56,16 +53,13 @@ class JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
         }
 
-
         for key in self._PROMOTED_FIELDS:
             val = getattr(record, key, None)
             if val is not None:
                 log_entry[key] = val
 
-
         if hasattr(record, "extra_fields") and isinstance(record.extra_fields, dict):
             log_entry.update(record.extra_fields)
-
 
         request_id = get_request_id()
         if request_id and "request_id" not in log_entry:
@@ -79,7 +73,6 @@ class JsonFormatter(logging.Formatter):
 
 
 class AuditLogFormatter(JsonFormatter):
-
     def format(self, record: logging.LogRecord) -> str:
         ts = datetime.now(timezone.utc).isoformat()
         log_entry = {
@@ -113,7 +106,6 @@ _audit_logger = logging.getLogger("picosentry.audit")
 def configure_logging(log_format: str = "text", level: int = logging.INFO) -> None:
     root = logging.getLogger("picosentry")
     root.setLevel(level)
-
 
     for handler in root.handlers[:]:
         root.removeHandler(handler)

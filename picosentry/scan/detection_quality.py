@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -13,7 +12,6 @@ logger = logging.getLogger("picosentry.detection_quality")
 
 @dataclass
 class RuleQualityMetrics:
-
     rule_id: str
     rule_family: str  # e.g. "typosquat", "obfuscation"
     true_positives: int = 0
@@ -95,7 +93,6 @@ class RuleQualityMetrics:
 
 @dataclass
 class KnownLimitation:
-
     rule_id: str
     category: str  # "false_positive_tendency", "blind_spot", "edge_case", "performance"
     description: str
@@ -126,7 +123,6 @@ class KnownLimitation:
 
 
 class DetectionBenchmark:
-
     BENCHMARK_VERSION = "1.0.0"
 
     def __init__(self, benchmark_dir: Path | None = None) -> None:
@@ -147,7 +143,6 @@ class DetectionBenchmark:
                 return
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to load metrics from %s: %s", metrics_file, e)
-
 
         self._limitations = [
             KnownLimitation(
@@ -237,7 +232,6 @@ class DetectionBenchmark:
                 tracked_in="DEEP_REVIEW.md",
             ),
         ]
-
 
         self._metrics = {
             "L2-POST-001": RuleQualityMetrics(

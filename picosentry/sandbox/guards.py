@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -39,7 +38,6 @@ __all__ = [
 
 
 class DeterministicGuard(_CoreGuard):
-
     def check(self, result: SandboxResult | AnalysisResult) -> list[str]:
         violations: list[str] = []
 
@@ -47,7 +45,6 @@ class DeterministicGuard(_CoreGuard):
             violations.extend(self._check_sandbox(result))
         elif isinstance(result, AnalysisResult):
             violations.extend(self._check_analysis(result))
-
 
         result_dict = result.to_dict(deterministic=True)
         violations.extend(self.check_dict(result_dict))
@@ -62,21 +59,17 @@ class DeterministicGuard(_CoreGuard):
     def _check_sandbox(self, result: SandboxResult) -> list[str]:
         violations: list[str] = []
 
-
         if result.run_id and _UUID_PATTERN.fullmatch(result.run_id):
             violations.append(f"run_id is a UUID (non-deterministic): {result.run_id}")
 
-
         if result.timestamp and _ISO_TIMESTAMP_PATTERN.search(result.timestamp):
             violations.append(f"timestamp is non-deterministic: {result.timestamp}")
-
 
         violations.extend(
             f"event {event.rule_id} contains UUID in detail: {event.detail[:80]}"
             for event in result.events
             if _UUID_PATTERN.search(event.detail)
         )
-
 
         d = result.to_dict(deterministic=True)
         if list(d.keys()) != sorted(d.keys()):
@@ -87,13 +80,11 @@ class DeterministicGuard(_CoreGuard):
     def _check_analysis(self, result: AnalysisResult) -> list[str]:
         violations: list[str] = []
 
-
         violations.extend(
             f"Finding {f.rule_id} has UUID finding_id: {f.finding_id}"
             for f in result.findings
             if f.finding_id and _UUID_PATTERN.fullmatch(f.finding_id)
         )
-
 
         violations.extend(
             f"Finding {f.rule_id} has timestamp: {f.timestamp}"
@@ -101,13 +92,12 @@ class DeterministicGuard(_CoreGuard):
             if hasattr(f, "timestamp") and f.timestamp
         )
 
-
         def _sort_tuple(f):
             return (f.rule_id, f.file, getattr(f, "line", 0), f.finding_id)
+
         sorted_findings = sorted(result.findings, key=_sort_tuple)
         if result.findings != sorted_findings:
             violations.append("findings not sorted by (rule_id, file, line, finding_id)")
-
 
         d = result.to_dict(deterministic=True)
         if list(d.keys()) != sorted(d.keys()):

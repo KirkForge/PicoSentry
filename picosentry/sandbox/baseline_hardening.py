@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -17,7 +16,6 @@ logger = logging.getLogger("picodome.baseline_hardening")
 
 @dataclass(frozen=True)
 class SignedBaseline:
-
     baseline: Baseline
     signature: str = ""
     signed_at: str = ""
@@ -53,7 +51,6 @@ class SignedBaseline:
 
 @dataclass
 class BaselineUpdateRateLimit:
-
     max_updates_per_hour: int = 2
     _update_times: list[float] = field(default_factory=list)
 
@@ -69,7 +66,6 @@ class BaselineUpdateRateLimit:
 
 @dataclass(frozen=True)
 class BaselineDriftCheck:
-
     allowed: bool
     max_drift: float
     actual_drift: float
@@ -85,8 +81,6 @@ class BaselineDriftCheck:
 
 
 class HardenedBaselineManager:
-
-
     MAX_DRIFT_THRESHOLD = 0.5  # 50% drift is the hard limit
 
     def __init__(self, signing_secret: str = "") -> None:
@@ -114,7 +108,6 @@ class HardenedBaselineManager:
                 details="Rate limit: too many baseline updates in the last hour",
             )
 
-
         if name in self._last_baselines:
             old = self._last_baselines[name]
             drift = self._compute_drift(old, new_baseline)
@@ -131,7 +124,6 @@ class HardenedBaselineManager:
                 actual_drift=drift,
             )
 
-
         return BaselineDriftCheck(
             allowed=True,
             max_drift=self.MAX_DRIFT_THRESHOLD,
@@ -141,7 +133,6 @@ class HardenedBaselineManager:
     def apply_update(self, name: str, baseline: Baseline) -> None:
         self._rate_limiter.record()
         self._last_baselines[name] = baseline
-
 
         try:
             audit = get_audit_logger()

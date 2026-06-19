@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -112,7 +111,6 @@ def _scan_file(file_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-
     parts = file_path.parts
     pkg_label = "unknown"
     if "node_modules" in parts:
@@ -149,12 +147,10 @@ def _scan_file(file_path: Path) -> list[Finding]:
 def detect_obfuscation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     if target.is_dir():
         for ext in JS_EXTENSIONS:
             for f in target.glob(f"*{ext}"):
                 findings.extend(_scan_file(f))
-
 
         nm = target / "node_modules"
         if nm.is_dir():
@@ -162,9 +158,7 @@ def detect_obfuscation(target: Path) -> list[Finding]:
                 if not child.is_dir() or child.name.startswith("."):
                     continue
 
-
                 if child.name.startswith("@"):
-
                     for scoped_child in sorted(child.iterdir()):
                         if not scoped_child.is_dir():
                             continue
@@ -183,7 +177,6 @@ def detect_obfuscation(target: Path) -> list[Finding]:
                             findings.extend(_scan_file(f))
                             file_count += 1
                 else:
-
                     file_count = 0
                     for f in child.rglob("*"):
                         if f.is_symlink():

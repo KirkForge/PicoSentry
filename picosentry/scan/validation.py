@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -33,7 +32,6 @@ class FindingAssertion:
 
 @dataclass(frozen=True)
 class FixtureSpec:
-
     path: Path
     label: str  # "positive" | "negative"
     expected_rule_ids: tuple[str, ...] = ()
@@ -51,9 +49,7 @@ class FixtureSpec:
         return self.path.name
 
 
-def _matches_finding(
-    finding: Any, assertion: FindingAssertion, *, seen: set | None = None
-) -> bool:
+def _matches_finding(finding: Any, assertion: FindingAssertion, *, seen: set | None = None) -> bool:
     """Return True iff *finding* matches *assertion*.
 
     Fields that are empty/None in *assertion* are wildcards. The optional
@@ -111,7 +107,6 @@ def _as_finding_assertion(raw: object) -> FindingAssertion:
 
 @dataclass(frozen=True)
 class RuleMetrics:
-
     rule_id: str
     true_positives: int = 0
     false_positives: int = 0
@@ -134,7 +129,6 @@ class RuleMetrics:
 
 @dataclass(frozen=True)
 class ValidationReport:
-
     rule_metrics: tuple[RuleMetrics, ...] = ()
     total_fixtures: int = 0
     total_positive: int = 0
@@ -183,16 +177,13 @@ class ValidationReport:
         lines.append("PicoSentry validation report")
         lines.append("=" * 60)
         lines.append(
-            f"fixtures: {self.total_fixtures} "
-            f"(positive: {self.total_positive}, negative: {self.total_negative})"
+            f"fixtures: {self.total_fixtures} (positive: {self.total_positive}, negative: {self.total_negative})"
         )
         lines.append(f"mean precision: {self.mean_precision:.2%}")
         lines.append(f"mean recall:    {self.mean_recall:.2%}")
         lines.append("")
         lines.append("Per-rule metrics:")
-        lines.append(
-            f"  {'rule_id':<28} {'TP':>4} {'FP':>4} {'FN':>4} {'precision':>10} {'recall':>8}"
-        )
+        lines.append(f"  {'rule_id':<28} {'TP':>4} {'FP':>4} {'FN':>4} {'precision':>10} {'recall':>8}")
         lines.extend(
             f"  {m.rule_id:<28} {m.true_positives:>4} {m.false_positives:>4} "
             f"{m.false_negatives:>4} {m.precision:>10.2%} {m.recall:>8.2%}"
@@ -224,19 +215,13 @@ def _load_fixture(path: Path) -> FixtureSpec | None:
         logger.warning("Fixture %s: label must be 'positive' or 'negative'", path)
         return None
     try:
-        expected_findings = tuple(
-            _as_finding_assertion(e) for e in data.get("expected_findings", ())
-        )
-        unexpected_findings = tuple(
-            _as_finding_assertion(e) for e in data.get("unexpected_findings", ())
-        )
+        expected_findings = tuple(_as_finding_assertion(e) for e in data.get("expected_findings", ()))
+        unexpected_findings = tuple(_as_finding_assertion(e) for e in data.get("unexpected_findings", ()))
     except ValueError as exc:
         logger.warning("Fixture %s: %s", path, exc)
         return None
     forbidden_raw = data.get("forbidden_rule_ids", ())
-    if not isinstance(forbidden_raw, (list, tuple)) or not all(
-        isinstance(r, str) for r in forbidden_raw
-    ):
+    if not isinstance(forbidden_raw, (list, tuple)) or not all(isinstance(r, str) for r in forbidden_raw):
         logger.warning("Fixture %s: 'forbidden_rule_ids' must be a list of strings", path)
         return None
     strict_raw = data.get("strict", False)
@@ -259,9 +244,7 @@ def discover_fixtures(
     validation_root: Path | None = None,
 ) -> list[FixtureSpec]:
     if validation_root is None:
-        validation_root = (
-            Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
-        )
+        validation_root = Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
     if not validation_root.is_dir():
         return []
     fixtures: list[FixtureSpec] = []
@@ -283,7 +266,6 @@ def _metrics_from_fixtures(
     advisory_db_path: str | Path | None = None,
 ) -> tuple[dict[str, RuleMetrics], list[tuple[str, str, tuple[str, ...]]]]:
     from .engine import create_default_engine
-
 
     engine = create_default_engine()
     metrics: dict[str, RuleMetrics] = {}
@@ -310,10 +292,8 @@ def _metrics_from_fixtures(
         findings = result.findings
         failures: list[str] = []
         if spec.label == "positive":
-
             missing = sorted(set(spec.expected_rule_ids) - fired_ids)
             failures = [f"missing:{m}" for m in missing]
-
 
             for rid in spec.expected_rule_ids:
                 if rid in fired_ids:
@@ -351,7 +331,6 @@ def _metrics_from_fixtures(
             outcome = "PASS" if not failures else "FAIL"
             fixture_results.append((spec.name, outcome, tuple(failures)))
         else:  # negative
-
             unexpected = sorted(fired_ids)
             for rid in unexpected:
                 _bump(rid, fp=1)
@@ -381,9 +360,7 @@ def run_validation(
     del rules  # Reserved for future rule-filtering; not used today.
 
     if validation_root is None:
-        validation_root = (
-            Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
-        )
+        validation_root = Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
 
     if advisory_db_path is None:
         auto_path = validation_root / "_advisories"

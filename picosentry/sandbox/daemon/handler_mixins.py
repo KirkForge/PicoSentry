@@ -25,7 +25,6 @@ logger = logging.getLogger("picodome.daemon")
 
 
 class PicoDomeResponseMixin:
-
     def log_message(self, format, *args):
         logger.debug("HTTP %s", format % args)
 
@@ -41,24 +40,19 @@ class PicoDomeResponseMixin:
         self.send_header("X-Frame-Options", "DENY")
         self.send_header("Cache-Control", "no-store")
 
-
         request_origin = self.headers.get("Origin", "")
         if _CORS_DENY_BY_DEFAULT:
-
             self.send_header("Access-Control-Allow-Origin", "null")
         elif CORS_ALLOW_ORIGINS == "*":
-
             if request_origin:
                 self.send_header("Access-Control-Allow-Origin", request_origin)
                 self.send_header("Vary", "Origin")
             else:
                 self.send_header("Access-Control-Allow-Origin", "*")
         elif request_origin in _CORS_ALLOW_ORIGINS_LIST:
-
             self.send_header("Access-Control-Allow-Origin", request_origin)
             self.send_header("Vary", "Origin")
         else:
-
             self.send_header("Access-Control-Allow-Origin", "null")
         self.send_header("Access-Control-Allow-Methods", CORS_ALLOW_METHODS)
         self.send_header("Access-Control-Allow-Headers", CORS_ALLOW_HEADERS)
@@ -89,7 +83,6 @@ class PicoDomeResponseMixin:
             if isinstance(message_or_code, str):
                 detail = message_or_code  # second arg is detail when first is ErrorCode
         elif isinstance(message_or_code, ErrorCode):
-
             code = message_or_code
             status = status_or_code
             message = code.message
@@ -111,8 +104,6 @@ class PicoDomeResponseMixin:
 
 
 class PicoDomeAuthMixin:
-
-
     ALLOWED_COMMANDS: ClassVar[set[str]] = {
         "echo",
         "printf",
@@ -142,7 +133,6 @@ class PicoDomeAuthMixin:
         "php",
         "composer",
     }
-
 
     DENIED_COMMANDS: ClassVar[set[str]] = {
         "rm",
@@ -219,10 +209,8 @@ class PicoDomeAuthMixin:
         registry = get_tenant_registry()
         header_tenant = self.headers.get("X-Tenant")
 
-
         if not token or token == "no-auth-dev-mode":
             return registry.resolve_tenant("", header_tenant=None)
-
 
         token_hash = ""
         if token and token != "no-auth-dev-mode":
@@ -234,7 +222,6 @@ class PicoDomeAuthMixin:
         token = self._get_token()
 
         if not self.auth.is_configured:
-
             if _ENTERPRISE_MODE:
                 try:
                     audit = get_audit_logger()
@@ -250,7 +237,6 @@ class PicoDomeAuthMixin:
             return "no-auth-dev-mode"
 
         if not token:
-
             try:
                 audit = get_audit_logger()
                 audit.record(
@@ -264,7 +250,6 @@ class PicoDomeAuthMixin:
             return None
 
         if not self.auth.validate(token):
-
             actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
             try:
                 audit = get_audit_logger()
@@ -277,7 +262,6 @@ class PicoDomeAuthMixin:
                 pass
             self._send_error(ErrorCodes.UNAUTHORIZED)
             return None
-
 
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
         if not self.rate_limiter.allow(actor=actor):
@@ -292,7 +276,6 @@ class PicoDomeAuthMixin:
                 pass
             self._send_error(ErrorCodes.RATE_LIMITED)
             return None
-
 
         try:
             audit = get_audit_logger()

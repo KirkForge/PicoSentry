@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -18,12 +17,11 @@ def _semver_matches(version: str, constraint: str) -> bool:
     version = version.strip().lstrip("v")
     constraint = constraint.strip()
     import re
-    _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:[-.]([a-zA-Z0-9._-]+))?(?:\+([a-zA-Z0-9._-]+))?")
 
+    _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:[-.]([a-zA-Z0-9._-]+))?(?:\+([a-zA-Z0-9._-]+))?")
 
     if version == constraint:
         return True
-
 
     def _parse_ver(v: str) -> tuple[list[int] | None, str]:
         m = _SEMVER_RE.search(v)
@@ -42,7 +40,6 @@ def _semver_matches(version: str, constraint: str) -> bool:
     if v_parts is None:
         return version in constraint or constraint in version
 
-
     def _parse_constraint(c: str) -> tuple[list[int] | None, str]:
 
         m = _SEMVER_RE.search(c)
@@ -56,13 +53,11 @@ def _semver_matches(version: str, constraint: str) -> bool:
             return parts, ""
         return None, ""
 
-
     def _ver_cmp(a_parts: list[int], a_pre: str, b_parts: list[int], b_pre: str) -> int:
         if a_parts < b_parts:
             return -1
         if a_parts > b_parts:
             return 1
-
 
         if not a_pre and b_pre:
             return 1
@@ -74,7 +69,6 @@ def _semver_matches(version: str, constraint: str) -> bool:
         a_idents = a_pre.split(".")
         b_idents = b_pre.split(".")
         for ai, bi in zip(a_idents, b_idents, strict=False):
-
             a_num = ai.isdigit()
             b_num = bi.isdigit()
             if a_num and b_num:
@@ -97,10 +91,7 @@ def _semver_matches(version: str, constraint: str) -> bool:
             return 1
         return 0
 
-
     try:
-
-
         if constraint.startswith("^"):
             c = constraint[1:]
             c_parts, c_pre = _parse_constraint(c)
@@ -108,16 +99,13 @@ def _semver_matches(version: str, constraint: str) -> bool:
                 return False
             cmp = _ver_cmp(v_parts, v_pre, c_parts, c_pre)
             if c_parts[0] == 0 and c_parts[1] == 0:
-
-
-                return (v_parts[0] == 0 and v_parts[1] == 0 and v_parts[2] == c_parts[2])
+                return v_parts[0] == 0 and v_parts[1] == 0 and v_parts[2] == c_parts[2]
             if c_parts[0] == 0:
-
-                return (v_parts[0] == 0 and v_parts[1] == c_parts[1] and cmp >= 0
-                        and v_parts[2] < 256)  # any patch within 0.y.*
+                return (
+                    v_parts[0] == 0 and v_parts[1] == c_parts[1] and cmp >= 0 and v_parts[2] < 256
+                )  # any patch within 0.y.*
 
             return cmp >= 0 and v_parts[0] == c_parts[0]
-
 
         if constraint.startswith("~"):
             c = constraint[1:]
@@ -126,7 +114,6 @@ def _semver_matches(version: str, constraint: str) -> bool:
                 return False
             cmp = _ver_cmp(v_parts, v_pre, c_parts, c_pre)
             return v_parts[0] == c_parts[0] and v_parts[1] == c_parts[1] and cmp >= 0
-
 
         for op in (">=", "<=", ">", "<"):
             if constraint.startswith(op):
@@ -144,7 +131,6 @@ def _semver_matches(version: str, constraint: str) -> bool:
                 if op == "<":
                     return cmp < 0
 
-
         if " - " in constraint:
             lo, hi = constraint.split(" - ", 1)
             lo_parts, lo_pre = _parse_constraint(lo)
@@ -157,7 +143,6 @@ def _semver_matches(version: str, constraint: str) -> bool:
 
     except (ValueError, IndexError):
         pass
-
 
     return version in constraint or constraint in version
 
@@ -175,7 +160,6 @@ def _check_package_against_iocs(
         ioc_pkg = ioc.get("package_name", "")
         if not ioc_pkg or ioc_pkg != pkg_name:
             continue
-
 
         version_range = ioc.get("version_range", "*")
         if version_range != "*" and not _semver_matches(pkg_version, version_range):
@@ -215,7 +199,6 @@ def _check_package_against_iocs(
 def detect_custom_iocs(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     try:
         iocs = load_all_iocs()
     except (OSError, json.JSONDecodeError, ValueError):
@@ -228,7 +211,6 @@ def detect_custom_iocs(target: Path) -> list[Finding]:
     if not iocs:
         return findings
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
@@ -237,7 +219,6 @@ def detect_custom_iocs(target: Path) -> list[Finding]:
             pkg_version = pkg.get("version", "unknown")
             pkg_label = f"{pkg_name}@{pkg_version}"
             findings.extend(_check_package_against_iocs(pkg_name, pkg_version, pkg_label, root_pkg, iocs))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)

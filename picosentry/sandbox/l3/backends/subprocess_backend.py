@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -34,7 +33,6 @@ _LINUX_TRACE_PATTERNS = {
 
 
 class SubprocessBackend(SandboxBackend):
-
     @property
     def name(self) -> str:
         return "subprocess"
@@ -67,24 +65,33 @@ class SubprocessBackend(SandboxBackend):
         effective_timeout = timeout or 30.0
 
         try:
-
-
             if env is not None:
-
                 run_env = dict(env)
             else:
-
                 run_env = {
                     k: v
                     for k, v in os.environ.items()
                     if k
                     in (
-                        "PATH", "HOME", "USER", "LANG", "LC_ALL", "LC_CTYPE",
-                        "TERM", "TMPDIR", "TEMP", "TMP",
-                        "LD_LIBRARY_PATH", "DYLD_LIBRARY_PATH",
-                        "PYTHONPATH", "PYTHONHOME", "PYTHONIOENCODING",
-                        "NODE_PATH", "NPM_CONFIG_PREFIX",
-                        "PICODOME_SANDBOX_BACKEND", "PICODOME_ALLOW_DEGRADED",
+                        "PATH",
+                        "HOME",
+                        "USER",
+                        "LANG",
+                        "LC_ALL",
+                        "LC_CTYPE",
+                        "TERM",
+                        "TMPDIR",
+                        "TEMP",
+                        "TMP",
+                        "LD_LIBRARY_PATH",
+                        "DYLD_LIBRARY_PATH",
+                        "PYTHONPATH",
+                        "PYTHONHOME",
+                        "PYTHONIOENCODING",
+                        "NODE_PATH",
+                        "NPM_CONFIG_PREFIX",
+                        "PICODOME_SANDBOX_BACKEND",
+                        "PICODOME_ALLOW_DEGRADED",
                     )
                 }
 
@@ -115,7 +122,6 @@ class SubprocessBackend(SandboxBackend):
 
             stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
             stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
-
 
             events.extend(self._analyze_output(stdout, stderr, policy, command))
 
@@ -182,7 +188,6 @@ class SubprocessBackend(SandboxBackend):
                 events.extend(self._check_file_write(combined, rule))
             elif rule.target == RuleTarget.PROCESS_SPAWN:
                 events.extend(self._check_process_spawn(combined, rule))
-
 
         events.extend(self._check_suspicious_patterns(stdout, stderr))
 

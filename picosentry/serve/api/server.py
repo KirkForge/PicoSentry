@@ -70,26 +70,22 @@ anomaly_detector = AnomalyDetector(db, alert_hub=None)  # alert_hub wired at sta
 async def lifespan(app: FastAPI):
     logger.info("PicoShogun starting up — version %s", __version__)
 
-
     settings.assert_secure()
-
 
     config_issues = settings.validate()
     for issue in config_issues:
         if issue.startswith("CONFIG:"):
             logger.warning("CONFIG: %s", issue)
 
-
     init_telemetry(service_name="picoshogun")
     setup_fastapi_instrumentation(app)
     logger.info("OpenTelemetry initialized (if endpoint configured)")
 
-
     from picosentry.serve.services.alert_hub import AlertHub
+
     alert_hub = AlertHub()
     anomaly_detector.alert_hub = alert_hub
     logger.info("Alert hub wired to anomaly detector")
-
 
     from picosentry.serve.services.correlation import (
         correlation_engine,
@@ -98,14 +94,13 @@ async def lifespan(app: FastAPI):
     from picosentry.serve.services.orchestrator import PICO_CLI
     from picosentry.serve.services.webhooks import webhook_manager
 
-
     from picosentry.serve.database.manager import db
+
     if CorrelationEngine.enable_persistence_if_supported():
         loaded = correlation_engine.load_events()
         logger.info("Correlation persistence ready — loaded %d event(s)", loaded)
     else:
         logger.info("Correlation persistence not available (run migrations first)")
-
 
     _alert_hub_global = alert_hub
     _webhook_manager_global = webhook_manager
@@ -150,7 +145,6 @@ async def lifespan(app: FastAPI):
     correlation_engine.on_chain_escalated(_chain_escalated_webhook)
     logger.info("Correlation escalation callbacks wired")
 
-
     def _on_auto_analyze(event):
         payload = event.payload
         downstream = payload.get("downstream_project", "")
@@ -158,7 +152,9 @@ async def lifespan(app: FastAPI):
         if downstream and target and downstream in PICO_CLI:
             logger.info(
                 "Auto-analyze queued: %s → %s (%s)",
-                payload.get("source_project", "?"), downstream, target,
+                payload.get("source_project", "?"),
+                downstream,
+                target,
             )
 
             event_bus.publish(
@@ -182,7 +178,6 @@ async def lifespan(app: FastAPI):
     )
     logger.info("Cross-layer auto-analysis subscriber registered")
 
-
     anomaly_detector.start()
     if settings.orchestrator.schedule_enabled:
         scheduler.start()
@@ -190,11 +185,9 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Anomaly detector started (scheduler disabled by schedule_enabled=False)")
 
-
     expired_count = auth_service.cleanup_expired_keys()
     if expired_count:
         logger.info("Startup: deactivated %d expired API key(s)", expired_count)
-
 
     scheduler.add_job(
         name="periodic_cleanup",
@@ -203,7 +196,6 @@ async def lifespan(app: FastAPI):
         params={},
         enabled=True,
     )
-
 
     health_interval = settings.orchestrator.health_check_interval
     if health_interval > 0:
@@ -217,7 +209,6 @@ async def lifespan(app: FastAPI):
         logger.info("Periodic health checks scheduled every %d seconds", health_interval)
 
     yield  # Application is running
-
 
     logger.info("PicoShogun shutting down — stopping background services")
     anomaly_detector.stop()
@@ -250,7 +241,10 @@ async def global_exception_handler(request: Request, exc: Exception):
     request_id = getattr(request.state, "request_id", "unknown")
     logger.error(
         "Unhandled exception on %s %s [request_id=%s]: %s",
-        request.method, request.url.path, request_id, exc,
+        request.method,
+        request.url.path,
+        request_id,
+        exc,
         exc_info=exc,
     )
     return JSONResponse(
@@ -317,6 +311,7 @@ app.include_router(api_v1)
 
 try:
     from pathlib import Path as _Path
+
     _base = _Path(__file__).resolve().parent.parent / "front"
     _front = _base / "build"
 
@@ -346,7 +341,6 @@ def main() -> None:
 
     signal.signal(signal.SIGTERM, _graceful_shutdown)
     signal.signal(signal.SIGINT, _graceful_shutdown)
-
 
     ssl_kwargs: dict[str, Any] = {}
     if settings.security.ssl_cert_path and settings.security.ssl_key_path:

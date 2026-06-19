@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,7 +10,6 @@ __all__ = ["detect_maintainer_changes"]
 
 def _extract_author_name(author) -> str:
     if isinstance(author, str):
-
         return author.split("<")[0].split("(")[0].strip()
     if isinstance(author, dict):
         return str(author.get("name", ""))
@@ -21,19 +19,16 @@ def _extract_author_name(author) -> str:
 def _extract_author_names(pkg: dict) -> list[str]:
     names: list[str] = []
 
-
     author = pkg.get("author")
     if author:
         name = _extract_author_name(author)
         if name:
             names.append(name)
 
-
     for c in pkg.get("contributors", []):
         name = _extract_author_name(c)
         if name:
             names.append(name)
-
 
     for m in pkg.get("maintainers", []):
         name = _extract_author_name(m)
@@ -86,11 +81,9 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
     author_names = _extract_author_names(pkg)
     has_scripts = _has_install_scripts(pkg)
 
-
     npm_user = _extract_npm_user_name(pkg)
     author_name = _extract_author_name(pkg.get("author", ""))
     if npm_user and author_name:
-
         npm_lower = npm_user.lower().replace("-", "").replace("_", "")
         author_lower = author_name.lower().replace("-", "").replace("_", "")
         if npm_lower != author_lower and npm_lower not in author_lower and author_lower not in npm_lower:
@@ -117,7 +110,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 )
             )
 
-
     maintainer_domains = _extract_maintainer_domains(pkg)
     if len(maintainer_domains) >= 2 and len(set(maintainer_domains)) >= 2:
         unique_domains = sorted(set(maintainer_domains))
@@ -143,7 +135,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-
     if not author_names and has_scripts and pkg_name != "root":
         _install_script_names = (
             s for s in pkg.get("scripts", {}) if s in {"install", "postinstall", "preinstall", "prepare"}
@@ -159,10 +150,7 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                     f"Package '{pkg_name}' has no author/maintainer info but "
                     f"has install scripts — unaccountable code execution"
                 ),
-                evidence=(
-                    "no author field, scripts: "
-                    f"{', '.join(sorted(_install_script_names))}"
-                ),
+                evidence=(f"no author field, scripts: {', '.join(sorted(_install_script_names))}"),
                 remediation=(
                     "Packages without author information that run code on install "
                     "are a critical supply chain risk. Verify the package source, "
@@ -174,7 +162,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 ],
             )
         )
-
 
     if len(author_names) == 1 and has_scripts:
         findings.append(
@@ -198,7 +185,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-
     if not author_names and not has_scripts and pkg_name != "root":
         findings.append(
             Finding(
@@ -218,7 +204,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 ],
             )
         )
-
 
     if author_names:
         findings.extend(
@@ -244,13 +229,11 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
 def detect_maintainer_changes(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             _check_maintainer_signals(pkg, root_pkg, findings)
-
 
     for pkg_json, pkg in iter_node_modules(target):
         _check_maintainer_signals(pkg, pkg_json, findings)

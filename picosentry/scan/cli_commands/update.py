@@ -15,9 +15,7 @@ NAME = "update"
 
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
-    parser = subparsers.add_parser(
-        NAME, help="Download latest package corpus from npm registry (requires network)"
-    )
+    parser = subparsers.add_parser(NAME, help="Download latest package corpus from npm registry (requires network)")
     parser.add_argument(
         "--top",
         "-n",
@@ -75,7 +73,6 @@ def cmd(args: argparse.Namespace) -> int:
 
         packages = sorted(all_packages)[:top_n]
 
-
         existing = set()
         if output_path.is_file():
             with contextlib.suppress(json.JSONDecodeError, OSError):
@@ -83,18 +80,12 @@ def cmd(args: argparse.Namespace) -> int:
 
         merged = sorted(existing | set(packages))
 
-
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(json.dumps(merged, indent=4, ensure_ascii=False), encoding="utf-8")
 
-        print(
-            f"Corpus updated: {len(merged)} packages "
-            f"({len(packages)} new from npm, {len(existing)} existing)"
-        )
+        print(f"Corpus updated: {len(merged)} packages ({len(packages)} new from npm, {len(existing)} existing)")
         print(f"Saved to: {output_path}")
-        print(
-            f"Corpus version hash: {hashlib.sha256(json.dumps(merged, sort_keys=True).encode()).hexdigest()[:16]}"
-        )
+        print(f"Corpus version hash: {hashlib.sha256(json.dumps(merged, sort_keys=True).encode()).hexdigest()[:16]}")
         return 0
 
     except Exception as e:

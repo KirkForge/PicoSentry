@@ -10,6 +10,8 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
+
+
 @dataclass(frozen=True)
 class DeploymentFinding:
     severity: str  # CRITICAL | HIGH | MEDIUM | LOW | INFO
@@ -54,8 +56,7 @@ def check_deployment_security(environ: dict[str, str] | None = None) -> list[Dep
                 severity="CRITICAL",
                 check="enterprise-mode-with-tls-dev",
                 message=(
-                    "PICODOME_ENTERPRISE_MODE=1 and PICODOME_TLS_DEV=1 are both set — "
-                    "enterprise mode rejects dev certs"
+                    "PICODOME_ENTERPRISE_MODE=1 and PICODOME_TLS_DEV=1 are both set — enterprise mode rejects dev certs"
                 ),
             )
         )

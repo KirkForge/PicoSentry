@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import threading
@@ -9,12 +8,10 @@ from dataclasses import dataclass, field
 
 @dataclass
 class RateLimitEntry:
-
     timestamps: list[float] = field(default_factory=list)
 
 
 class RateLimiter:
-
     def __init__(self, max_requests: int = 100, window_seconds: int = 60, max_clients: int = 100_000) -> None:
         self.max_requests = max_requests
         self.window_seconds = window_seconds
@@ -29,9 +26,7 @@ class RateLimiter:
             entry = self._clients[client_ip]
             cutoff = now - self.window_seconds
 
-
             entry.timestamps = [ts for ts in entry.timestamps if ts > cutoff]
-
 
             if now - self._last_eviction > self.window_seconds:
                 self._evict_stale(now)

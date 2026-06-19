@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -9,7 +8,6 @@ __all__ = ["ShaiHuludCampaign"]
 
 
 class ShaiHuludCampaign(CampaignPackage):
-
     campaign_id = "shai-hulud-2025"
     rule_id = "L2-CAMP-SHAI-HULUD"
     ecosystems = ("npm",)

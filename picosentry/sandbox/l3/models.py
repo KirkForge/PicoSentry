@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -30,7 +29,6 @@ class RuleTarget(str, Enum):
 
 @dataclass(frozen=True)
 class PolicyRule:
-
     rule_id: str
     target: RuleTarget
     action: SyscallAction
@@ -53,7 +51,6 @@ class PolicyRule:
 
 @dataclass(frozen=True)
 class Policy:
-
     name: str
     version: str = "1.0"
     default_action: SyscallAction = SyscallAction.DENY
@@ -83,7 +80,6 @@ class Policy:
 
 @dataclass(frozen=True)
 class SandboxEvent:
-
     rule_id: str
     verdict: Verdict
     operation: str
@@ -109,10 +105,8 @@ class SandboxEvent:
 
 @dataclass(frozen=True)
 class SandboxResult:
-
     run_id: str = ""
     timestamp: str = ""
-
 
     backend: str = ""
     policy_hash: str = ""

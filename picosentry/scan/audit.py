@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -44,7 +43,6 @@ DEFAULT_RETENTION_DAYS = 90
 
 @dataclass
 class AuditEvent:
-
     action: str
     target: str = ""
     actor: str = "system"
@@ -76,7 +74,6 @@ class AuditEvent:
 
 
 class AuditSink:
-
     def __init__(
         self,
         path: Path | None = None,
@@ -114,7 +111,6 @@ class AuditSink:
 
         if size < self.max_size_bytes:
             return
-
 
         rot_num = 1
         while self.path.with_suffix(f".jsonl.{rot_num}").exists():

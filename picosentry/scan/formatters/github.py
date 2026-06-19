@@ -1,4 +1,3 @@
-
 import os
 from pathlib import Path
 
@@ -13,17 +12,13 @@ def format_github(result: ScanResult, sarif_path: str = "sarif.json") -> str:
     sarif_file = Path(sarif_path)
     sarif_file.write_text(sarif_content, encoding="utf-8")
 
-
     lines = []
     lines.append("## 🦞 PicoSentry Scan Results\n")
-
 
     if not result.findings:
         lines.append("**No pinches. All clear.** 🦞\n")
     else:
-
         lines.append(f"**{len(result.findings)} finding(s)** in `{result.target}`\n")
-
 
         lines.append("| Severity | Count | Label |")
         lines.append("|----------|-------|-------|")
@@ -36,21 +31,16 @@ def format_github(result: ScanResult, sarif_path: str = "sarif.json") -> str:
 
         lines.append("")
 
-
         lines.append("### Findings\n")
         lines.append("| Rule | Package | File | Severity | Message |")
         lines.append("|------|---------|------|----------|---------|")
 
         shown = result.findings[:50]
-        lines.extend(
-            f"| {f.rule_id} | `{f.package}` | `{f.file}` | {f.severity.value} | {f.message} |"
-            for f in shown
-        )
+        lines.extend(f"| {f.rule_id} | `{f.package}` | `{f.file}` | {f.severity.value} | {f.message} |" for f in shown)
 
         remaining = len(result.findings) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more finding(s)\n")
-
 
     lines.append("\n---\n")
     lines.append("| Field | Value |")
@@ -64,7 +54,6 @@ def format_github(result: ScanResult, sarif_path: str = "sarif.json") -> str:
     lines.append(f"| SARIF | `{sarif_path}` |")
 
     summary = "\n".join(lines)
-
 
     gh_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_summary:

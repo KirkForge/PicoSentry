@@ -1,4 +1,3 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
@@ -35,7 +34,6 @@ def detect_env_leak(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if path_lower.endswith((".env", ".env.local", ".env.production")):
@@ -48,7 +46,6 @@ def detect_env_leak(
                     evidence={"operation": op.operation, "path": op.path},
                 )
             )
-
 
     for call in profile.network_calls:
         for var_name in SENSITIVE_ENV_VARS:
@@ -64,7 +61,6 @@ def detect_env_leak(
                         evidence={"env_var": var_name, "address": call.address, "port": call.port},
                     )
                 )
-
 
     env_dump_commands = {"env", "printenv", "set", "export"}
     for spawn in profile.spawns:

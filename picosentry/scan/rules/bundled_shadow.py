@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -15,7 +14,6 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
     pkg_name = pkg.get("name", pkg_json.parent.name)
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
-
 
     bundled = pkg.get("bundledDependencies") or pkg.get("bundleDependencies")
     if bundled:
@@ -64,10 +62,8 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
                 )
             )
 
-
     files_field = pkg.get("files")
     if isinstance(files_field, list):
-
         suspicious = [f for f in files_field if f in ("node_modules", "dist", "build", "out")]
         if suspicious:
             findings.append(
@@ -92,7 +88,6 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
                     ],
                 )
             )
-
 
     binary_field = pkg.get("binary")
     if binary_field and isinstance(binary_field, dict):
@@ -122,13 +117,11 @@ def _check_bundled(pkg: dict, pkg_json: Path) -> list[Finding]:
 def detect_bundled_shadows(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_bundled(pkg, root_pkg))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_bundled(pkg, pkg_json))

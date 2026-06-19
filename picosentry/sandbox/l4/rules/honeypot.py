@@ -1,4 +1,3 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
@@ -39,7 +38,6 @@ def detect_honeypot_touches(
                     )
                 )
                 break
-
 
     priv_esc_binaries = {"sudo", "su", "pkexec", "doas", "chown", "chmod"}
     for spawn in profile.spawns:

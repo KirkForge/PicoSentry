@@ -35,28 +35,34 @@ class TestRubyGemsDetection:
 
     def test_detects_gemfile(self):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         assert detect_rubygems_project(_gem_clean())
 
     def test_detects_gemfile_malicious(self):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         assert detect_rubygems_project(_gem_malicious())
 
     def test_no_indicator_returns_false(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         assert not detect_rubygems_project(tmp_path)
 
     def test_gemspec_detection(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         (tmp_path / "mygem.gemspec").write_text("Gem::Specification.new do |s|\n  s.name = 'mygem'\nend")
         assert detect_rubygems_project(tmp_path)
 
     def test_gemfile_lock_detection(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         (tmp_path / "Gemfile.lock").write_text("GEM\n  specs:\n")
         assert detect_rubygems_project(tmp_path)
 
     def test_not_a_directory_returns_false(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_rubygems_project
+
         f = tmp_path / "not_a_dir"
         f.write_text("")
         assert not detect_rubygems_project(f)
@@ -97,6 +103,7 @@ class TestRubyGemsTyposquat:
 
     def test_detects_typosquat_in_malicious(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
+
         findings = detect_rubygems_typosquat(_gem_malicious(), CORPUS_DIR)
         typo_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-TYPO-001"]
         assert len(typo_findings) >= 1
@@ -105,6 +112,7 @@ class TestRubyGemsTyposquat:
 
     def test_clean_project_has_no_typosquats(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
+
         findings = detect_rubygems_typosquat(_gem_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-TYPO-001"]
         assert len(typo_findings) == 0
@@ -118,6 +126,7 @@ class TestRubyGemsDependencyConfusion:
 
     def test_detects_dep_confusion_in_malicious(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
+
         findings = detect_rubygems_dep_confusion(_gem_malicious())
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) >= 1
@@ -125,6 +134,7 @@ class TestRubyGemsDependencyConfusion:
 
     def test_clean_project_has_no_dep_confusion(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
+
         findings = detect_rubygems_dep_confusion(_gem_clean())
         depc_findings = [f for f in findings if f.rule_id == "L2-RUBYGEMS-DEPC-001"]
         assert len(depc_findings) == 0
@@ -132,6 +142,7 @@ class TestRubyGemsDependencyConfusion:
     def test_private_source_suppresses_finding(self, tmp_path):
         """If a private source is configured, internal-looking gems should not be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
+
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text("""source "https://gems.internal.example.com"
 
@@ -144,6 +155,7 @@ gem "company-internal", "~> 1.0"
     def test_git_dep_not_flagged(self, tmp_path):
         """A gem with a git source should not be flagged as dep confusion."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
+
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text("""source "https://rubygems.org"
 
@@ -162,6 +174,7 @@ class TestRubyGemsParsing:
 
     def test_parse_gemfile_package_names(self):
         from picosentry.scan.rules.rubygems_utils import parse_gemfile
+
         data = parse_gemfile(_gem_clean())
         assert data is not None
         deps = data.get("dependencies", [])
@@ -172,6 +185,7 @@ class TestRubyGemsParsing:
 
     def test_parse_gemfile_sources(self):
         from picosentry.scan.rules.rubygems_utils import parse_gemfile
+
         data = parse_gemfile(_gem_clean())
         assert data is not None
         sources = data.get("sources", [])
@@ -179,6 +193,7 @@ class TestRubyGemsParsing:
 
     def test_parse_gemfile_no_file_returns_none(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import parse_gemfile
+
         assert parse_gemfile(tmp_path) is None
 
 
@@ -190,6 +205,7 @@ class TestRubyGemsLockfileParser:
 
     def test_parse_gemfile_for_lock(self):
         from picosentry.scan.rules.rubygems_lock_parser import parse_gemfile_for_lock
+
         entries = parse_gemfile_for_lock(_gem_clean() / "Gemfile")
         assert len(entries) >= 4  # rails, pg, puma, devise + groups
         entry_names = {e[0] for e in entries}
@@ -198,6 +214,7 @@ class TestRubyGemsLockfileParser:
 
     def test_parse_gemfile_lock_for_lock(self):
         from picosentry.scan.rules.rubygems_lock_parser import parse_gemfile_lock_for_lock
+
         entries = parse_gemfile_lock_for_lock(_gem_clean() / "Gemfile.lock")
         assert len(entries) > 0
         entry_names = {e[0] for e in entries}
@@ -206,16 +223,19 @@ class TestRubyGemsLockfileParser:
 
     def test_parse_rubygems_lockfile_auto_detect_gemfile(self):
         from picosentry.scan.rules.rubygems_lock_parser import parse_rubygems_lockfile
+
         entries = parse_rubygems_lockfile(_gem_clean() / "Gemfile")
         assert len(entries) >= 4
 
     def test_parse_rubygems_lockfile_auto_detect_lock(self):
         from picosentry.scan.rules.rubygems_lock_parser import parse_rubygems_lockfile
+
         entries = parse_rubygems_lockfile(_gem_clean() / "Gemfile.lock")
         assert len(entries) > 0
 
     def test_parse_rubygems_lockfile_no_file_returns_empty(self, tmp_path):
         from picosentry.scan.rules.rubygems_lock_parser import parse_rubygems_lockfile
+
         assert parse_rubygems_lockfile(tmp_path / "nonexistent.lock") == []
 
 
@@ -227,6 +247,7 @@ class TestRubyGemsUtils:
 
     def test_get_rubygems_dep_names(self):
         from picosentry.scan.rules.rubygems_utils import get_rubygems_dep_names, parse_gemfile
+
         data = parse_gemfile(_gem_clean())
         assert data is not None
         names = get_rubygems_dep_names(data)
@@ -235,22 +256,28 @@ class TestRubyGemsUtils:
 
     def test_detect_private_source_clean(self):
         from picosentry.scan.rules.rubygems_utils import detect_private_rubygems_source
+
         assert not detect_private_rubygems_source(_gem_clean())
 
     def test_detect_private_source_with_custom_url(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_private_rubygems_source
+
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text('source "https://gems.internal.example.com"\n\ngem "my-gem", "~> 1.0"')
         assert detect_private_rubygems_source(tmp_path)
 
     def test_detect_private_source_with_git_dep(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_private_rubygems_source
+
         gemfile_path = tmp_path / "Gemfile"
-        gemfile_path.write_text('source "https://rubygems.org"\n\ngem "my-gem", git: "https://github.com/company/my-gem.git"')
+        gemfile_path.write_text(
+            'source "https://rubygems.org"\n\ngem "my-gem", git: "https://github.com/company/my-gem.git"'
+        )
         assert detect_private_rubygems_source(tmp_path)
 
     def test_detect_private_source_with_path_dep(self, tmp_path):
         from picosentry.scan.rules.rubygems_utils import detect_private_rubygems_source
+
         gemfile_path = tmp_path / "Gemfile"
         gemfile_path.write_text('source "https://rubygems.org"\n\ngem "my-gem", path: "../local-gem"')
         assert detect_private_rubygems_source(tmp_path)
@@ -279,12 +306,14 @@ class TestRubyGemsIntegration:
 
     def test_findings_have_rubygems_ecosystem(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_rubygems_typosquat
+
         findings = detect_rubygems_typosquat(_gem_malicious(), CORPUS_DIR)
         for f in findings:
             assert f.ecosystem == "rubygems"
 
     def test_dep_confusion_findings_are_critical(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_rubygems_dep_confusion
+
         findings = detect_rubygems_dep_confusion(_gem_malicious())
         for f in findings:
             assert f.severity == Severity.CRITICAL

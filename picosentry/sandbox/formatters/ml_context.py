@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from picosentry.sandbox import __version__
@@ -58,7 +57,6 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
     ]
 
     if result.findings:
-
         by_severity: dict = {}
         for f in result.findings:
             sev = f.severity.value
@@ -80,10 +78,7 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
 
     if result.drift_results:
         lines.append(f"\ndrift: {len(result.drift_results)}")
-        lines.extend(
-            f"  baseline={d.baseline_name} score={d.score:.0%}"
-            for d in result.drift_results
-        )
+        lines.extend(f"  baseline={d.baseline_name} score={d.score:.0%}" for d in result.drift_results)
 
     output = "\n".join(lines)
     return _truncate_to_budget(output, token_budget)

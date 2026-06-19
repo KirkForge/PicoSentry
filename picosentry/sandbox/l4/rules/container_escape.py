@@ -1,40 +1,39 @@
-
 from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 ESCAPE_PATHS: list[tuple[str, str, Severity]] = [
-
     ("/proc/1/", "host PID 1 access — container escape probe", Severity.CRITICAL),
     ("/proc/1/cgroup", "container cgroup escape via PID 1", Severity.CRITICAL),
     ("/proc/1/mountinfo", "host mount info via PID 1", Severity.HIGH),
     ("/proc/1/environ", "host environment via PID 1", Severity.CRITICAL),
     ("/proc/1/cmdline", "host cmdline via PID 1", Severity.MEDIUM),
-
     ("/var/run/docker.sock", "Docker socket access", Severity.CRITICAL),
     ("/run/docker.sock", "Docker socket access", Severity.CRITICAL),
     ("/.dockerenv", "Docker environment detection", Severity.INFO),
-
     ("/etc/hosts", "hosts file modification — container escape", Severity.HIGH),
     ("/etc/resolv.conf", "DNS configuration modification", Severity.MEDIUM),
     ("/etc/hostname", "hostname modification", Severity.MEDIUM),
-
     ("/sys/fs/cgroup/", "cgroup filesystem manipulation", Severity.HIGH),
-
     ("/var/run/containerd/", "containerd socket access", Severity.CRITICAL),
     ("/run/containerd/", "containerd socket access", Severity.CRITICAL),
     ("/var/run/crio/", "CRI-O socket access", Severity.CRITICAL),
     ("/run/crio/", "CRI-O socket access", Severity.CRITICAL),
-
     ("/var/run/secrets/kubernetes.io/", "Kubernetes service account token access", Severity.HIGH),
-
     ("/meta-data", "cloud metadata access attempt", Severity.MEDIUM),
 ]
 
 
 ESCAPE_BINARIES = {
-    "docker", "podman", "ctr", "crictl", "kubectl", "runc",
-    "nsenter", "unshare", "chroot",
+    "docker",
+    "podman",
+    "ctr",
+    "crictl",
+    "kubectl",
+    "runc",
+    "nsenter",
+    "unshare",
+    "chroot",
 }
 
 
@@ -43,11 +42,9 @@ def detect_container_escape(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for op in profile.fs_ops:
         for esc_path, description, severity in ESCAPE_PATHS:
             if op.path == esc_path or op.path.startswith(esc_path):
-
                 final_severity = severity
                 if op.operation == "read" and esc_path == "/.dockerenv":
                     final_severity = Severity.INFO
@@ -67,7 +64,6 @@ def detect_container_escape(
                     )
                 )
 
-
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in ESCAPE_BINARIES:
@@ -81,11 +77,10 @@ def detect_container_escape(
                 )
             )
 
-
     cloud_metadata_addresses = {
         "169.254.169.254",  # AWS/GCP/Azure metadata
         "100.100.100.200",  # Alibaba Cloud metadata
-        "fd00:ec2::254",    # AWS IPv6 metadata
+        "fd00:ec2::254",  # AWS IPv6 metadata
     }
     findings.extend(
         Finding(
@@ -99,7 +94,6 @@ def detect_container_escape(
         if call.address in cloud_metadata_addresses
     )
 
-
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if "/proc/self/mountinfo" in path_lower or "/proc/self/cgroup" in path_lower:
@@ -112,7 +106,6 @@ def detect_container_escape(
                     evidence={"operation": op.operation, "path": op.path},
                 )
             )
-
 
     namespace_keywords = {"nsenter", "unshare", "ip netns", "pivot_root"}
     for spawn in profile.spawns:
@@ -129,7 +122,6 @@ def detect_container_escape(
             for kw in namespace_keywords
             if kw in exe_lower or kw in all_args
         )
-
 
     metadata_dns_patterns = ("metadata.google", "metadata.azure", "169.254.169.254")
     findings.extend(

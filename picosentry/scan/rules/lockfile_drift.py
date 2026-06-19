@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -26,8 +25,6 @@ def _load_lockfile_v1(content: str) -> dict[str, str]:
         data = json.loads(content)
         for key, entry in data.get("dependencies", {}).items():
             if isinstance(entry, dict) and "version" in entry:
-
-
                 deps[key] = entry["version"]
     except json.JSONDecodeError:
         pass
@@ -41,7 +38,6 @@ def _load_lockfile_v2(content: str) -> dict[str, str]:
 
         for pkg_path, entry in data.get("packages", {}).items():
             if isinstance(entry, dict) and "version" in entry:
-
                 name = entry.get("name", "")
                 if not name and "node_modules/" in pkg_path:
                     name = pkg_path.split("node_modules/")[-1]
@@ -67,9 +63,7 @@ def _load_pnpm_lockfile(content: str) -> dict[str, str]:
         if isinstance(version_info, str)
     }
 
-
     for pkg in lockfile.packages.values():
-
         if pkg.name and pkg.version and pkg.name not in deps:
             deps[pkg.name] = pkg.version
 
@@ -121,7 +115,6 @@ def _check_pnpm_workspace(target: Path) -> list[Finding]:
 def detect_lockfile_drift(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     findings.extend(_check_pnpm_workspace(target))
 
     root_pkg = target / "package.json"
@@ -134,7 +127,6 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
 
     pkg_deps = _get_all_dep_versions(pkg)
 
-
     lockfile = target / "package-lock.json"
     pnpm_lock = target / "pnpm-lock.yaml"
     yarn_lock = target / "yarn.lock"
@@ -142,7 +134,6 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
     lockfile_exists = lockfile.is_file()
     pnpm_exists = pnpm_lock.is_file()
     yarn_exists = yarn_lock.is_file()
-
 
     if not lockfile_exists and not pnpm_exists and not yarn_exists:
         if pkg_deps:
@@ -169,7 +160,6 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
                 )
             )
         return findings
-
 
     locked_deps: dict[str, str] = {}
     lockfile_path: Path | None = None
@@ -206,7 +196,6 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
     if not locked_deps:
         return findings
 
-
     for dep_name, requested_version in sorted(pkg_deps.items()):
         if dep_name not in locked_deps:
             findings.append(
@@ -228,17 +217,12 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
                 )
             )
 
-
     pkg_dep_names = set(pkg_deps.keys())
     for locked_name in sorted(locked_deps.keys()):
-
         if locked_name == "" or locked_name == pkg.get("name", ""):
             continue
         if locked_name not in pkg_dep_names:
-
-
             pass  # Transitive deps are expected in lockfiles
-
 
     if lockfile_exists and lockfile_path:
         try:
@@ -314,12 +298,10 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
         except (json.JSONDecodeError, OSError):
             logger.debug("Failed to read lockfile", exc_info=True)
 
-
     if pnpm_exists:
         try:
             pnpm_content = pnpm_lock.read_text(encoding="utf-8", errors="replace")
             pnpm_parsed = parse_pnpm_lockfile(pnpm_content)
-
 
             missing = find_missing_integrity(pnpm_parsed)
             if missing:
@@ -341,7 +323,6 @@ def detect_lockfile_drift(target: Path) -> list[Finding]:
                         ],
                     )
                 )
-
 
             weak = find_weak_integrity(pnpm_parsed)
             if weak:

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import email
@@ -19,7 +18,6 @@ def iter_site_packages(target: Path):
 def _find_site_packages_dirs(target: Path) -> list[Path]:
     found: list[Path] = []
 
-
     patterns = [
         ".venv/lib/python*/site-packages",
         "venv/lib/python*/site-packages",
@@ -33,7 +31,6 @@ def _find_site_packages_dirs(target: Path) -> list[Path]:
         for p in target.glob(pattern):
             if p.is_dir() and p not in found:
                 found.append(p)
-
 
     direct = target / "site-packages"
     if direct.is_dir() and direct not in found:
@@ -51,7 +48,6 @@ def _walk_site_packages(site_dir: Path, visited_names: set[str]):
             continue
 
         if child.name.endswith(".dist-info"):
-
             pkg_name = _parse_dist_info_name(child.name)
             if pkg_name and pkg_name not in visited_names:
                 metadata = _read_dist_metadata(child)
@@ -60,7 +56,6 @@ def _walk_site_packages(site_dir: Path, visited_names: set[str]):
                     yield child, metadata
 
         elif child.name.endswith(".egg-info"):
-
             pkg_name = _parse_egg_info_name(child.name)
             if pkg_name and pkg_name not in visited_names:
                 metadata = _read_egg_info(child)
@@ -68,13 +63,11 @@ def _walk_site_packages(site_dir: Path, visited_names: set[str]):
                     visited_names.add(pkg_name)
                     yield child, metadata
 
-
         for egg_link in site_dir.glob("*.egg-link"):
             if egg_link.is_file():
                 try:
                     link_target = Path(egg_link.read_text(encoding="utf-8").strip())
                     if link_target.is_dir():
-
                         for sub in link_target.iterdir():
                             if sub.name.endswith(".egg-info") and sub.is_dir():
                                 pkg_name = _parse_egg_info_name(sub.name)
@@ -92,10 +85,8 @@ def _parse_dist_info_name(dirname: str) -> str | None:
         return None
     base = dirname[: -len(".dist-info")]
 
-
     parts = base.split("-")
     if len(parts) >= 2:
-
         for i, part in enumerate(parts):
             if part and (part[0].isdigit() or part.startswith("v")):
                 return "-".join(parts[:i])
@@ -128,7 +119,6 @@ def extract_metadata(path: Path) -> dict | None:
     except OSError:
         return None
 
-
     try:
         msg = email.message_from_string(content)
     except Exception:
@@ -138,7 +128,6 @@ def extract_metadata(path: Path) -> dict | None:
     version = msg.get("Version", "")
     if not name or not version:
         return None
-
 
     raw = msg.get_all("Requires-Dist", [])
     requires_dist = [line for line in raw if line]
@@ -178,7 +167,6 @@ def load_pyproject_toml(target: Path) -> dict | None:
         return None
 
     try:
-
         import tomllib
     except ImportError:
         try:
@@ -198,7 +186,6 @@ def load_pyproject_toml(target: Path) -> dict | None:
 def get_python_dep_names(project_data: dict) -> set[str]:
     names: set[str] = set()
 
-
     requires_dist = project_data.get("requires_dist") or project_data.get("Requires-Dist")
     if isinstance(requires_dist, list):
         for req in requires_dist:
@@ -206,14 +193,12 @@ def get_python_dep_names(project_data: dict) -> set[str]:
             if name:
                 names.add(name)
 
-
     deps = project_data.get("dependencies", [])
     if isinstance(deps, list):
         for req in deps:
             name = _extract_pip_package_name(str(req))
             if name:
                 names.add(name)
-
 
     opt_deps = project_data.get("optional-dependencies", {})
     if isinstance(opt_deps, dict):
@@ -232,23 +217,17 @@ def _extract_pip_package_name(req: str) -> str | None:
     if not req:
         return None
 
-
     if req.startswith(("git+", "hg+", "svn+", "bzr+", "http://", "https://", "ftp://", "-r ", "-c ")):
         return None
-
 
     if req.startswith(";"):
         return None
 
-
     name_part = re.split(r"\s*\[\s*", req, maxsplit=1)[0]
-
 
     name_part = re.split(r"[><=~!;\n]", name_part, maxsplit=1)[0]
 
-
     name_part = name_part.strip()
-
 
     if not name_part or name_part.startswith(";"):
         return None
@@ -272,21 +251,17 @@ def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:
         if not line or line.startswith(("#", "-")):
             continue
 
-
         if " #" in line:
             line = line[: line.index(" #")].strip()
         if "  #" in line:
             line = line[: line.index("  #")].strip()
 
-
         if line.startswith("--"):
             continue
-
 
         name = _extract_pip_package_name(line)
         if not name:
             continue
-
 
         version_spec = line[len(name) :].strip()
 
@@ -318,6 +293,5 @@ def detect_pypi_project(target: Path) -> bool:
     for indicator in indicators:
         if (target / indicator).is_file():
             return True
-
 
     return bool((target / ".venv").is_dir())

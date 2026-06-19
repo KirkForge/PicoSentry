@@ -6,6 +6,7 @@ from typing import Any
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -15,32 +16,34 @@ from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Alerts")
 
-class AlertHub:
 
+class AlertHub:
     def __init__(self):
         self.recent_alerts = defaultdict(list)
         self.cooldown_seconds = settings.alerts.cooldown_seconds
         self.max_retries = settings.alerts.max_retries
         self._lock = threading.Lock()
 
-    def send(self, project_id: str, alert_type: str, severity: str,
-             message: str, channels: list[str] | None = None,
-             metadata: dict | None = None) -> bool:
+    def send(
+        self,
+        project_id: str,
+        alert_type: str,
+        severity: str,
+        message: str,
+        channels: list[str] | None = None,
+        metadata: dict | None = None,
+    ) -> bool:
 
         if channels is None:
             channels = self._get_default_channels()
-
 
         with self._lock:
             now = datetime.now(timezone.utc)
             key = f"{project_id}:{alert_type}"
 
-
             self.recent_alerts[key] = [
-                t for t in self.recent_alerts.get(key, [])
-                if (now - t).total_seconds() < self.cooldown_seconds * 2
+                t for t in self.recent_alerts.get(key, []) if (now - t).total_seconds() < self.cooldown_seconds * 2
             ]
-
 
             for prev in self.recent_alerts.get(key, []):
                 if (now - prev).total_seconds() < self.cooldown_seconds:
@@ -49,15 +52,16 @@ class AlertHub:
 
             self.recent_alerts[key].append(now)
 
-
         alert_ids = []
         for channel in channels:
-            alert_id = db.execute_insert("""
+            alert_id = db.execute_insert(
+                """
                 INSERT INTO alerts (project_id, alert_type, severity, message, channel)
                 VALUES (?, ?, ?, ?, ?)
-            """, (project_id, alert_type, severity, message, channel))
+            """,
+                (project_id, alert_type, severity, message, channel),
+            )
             alert_ids.append(alert_id)
-
 
         success = False
         for i, channel in enumerate(channels):
@@ -71,17 +75,22 @@ class AlertHub:
                 elif channel == "syslog":
                     self._syslog_notify(project_id, severity, message)
 
-
-                db.execute("""
+                db.execute(
+                    """
                     UPDATE alerts SET sent = 1 WHERE id = ?
-                """, (alert_ids[i],))
+                """,
+                    (alert_ids[i],),
+                )
                 success = True
             except Exception:
                 logger.exception("Alert delivery failed (%s)", channel)
 
-                db.execute("""
+                db.execute(
+                    """
                     UPDATE alerts SET retry_count = retry_count + 1 WHERE id = ?
-                """, (alert_ids[i],))
+                """,
+                    (alert_ids[i],),
+                )
 
         logger.info("ALERT [%s] %s: %s", severity.upper(), project_id, message[:100])
         return success
@@ -98,17 +107,16 @@ class AlertHub:
 
         return channels
 
-    def _discord_notify(self, project_id: str, severity: str, message: str,
-                       metadata: dict | None = None):
+    def _discord_notify(self, project_id: str, severity: str, message: str, metadata: dict | None = None):
         if not HAS_REQUESTS or not settings.alerts.discord_webhook:
             return
 
         colors = {
             "critical": 15158332,  # Red
-            "high": 16711680,      # Dark red
-            "medium": 16776960,    # Yellow
-            "low": 65280,          # Green
-            "info": 3447003        # Blue
+            "high": 16711680,  # Dark red
+            "medium": 16776960,  # Yellow
+            "low": 65280,  # Green
+            "info": 3447003,  # Blue
         }
 
         embed: dict[str, Any] = {
@@ -118,71 +126,51 @@ class AlertHub:
             "fields": [
                 {"name": "Project", "value": project_id, "inline": True},
                 {"name": "Severity", "value": severity.upper(), "inline": True},
-                {"name": "Time", "value": datetime.now(timezone.utc).isoformat(), "inline": True}
+                {"name": "Time", "value": datetime.now(timezone.utc).isoformat(), "inline": True},
             ],
-            "footer": {"text": "PicoShogun"}
+            "footer": {"text": "PicoShogun"},
         }
 
         if metadata:
             for key, value in metadata.items():
                 if len(str(value)) < 1000:
-                    embed["fields"].append({
-                        "name": key,
-                        "value": str(value)[:1000],
-                        "inline": True
-                    })
+                    embed["fields"].append({"name": key, "value": str(value)[:1000], "inline": True})
 
         payload = {"embeds": [embed]}
 
         try:
             requests.post(
-                settings.alerts.discord_webhook,
-                json=payload,
-                timeout=5,
-                headers={"Content-Type": "application/json"}
+                settings.alerts.discord_webhook, json=payload, timeout=5, headers={"Content-Type": "application/json"}
             )
         except Exception:
             logger.exception("Discord webhook failed")
 
-    def _slack_notify(self, project_id: str, severity: str, message: str,
-                     metadata: dict | None = None):
+    def _slack_notify(self, project_id: str, severity: str, message: str, metadata: dict | None = None):
         if not HAS_REQUESTS or not settings.alerts.slack_webhook:
             return
 
-        colors = {
-                "critical": "#FF0000",
-                "high": "#FF6600",
-                "medium": "#FFCC00",
-                "low": "#00FF00",
-                "info": "#0066FF"
-            }
+        colors = {"critical": "#FF0000", "high": "#FF6600", "medium": "#FFCC00", "low": "#00FF00", "info": "#0066FF"}
 
         payload: dict[str, Any] = {
-            "attachments": [{
-                "color": colors.get(severity, "#808080"),
-                "title": f"PicoShogun Alert: {project_id}",
-                "text": message,
-                "fields": [
-                    {"title": "Severity", "value": severity.upper(), "short": True},
-                    {"title": "Time", "value": datetime.now(timezone.utc).isoformat(), "short": True}
-                ]
-            }]
+            "attachments": [
+                {
+                    "color": colors.get(severity, "#808080"),
+                    "title": f"PicoShogun Alert: {project_id}",
+                    "text": message,
+                    "fields": [
+                        {"title": "Severity", "value": severity.upper(), "short": True},
+                        {"title": "Time", "value": datetime.now(timezone.utc).isoformat(), "short": True},
+                    ],
+                }
+            ]
         }
 
         if metadata:
             for key, value in metadata.items():
-                payload["attachments"][0]["fields"].append({
-                    "title": key,
-                    "value": str(value)[:1000],
-                    "short": True
-                })
+                payload["attachments"][0]["fields"].append({"title": key, "value": str(value)[:1000], "short": True})
 
         try:
-            requests.post(
-                settings.alerts.slack_webhook,
-                json=payload,
-                timeout=5
-            )
+            requests.post(settings.alerts.slack_webhook, json=payload, timeout=5)
         except Exception:
             logger.exception("Slack webhook failed")
 
@@ -208,28 +196,18 @@ Time: {datetime.now(timezone.utc).isoformat()}
             msg["From"] = settings.alerts.email_from or "picoshogun@localhost"
             msg["To"] = ", ".join(settings.alerts.email_to)
 
-
             if settings.alerts.email_smtp_use_ssl:
                 server: smtplib.SMTP_SSL | smtplib.SMTP = smtplib.SMTP_SSL(
-                    settings.alerts.email_smtp_host,
-                    settings.alerts.email_smtp_port
+                    settings.alerts.email_smtp_host, settings.alerts.email_smtp_port
                 )
             else:
-                server = smtplib.SMTP(
-                    settings.alerts.email_smtp_host,
-                    settings.alerts.email_smtp_port
-                )
-
+                server = smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port)
 
             if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
                 server.starttls()
 
-
             if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
-                server.login(
-                    settings.alerts.email_smtp_user,
-                    settings.alerts.email_smtp_password
-                )
+                server.login(settings.alerts.email_smtp_user, settings.alerts.email_smtp_password)
 
             server.send_message(msg)
             server.quit()
@@ -241,33 +219,32 @@ Time: {datetime.now(timezone.utc).isoformat()}
     def _syslog_notify(self, project_id: str, severity: str, message: str):
         import sys
 
-
         _logging_levels = {
-            "critical": 50,   # logging.CRITICAL
-            "high": 40,       # logging.ERROR
-            "medium": 30,     # logging.WARNING
-            "low": 20,        # logging.INFO
-            "info": 20,       # logging.INFO
+            "critical": 50,  # logging.CRITICAL
+            "high": 40,  # logging.ERROR
+            "medium": 30,  # logging.WARNING
+            "low": 20,  # logging.INFO
+            "info": 20,  # logging.INFO
         }
 
         if sys.platform != "win32":
             try:
                 import syslog
+
                 levels = {
                     "critical": syslog.LOG_CRIT,
                     "high": syslog.LOG_ERR,
                     "medium": syslog.LOG_WARNING,
                     "low": syslog.LOG_NOTICE,
-                    "info": syslog.LOG_INFO
+                    "info": syslog.LOG_INFO,
                 }
                 syslog.syslog(
                     levels.get(severity, syslog.LOG_INFO),
-                    f"PicoShogun[{project_id}]: [{severity.upper()}] {message[:500]}"
+                    f"PicoShogun[{project_id}]: [{severity.upper()}] {message[:500]}",
                 )
                 return
             except ImportError:
                 pass  # Fall through to logging fallback
-
 
         log_level = _logging_levels.get(severity, 20)
         logger.log(log_level, "PicoShogun[%s]: [%s] %s", project_id, severity.upper(), message[:500])
@@ -280,7 +257,7 @@ Time: {datetime.now(timezone.utc).isoformat()}
                 sent,
                 COUNT(*) as count
             FROM alerts
-            WHERE created_at > {db.dialect.date_add_hours('now', -hours)}
+            WHERE created_at > {db.dialect.date_add_hours("now", -hours)}
             GROUP BY severity, channel, sent
         """)
 

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -38,7 +37,6 @@ def _l3_github(result: SandboxResult, sarif_path: str) -> str:
     lines = []
     lines.append("## 🛡️ PicoDome — L3 Sandbox Results\n")
 
-
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "ALLOW" else "🚫"
     lines.append(f"**Verdict: {icon} {verdict}**\n")
@@ -72,7 +70,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
     lines = []
     lines.append("## 🛡️ PicoDome — L4 Behavioral Analysis\n")
 
-
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "CLEAN" else ("⚠️" if verdict == "SUSPICIOUS" else "🚫")
 
@@ -80,7 +77,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
         lines.append(f"**{icon} {verdict}** — All clear. Dome intact. 🛡️\n")
     else:
         lines.append(f"**{icon} {verdict}** — {len(result.findings)} finding(s)\n")
-
 
         lines.append("| Severity | Count | Label |")
         lines.append("|----------|-------|-------|")
@@ -90,7 +86,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
                 label = _DOME_LABELS.get(sev, sev.value)
                 lines.append(f"| {sev.value} | {count} | {label} |")
         lines.append("")
-
 
         lines.append("### Findings\n")
         lines.append("| Rule | Severity | Message | Location |")
@@ -102,7 +97,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
         remaining = len(result.findings) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more finding(s)\n")
-
 
     lines.append("\n---\n")
     lines.append("| Field | Value |")

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -19,7 +18,6 @@ DEPRECATED_VERSIONS: dict[str, str] = {}  # currently none
 
 @dataclass(frozen=True)
 class APIVersion:
-
     major: int
     minor: int = 0
     prefix: str = "v"
@@ -45,7 +43,6 @@ class APIVersion:
 
 @dataclass(frozen=True)
 class DeprecationNotice:
-
     version: str
     sunset_date: str  # when the version will be removed
     replacement: str  # the newer version or endpoint to use
@@ -64,7 +61,6 @@ class DeprecationNotice:
 
 
 class APIVersionNegotiator:
-
     def negotiate(
         self,
         path: str = "",
@@ -76,15 +72,12 @@ class APIVersionNegotiator:
         if version:
             return self._resolve(version)
 
-
         version = self._extract_from_accept(accept_header)
         if version:
             return self._resolve(version)
 
-
         if version_header:
             return self._resolve(version_header.strip().lower())
-
 
         return self._resolve(CURRENT_API_VERSION)
 

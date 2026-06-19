@@ -46,6 +46,7 @@ class DatabaseConfig:
     def from_env(cls) -> "DatabaseConfig":
         return cls()  # defaults already read from env via field default_factory
 
+
 @dataclass
 class APIConfig:
     host: str = field(default_factory=lambda: _env("API_HOST", "127.0.0.1"))
@@ -61,10 +62,10 @@ class APIConfig:
     def from_env(cls) -> "APIConfig":
         return cls()  # defaults already read from env via field default_factory
 
+
 @dataclass
 class SecurityConfig:
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "change-me-in-production"))
-
 
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
@@ -85,14 +86,13 @@ class SecurityConfig:
     # enable it.  Default is "unset" so a fresh deploy does NOT silently
     # accept arbitrary paths.
     scans_workspace_root: Path | None = field(
-        default_factory=lambda: (
-            Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
-        )
+        default_factory=lambda: Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
     )
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":
         return cls()  # defaults already read from env via field default_factory
+
 
 @dataclass
 class LoggingConfig:
@@ -102,6 +102,7 @@ class LoggingConfig:
     backup_count: int = 10
     log_dir: Path = BASE_DIR / "logs"
     structured: bool = True  # JSON logging for production
+
 
 @dataclass
 class AlertConfig:
@@ -114,17 +115,16 @@ class AlertConfig:
     email_smtp_use_ssl: bool = field(default_factory=lambda: _env_bool("SMTP_USE_SSL", "false"))
     email_smtp_starttls: bool = field(default_factory=lambda: _env_bool("SMTP_STARTTLS", "true"))
     email_from: str | None = field(default_factory=lambda: _env("EMAIL_FROM", "picoshogun@localhost"))
-    email_to: list[str] = field(default_factory=lambda: [
-        addr.strip()
-        for addr in _env("EMAIL_TO", "").split(",")
-        if addr.strip()
-    ])
+    email_to: list[str] = field(
+        default_factory=lambda: [addr.strip() for addr in _env("EMAIL_TO", "").split(",") if addr.strip()]
+    )
     cooldown_seconds: int = 300
     max_retries: int = 3
 
     @classmethod
     def from_env(cls) -> "AlertConfig":
         return cls()  # defaults already read from env via field default_factory
+
 
 @dataclass
 class OrchestratorConfig:
@@ -154,14 +154,15 @@ class PluginsConfig:
     """User-supplied plugin directories. The bundled
     picosentry/serve/plugins/ is always scanned; this is for extras.
     """
+
     plugin_dirs: list[Path] = field(default_factory=_env_plugin_dirs)
 
     @classmethod
     def from_env(cls) -> "PluginsConfig":
         return cls()  # defaults already read from env via field default_factory
 
-class _SslCertCheck:
 
+class _SslCertCheck:
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
 
@@ -179,7 +180,6 @@ class _SslCertCheck:
 
 
 class _WildcardHostsCheck:
-
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
 
@@ -225,7 +225,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                 issues.append("SECURITY: Wildcard allowed hosts in production")
             if "*" in self.api.cors_origins and self.api.cors_origins == ["*"]:
                 issues.append("SECURITY: Wildcard CORS origin in production — specify explicit origins")
-
 
         if not self.is_production():
             if self.security.secret_key == "change-me-in-production":
@@ -276,20 +275,18 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     def from_file(cls, path: Path) -> "Settings":
         import logging
         from dataclasses import fields as dc_fields
+
         logger = logging.getLogger("picoshogun.config")
         with open(path) as f:
             data = json.load(f)
 
-
         known_hints = get_type_hints(cls)
         known_field_names = {f.name for f in dc_fields(cls)}
-
 
         unknown = set(data.keys()) - known_field_names
         if unknown:
             logger.warning("Ignoring unknown config fields in %s: %s", path, unknown)
         data = {k: v for k, v in data.items() if k in known_field_names}
-
 
         for field_name, field_type in known_hints.items():
             if (

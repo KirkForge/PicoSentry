@@ -7,7 +7,6 @@ from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class MemoryStateBackend(StateBackend):
-
     def __init__(self) -> None:
         self._nodes: dict[str, ClusterNode] = {}
         self._scans: dict[str, ScanRequest] = {}

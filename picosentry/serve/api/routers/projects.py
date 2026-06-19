@@ -84,9 +84,11 @@ async def export_project(
         import io
 
         from fastapi.responses import PlainTextResponse
+
         output = io.StringIO()
         if project.get("findings"):
             import csv
+
             writer = csv.DictWriter(output, fieldnames=project["findings"][0].keys())
             writer.writeheader()
             writer.writerows(project["findings"])

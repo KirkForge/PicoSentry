@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -59,7 +58,6 @@ _UNSET = object()
 
 
 class PicoSentryConfig:
-
     def __init__(self) -> None:
         self.format: str = "table"
         self.output: str | None = None
@@ -124,8 +122,10 @@ class PicoSentryConfig:
             deny_packages=self.deny_packages,
             waivers=self._build_waivers(),
         )
+
     def _build_waivers(self) -> list:
         from picosentry.scan.policy import Waiver
+
         return [Waiver(**w) for w in self.waivers] if self.waivers else []
 
     def assert_secure(self) -> None:
@@ -179,7 +179,6 @@ class PicoSentryConfig:
 
         if not hasattr(args, "format"):
             return merged
-
 
         if getattr(args, "format", None) is not None:
             merged.format = args.format
@@ -301,7 +300,6 @@ _ENV_TO_ATTR = {
     "PICOSENTRY_FORCE_JSON": "force_json",
     "PICOSENTRY_INCREMENTAL": "incremental",
     "PICOSENTRY_JOBS": "jobs",
-
 }
 
 
@@ -311,14 +309,12 @@ def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
         if env_val is None or env_val == "":
             continue
 
-
         lower = env_val.lower()
         if lower in ("true", "1", "yes"):
             setattr(config, attr_name, True)
         elif lower in ("false", "0", "no"):
             setattr(config, attr_name, False)
         else:
-
             try:
                 val = float(env_val)
                 if val == int(val) and "." not in env_val:
@@ -332,12 +328,12 @@ def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
 
 
 class _CorpusSignatureCheck:
-
     def __init__(self, config: PicoSentryConfig) -> None:
         self._config = config
 
     def check(self) -> SecurityViolation | None:
         import os as _os
+
         env = _os.environ.get("PICOSENTRY_ENV", "development")
         if env in ("production", "staging") and not self._config.corpus_require_signature:
             return SecurityViolation(
@@ -365,7 +361,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except ImportError:
-
         try:
             import json
 
@@ -381,9 +376,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-
     _validate_config_keys(data, config_path)
-
 
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(
@@ -441,7 +434,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
     if "summary" in data:
         config.summary = bool(data["summary"])
     if "baseline" in data:
-
         baseline_path = data["baseline"]
         if not Path(baseline_path).is_absolute():
             baseline_path = str(config_path.parent / baseline_path)
@@ -450,7 +442,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         config.baseline_update = bool(data["baseline_update"])
     if "log_format" in data:
         config.log_format = data["log_format"]
-
 
     if "severity_overrides" in data:
         try:
@@ -468,14 +459,12 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         else:
             config.ignore_packages = [str(p) for p in data["ignore_packages"]]
 
-
     policy_path = None
     if data.get("policy"):
         policy_path = Path(data["policy"])
         if not policy_path.is_absolute():
             policy_path = config_path.parent / policy_path
     else:
-
         auto_policy = config_path.parent / ".picosentry-policy.yml"
         if auto_policy.is_file():
             policy_path = auto_policy
@@ -494,10 +483,8 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         except Exception:
             logger.warning("Failed to load policy file %s", policy_path)
 
-
     if "daemon" in data and isinstance(data["daemon"], dict):
         config.daemon = data["daemon"]
-
 
     if "cache" in data and isinstance(data["cache"], dict):
         cache_data = data["cache"]
@@ -507,7 +494,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
             config.cache_max_size_mb = float(cache_data["max_size_mb"])
         if "ttl_seconds" in cache_data:
             config.cache_ttl_seconds = int(cache_data["ttl_seconds"])
-
 
     if "updates" in data and isinstance(data["updates"], dict):
         updates_data = data["updates"]

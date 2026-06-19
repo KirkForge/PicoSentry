@@ -59,7 +59,6 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
 
-
         key = _resolve_signing_key(args)
         if key is None:
             return 1
@@ -81,7 +80,6 @@ def cmd(args: argparse.Namespace) -> int:
         if not policy_path.is_file():
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
-
 
         key = _resolve_signing_key(args)
         if key is None:

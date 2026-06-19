@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -14,7 +13,6 @@ except ImportError:
 
 
 class PicoDomeJSONFormatter(logging.Formatter):
-
     def __init__(self, include_version: bool = True):
         super().__init__()
         self.include_version = include_version
@@ -30,16 +28,13 @@ class PicoDomeJSONFormatter(logging.Formatter):
         if self.include_version:
             entry["picodome_version"] = __version__
 
-
         if hasattr(record, "picodome_context") and isinstance(record.picodome_context, dict):
             entry.update(record.picodome_context)
-
 
         if record.exc_info and record.exc_text is None:
             record.exc_text = self.formatException(record.exc_info)
         if record.exc_text:
             entry["exception"] = record.exc_text
-
 
         return json.dumps(entry, sort_keys=True, default=str)
 
@@ -51,8 +46,6 @@ class PicoDomeJSONFormatter(logging.Formatter):
 
 
 class PicoDomeTextFormatter(logging.Formatter):
-
-
     COLORS: ClassVar[dict[str, str]] = {
         "DEBUG": "\033[36m",  # Cyan
         "INFO": "\033[32m",  # Green
@@ -87,17 +80,13 @@ def setup_logging(
 ) -> None:
     root_logger = logging.getLogger("picodome")
 
-
     root_logger.handlers.clear()
-
 
     numeric_level = getattr(logging, level.upper(), logging.WARNING)
     root_logger.setLevel(numeric_level)
 
-
     handler = logging.StreamHandler()
     handler.setLevel(numeric_level)
-
 
     formatter: logging.Formatter
     if log_format == "json":
@@ -107,7 +96,6 @@ def setup_logging(
 
     handler.setFormatter(formatter)
     root_logger.addHandler(handler)
-
 
     root_logger.propagate = False
 

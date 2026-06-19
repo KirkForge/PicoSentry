@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -106,10 +105,7 @@ def render_status_table() -> str:
         "| Component | Status | Notes |",
         "|-----------|--------|-------|",
     ]
-    lines.extend(
-        f"| {component.name} | **{component.status}** | {component.notes} |"
-        for component in COMPONENT_STATUS
-    )
+    lines.extend(f"| {component.name} | **{component.status}** | {component.notes} |" for component in COMPONENT_STATUS)
     return "\n".join(lines)
 
 

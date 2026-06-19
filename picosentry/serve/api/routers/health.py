@@ -31,6 +31,7 @@ justify-content:center;align-items:center;height:100vh;margin:0">
 @router.get("/dashboard", tags=["Dashboard"], response_class=HTMLResponse)
 async def dashboard():
     from pathlib import Path
+
     base = Path(__file__).resolve().parent.parent.parent / "front"
 
     dashboard_path = base / "build" / "index.html"
@@ -74,16 +75,19 @@ async def liveness_probe():
 async def readiness_probe():
     try:
         from picosentry.serve.database.manager import db
+
         db.execute_one("SELECT 1")
         return {"status": "ready"}
     except Exception:
         from fastapi.responses import JSONResponse
+
         return JSONResponse(status_code=503, content={"status": "not ready", "detail": "database unavailable"})
 
 
 @router.get("/health/history", tags=["Health"])
 async def health_history(limit: int = 50, user: dict = Depends(get_current_user)):
     from picosentry.serve.database.manager import db as _db
+
     rows = _db.execute(
         "SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?",
         (limit,),

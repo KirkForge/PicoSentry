@@ -1,4 +1,3 @@
-
 __version__ = "2.0.14"
 
 from picosentry.watch.config import PicoWatchConfig

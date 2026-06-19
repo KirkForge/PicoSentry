@@ -6,7 +6,6 @@ from starlette.responses import JSONResponse
 
 
 class RequestTimeoutMiddleware(BaseHTTPMiddleware):
-
     def __init__(self, app, timeout_seconds: int = 30):
         super().__init__(app)
         self.timeout_seconds = timeout_seconds

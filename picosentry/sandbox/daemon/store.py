@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -25,7 +24,6 @@ MAX_JOBS = 1000
 
 
 class PersistentScanJobStore:
-
     def __init__(
         self,
         store_dir: Path | None = None,
@@ -54,7 +52,6 @@ class PersistentScanJobStore:
         if not self._store_file.exists():
             return
 
-
         try:
             file_size = self._store_file.stat().st_size
         except OSError:
@@ -63,7 +60,6 @@ class PersistentScanJobStore:
         if file_size > MAX_FILE_SIZE:
             self._compact()
             return
-
 
         jobs: dict[str, dict[str, Any]] = {}
         try:
@@ -83,7 +79,6 @@ class PersistentScanJobStore:
             logger.warning("Failed to read job store: %s", e)
             return
 
-
         if len(jobs) > self._max_jobs:
             sorted_jobs = sorted(
                 jobs.values(),
@@ -97,7 +92,6 @@ class PersistentScanJobStore:
 
     def _compact(self) -> None:
         logger.info("Compacting job store %s", self._store_file)
-
 
         jobs: dict[str, dict[str, Any]] = {}
         try:
@@ -116,13 +110,11 @@ class PersistentScanJobStore:
         except OSError:
             return
 
-
         sorted_jobs = sorted(
             jobs.values(),
             key=lambda j: j.get("created_at", ""),
             reverse=True,
         )[: self._max_jobs]
-
 
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")

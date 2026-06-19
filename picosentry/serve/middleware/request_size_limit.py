@@ -4,7 +4,6 @@ from starlette.responses import JSONResponse
 
 
 class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
-
     def __init__(self, app, max_body_bytes: int = 10 * 1024 * 1024):
         super().__init__(app)
         self.max_body_bytes = max_body_bytes

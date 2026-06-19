@@ -134,10 +134,8 @@ def _compute_exit_code_sandbox(result: SandboxResult, args: argparse.Namespace) 
     if args.exit_code and result.overall_verdict.value in _BAD_VERDICTS:
         return 1
 
-
     if args.fail_on and result.overall_verdict.value in ("DENY", "KILL"):
         return 1
-
 
     return 0 if result.overall_verdict.value == "ALLOW" else 1
 
@@ -147,7 +145,6 @@ def _compute_exit_code_analysis(result: AnalysisResult, args: argparse.Namespace
     if args.exit_code and result.overall_verdict.value in _BAD_VERDICTS:
         return 1
 
-
     if args.fail_on:
         threshold = _SEVERITY_LEVELS.get(args.fail_on, 99)
         for f in result.findings:
@@ -155,13 +152,10 @@ def _compute_exit_code_analysis(result: AnalysisResult, args: argparse.Namespace
             if finding_level <= threshold:
                 return 1
 
-
     return 0 if result.overall_verdict.value == "CLEAN" else 1
 
 
-def _compute_exit_code_pipeline(
-    analysis: AnalysisResult, args: argparse.Namespace
-) -> int:
+def _compute_exit_code_pipeline(analysis: AnalysisResult, args: argparse.Namespace) -> int:
 
     if args.exit_code and analysis.overall_verdict.value in _BAD_VERDICTS:
         return 1
@@ -172,7 +166,6 @@ def _compute_exit_code_pipeline(
             finding_level = _SEVERITY_LEVELS.get(f.severity.value.lower(), 99)
             if finding_level <= threshold:
                 return 1
-
 
     return 0 if analysis.overall_verdict.value == "CLEAN" else 1
 
@@ -194,7 +187,6 @@ def _resolve_signing_key(args: argparse.Namespace) -> bytes | None:
         except ValueError:
             print("Error: key file must contain hex-encoded key", file=sys.stderr)
             return None
-
 
     from picosentry.sandbox.policy_versioned.signing import _load_key
 

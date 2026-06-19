@@ -129,7 +129,8 @@ class TestSeccompBackend:
         # and exits with the child's return code — not just the parent's.
         result = backend.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "import subprocess, sys; sys.exit(subprocess.run(['/bin/true']).returncode)",
             ],
             node_policy(),
@@ -154,15 +155,14 @@ class TestSeccompBackend:
 
         result = backend.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "import subprocess, sys; sys.exit(subprocess.run(['/bin/true']).returncode)",
             ],
             node_policy(),
             timeout=10.0,
         )
-        assert result.exit_code == 0, (
-            f"Child killed under node policy: exit_code={result.exit_code}"
-        )
+        assert result.exit_code == 0, f"Child killed under node policy: exit_code={result.exit_code}"
         assert result.overall_verdict == Verdict.ALLOW
 
     def test_sandbox_blocks_network(self):

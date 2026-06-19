@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -27,19 +26,16 @@ _DEFAULT_EXCLUDE_FIELDS = ("run_id", "timestamp", "duration_ms", "scan_id")
 
 @runtime_checkable
 class DeterministicResult(Protocol):
-
     def to_dict(self, deterministic: bool = ..., *, deterministic_output: bool = ...) -> dict[str, Any]: ...
 
 
 class DeterminismViolation(Exception):
-
     def __init__(self, violations: list[str]):
         self.violations = violations
         super().__init__(f"Determinism violation(s): {len(violations)}\n" + "\n".join(f"  - {v}" for v in violations))
 
 
 class DeterministicGuard:
-
     def check_dict(self, result_dict: dict[str, Any]) -> list[str]:
         violations: list[str] = []
         _check_value(result_dict, violations, path="result")
@@ -51,7 +47,6 @@ class DeterministicGuard:
         for i, f in enumerate(findings):
             path = f"findings[{i}]"
 
-
             for field_name in ("evidence", "message", "remediation"):
                 val = f.get(field_name, "")
                 if not isinstance(val, str):
@@ -62,7 +57,6 @@ class DeterministicGuard:
                     if pattern in val
                 )
 
-
             for field_name in ("finding_id", "rule_id", "package"):
                 val = f.get(field_name, "")
                 if not isinstance(val, str):
@@ -70,24 +64,17 @@ class DeterministicGuard:
                 if field_name == "finding_id" and UUID_PATTERN.fullmatch(val):
                     violations.append(f"{path}.{field_name} is a UUID (non-deterministic): {val}")
 
-
             if not f.get("rule_id"):
                 violations.append(f"{path} missing rule_id")
 
-
         if findings:
             keys = [
-                (f.get("rule_id", ""), f.get("package", ""), f.get("file", ""), f.get("line") or 0)
-                for f in findings
+                (f.get("rule_id", ""), f.get("package", ""), f.get("file", ""), f.get("line") or 0) for f in findings
             ]
             if keys != sorted(keys):
                 violations.append("findings not sorted by (rule_id, package, file, line)")
 
-
-        fingerprints = [
-            (f.get("rule_id", ""), f.get("package", ""), f.get("file", ""))
-            for f in findings
-        ]
+        fingerprints = [(f.get("rule_id", ""), f.get("package", ""), f.get("file", "")) for f in findings]
         if len(fingerprints) != len(set(fingerprints)):
             violations.append("duplicate findings detected (same rule_id, package, file)")
 
@@ -101,11 +88,7 @@ def deterministic_hash(
     det = {k: v for k, v in data.items() if k not in exclude_fields}
 
     if "stats" in det and isinstance(det["stats"], dict):
-        det["stats"] = {
-            k: v
-            for k, v in det["stats"].items()
-            if k not in ("duration_ms", "rule_timings_ms")
-        }
+        det["stats"] = {k: v for k, v in det["stats"].items() if k not in ("duration_ms", "rule_timings_ms")}
     return hashlib.sha256(json.dumps(det, sort_keys=True).encode()).hexdigest()
 
 
@@ -151,11 +134,8 @@ def diff_results(
         if full_hash_a != full_hash_b:
             timing_a = data_a.get("duration_ms") or data_a.get("stats", {}).get("duration_ms", "?")
             timing_b = data_b.get("duration_ms") or data_b.get("stats", {}).get("duration_ms", "?")
-            lines.append(
-                f"  note: full JSON differs (timing: {timing_a}ms vs {timing_b}ms)"
-            )
+            lines.append(f"  note: full JSON differs (timing: {timing_a}ms vs {timing_b}ms)")
         return (0, "\n".join(lines))
-
 
     lines = [
         "✗ Results DIFFER — determinism violation detected",
@@ -164,7 +144,6 @@ def diff_results(
         f"  {findings_key}_a: {len(data_a.get(findings_key, []))}",
         f"  {findings_key}_b: {len(data_b.get(findings_key, []))}",
     ]
-
 
     for key in sorted(set(list(data_a.keys()) + list(data_b.keys()))):
         if key == findings_key:
@@ -177,7 +156,6 @@ def diff_results(
     if verbose:
         findings_a = data_a.get(findings_key, [])
         findings_b = data_b.get(findings_key, [])
-
 
         def _finding_fingerprint(f: dict) -> tuple:
             return (

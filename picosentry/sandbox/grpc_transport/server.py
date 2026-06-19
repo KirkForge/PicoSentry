@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -13,7 +12,6 @@ logger = logging.getLogger("picodome.grpc_transport.server")
 
 
 class _ScanEngine:
-
     def __init__(
         self,
         scan_fn: Callable | None = None,
@@ -41,7 +39,6 @@ class _ScanEngine:
 
 
 class PicoDomeGRPCServer:
-
     def __init__(
         self,
         host: str = "[::]",
@@ -76,13 +73,11 @@ class PicoDomeGRPCServer:
             scan_count_ref=self,
         )
 
-
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc
 
             pb2_grpc.add_PicoDomeServiceServicer_to_server(self._servicer, self._server)
         except ImportError:
-
             logger.warning(
                 "Compiled protobuf stubs not found. "
                 "Regenerate with scripts/regen_proto.sh "
@@ -93,7 +88,6 @@ class PicoDomeGRPCServer:
             from picosentry.sandbox.grpc_transport._servicer import add_servicer_manually
 
             add_servicer_manually(self._servicer, self._server)
-
 
         server_credentials = None
         if self._mtls_config is not None:
@@ -106,7 +100,6 @@ class PicoDomeGRPCServer:
         else:
             self._server.add_insecure_port(address)
             logger.info("gRPC server starting (plaintext) on %s", address)
-
 
         try:
             from picosentry.sandbox.audit import AuditEventType, get_audit_logger
@@ -127,7 +120,6 @@ class PicoDomeGRPCServer:
     def stop(self, grace: float = 5.0) -> None:
         if self._server:
             self._server.stop(grace)
-
 
             try:
                 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
@@ -155,7 +147,6 @@ class PicoDomeGRPCServer:
         if mtls_config.dev_mode:
             logger.warning("Dev TLS mode — self-signed certs, DO NOT USE IN PRODUCTION")
 
-
             return None
 
         if not mtls_config.cert_path or not mtls_config.key_path:
@@ -178,7 +169,6 @@ class PicoDomeGRPCServer:
                     require_client_auth=True,
                 )
             else:
-
                 credentials = grpc.ssl_server_credentials(
                     ((private_key, cert_chain),),
                 )

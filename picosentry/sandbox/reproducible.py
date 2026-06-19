@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -31,7 +30,6 @@ class ReproducibleBuildError(Exception):
 
 @dataclass(frozen=True)
 class ReproducibleBuild:
-
     source_date_epoch: int = 0
     python_hash_seed: int = 0
     pip_no_build_isolation: bool = True
@@ -80,7 +78,6 @@ def get_source_date_epoch(fallback_timestamp: int | None = None) -> int:
             raise ReproducibleBuildError(f"SOURCE_DATE_EPOCH must be non-negative, got: {epoch}")
         return epoch
 
-
     if fallback_timestamp is not None:
         return fallback_timestamp
     return _DEFAULT_SOURCE_DATE_EPOCH
@@ -98,9 +95,7 @@ def pin_dependencies(lockfile_path: str) -> dict:
         line = raw_line.strip()
 
         if not line or line.startswith(("#", "-")):
-
             continue
-
 
         match = re.match(r"^(?P<name>[a-zA-Z0-9_.-]+)(?P<op>==|>=|<=|~=|!=|>|<)(?P<version>[^;\s]+)", line)
         if not match:
@@ -109,7 +104,6 @@ def pin_dependencies(lockfile_path: str) -> dict:
         name = match.group("name")
         version = match.group("version")
         version_op = match.group("op")
-
 
         hashes = [
             {
@@ -149,7 +143,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
     violations: list[str] = []
     checks: list[dict] = []
 
-
     try:
         with zipfile.ZipFile(path, "r") as zf:
             namelist = zf.namelist()
@@ -170,14 +163,10 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             "violations": violations,
         }
 
-
     with zipfile.ZipFile(path, "r") as zf:
         timestamp_violations = []
         for info in zf.infolist():
-
-
             dt = info.date_time
-
 
             if dt not in ((1980, 1, 1, 0, 0, 0), (1970, 1, 1, 0, 0, 0)):
                 timestamp_violations.append(
@@ -197,13 +186,7 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             }
         )
 
-
-        nondeterministic = [
-            name
-            for name in namelist
-            if "__pycache__" in name and name.endswith(".pyc")
-        ]
-
+        nondeterministic = [name for name in namelist if "__pycache__" in name and name.endswith(".pyc")]
 
         if nondeterministic:
             passed = False
@@ -217,7 +200,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
                 "detail": f"{len(nondeterministic)} non-deterministic files",
             }
         )
-
 
         wheel_meta = [n for n in namelist if n.endswith("/WHEEL")]
         if wheel_meta:
@@ -241,7 +223,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
                 "detail": detail,
             }
         )
-
 
     wheel_hash = _file_sha256(path)
     checks.append(
@@ -290,20 +271,16 @@ def generate_build_manifest(output_dir: str) -> str:
     epoch = get_source_date_epoch()
     source_files: dict[str, str] = {}
 
-
     for py_file in sorted(out_path.rglob("*.py")):
-
         if "__pycache__" in str(py_file) or ".git" in str(py_file):
             continue
         rel_path = str(py_file.relative_to(out_path))
         source_files[rel_path] = _file_sha256(py_file)
 
-
     for config_file in ["pyproject.toml", "setup.cfg", "setup.py", "MANIFEST.in"]:
         cf = out_path / config_file
         if cf.is_file():
             source_files[config_file] = _file_sha256(cf)
-
 
     for req_file in out_path.glob("requirements*.txt"):
         rel = str(req_file.relative_to(out_path))

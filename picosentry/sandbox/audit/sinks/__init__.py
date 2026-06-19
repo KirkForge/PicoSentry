@@ -1,4 +1,3 @@
-
 from picosentry.sandbox.audit.sinks.base import (
     SINK_REGISTRY,
     AuditSink,

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -28,7 +27,6 @@ def _escape_seatbelt_path(path: str) -> str:
 
 
 class SeatbeltBackend(SandboxBackend):
-
     @property
     def name(self) -> str:
         return "seatbelt"
@@ -71,7 +69,6 @@ class SeatbeltBackend(SandboxBackend):
             return self._fallback_run(command, policy, timeout, cwd, env)
 
         try:
-
             profile = self._generate_profile(policy, command, cwd)
 
             with tempfile.NamedTemporaryFile(mode="w", suffix=".sb", delete=False, prefix="picodome_") as f:
@@ -79,7 +76,6 @@ class SeatbeltBackend(SandboxBackend):
                 profile_path = f.name
 
             try:
-
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
                 run_env = os.environ.copy()
@@ -115,7 +111,6 @@ class SeatbeltBackend(SandboxBackend):
                         )
                     )
 
-
                 if "deny" in stderr.lower() or "violation" in stderr.lower():
                     events.append(
                         SandboxEvent(
@@ -126,7 +121,6 @@ class SeatbeltBackend(SandboxBackend):
                             timestamp_ms=int(_now_ms() - start_ms),
                         )
                     )
-
 
                 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 
@@ -185,7 +179,6 @@ class SeatbeltBackend(SandboxBackend):
         cwd: str | None = None,
     ) -> str:
         lines = ["(version 1)"]
-
 
         if policy.default_action == SyscallAction.DENY:
             lines.append("(deny default)")

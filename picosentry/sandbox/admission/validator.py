@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -9,7 +8,6 @@ logger = logging.getLogger("picodome.admission.validator")
 
 
 class PodSecurityValidator:
-
     def __init__(
         self,
         deny_privileged: bool = True,
@@ -41,9 +39,7 @@ class PodSecurityValidator:
         if not spec:
             return True, ""
 
-
         pod_security = spec.get("securityContext", {})
-
 
         if self.deny_host_network:
             if spec.get("hostNetwork", False):
@@ -53,7 +49,6 @@ class PodSecurityValidator:
             if spec.get("hostIPC", False):
                 violations.append("hostIPC is not allowed")
 
-
         if self.deny_host_path:
             violations.extend(
                 f"hostPath volume '{vol.get('name', 'unknown')}' is not allowed"
@@ -61,10 +56,8 @@ class PodSecurityValidator:
                 if "hostPath" in vol
             )
 
-
         if self.require_non_root and not pod_security.get("runAsNonRoot", False):
             violations.append("pod securityContext.runAsNonRoot must be true")
-
 
         containers = spec.get("containers", []) + spec.get("initContainers", [])
         for container in containers:
@@ -72,28 +65,22 @@ class PodSecurityValidator:
             has_security = "securityContext" in container
             sec = container.get("securityContext", {})
 
-
             if self.require_security_context and not has_security:
                 violations.append(f"container '{name}' missing securityContext")
 
-
             if self.deny_privileged and sec.get("privileged", False):
                 violations.append(f"container '{name}' is privileged")
-
 
             if self.deny_run_as_root:
                 run_as_user = sec.get("runAsUser", pod_security.get("runAsUser"))
                 if run_as_user == 0:
                     violations.append(f"container '{name}' runs as root (runAsUser=0)")
 
-
             if self.require_non_root and not sec.get("runAsNonRoot", pod_security.get("runAsNonRoot", False)):
                 violations.append(f"container '{name}' securityContext.runAsNonRoot must be true")
 
-
             if self.require_read_only_root and not sec.get("readOnlyRootFilesystem", False):
                 violations.append(f"container '{name}' readOnlyRootFilesystem must be true")
-
 
             if self.require_drop_all_caps:
                 caps = sec.get("capabilities", {})

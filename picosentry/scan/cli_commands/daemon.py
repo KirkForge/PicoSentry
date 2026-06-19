@@ -35,7 +35,6 @@ def cmd(args: argparse.Namespace) -> int:
     from picosentry.scan.daemon import TLSConfig, run_daemon
     from picosentry.scan.enterprise import is_enterprise_mode
 
-
     auth_config = AuthConfig.from_env()
     if getattr(args, "auth_mode", None) is not None:
         auth_config.mode = args.auth_mode
@@ -44,12 +43,10 @@ def cmd(args: argparse.Namespace) -> int:
     if getattr(args, "rate_limit", None) is not None:
         auth_config.rate_limit_rps = args.rate_limit
 
-
     if getattr(args, "enterprise", False) and not is_enterprise_mode():
         import os
 
         os.environ["PICOSENTRY_ENTERPRISE_MODE"] = "1"
-
 
     tls_config = TLSConfig(
         cert_file=getattr(args, "tls_cert", None) or "",

@@ -58,8 +58,7 @@ def test_subpackage_versions_match_top_level() -> None:
     ]:
         actual = getattr(module, "__version__", None)
         assert actual == expected, (
-            f"picosentry.{name}.__version__ = {actual!r}, "
-            f"expected {expected!r} (top-level picosentry.__version__)"
+            f"picosentry.{name}.__version__ = {actual!r}, expected {expected!r} (top-level picosentry.__version__)"
         )
 
 
@@ -75,18 +74,10 @@ def test_helm_chart_app_version_matches() -> None:
     field tracks chart-template revisions, not the app inside the chart.
     """
     expected = picosentry.__version__
-    chart = (
-        Path(__file__).resolve().parent.parent
-        / "deploy"
-        / "helm"
-        / "picodome"
-        / "Chart.yaml"
-    )
+    chart = Path(__file__).resolve().parent.parent / "deploy" / "helm" / "picodome" / "Chart.yaml"
     if not chart.exists():
         pytest.skip(f"Helm chart not present: {chart}")
     text = chart.read_text()
     match = re.search(r'^appVersion:\s*"([^"]+)"', text, re.MULTILINE)
     assert match, f"Helm chart is missing an appVersion field: {chart}"
-    assert match.group(1) == expected, (
-        f"Helm chart appVersion = {match.group(1)!r}, expected {expected!r}"
-    )
+    assert match.group(1) == expected, f"Helm chart appVersion = {match.group(1)!r}, expected {expected!r}"

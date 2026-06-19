@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -36,8 +35,8 @@ _HAS_MINISIGN: bool | None = None
 def _check_minisign() -> bool:
     global _HAS_MINISIGN
     if _HAS_MINISIGN is None:
-
         import shutil
+
         if shutil.which("minisign"):
             _HAS_MINISIGN = True
             return _HAS_MINISIGN
@@ -67,7 +66,6 @@ def has_minisign() -> bool:
 
 
 class SignatureBundle:
-
     def __init__(
         self,
         signer_identity: str = "",
@@ -133,18 +131,14 @@ def sign_content_sigstore(content: bytes) -> SignatureBundle:
 
     digest = content_digest(content)
 
-
     try:
         token = detect_credential()
         issuer = Issuer.production()  # sigstore.dev (public good instance)
     except Exception:
-
-
         token = detect_credential()
         issuer = Issuer.production()
 
     identity = token.identity() if hasattr(token, "identity") else "unknown"
-
 
     signing_result = sigstore.sign(
         content,
@@ -177,7 +171,6 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
 
     digest = content_digest(content)
 
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tf:
         tf.write(content)
         tmp_path = tf.name
@@ -198,11 +191,9 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
         if result.returncode != 0:
             raise RuntimeError(f"minisign signing failed: {result.stderr}")
 
-
         sig_path = Path(str(tmp_path) + ".minisig")
         signature_b64 = base64.b64encode(sig_path.read_bytes()).decode()
         sig_path.unlink(missing_ok=True)
-
 
         try:
             subprocess.run(
@@ -243,9 +234,7 @@ def sign_content(content: bytes, method: str = "sigstore", secret_key: str = "",
         raise ValueError(f"Unknown signing method: {method}")
 
 
-def verify_content_sigstore(
-    content: bytes, signature_bundle_json: str, offline: bool = False
-) -> bool:
+def verify_content_sigstore(content: bytes, signature_bundle_json: str, offline: bool = False) -> bool:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore verification. Install with: pip install sigstore")
 
@@ -256,9 +245,7 @@ def verify_content_sigstore(
     from sigstore.verify.policy import VerificationSuccess
 
     try:
-
         bundle_bytes = base64.b64decode(signature_bundle_json)
-
 
         materials = VerificationMaterials.from_bundle(
             input_=content,
@@ -293,7 +280,6 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
     import base64
     import subprocess
     import tempfile
-
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tf:
         tf.write(content)

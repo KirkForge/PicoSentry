@@ -1,4 +1,3 @@
-
 from .engine import ScanEngine, create_default_engine, user_corpus_dir
 from .models import (
     BaselineResult,

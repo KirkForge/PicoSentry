@@ -50,8 +50,7 @@ def test_denylisted_keys_fail_the_gate(bad_key: str) -> None:
         )
         names = {v.check for v in violations}
         assert "secret_key" in names, (
-            f"denylisted key {bad_key!r} in env={env!r} should produce a "
-            f"secret_key violation; got {names}"
+            f"denylisted key {bad_key!r} in env={env!r} should produce a secret_key violation; got {names}"
         )
         # Every secret_key violation must be ERROR, not WARN — there's no
         # scenario where shipping the default is OK.
@@ -72,8 +71,7 @@ def test_short_key_fails_the_gate() -> None:
         )
         names = {v.check for v in violations}
         assert "secret_key_length" in names, (
-            f"31-byte key in env={env!r} should produce a secret_key_length "
-            f"violation; got {names}"
+            f"31-byte key in env={env!r} should produce a secret_key_length violation; got {names}"
         )
 
 
@@ -90,10 +88,7 @@ def test_strong_key_passes_the_gate() -> None:
             block_on_error=False,
         )
         names = {v.check for v in violations}
-        assert "secret_key" not in names, (
-            f"strong key in env={env!r} must not trip the secret_key check; "
-            f"got {names}"
-        )
+        assert "secret_key" not in names, f"strong key in env={env!r} must not trip the secret_key check; got {names}"
 
 
 def test_allow_insecure_secret_bypass() -> None:

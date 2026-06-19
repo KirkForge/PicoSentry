@@ -109,32 +109,34 @@ class TestSeccompBackendForkOrdering:
         # Patch os.environ.copy on the actual os.environ object so the
         # backend's call to ``os.environ.copy()`` is intercepted. Other
         # os.environ operations (if any) use the real mapping.
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
-            side_effect=fake_fork,
-        ), patch.object(
-            os.environ, "copy", side_effect=fake_environ_copy
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
-            return_value=(0, 1),
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.ctypes.CDLL",
-            return_value=lib,
-        ), patch.object(
-            SeccompBackend, "_wait_with_timeout", fake_wait_with_timeout
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.read",
-            return_value=b"hi\n",
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.close",
-            return_value=None,
+        with (
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
+                side_effect=fake_fork,
+            ),
+            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
+                return_value=(0, 1),
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.ctypes.CDLL",
+                return_value=lib,
+            ),
+            patch.object(SeccompBackend, "_wait_with_timeout", fake_wait_with_timeout),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.read",
+                return_value=b"hi\n",
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.close",
+                return_value=None,
+            ),
         ):
             result = backend.run(["/bin/echo", "hi"], policy=policy, timeout=5.0)
 
         # The env-copy must happen before the fork.
-        assert "environ_copy" in call_order, (
-            f"expected environ_copy in call_order, got {call_order!r}"
-        )
+        assert "environ_copy" in call_order, f"expected environ_copy in call_order, got {call_order!r}"
         assert "fork" in call_order
         assert call_order.index("environ_copy") < call_order.index("fork"), (
             f"env-dict construction must run in parent before fork; "
@@ -172,25 +174,29 @@ class TestSeccompBackendForkOrdering:
         def fake_wait_with_timeout(self, pid, out_r, err_r, timeout):
             return (b"hi\n", b"", 0)
 
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
-            side_effect=fake_fork,
-        ), patch.object(
-            os.environ, "copy", side_effect=fake_environ_copy
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
-            return_value=(0, 1),
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.ctypes.CDLL",
-            return_value=lib,
-        ), patch.object(
-            SeccompBackend, "_wait_with_timeout", fake_wait_with_timeout
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.read",
-            return_value=b"hi\n",
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.os.close",
-            return_value=None,
+        with (
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
+                side_effect=fake_fork,
+            ),
+            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
+                return_value=(0, 1),
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.ctypes.CDLL",
+                return_value=lib,
+            ),
+            patch.object(SeccompBackend, "_wait_with_timeout", fake_wait_with_timeout),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.read",
+                return_value=b"hi\n",
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.os.close",
+                return_value=None,
+            ),
         ):
             backend.run(["/bin/echo", "hi"], policy=policy, timeout=5.0)
 
@@ -234,9 +240,7 @@ class TestSeccompBackendRuleAddReturn:
         assert result is False
         # The DEBUG log line should mention the syscall and the action.
         debug_messages = [r.message for r in caplog.records if r.levelno == logging.DEBUG]
-        assert any("open" in m for m in debug_messages), (
-            f"expected DEBUG log mentioning 'open', got {debug_messages!r}"
-        )
+        assert any("open" in m for m in debug_messages), f"expected DEBUG log mentioning 'open', got {debug_messages!r}"
         assert any("seccomp_rule_add skipped" in m for m in debug_messages), (
             f"expected 'seccomp_rule_add skipped' in DEBUG, got {debug_messages!r}"
         )
@@ -306,9 +310,7 @@ class TestSeccompBackendRuleAddReturn:
                 ),
             ],
         )
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.add_rule_safely"
-        ) as mock_add:
+        with patch("picosentry.sandbox.l3.backends.seccomp_backend.add_rule_safely") as mock_add:
             _ctx, _blocked = backend._build_filter(lib, policy)
 
         # add_rule_safely must have been called for at least the
@@ -337,10 +339,10 @@ class TestSeccompBackendSharedConstants:
         value equality — catches a silent copy-paste.)
         """
         from picosentry.sandbox.l3.backends import seccomp_backend
+
         # The backend no longer carries a local _SAFE_SYSCALLS attribute.
         assert not hasattr(seccomp_backend, "_SAFE_SYSCALLS"), (
-            "seccomp_backend.py should import SAFE_SYSCALLS from "
-            "_seccomp_common, not redefine it locally"
+            "seccomp_backend.py should import SAFE_SYSCALLS from _seccomp_common, not redefine it locally"
         )
         # And the imported name is the same object as in common.
         assert seccomp_backend.SAFE_SYSCALLS is SAFE_SYSCALLS
@@ -367,9 +369,7 @@ class TestSeccompBackendSharedConstants:
         """
         backend = SeccompBackend()
         lib = MagicMock()
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.resolve_syscall"
-        ) as mock_resolve:
+        with patch("picosentry.sandbox.l3.backends.seccomp_backend.resolve_syscall") as mock_resolve:
             backend._resolve(lib, "open")
         mock_resolve.assert_called_once_with(lib, "open", backend._syscall_cache)
 
@@ -378,8 +378,6 @@ class TestSeccompBackendSharedConstants:
         to ``_seccomp_common.target_to_syscalls``.
         """
         backend = SeccompBackend()
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_backend.target_to_syscalls"
-        ) as mock_tts:
+        with patch("picosentry.sandbox.l3.backends.seccomp_backend.target_to_syscalls") as mock_tts:
             backend._target_to_syscalls(RuleTarget.FILE_READ)
         mock_tts.assert_called_once_with(RuleTarget.FILE_READ)

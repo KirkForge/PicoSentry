@@ -2,7 +2,6 @@
 test_engine.py — Tests for L2-ENGIN-001 engine constraint detection.
 """
 
-
 from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
 from picosentry.scan.rules.engine import detect_engine_issues

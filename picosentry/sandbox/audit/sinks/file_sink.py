@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import contextlib
@@ -22,7 +21,6 @@ _DEFAULT_ROTATE_COUNT = 10
 
 
 class FileSink(AuditSink):
-
     def __init__(
         self,
         config: SinkConfig | None = None,
@@ -40,7 +38,6 @@ class FileSink(AuditSink):
         self._lock = threading.Lock()
         self._fh: typing.TextIO | None = None
 
-
     def start(self) -> None:
         super().start()
         self._output_dir.mkdir(parents=True, exist_ok=True)
@@ -57,7 +54,6 @@ class FileSink(AuditSink):
             with contextlib.suppress(OSError):
                 self._fh.flush()
 
-
     def send(self, event: AuditEvent) -> None:
         try:
             line = event.to_json_line()
@@ -68,19 +64,15 @@ class FileSink(AuditSink):
             logger.exception("FileSink write failed")
             self._record_failure(str(exc))
 
-
     @property
     def file_path(self) -> Path:
         return self._file_path
-
 
     def _write_line(self, line: str) -> None:
         if self._file_path.exists() and self._file_path.stat().st_size >= self._max_bytes:
             self._rotate()
 
         if self._fh is None:
-
-
             self._fh = open(self._file_path, "a", encoding="utf-8")  # noqa: SIM115
         self._fh.write(line + "\n")
         self._fh.flush()
@@ -93,11 +85,9 @@ class FileSink(AuditSink):
             if src.exists():
                 shutil.move(str(src), str(dst))
 
-
         one_path = self._file_path.with_suffix(".1.jsonl.gz")
         with open(self._file_path, "rb") as f_in, gzip.open(one_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-
 
         if self._fh is not None:
             with contextlib.suppress(OSError):

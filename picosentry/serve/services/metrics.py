@@ -14,8 +14,8 @@ class Metric:
     timestamp: float
     metric_type: str = "gauge"  # gauge, counter, histogram, summary
 
-class MetricsCollector:
 
+class MetricsCollector:
     def __init__(self):
         self.metrics: dict[str, list[Metric]] = defaultdict(list)
         self.counters: dict[str, float] = defaultdict(float)
@@ -24,13 +24,9 @@ class MetricsCollector:
 
     def gauge(self, name: str, value: float, labels: dict[str, str] | None = None):
         with self._lock:
-            self.metrics[name].append(Metric(
-                name=name,
-                value=value,
-                labels=labels or {},
-                timestamp=time.time(),
-                metric_type="gauge"
-            ))
+            self.metrics[name].append(
+                Metric(name=name, value=value, labels=labels or {}, timestamp=time.time(), metric_type="gauge")
+            )
 
             if len(self.metrics[name]) > 1000:
                 self.metrics[name] = self.metrics[name][-1000:]
@@ -39,23 +35,21 @@ class MetricsCollector:
         with self._lock:
             key = f"{name}:{json.dumps(labels or {}, sort_keys=True)}"
             self.counters[key] += increment
-            self.metrics[name].append(Metric(
-                name=name,
-                value=self.counters[key],
-                labels=labels or {},
-                timestamp=time.time(),
-                metric_type="counter"
-            ))
+            self.metrics[name].append(
+                Metric(
+                    name=name,
+                    value=self.counters[key],
+                    labels=labels or {},
+                    timestamp=time.time(),
+                    metric_type="counter",
+                )
+            )
 
     def histogram(self, name: str, value: float, labels: dict[str, str] | None = None):
         with self._lock:
-            self.metrics[name].append(Metric(
-                name=name,
-                value=value,
-                labels=labels or {},
-                timestamp=time.time(),
-                metric_type="histogram"
-            ))
+            self.metrics[name].append(
+                Metric(name=name, value=value, labels=labels or {}, timestamp=time.time(), metric_type="histogram")
+            )
 
     def project_run(self, project_id: str, duration: float, status: str):
         self.counter("project_runs_total", 1, {"project": project_id, "status": status})
@@ -67,15 +61,8 @@ class MetricsCollector:
             self.counter("project_failures_total", 1, {"project": project_id})
 
     def api_request(self, method: str, endpoint: str, status_code: int, duration: float):
-        self.counter("api_requests_total", 1, {
-            "method": method,
-            "endpoint": endpoint,
-            "status": str(status_code)
-        })
-        self.histogram("api_request_duration_seconds", duration, {
-            "method": method,
-            "endpoint": endpoint
-        })
+        self.counter("api_requests_total", 1, {"method": method, "endpoint": endpoint, "status": str(status_code)})
+        self.histogram("api_request_duration_seconds", duration, {"method": method, "endpoint": endpoint})
 
     def threat_level(self, score: float):
         self.gauge("threat_score", score)
@@ -86,13 +73,11 @@ class MetricsCollector:
     def to_prometheus(self) -> str:
         lines = []
 
-
         lines.append("# HELP picoshogun_uptime_seconds Total uptime in seconds")
         lines.append("# TYPE picoshogun_uptime_seconds gauge")
         lines.append(f"picoshogun_uptime_seconds {self.uptime_seconds()}")
 
         with self._lock:
-
             grouped = defaultdict(list)
             for metrics_list in self.metrics.values():
                 for m in metrics_list:
@@ -120,20 +105,11 @@ class MetricsCollector:
             metrics_data: dict[str, Any] = {}
             for name, metrics_list in self.metrics.items():
                 metrics_data[name] = [
-                    {
-                        "value": m.value,
-                        "labels": m.labels,
-                        "timestamp": m.timestamp,
-                        "type": m.metric_type
-                    }
+                    {"value": m.value, "labels": m.labels, "timestamp": m.timestamp, "type": m.metric_type}
                     for m in metrics_list[-100:]
                 ]
 
-        return {
-            "uptime_seconds": self.uptime_seconds(),
-            "metrics": metrics_data,
-            "counters": dict(self.counters)
-        }
+        return {"uptime_seconds": self.uptime_seconds(), "metrics": metrics_data, "counters": dict(self.counters)}
 
 
 metrics = MetricsCollector()

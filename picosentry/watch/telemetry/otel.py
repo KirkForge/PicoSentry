@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -31,7 +30,6 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
             exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
             provider.add_span_processor(BatchSpanProcessor(exporter))
         else:
-
             try:
                 from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 

@@ -1,4 +1,3 @@
-
 import re
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
@@ -33,7 +32,6 @@ def detect_supply_chain_patterns(
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for spawn in profile.spawns:
         args_str = " ".join(spawn.args)
         for pattern, description in _OBFUSCATION_PATTERNS:
@@ -49,7 +47,6 @@ def detect_supply_chain_patterns(
                 )
                 break
 
-
         for pattern, description in _INSTALL_EXEC_PATTERNS:
             if re.search(pattern, args_str):
                 findings.append(
@@ -62,7 +59,6 @@ def detect_supply_chain_patterns(
                     )
                 )
 
-
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
@@ -73,8 +69,7 @@ def detect_supply_chain_patterns(
                     rule_id="L4-SC-003",
                     severity=Severity.HIGH,
                     message=(
-                        f"Network activity in zero-network baseline: "
-                        f"{len(profile.network_calls)} connections detected"
+                        f"Network activity in zero-network baseline: {len(profile.network_calls)} connections detected"
                     ),
                     location=profile.package,
                     evidence={
@@ -85,7 +80,6 @@ def detect_supply_chain_patterns(
                 )
             )
 
-
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
@@ -95,10 +89,7 @@ def detect_supply_chain_patterns(
                 Finding(
                     rule_id="L4-SC-004",
                     severity=Severity.HIGH,
-                    message=(
-                        f"Process spawning in zero-spawn baseline: "
-                        f"{len(profile.spawns)} spawns detected"
-                    ),
+                    message=(f"Process spawning in zero-spawn baseline: {len(profile.spawns)} spawns detected"),
                     location=profile.package,
                     evidence={
                         "spawn_count": len(profile.spawns),
@@ -107,7 +98,6 @@ def detect_supply_chain_patterns(
                     },
                 )
             )
-
 
     suspicious_keywords = {"pastebin", "webhook", "ipify", "ifconfig", "whatismyip", "checkip"}
     findings.extend(

@@ -100,7 +100,7 @@ class TestPyPITyposquat:
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
 
         target = _pypi_malicious()
-        findings = detect_pypi_typosquat(target, Path(""))
+        findings = detect_pypi_typosquat(target, Path())
         typos = [f for f in findings if "requsts" in f.package]
         assert len(typos) >= 1, f"Expected typosquat for 'requsts', got: {[f.package for f in findings]}"
         assert typos[0].rule_id == "L2-PYPI-TYPO-001"
@@ -111,7 +111,7 @@ class TestPyPITyposquat:
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_pypi_typosquat
 
         target = _pypi_clean()
-        findings = detect_pypi_typosquat(target, Path(""))
+        findings = detect_pypi_typosquat(target, Path())
         pyproject_typos = [f for f in findings if "numpyy" in f.package or "requsts" in f.package]
         assert len(pyproject_typos) == 0, f"Clean project should have no typos: {pyproject_typos}"
 

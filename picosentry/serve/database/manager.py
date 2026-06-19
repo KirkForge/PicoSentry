@@ -420,7 +420,7 @@ class DatabaseManager:
     def db_path(self) -> Path:
         if isinstance(self._pool, SQLitePool):
             return self._pool.db_path
-        return Path("")
+        return Path()
 
     @property
     def backend(self) -> str:

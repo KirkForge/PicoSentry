@@ -46,11 +46,11 @@ class AuditSink(ABC):
 
     def stop(self) -> None:
         """Release any resources held by this sink. Default no-op."""
-        return None
+        return
 
     def flush(self) -> None:
         """Flush any buffered events. Default no-op."""
-        return None
+        return
 
     @abstractmethod
     def send(self, event: AuditEvent) -> None:

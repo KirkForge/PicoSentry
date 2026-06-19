@@ -89,12 +89,6 @@ class RetentionConfig:
                 )
         return cfg
 
-    @classmethod
-    def from_yaml_config(cls, config_data: dict[str, Any]) -> RetentionConfig:
-        retention = config_data.get("retention", {})
-        return cls.from_dict(retention)
-
-
 class RetentionManager:
 
     def __init__(

@@ -384,9 +384,6 @@ class DetectionBenchmark:
     def get_noisy_rules(self) -> list[RuleQualityMetrics]:
         return [m for m in self._metrics.values() if m.noisy]
 
-    def get_suppressed_by_default(self) -> list[str]:
-        return [m.rule_id for m in self._metrics.values() if m.suppressed_by_default]
-
     def overall_quality(self) -> dict[str, Any]:
         if not self._metrics:
             return {"version": self.BENCHMARK_VERSION, "rules": 0}

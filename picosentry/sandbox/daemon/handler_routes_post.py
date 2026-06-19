@@ -86,7 +86,7 @@ class PicoDomePostRoutesMixin:
         elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
             token = self._require_permission("scan:write")
             if token:
-                self._handle_cluster_merge_snapshot(token)
+                self._handle_cluster_merge_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
@@ -296,7 +296,7 @@ class PicoDomePostRoutesMixin:
         except Exception as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
 
-    def _handle_cluster_merge_snapshot(self: PicoDomeHandler, token: str) -> None:
+    def _handle_cluster_merge_snapshot(self: PicoDomeHandler) -> None:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
 
         Called by cluster peers to gossip their state to this node.

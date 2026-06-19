@@ -32,12 +32,7 @@ def client():
 
     from picosentry.serve.api.server import app
 
-    tc = TestClient(app)
-    # Clear rate limiter state to avoid cross-test interference
-    for middleware in app.user_middleware:
-        if hasattr(middleware, "cls") and middleware.cls.__name__ == "RateLimitMiddleware":
-            pass  # Can't easily reset without app rebuild
-    return tc
+    return TestClient(app)
 
 
 def _login(client, username, password):

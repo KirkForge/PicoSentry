@@ -103,3 +103,15 @@ def _reset_rate_limiter():
     _find_and_clear_rate_limiter(app)
     yield
     _find_and_clear_rate_limiter(app)
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_serve_otel():
+    """Shut down any OpenTelemetry provider created by serve tests.
+
+    Stops background OTLP export threads so the pytest process exits cleanly.
+    """
+    yield
+    from picosentry.serve.services.observability import shutdown_telemetry
+
+    shutdown_telemetry()

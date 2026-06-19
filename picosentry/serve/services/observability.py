@@ -69,6 +69,32 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
         return False
 
 
+def shutdown_telemetry() -> None:
+    """Shut down OpenTelemetry providers and reset module state.
+
+    Call this during application shutdown or test teardown to stop background
+    span/metric export threads.
+    """
+    global _tracer_provider, _meter_provider, _tracer, _meter
+
+    try:
+        if _tracer_provider is not None and hasattr(_tracer_provider, "shutdown"):
+            _tracer_provider.shutdown()
+    except Exception:
+        logger.debug("Tracer provider shutdown failed", exc_info=True)
+
+    try:
+        if _meter_provider is not None and hasattr(_meter_provider, "shutdown"):
+            _meter_provider.shutdown()
+    except Exception:
+        logger.debug("Meter provider shutdown failed", exc_info=True)
+
+    _tracer_provider = None
+    _meter_provider = None
+    _tracer = None
+    _meter = None
+
+
 def get_tracer():
     if _tracer is None:
         return NoOpTracer()

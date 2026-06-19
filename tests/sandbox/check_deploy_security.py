@@ -12,7 +12,7 @@ Runs as part of CI to catch:
   - Missing security contexts in containers
 
 Usage:
-  python scripts/check_deploy_security.py [--strict]
+  python tests/sandbox/check_deploy_security.py [--strict]
 
   --strict  Treat warnings as errors (exit 1 on any finding)
 """

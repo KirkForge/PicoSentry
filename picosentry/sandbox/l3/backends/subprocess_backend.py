@@ -20,18 +20,6 @@ from picosentry.sandbox.models import _now_ms
 logger = logging.getLogger("picodome.l3.subprocess")
 
 
-_LINUX_TRACE_PATTERNS = {
-    "open": re.compile(r'open(at)?\("([^"]+)",.*\)\s*=\s*(-?\d+)'),
-    "read": re.compile(r'read\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "write": re.compile(r'write\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "connect": re.compile(r'connect\((\d+),\s*\{.*sin_addr=inet_addr\("([^"]+)"\).*\},\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "bind": re.compile(r"bind\((\d+),\s*\{.*\},\s*(\d+)\)\s*=\s*(-?\d+)"),
-    "execve": re.compile(r'execve\("([^"]+)"'),
-    "socket": re.compile(r"socket\(.*\)\s*=\s*(-?\d+)"),
-    "sendto": re.compile(r"sendto\((\d+),.*\)\s*=\s*(-?\d+)"),
-}
-
-
 class SubprocessBackend(SandboxBackend):
     @property
     def name(self) -> str:
@@ -163,13 +151,6 @@ class SubprocessBackend(SandboxBackend):
             stdout=stdout,
             stderr=stderr,
         )
-
-    def _parse_linux_trace(self, trace_output: str) -> list[dict]:
-        return [
-            {"syscall": name, "groups": match.groups()}
-            for name, pattern in _LINUX_TRACE_PATTERNS.items()
-            for match in pattern.finditer(trace_output)
-        ]
 
     def _analyze_output(
         self,

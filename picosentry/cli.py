@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import os
 import sys
 from collections.abc import Callable
@@ -698,12 +699,10 @@ def _handle_health() -> int:
 
     checks = []
 
-    try:
-        from picosentry.scan.engine import ScanEngine  # noqa: F401
-
+    if importlib.util.find_spec("picosentry.scan.engine") is not None:
         checks.append(("scan", "ok", "engine importable"))
-    except ImportError as e:
-        checks.append(("scan", "FAIL", str(e)))
+    else:
+        checks.append(("scan", "FAIL", "picosentry.scan.engine not available"))
 
     try:
         from picosentry.sandbox import __version__

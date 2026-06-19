@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import logging
 
 logger = logging.getLogger("picodome.grpc_transport")
@@ -10,12 +11,10 @@ _GRPC_AVAILABLE: bool | None = None
 def is_grpc_available() -> bool:
     global _GRPC_AVAILABLE
     if _GRPC_AVAILABLE is None:
-        try:
-            import grpc  # noqa: F401
-
+        if importlib.util.find_spec("grpc") is not None:
             _GRPC_AVAILABLE = True
             logger.debug("grpcio is available")
-        except ImportError:
+        else:
             _GRPC_AVAILABLE = False
             logger.warning("grpcio is not installed — gRPC transport unavailable. Install with: pip install grpcio")
     return _GRPC_AVAILABLE

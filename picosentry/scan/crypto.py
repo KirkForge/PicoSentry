@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import logging
 from datetime import datetime, timezone
@@ -15,11 +16,9 @@ _HAS_SIGSTORE: bool | None = None
 def _check_sigstore() -> bool:
     global _HAS_SIGSTORE
     if _HAS_SIGSTORE is None:
-        try:
-            import sigstore  # noqa: F401
-
+        if importlib.util.find_spec("sigstore") is not None:
             _HAS_SIGSTORE = True
-        except ImportError:
+        else:
             _HAS_SIGSTORE = False
             logger.debug("sigstore package not available — cryptographic signing disabled")
     return _HAS_SIGSTORE
@@ -52,12 +51,7 @@ def _check_minisign() -> bool:
 
             _HAS_MINISIGN = result.returncode is not None
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            try:
-                import minisign  # noqa: F401
-
-                _HAS_MINISIGN = True
-            except ImportError:
-                _HAS_MINISIGN = False
+            _HAS_MINISIGN = importlib.util.find_spec("minisign") is not None
     return _HAS_MINISIGN
 
 

@@ -187,11 +187,15 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC", "ARG", "FA"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC", "ARG", "FA", "TCH"]
 ignore = [
     "N806", "N818", "N802", "N812",
     "A002",
     "B008",
+    # TC003 (move standard-library imports into type-checking blocks) is more
+    # churn than value for CLI modules that already import argparse/pathlib at
+    # runtime for function signatures.
+    "TC003",
     # I001 (isort "import block is un-sorted or un-formatted") is suppressed
     # for the shipped codebase. The minifier (.tools/minify.py) strips
     # module docstrings and most blank lines to reduce token cost, which
@@ -218,7 +222,7 @@ ignore = [
 "tests/scan/test_pnpm_lock_parser.py" = ["E501"]
 # Tests spawn subprocesses and explicitly assert on return codes/text output;
 # requiring an explicit `check` argument on every call is noise without value.
-"tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005"]
+"tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005", "TC001", "TC002"]
 
 # ARG (unused-argument) noise is expected in these patterns:
 # - generated gRPC stubs and their implementations have fixed method signatures

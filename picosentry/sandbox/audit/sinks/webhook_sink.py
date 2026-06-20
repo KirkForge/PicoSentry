@@ -6,8 +6,11 @@ import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from picosentry.sandbox.audit.logger import AuditEvent
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.audit.logger import AuditEvent
 
 logger = logging.getLogger("picodome.audit.sink.webhook")
 

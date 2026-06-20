@@ -13,11 +13,11 @@ from picosentry.sandbox.daemon.handler_mixins import (
 )
 from picosentry.sandbox.daemon.handler_routes_get import PicoDomeGetRoutesMixin
 from picosentry.sandbox.daemon.handler_routes_post import PicoDomePostRoutesMixin
-from picosentry.sandbox.daemon.job_store import ScanJobStore
 from picosentry.sandbox.ratelimit import TokenBucketLimiter
 from picosentry.sandbox.tracing import trace_daemon_request
 
 if TYPE_CHECKING:
+    from picosentry.sandbox.daemon.job_store import ScanJobStore
     from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
 
 from picosentry.sandbox.daemon.store import PersistentScanJobStore

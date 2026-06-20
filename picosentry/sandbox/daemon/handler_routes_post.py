@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
 from picosentry.sandbox.errors import ErrorCodes
-from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
 from picosentry.sandbox.l4.engine import create_default_engine
@@ -20,6 +19,7 @@ from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
 from picosentry.sandbox.retention import get_retention_manager
 
 if TYPE_CHECKING:
+    from picosentry.sandbox.l3.backends.base import SandboxBackend
     from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")

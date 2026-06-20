@@ -14,7 +14,10 @@ from picosentry._core.guards import (
 from picosentry._core.guards import (
     verify_determinism as _core_verify_determinism,
 )
-from picosentry.scan.models import ScanResult
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.scan.models import ScanResult
 
 
 __all__ = [

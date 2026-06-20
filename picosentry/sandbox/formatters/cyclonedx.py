@@ -5,8 +5,11 @@ import json
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
 
 
 _SEVERITY_RATING = {

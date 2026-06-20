@@ -4,10 +4,9 @@ import contextlib
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.cluster.backends.base import StateBackend
 from picosentry.sandbox.cluster.models import (
     DEFAULT_CLUSTER_PORT,
     DEFAULT_HEARTBEAT_INTERVAL,
@@ -18,6 +17,9 @@ from picosentry.sandbox.cluster.models import (
     ScanRequest,
 )
 from picosentry.sandbox.cluster.state import ClusterState
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.backends.base import StateBackend
 
 logger = logging.getLogger("picodome.cluster")
 

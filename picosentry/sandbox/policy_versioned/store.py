@@ -9,10 +9,12 @@ import threading
 import time
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.l3.models import Policy
 from picosentry.sandbox.l3.policy import _policy_from_dict
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import Policy
 
 logger = logging.getLogger("picodome.policy_versioned")
 

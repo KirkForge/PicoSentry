@@ -6,7 +6,10 @@ import os
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from picosentry.sandbox.admission import AdmissionRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.admission import AdmissionRequest
 
 logger = logging.getLogger("picodome.admission.scanner")
 

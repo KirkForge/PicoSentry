@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 
-from picosentry._core.models import Confidence, Severity
 from picosentry.serve.services.correlation.models import (
     CorrelatedEvent,
     KillChainPhase,
     PHASE_WEIGHTS,
     SEVERITY_WEIGHTS,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry._core.models import Confidence, Severity
 
 _PHASE_ORDER: list[KillChainPhase] = [
     KillChainPhase.RECONNAISSANCE,

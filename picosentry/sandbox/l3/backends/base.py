@@ -2,7 +2,10 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 
-from picosentry.sandbox.l3.models import Policy, SandboxResult
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import Policy, SandboxResult
 
 
 class SandboxBackend(ABC):

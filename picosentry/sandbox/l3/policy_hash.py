@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.l3.models import Policy
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import Policy
 
 
 def canonical_policy_dict(policy: Policy) -> dict[str, Any]:

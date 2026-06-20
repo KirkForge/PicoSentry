@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import re
 
-from picosentry.watch.types import Rule
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.watch.types import Rule
 
 
 class Scorer:

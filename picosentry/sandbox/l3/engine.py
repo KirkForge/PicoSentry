@@ -5,12 +5,15 @@ import os
 import platform
 import threading
 
-from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 from picosentry.sandbox.l3.models import Policy, SandboxResult
 from picosentry.sandbox.l3.policy import default_policy
 from picosentry.sandbox.l3.policy_hash import policy_hash
 from picosentry.sandbox.models import _generate_run_id, _generate_timestamp
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.backends.base import SandboxBackend
 
 logger = logging.getLogger("picodome.l3.engine")
 

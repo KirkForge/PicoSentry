@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import multiprocessing
 import time
@@ -278,22 +277,3 @@ def scan_workspace(
     )
 
     return result
-
-
-def scan_workspace_to_json(root: Path, output: Path | None = None, **kwargs) -> str:
-    wr = scan_workspace(root, **kwargs)
-
-    data = {
-        "workspace_root": str(root.resolve()),
-        "summary": wr.to_dict(),
-        "projects": wr.results,
-    }
-
-    json_str = json.dumps(data, indent=2, sort_keys=True)
-
-    if output:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json_str, encoding="utf-8")
-        logger.info("Workspace results written to %s", output)
-
-    return json_str

@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import logging
 
-from picosentry.sandbox.admission import AdmissionRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.admission import AdmissionRequest
 
 logger = logging.getLogger("picodome.admission.validator")
 

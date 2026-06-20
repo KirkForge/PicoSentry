@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.watch.types import PromptScanResult, ValidationResult
+
+if TYPE_CHECKING:
+    from picosentry.watch.types import PromptScanResult, ValidationResult
 
 logger = logging.getLogger("picowatch.otel")
 

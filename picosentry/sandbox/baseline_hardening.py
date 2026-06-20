@@ -6,10 +6,12 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.l4.models import Baseline
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import Baseline
 
 logger = logging.getLogger("picodome.baseline_hardening")
 

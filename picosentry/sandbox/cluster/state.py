@@ -3,11 +3,13 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.cluster.backends.base import StateBackend
 from picosentry.sandbox.cluster.backends.memory import MemoryStateBackend
 from picosentry.sandbox.cluster.models import ClusterNode, NodeStatus, ScanRequest
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.backends.base import StateBackend
 
 logger = logging.getLogger("picodome.cluster")
 

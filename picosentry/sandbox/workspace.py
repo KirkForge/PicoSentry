@@ -7,10 +7,13 @@ from pathlib import Path
 
 from picosentry.sandbox.config import PicoDomeConfig, load_config
 from picosentry.sandbox.l3.engine import sandbox_run
-from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.engine import L4Engine, create_default_engine
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
+    from picosentry.sandbox.l3.models import SandboxResult
 
 logger = logging.getLogger("picodome.workspace")
 

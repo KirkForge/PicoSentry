@@ -8,8 +8,10 @@ import threading
 import typing
 from pathlib import Path
 
-from picosentry.sandbox.audit.logger import AuditEvent
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
+
+if typing.TYPE_CHECKING:
+    from picosentry.sandbox.audit.logger import AuditEvent
 
 logger = logging.getLogger("picodome.audit.sink.file")
 

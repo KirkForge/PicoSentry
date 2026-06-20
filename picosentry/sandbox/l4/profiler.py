@@ -3,7 +3,6 @@ from __future__ import annotations
 import ipaddress
 import re
 
-from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult
 from picosentry.sandbox.l4.models import (
     BehavioralProfile,
     DnsQuery,
@@ -12,6 +11,10 @@ from picosentry.sandbox.l4.models import (
     ProcessSpawn,
     TimingPoint,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult
 
 
 _NETWORK_OPS = frozenset({"network_outbound"})

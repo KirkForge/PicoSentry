@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class StateBackend:

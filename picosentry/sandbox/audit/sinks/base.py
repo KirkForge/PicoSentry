@@ -5,9 +5,11 @@ import time
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.audit.logger import AuditEvent
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.audit.logger import AuditEvent
 
 logger = logging.getLogger("picodome.audit.sink")
 

@@ -24,10 +24,6 @@ def _check_sigstore() -> bool:
     return _HAS_SIGSTORE
 
 
-def has_sigstore() -> bool:
-    return _check_sigstore()
-
-
 _HAS_MINISIGN: bool | None = None
 
 
@@ -53,10 +49,6 @@ def _check_minisign() -> bool:
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
             _HAS_MINISIGN = importlib.util.find_spec("minisign") is not None
     return _HAS_MINISIGN
-
-
-def has_minisign() -> bool:
-    return _check_minisign()
 
 
 class SignatureBundle:

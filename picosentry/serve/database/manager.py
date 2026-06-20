@@ -1,4 +1,5 @@
 import logging
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -61,6 +62,9 @@ def _sqlite_to_postgres(sql: str) -> str:
     characters inside string literals, so a direct replacement is safe.
     """
     sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+    # SQLite stores BOOLEAN as INTEGER (0/1); Postgres BOOLEAN expects FALSE/TRUE.
+    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+0", "BOOLEAN DEFAULT FALSE", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+1", "BOOLEAN DEFAULT TRUE", sql, flags=re.IGNORECASE)
     return sql.replace("?", "%s")
 
 
@@ -182,6 +186,99 @@ MIGRATIONS = [
 
         CREATE TABLE IF NOT EXISTS health_checks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            component TEXT,
+            status TEXT,
+            message TEXT,
+            latency_ms REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_project_runs_project ON project_runs(project_id, run_start);
+        CREATE INDEX IF NOT EXISTS idx_project_runs_status ON project_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_intelligence_severity ON intelligence(severity, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alerts_sent ON alerts(sent, created_at);
+        CREATE INDEX IF NOT EXISTS idx_metrics_project ON metrics(project_id, metric_name, created_at);
+    """,
+        # Postgres enforces foreign-key references at CREATE TABLE time. The orgs
+        # table is not created until migration 5, so the sqlite SQL above cannot
+        # be auto-translated for Postgres. We omit the project_runs -> orgs FK
+        # here and create the equivalent index; referential integrity is enforced
+        # by application code for the nullable org_id column.
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            name TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS project_runs (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            org_id INTEGER,
+            run_start TIMESTAMP,
+            run_end TIMESTAMP,
+            status TEXT,
+            exit_code INTEGER,
+            output TEXT,
+            stderr TEXT,
+            duration_seconds REAL,
+            alerts_generated INTEGER DEFAULT 0,
+            intelligence_extracted TEXT,
+            metadata TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS intelligence (
+            id SERIAL PRIMARY KEY,
+            source_project TEXT,
+            intel_type TEXT,
+            severity TEXT,
+            data TEXT,
+            related_projects TEXT,
+            action_taken TEXT,
+            confidence REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS alerts (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT,
+            alert_type TEXT,
+            severity TEXT,
+            message TEXT,
+            channel TEXT,
+            sent BOOLEAN DEFAULT FALSE,
+            retry_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS metrics (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT,
+            metric_name TEXT,
+            metric_value REAL,
+            unit TEXT,
+            labels TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            category TEXT,
+            priority INTEGER,
+            status TEXT,
+            version TEXT,
+            last_run TIMESTAMP,
+            run_count INTEGER DEFAULT 0,
+            success_rate REAL DEFAULT 0.0,
+            avg_duration REAL DEFAULT 0.0,
+            metadata TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS health_checks (
+            id SERIAL PRIMARY KEY,
             component TEXT,
             status TEXT,
             message TEXT,
@@ -504,6 +601,11 @@ class DatabaseManager:
         with self._lock:
             conn = self._get_connection()
             cursor = self._cursor(conn, sql, params)
+            # DDL and DML statements do not return a result set. SQLite tolerates
+            # fetchall() in that case, but psycopg2 raises ProgrammingError, so
+            # we guard on cursor.description before fetching.
+            if cursor.description is None:
+                return []
             rows = cursor.fetchall()
             return [self._row_to_dict(r, cursor) for r in rows]
 

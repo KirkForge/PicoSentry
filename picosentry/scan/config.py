@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -273,58 +272,6 @@ def _validate_config_keys(data: dict, config_path: Path) -> None:
             config_path,
             ", ".join(sorted(KNOWN_KEYS)),
         )
-
-
-_ENV_TO_ATTR = {
-    "PICOSENTRY_FORMAT": "format",
-    "PICOSENTRY_OUTPUT": "output",
-    "PICOSENTRY_RULES": "rules",
-    "PICOSENTRY_CORPUS": "corpus",
-    "PICOSENTRY_NO_COLOR": "no_color",
-    "PICOSENTRY_TOKEN_BUDGET": "token_budget",
-    "PICOSENTRY_EXIT_CODE": "exit_code",
-    "PICOSENTRY_SEVERITY_THRESHOLD": "severity_threshold",
-    "PICOSENTRY_FAIL_ON": "fail_on",
-    "PICOSENTRY_QUIET": "quiet",
-    "PICOSENTRY_SUMMARY": "summary",
-    "PICOSENTRY_BASELINE": "baseline",
-    "PICOSENTRY_POLICY": "policy_file",
-    "PICOSENTRY_CACHE_MAX_ENTRIES": "cache_max_entries",
-    "PICOSENTRY_CACHE_MAX_SIZE_MB": "cache_max_size_mb",
-    "PICOSENTRY_CACHE_TTL_SECONDS": "cache_ttl_seconds",
-    "PICOSENTRY_CACHE_DIR": "cache_dir",
-    "PICOSENTRY_UPDATES_ENABLED": "updates_enabled",
-    "PICOSENTRY_UPDATES_REQUIRE_INTEGRITY": "updates_require_integrity",
-    "PICOSENTRY_CORPUS_REQUIRE_SIGNATURE": "corpus_require_signature",
-    "PICOSENTRY_ADVISORY_DB": "advisory_db",
-    "PICOSENTRY_FORCE_JSON": "force_json",
-    "PICOSENTRY_INCREMENTAL": "incremental",
-    "PICOSENTRY_JOBS": "jobs",
-}
-
-
-def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
-    for env_name, attr_name in _ENV_TO_ATTR.items():
-        env_val = os.environ.get(env_name)
-        if env_val is None or env_val == "":
-            continue
-
-        lower = env_val.lower()
-        if lower in ("true", "1", "yes"):
-            setattr(config, attr_name, True)
-        elif lower in ("false", "0", "no"):
-            setattr(config, attr_name, False)
-        else:
-            try:
-                val = float(env_val)
-                if val == int(val) and "." not in env_val:
-                    setattr(config, attr_name, int(val))
-                else:
-                    setattr(config, attr_name, val)
-            except ValueError:
-                setattr(config, attr_name, env_val)
-
-    return config
 
 
 class _CorpusSignatureCheck:

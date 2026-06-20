@@ -187,7 +187,10 @@ def test_get_plugins_endpoint_returns_dirs_field():
                 "password": "testpassword123",
             },
         )
-    resp = client.post("/auth/login?username=plugin_user&password=testpassword123")
+    resp = client.post(
+        "/auth/login",
+        json={"username": "plugin_user", "password": "testpassword123"},
+    )
     token = resp.json().get("access_token", "") if resp.status_code == 200 else ""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
 

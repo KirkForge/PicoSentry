@@ -22,7 +22,7 @@ async def get_metrics(
 
 
 @router.get("/metrics/prometheus", tags=["Metrics"])
-async def get_prometheus_metrics():
+async def get_prometheus_metrics(user: dict = Depends(get_current_user)):
     return PlainTextResponse(content=metrics.to_prometheus(), media_type="text/plain")
 
 

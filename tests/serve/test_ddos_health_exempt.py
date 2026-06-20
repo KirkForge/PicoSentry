@@ -117,8 +117,19 @@ def test_non_health_paths_still_rate_limited() -> None:
 def test_lookalike_paths_are_not_exempt() -> None:
     """``/health-evil`` and ``/healthy`` are NOT health probes — they
     look health-flavoured but aren't on the bypass list.  The exemption
-    is a closed set, not a prefix match."""
-    client, shield = _build_app()
+    is a closed set, not a prefix match.
+
+    Use the injected clock so the 10-second window stays open for the
+    whole run; otherwise a fast test machine drains old entries before
+    the global limit is reached."""
+    now = 0.0
+
+    def fake_now() -> float:
+        nonlocal now
+        now += 0.001
+        return now
+
+    client, shield = _build_app(_now=fake_now)
     saw_429 = False
     for _ in range(shield._global_limit + 50):
         resp = client.get("/health-evil")

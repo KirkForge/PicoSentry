@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import threading
 from http.server import HTTPServer
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,12 @@ from picosentry.sandbox.daemon.handler import PicoDomeHandler
 from picosentry.sandbox.ratelimit import RateLimitConfig, TokenBucketLimiter
 
 logger = logging.getLogger("picodome.daemon")
+
+
+class _PicoDomeHTTPServer(HTTPServer):
+    """Reusable socket address so the daemon can restart quickly in tests and production."""
+
+    allow_reuse_address = True
 
 
 class PicoDomeDaemon:
@@ -24,13 +31,21 @@ class PicoDomeDaemon:
         store_backend: str | None = None,
         cluster_config: dict[str, Any] | None = None,
     ) -> None:
-        self._host = host or os.environ.get("PICODOME_DAEMON_HOST", "127.0.0.1")
-        self._port = port or int(os.environ.get("PICODOME_DAEMON_PORT", "8443"))
-        self._metrics_port = metrics_port or (
-            int(os.environ["PICODOME_METRICS_PORT"]) if "PICODOME_METRICS_PORT" in os.environ else None
+        self._host = host if host is not None else os.environ.get("PICODOME_DAEMON_HOST", "127.0.0.1")
+        self._port = port if port is not None else int(os.environ.get("PICODOME_DAEMON_PORT", "8443"))
+        self._metrics_port = (
+            metrics_port
+            if metrics_port is not None
+            else (
+                int(os.environ["PICODOME_METRICS_PORT"])
+                if "PICODOME_METRICS_PORT" in os.environ
+                else None
+            )
         )
         self._server: HTTPServer | None = None
         self._metrics_server: HTTPServer | None = None
+        self._server_thread: threading.Thread | None = None
+        self._metrics_thread: threading.Thread | None = None
         self._job_store_dir = job_store_dir or os.environ.get("PICODOME_JOB_STORE_DIR")
         self._store_backend = store_backend or os.environ.get("PICODOME_STORE_BACKEND", "jsonl")
         self._cluster_config = cluster_config or {}
@@ -126,7 +141,7 @@ class PicoDomeDaemon:
 
         self._start_cluster_manager()
 
-        server = HTTPServer((self._host, self._port), PicoDomeHandler)
+        server = _PicoDomeHTTPServer((self._host, self._port), PicoDomeHandler)
         ssl_ctx = create_ssl_context()
         if ssl_ctx:
             server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
@@ -158,28 +173,22 @@ class PicoDomeDaemon:
                 (PicoDomeHandler,),
                 {"_metrics_only": True},
             )
-            self._metrics_server = HTTPServer((self._host, self._metrics_port), metrics_handler)
+            self._metrics_server = _PicoDomeHTTPServer((self._host, self._metrics_port), metrics_handler)
             logger.info(
                 "Metrics endpoint on separate port %s:%d (no auth required)",
                 self._host,
                 self._metrics_port,
             )
-            if background:
-                import threading
-
-                metrics_thread = threading.Thread(target=self._metrics_server.serve_forever, daemon=True)
-                metrics_thread.start()
-            else:
-                import threading
-
-                metrics_thread = threading.Thread(target=self._metrics_server.serve_forever, daemon=True)
-                metrics_thread.start()
+            self._metrics_thread = threading.Thread(
+                target=self._metrics_server.serve_forever, daemon=True, name="picodome-metrics-server"
+            )
+            self._metrics_thread.start()
 
         if background:
-            import threading
-
-            thread = threading.Thread(target=server.serve_forever, daemon=True)
-            thread.start()
+            self._server_thread = threading.Thread(
+                target=server.serve_forever, daemon=True, name="picodome-daemon-server"
+            )
+            self._server_thread.start()
         else:
             try:
                 server.serve_forever()
@@ -235,9 +244,19 @@ class PicoDomeDaemon:
     def stop(self) -> None:
         if self._server:
             self._server.shutdown()
+            self._server.server_close()
+            if self._server_thread is not None and self._server_thread.is_alive():
+                self._server_thread.join(timeout=5.0)
+            self._server = None
+            self._server_thread = None
 
         if self._metrics_server:
             self._metrics_server.shutdown()
+            self._metrics_server.server_close()
+            if self._metrics_thread is not None and self._metrics_thread.is_alive():
+                self._metrics_thread.join(timeout=5.0)
+            self._metrics_server = None
+            self._metrics_thread = None
 
         if self._cluster_manager is not None:
             try:

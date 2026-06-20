@@ -47,11 +47,12 @@ def _build_app(
 
     # Build the middleware manually so we can hold a reference to it.
     # Starlette's add_middleware wraps it in a closure we can't easily
-    # reach; the underlying class is what we want anyway.
+    # reach; the underlying class is what we want anyway.  Use the
+    # middleware instance itself as the ASGI app so the test client talks
+    # to exactly one shield instance.
     kwargs = {"_now": _now} if _now is not None else {}
     shield = DDoSShieldMiddleware(app, enabled=True, **kwargs)
-    app.add_middleware(DDoSShieldMiddleware, enabled=True, **kwargs)
-    return TestClient(app), shield
+    return TestClient(shield), shield
 
 
 def test_health_paths_bypass_global_bucket() -> None:

@@ -42,7 +42,10 @@ def auth_token(client):
         )
 
     try:
-        resp = client.post("/auth/login?username=pytest_user&password=testpassword123")
+        resp = client.post(
+            "/auth/login",
+            json={"username": "pytest_user", "password": "testpassword123"},
+        )
         if resp.status_code == 200:
             data = resp.json()
             return data.get("access_token", "")
@@ -122,26 +125,33 @@ class TestDashboardEndpoint:
 class TestMetricsEndpoint:
     """Test /metrics endpoint."""
 
-    def test_metrics_json_endpoint(self, client):
-        resp = client.get("/metrics/json")
+    def test_metrics_json_endpoint(self, client, auth_token):
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/json", headers=headers)
         if resp.status_code == 200:
             data = resp.json()
             assert "uptime_seconds" in data
 
-    def test_metrics_prometheus_endpoint(self, client):
-        resp = client.get("/metrics/prometheus")
+    def test_metrics_prometheus_endpoint(self, client, auth_token):
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/prometheus", headers=headers)
         if resp.status_code == 200:
             assert "picoshogun_" in resp.text or "uptime" in resp.text.lower()
 
-    def test_prometheus_no_double_prefix(self, client):
+    def test_prometheus_no_double_prefix(self, client, auth_token):
         """Ensure Prometheus metric names use picoshogun_ not picopicoshogun_."""
-        resp = client.get("/metrics/prometheus")
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/prometheus", headers=headers)
         if resp.status_code == 200:
             # HELP and TYPE lines should use picoshogun_, not picopicoshogun_
             for line in resp.text.split("\n"):
                 if line.startswith(("# HELP", "# TYPE")):
                     assert "picopicoshogun" not in line, f"Double prefix in: {line}"
             assert "picoshogun_" in resp.text
+
+    def test_prometheus_requires_auth(self, client):
+        resp = client.get("/metrics/prometheus")
+        assert resp.status_code in (401, 403)
 
 
 class TestDashboardSummary:
@@ -308,14 +318,20 @@ class TestAuthEndpoints:
                 "password": "testpassword123",
             },
         )
-        resp = client.post(f"/auth/login?username={username}&password=testpassword123")
+        resp = client.post(
+            "/auth/login",
+            json={"username": username, "password": "testpassword123"},
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
     def test_login_invalid_credentials(self, client):
-        resp = client.post("/auth/login?username=nonexistent&password=wrong")
+        resp = client.post(
+            "/auth/login",
+            json={"username": "nonexistent", "password": "wrong"},
+        )
         assert resp.status_code == 401
 
     # ── Registration-role regression suite (P0 fix) ─────────────────────

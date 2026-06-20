@@ -37,7 +37,7 @@ def client():
 
 def _login(client, username, password):
     """Log in and return the access token."""
-    resp = client.post(f"/auth/login?username={username}&password={password}")
+    resp = client.post("/auth/login", json={"username": username, "password": password})
     if resp.status_code == 200:
         return resp.json().get("access_token", "")
     return ""
@@ -134,7 +134,10 @@ class TestAuthEndToEnd:
                 "role": "viewer",
             },
         )
-        resp = client.post(f"/auth/login?username={username}&password=wrongpassword")
+        resp = client.post(
+            "/auth/login",
+            json={"username": username, "password": "wrongpassword"},
+        )
         assert resp.status_code == 401
 
 
@@ -593,9 +596,14 @@ class TestMetricsIntegration:
         assert "uptime_seconds" in data
 
     def test_prometheus_endpoint(self, client):
-        resp = client.get("/metrics/prometheus")
+        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        resp = client.get("/metrics/prometheus", headers=_auth_headers(token))
         assert resp.status_code == 200
         assert "picoshogun_" in resp.text
+
+    def test_prometheus_endpoint_requires_auth(self, client):
+        resp = client.get("/metrics/prometheus")
+        assert resp.status_code in (401, 403)
 
     def test_detailed_metrics(self, client):
         token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
@@ -608,7 +616,7 @@ class TestMetricsIntegration:
 
 class TestAudit:
     def test_audit_stats(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.get("/audit/stats", headers=_auth_headers(token))
         assert resp.status_code == 200
         data = resp.json()
@@ -630,7 +638,7 @@ class TestAudit:
 
 class TestBackup:
     def test_list_backups(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.get("/backups", headers=_auth_headers(token))
         assert resp.status_code == 200
 
@@ -788,12 +796,12 @@ class TestHealthProbes:
 
 class TestEventBus:
     def test_event_history(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.get("/events/history", headers=_auth_headers(token))
         assert resp.status_code == 200
 
     def test_event_history_with_type_filter(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.get("/events/history?event_type=test&limit=10", headers=_auth_headers(token))
         assert resp.status_code == 200
 
@@ -803,12 +811,12 @@ class TestEventBus:
 
 class TestLogs:
     def test_log_stats(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.get("/logs/stats", headers=_auth_headers(token))
         assert resp.status_code == 200
 
     def test_log_rotation(self, client):
-        token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
+        token, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000))
         resp = client.post("/logs/rotate", headers=_auth_headers(token))
         assert resp.status_code == 200
 

@@ -61,7 +61,7 @@ def registered_user(client, unique_user):
 def auth_token(client, registered_user, unique_user):
     r = client.post(
         "/auth/login",
-        params={
+        json={
             "username": unique_user["username"],
             "password": unique_user["password"],
         },

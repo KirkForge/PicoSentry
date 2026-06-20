@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 import json
+import os
 import tempfile
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -174,6 +175,124 @@ class TestSignVerifyIntegration:
         mock_check.return_value = False
         with pytest.raises(ImportError, match="sigstore"):
             sign_content(b"test", method="sigstore")
+
+
+class TestSigstoreSigning:
+    """Mocked tests for the sigstore 4.x signing path."""
+
+    @patch("picosentry.scan.crypto._check_sigstore")
+    @patch("sigstore.models.ClientTrustConfig")
+    @patch("sigstore.sign.SigningContext")
+    @patch("sigstore.oidc.IdentityToken")
+    def test_sign_content_sigstore_with_env_token(self, mock_token_cls, mock_sign_ctx, mock_trust_config, mock_check):
+        mock_check.return_value = True
+
+        token_obj = MagicMock()
+        token_obj.identity = "ci@example.com"
+        mock_token_cls.return_value = token_obj
+
+        signer = MagicMock()
+        bundle = MagicMock()
+        bundle.to_json.return_value = '{"mock": "bundle"}'
+        signer.sign_artifact.return_value = bundle
+        signer.__enter__ = MagicMock(return_value=signer)
+        signer.__exit__ = MagicMock(return_value=False)
+        signing_ctx = MagicMock()
+        signing_ctx.signer.return_value = signer
+        mock_sign_ctx.from_trust_config.return_value = signing_ctx
+
+        with patch.dict(os.environ, {"SIGSTORE_IDENTITY_TOKEN": "fake.jwt.token"}, clear=False):
+            result = sign_content(b"hello", method="sigstore")
+
+        assert result.provider == "sigstore"
+        assert result.signer_identity == "ci@example.com"
+        assert result.raw_signature == '{"mock": "bundle"}'
+        mock_token_cls.assert_called_once_with("fake.jwt.token")
+        signer.sign_artifact.assert_called_once_with(b"hello")
+
+    @patch("picosentry.scan.crypto._check_sigstore")
+    @patch("sigstore.models.ClientTrustConfig")
+    @patch("sigstore.sign.SigningContext")
+    @patch("sigstore.oidc.Issuer")
+    def test_sign_content_sigstore_interactive_issuer(
+        self,
+        mock_issuer_cls: MagicMock,
+        mock_sign_ctx: MagicMock,
+        mock_trust_config: MagicMock,
+        mock_check: MagicMock,
+    ) -> None:
+        mock_check.return_value = True
+
+        token_obj = MagicMock()
+        token_obj.identity = "dev@example.com"
+        issuer = MagicMock()
+        issuer.identity_token.return_value = token_obj
+        mock_issuer_cls.return_value = issuer
+
+        signer = MagicMock()
+        bundle = MagicMock()
+        bundle.to_json.return_value = '{"mock": "bundle"}'
+        signer.sign_artifact.return_value = bundle
+        signer.__enter__ = MagicMock(return_value=signer)
+        signer.__exit__ = MagicMock(return_value=False)
+        signing_ctx = MagicMock()
+        signing_ctx.signer.return_value = signer
+        mock_sign_ctx.from_trust_config.return_value = signing_ctx
+
+        trust_config = MagicMock()
+        trust_config.signing_config.get_oidc_url.return_value = "https://accounts.google.com"
+        mock_trust_config.production.return_value = trust_config
+
+        env = os.environ.copy()
+        env.pop("SIGSTORE_IDENTITY_TOKEN", None)
+        with patch.dict(os.environ, env, clear=True):
+            result = sign_content(b"hello", method="sigstore")
+
+        assert result.provider == "sigstore"
+        assert result.signer_identity == "dev@example.com"
+        mock_issuer_cls.assert_called_once_with("https://accounts.google.com")
+
+
+class TestSigstoreVerification:
+    """Mocked tests for the sigstore 4.x verification path."""
+
+    @patch("picosentry.scan.crypto._check_sigstore")
+    @patch("sigstore.models.Bundle")
+    @patch("sigstore.verify.Verifier")
+    def test_verify_content_sigstore_success(self, mock_verifier_cls, mock_bundle_cls, mock_check):
+        mock_check.return_value = True
+        mock_bundle_cls.from_json.return_value = MagicMock()
+        verifier = MagicMock()
+        mock_verifier_cls.production.return_value = verifier
+
+        sb = SignatureBundle(
+            signer_identity="ci@example.com",
+            provider="sigstore",
+            raw_signature='{"mock": "bundle"}',
+            digest="abc",
+        )
+        assert verify_content(b"hello", sb) is True
+        verifier.verify_artifact.assert_called_once()
+
+    @patch("picosentry.scan.crypto._check_sigstore")
+    @patch("sigstore.models.Bundle")
+    @patch("sigstore.verify.Verifier")
+    def test_verify_content_sigstore_failure(self, mock_verifier_cls, mock_bundle_cls, mock_check):
+        from sigstore.errors import VerificationError
+
+        mock_check.return_value = True
+        mock_bundle_cls.from_json.return_value = MagicMock()
+        verifier = MagicMock()
+        verifier.verify_artifact.side_effect = VerificationError("bad signature")
+        mock_verifier_cls.production.return_value = verifier
+
+        sb = SignatureBundle(
+            signer_identity="ci@example.com",
+            provider="sigstore",
+            raw_signature='{"mock": "bundle"}',
+            digest="abc",
+        )
+        assert verify_content(b"hello", sb) is False
 
 
 class TestSignatureBundleJSON:

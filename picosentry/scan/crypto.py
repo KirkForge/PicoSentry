@@ -4,6 +4,7 @@ import hashlib
 import importlib.util
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -112,35 +113,35 @@ def sign_content_sigstore(content: bytes) -> SignatureBundle:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore signing. Install with: pip install sigstore")
 
-    import sigstore
-    from sigstore.oidc import Issuer, detect_credential
+    from sigstore.models import ClientTrustConfig
+    from sigstore.oidc import IdentityToken, Issuer
+    from sigstore.sign import SigningContext
 
     digest = content_digest(content)
 
-    try:
-        token = detect_credential()
-        issuer = Issuer.production()  # sigstore.dev (public good instance)
-    except Exception:
-        token = detect_credential()
-        issuer = Issuer.production()
+    trust_config = ClientTrustConfig.production()
+    signing_ctx = SigningContext.from_trust_config(trust_config)
 
-    identity = token.identity() if hasattr(token, "identity") else "unknown"
+    identity_token_str = os.environ.get("SIGSTORE_IDENTITY_TOKEN")
+    if identity_token_str:
+        token = IdentityToken(identity_token_str)
+        identity = token.identity
+    else:
+        oidc_issuer = os.environ.get("SIGSTORE_OIDC_ISSUER") or trust_config.signing_config.get_oidc_url()
+        issuer = Issuer(oidc_issuer)
+        token = issuer.identity_token()
+        identity = token.identity
 
-    signing_result = sigstore.sign(
-        content,
-        identity_token=token,
-        issuer=issuer,
-    )
+    with signing_ctx.signer(token) as signer:
+        bundle = signer.sign_artifact(content)
 
     logger.info("Signed content with Sigstore (identity=%s, digest=%s...)", identity, digest[:12])
 
     return SignatureBundle(
         signer_identity=identity,
         provider="sigstore",
-        raw_signature=signing_result.bundle._to_b64()
-        if hasattr(signing_result.bundle, "_to_b64")
-        else str(signing_result.bundle),
-        certificate=getattr(signing_result, "certificate", ""),
+        raw_signature=bundle.to_json(),
+        certificate="",
         digest=digest,
     )
 
@@ -210,40 +211,33 @@ def sign_content(content: bytes, method: str = "sigstore", secret_key: str = "",
         raise ValueError(f"Unknown signing method: {method}")
 
 
-def verify_content_sigstore(content: bytes, signature_bundle_json: str, offline: bool = False) -> bool:
+def verify_content_sigstore(
+    content: bytes, signature_bundle_json: str, expected_identity: str = "", offline: bool = False
+) -> bool:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore verification. Install with: pip install sigstore")
 
-    import base64
-
-    import sigstore
-    from sigstore.verify import VerificationMaterials, Verifier
-    from sigstore.verify.policy import VerificationSuccess
+    from sigstore.errors import VerificationError
+    from sigstore.models import Bundle
+    from sigstore.verify import Verifier
+    from sigstore.verify.policy import Identity, UnsafeNoOp
 
     try:
-        bundle_bytes = base64.b64decode(signature_bundle_json)
-
-        materials = VerificationMaterials.from_bundle(
-            input_=content,
-            bundle=bundle_bytes,
-            offline=offline,
-        )
-
-        verifier = Verifier.production()
-        result = verifier.verify(materials)
-
-        if isinstance(result, VerificationSuccess):
-            logger.info(
-                "Sigstore verification succeeded (offline=%s)",
-                offline,
-            )
-            return True
-        logger.warning("Sigstore verification failed: %s", result)
+        bundle = Bundle.from_json(signature_bundle_json)
+    except Exception:
+        logger.exception("Failed to parse Sigstore bundle")
         return False
 
-    except sigstore.errors.VerificationError:
-        logger.exception("Sigstore verification error")
-        raise
+    verifier = Verifier.production(offline=offline)
+    policy = Identity(identity=expected_identity) if expected_identity else UnsafeNoOp()
+
+    try:
+        verifier.verify_artifact(content, bundle, policy)
+        logger.info("Sigstore verification succeeded (offline=%s)", offline)
+        return True
+    except VerificationError as e:
+        logger.warning("Sigstore verification failed: %s", e)
+        return False
     except Exception:
         logger.exception("Sigstore verification failed")
         return False
@@ -300,6 +294,7 @@ def verify_content(
         return verify_content_sigstore(
             content,
             signature_bundle.raw_signature,
+            expected_identity=signature_bundle.signer_identity,
             offline=offline,
         )
     if signature_bundle.provider == "minisign":

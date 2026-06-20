@@ -32,6 +32,7 @@ class ScheduledJob:
     next_run: datetime | None
     last_run: datetime | None
     last_status: str | None
+    org_id: int | None = None
 
 
 class JobScheduler:
@@ -58,10 +59,19 @@ class JobScheduler:
                 next_run=row["next_run"],
                 last_run=row["last_run"],
                 last_status=row["last_status"],
+                org_id=row.get("org_id"),
             )
             self.jobs[job.id] = job
 
-    def add_job(self, name: str, cron: str, command: str, params: dict | None = None, enabled: bool = True) -> int:
+    def add_job(
+        self,
+        name: str,
+        cron: str,
+        command: str,
+        params: dict | None = None,
+        enabled: bool = True,
+        org_id: int | None = None,
+    ) -> int:
         if command not in self.ALLOWED_COMMANDS:
             raise ValueError(f"Invalid command: {command!r}. Must be one of {sorted(self.ALLOWED_COMMANDS)}")
 
@@ -74,10 +84,10 @@ class JobScheduler:
 
         job_id = db.execute_insert(
             """
-            INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
+            VALUES (?, ?, ?, ?, ?, ?)
         """,
-            (name, cron, command, params_json, enabled),
+            (name, cron, command, params_json, enabled, org_id),
         )
 
         self._load_jobs()
@@ -311,6 +321,7 @@ class JobScheduler:
                 "next_run": j.next_run.isoformat() if j.next_run else None,
                 "last_run": j.last_run.isoformat() if j.last_run else None,
                 "last_status": j.last_status,
+                "org_id": j.org_id,
             }
             for j in self.jobs.values()
         ]

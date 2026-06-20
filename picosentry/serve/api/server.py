@@ -195,6 +195,7 @@ async def lifespan(app: FastAPI):
         command="cleanup",
         params={},
         enabled=True,
+        org_id=None,
     )
 
     health_interval = settings.orchestrator.health_check_interval
@@ -205,6 +206,7 @@ async def lifespan(app: FastAPI):
             command="health_check",
             params={},
             enabled=True,
+            org_id=None,
         )
         logger.info("Periodic health checks scheduled every %d seconds", health_interval)
 

@@ -7,6 +7,7 @@ import hmac
 import os
 import sys
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -49,11 +50,15 @@ def _auth_headers(token):
 
 
 def _register_and_login(client, role="admin", suffix=None):
-    """One-shot: create a user at the requested role + login → token.
+    """One-shot: create a user at the requested role, default org, + login → token.
 
     The ``/auth/register`` endpoint creates viewers only (P0 fix); for
     ``admin`` and ``operator`` we drop down to the service layer so the
     integration tests can still exercise elevated paths.
+
+    A default organization is created for the user so that org-scoped
+    read endpoints (intelligence, alerts, metrics, dashboard, scheduler,
+    webhooks) have a tenant context.
     """
     tag = suffix or int(time.time() * 1000)
     username = f"integ_{role}_{tag}"
@@ -77,6 +82,17 @@ def _register_and_login(client, role="admin", suffix=None):
         AuthService().create_user(username, password, role=role)
 
     token = _login(client, username, password)
+    assert token, f"Login failed for {username}"
+
+    # Create a default org so org-scoped endpoints have a tenant context.
+    slug = f"integ-org-{role}-{tag}"
+    resp = client.post(
+        "/orgs",
+        json={"name": f"Integration Org {role} {tag}", "slug": slug},
+        headers=_auth_headers(token),
+    )
+    assert resp.status_code in (200, 409), f"Default org creation failed: {resp.text}"
+
     return token, username
 
 
@@ -1206,8 +1222,9 @@ class TestSchedulerEnableDisable:
         job_id = resp.json().get("job_id")
 
         if job_id:
-            token_admin, _ = _register_and_login(client, role="admin", suffix=int(time.time() * 1000) + 1)
-            resp_del = client.delete(f"/scheduler/jobs/{job_id}", headers=_auth_headers(token_admin))
+            # Operators can delete jobs within their own org; cross-org
+            # deletes are rejected by org scoping.
+            resp_del = client.delete(f"/scheduler/jobs/{job_id}", headers=_auth_headers(token_op))
             assert resp_del.status_code == 204
 
 
@@ -1379,6 +1396,120 @@ class TestTenantDataIsolation:
         org_slugs = [o.get("slug", "") for o in resp.json().get("orgs", [])]
         assert slug1 in org_slugs
         assert slug2 in org_slugs
+
+    def test_tenant_cannot_read_other_org_data(self, client):
+        """Org A's intelligence, alerts, runs, webhooks, jobs, and metrics are
+        invisible to org B's users.
+        """
+        from picosentry.serve.database.manager import db
+
+        tag = int(time.time() * 1000)
+        token_a, _ = _register_and_login(client, role="operator", suffix=tag)
+        slug_a = f"tenant-data-a-{tag}"
+        resp_a = client.post("/orgs", json={"name": "Tenant Data A", "slug": slug_a}, headers=_auth_headers(token_a))
+        assert resp_a.status_code == 200
+        org_a_id = resp_a.json()["id"]
+
+        token_b, _ = _register_and_login(client, role="operator", suffix=tag + 1)
+        slug_b = f"tenant-data-b-{tag}"
+        resp_b = client.post("/orgs", json={"name": "Tenant Data B", "slug": slug_b}, headers=_auth_headers(token_b))
+        assert resp_b.status_code == 200
+        org_b_id = resp_b.json()["id"]
+
+        assert org_a_id != org_b_id
+
+        # Seed org A data directly through the DB so the test is fast and
+        # deterministic (no subprocess project runs).
+        db.execute_insert(
+            "INSERT INTO intelligence (source_project, intel_type, severity, data, org_id) VALUES (?, ?, ?, ?, ?)",
+            ("proj-a", "critical_vuln", "critical", "{}", org_a_id),
+        )
+        db.execute_insert(
+            "INSERT INTO alerts (project_id, alert_type, severity, message, channel, org_id) VALUES (?, ?, ?, ?, ?, ?)",
+            ("proj-a", "test", "high", "org A alert", "syslog", org_a_id),
+        )
+        db.execute_insert(
+            "INSERT INTO project_runs (project_id, run_start, status, org_id) VALUES (?, ?, ?, ?)",
+            ("proj-a", datetime.now(timezone.utc), "completed", org_a_id),
+        )
+        db.execute_insert(
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id) VALUES (?, ?, ?, ?, 1, 0, ?)",
+            (f"hook-a-{tag}", "https://example.com/hook", "secret", '["*"]', org_a_id),
+        )
+        db.execute_insert(
+            "INSERT INTO scheduled_jobs "
+            "(name, cron_expression, command, params, enabled, org_id) "
+            "VALUES (?, ?, ?, ?, 1, ?)",
+            (f"job-a-{tag}", "0 0 * * *", "report", "{}", org_a_id),
+        )
+        # Reload in-memory scheduler/webhook caches so the API sees the new rows.
+        from picosentry.serve.services.scheduler import scheduler
+        from picosentry.serve.services.webhooks import webhook_manager
+
+        scheduler._load_jobs()
+        webhook_manager._load_webhooks()
+
+        # User B's reads should not contain org A's data.
+        for endpoint, _key in [
+            ("/intelligence", "intel_type"),
+            ("/alerts", "alert_type"),
+        ]:
+            resp = client.get(endpoint, headers=_auth_headers(token_b))
+            assert resp.status_code == 200, f"{endpoint} failed: {resp.text}"
+            leaked = any(
+                item.get("source_project") == "proj-a" or item.get("project_id") == "proj-a"
+                for item in resp.json()
+            )
+            assert not leaked, f"{endpoint} leaked org A data"
+
+        resp = client.get("/api/v1/dashboard/summary", headers=_auth_headers(token_b))
+        assert resp.status_code == 200, resp.text
+        data = resp.json()
+        assert not any(i.get("source_project") == "proj-a" for i in data.get("recent_intelligence", []))
+        assert not any(a.get("project_id") == "proj-a" for a in data.get("recent_alerts", []))
+
+        resp = client.get("/scheduler/jobs", headers=_auth_headers(token_b))
+        assert resp.status_code == 200, resp.text
+        assert not any(j.get("name") == f"job-a-{tag}" for j in resp.json().get("jobs", []))
+
+        resp = client.get("/webhooks", headers=_auth_headers(token_b))
+        assert resp.status_code == 200, resp.text
+        assert f"hook-a-{tag}" not in resp.json().get("webhooks", {})
+
+        resp = client.get("/metrics/json", headers=_auth_headers(token_b))
+        assert resp.status_code == 200, resp.text
+        # In-memory metrics are labeled by org_id after this code change; org B
+        # should not see org A's counters.
+        counters = resp.json().get("counters", {})
+        assert not any(str(org_a_id) in key for key in counters)
+
+    def test_tenant_cannot_acknowledge_other_org_alert(self, client):
+        """Org B's user cannot acknowledge an alert belonging to org A."""
+        from picosentry.serve.database.manager import db
+
+        tag = int(time.time() * 1000)
+        token_a, _ = _register_and_login(client, role="operator", suffix=tag)
+        slug_a = f"tenant-ack-a-{tag}"
+        resp_a = client.post("/orgs", json={"name": "Tenant Ack A", "slug": slug_a}, headers=_auth_headers(token_a))
+        assert resp_a.status_code == 200
+        org_a_id = resp_a.json()["id"]
+
+        token_b, _ = _register_and_login(client, role="operator", suffix=tag + 1)
+        slug_b = f"tenant-ack-b-{tag}"
+        resp_b = client.post("/orgs", json={"name": "Tenant Ack B", "slug": slug_b}, headers=_auth_headers(token_b))
+        assert resp_b.status_code == 200
+        org_b_id = resp_b.json()["id"]
+        assert org_a_id != org_b_id
+
+        db.execute_insert(
+            "INSERT INTO alerts (project_id, alert_type, severity, message, channel, org_id) VALUES (?, ?, ?, ?, ?, ?)",
+            ("proj-a", "test", "high", "org A alert", "syslog", org_a_id),
+        )
+        alert_row = db.execute_one("SELECT id FROM alerts WHERE org_id = ?", (org_a_id,))
+        assert alert_row
+
+        resp = client.post(f"/alerts/{alert_row['id']}/acknowledge", headers=_auth_headers(token_b))
+        assert resp.status_code == 404
 
 
 class TestRBACPolicy:

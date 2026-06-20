@@ -56,9 +56,19 @@ def auth_token(client):
     from picosentry.serve.api.server import auth_service
 
     token = auth_service.authenticate("pytest_user", "testpassword123")
-    if token:
-        return token
-    return ""
+    if not token:
+        return ""
+
+    # Ensure the test user has a default org for org-scoped endpoints.
+    from picosentry.serve.services.orgs import Organization
+
+    user_info = auth_service.validate_token(token)
+    if user_info:
+        orgs = Organization.list_orgs_for_user(user_info["id"])
+        if not orgs:
+            Organization.create(name="Pytest Org", slug="pytest-org", owner_user_id=user_info["id"])
+
+    return token
 
 
 def auth_headers(token):
@@ -403,19 +413,35 @@ class TestSchedulerEndpoints:
     def test_create_and_delete_job(self, client, auth_token):
         import time
 
-        headers = auth_headers(auth_token)
         if not auth_token:
             pytest.skip("No auth token available")
+
+        # Scheduler job creation requires the WRITE_SCHEDULER permission,
+        # which viewers do not have.  Create an operator user for this test.
+        from picosentry.serve.api.server import auth_service
+        from picosentry.serve.services.orgs import Organization
+
+        tag = int(time.time() * 1000)
+        username = f"scheduler_op_{tag}"
+        password = "testpassword123"
+        user_id = auth_service.create_user(username, password, role="operator")
+        assert user_id is not None
+        token = auth_service.authenticate(username, password)
+        assert token
+        headers = auth_headers(token)
+
         # Create org first (required by API)
-        client.post(
-            "/orgs",
-            json={"name": f"sched_org_{int(time.time() * 1000)}", "slug": f"schedorg{int(time.time() * 1000)}"},
-            headers=headers,
+        org_id = Organization.create(
+            name=f"sched_org_{tag}",
+            slug=f"schedorg{tag}",
+            owner_user_id=user_id,
         )
+        assert org_id is not None
+
         resp = client.post(
             "/scheduler/jobs",
             json={
-                "name": f"test_job_{int(time.time() * 1000)}",
+                "name": f"test_job_{tag}",
                 "cron": "*/10 * * * *",
                 "command": "batch",
                 "params": {"category": "monitoring"},

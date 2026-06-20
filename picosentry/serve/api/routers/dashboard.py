@@ -3,9 +3,10 @@ from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends
 
-from picosentry.serve.api.deps import get_current_user
+from picosentry.serve.api.deps import get_current_org, require_permission
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.orchestrator import orchestrator
+from picosentry.serve.services.rbac import Permission
 
 logger = logging.getLogger("picoshogun.dashboard")
 
@@ -13,21 +14,26 @@ router = APIRouter()
 
 
 @router.get("/dashboard/summary", tags=["Dashboard"])
-async def dashboard_summary(user: dict = Depends(get_current_user)):
-    status = orchestrator.get_status()
+async def dashboard_summary(
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
+):
+    status = orchestrator.get_status(org_id=org["id"])
     health = orchestrator.get_health_checks()
     recent_projects = orchestrator.list_projects(limit=10)
     recent_intel = db.execute(
         "SELECT id, source_project, intel_type, severity, confidence, created_at "
-        "FROM intelligence ORDER BY created_at DESC LIMIT 10",
-        (),
+        "FROM intelligence WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
+        (org["id"],),
     )
     recent_alerts = db.execute(
         "SELECT id, project_id, alert_type, severity, message, channel, sent, created_at "
-        "FROM alerts ORDER BY created_at DESC LIMIT 10",
-        (),
+        "FROM alerts WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
+        (org["id"],),
     )
-    pending_alerts = db.execute_one("SELECT COUNT(*) as c FROM alerts WHERE sent = 0")
+    pending_alerts = db.execute_one(
+        "SELECT COUNT(*) as c FROM alerts WHERE sent = 0 AND org_id = ?", (org["id"],)
+    )
     health_overall = "healthy"
     if any(c["status"] == "critical" for c in health):
         health_overall = "critical"

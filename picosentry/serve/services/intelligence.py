@@ -784,7 +784,7 @@ class IntelligenceEngine:
 
         return None
 
-    def ingest(self, project_id: str, data: dict[str, Any]):
+    def ingest(self, project_id: str, data: dict[str, Any], org_id: int | None = None):
         intel_type = data.get("type", "unknown")
         severity = data.get("severity", "info")
         intel_data = json.dumps(data.get("data", {}))
@@ -794,10 +794,10 @@ class IntelligenceEngine:
         db.execute_insert(
             """
             INSERT INTO intelligence
-            (source_project, intel_type, severity, data, related_projects, confidence)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (source_project, intel_type, severity, data, related_projects, confidence, org_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-            (project_id, intel_type, severity, intel_data, related, confidence),
+            (project_id, intel_type, severity, intel_data, related, confidence, org_id),
         )
 
         self._update_threat_score(project_id, severity, data)

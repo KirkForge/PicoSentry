@@ -32,6 +32,7 @@ class AlertHub:
         message: str,
         channels: list[str] | None = None,
         metadata: dict | None = None,
+        org_id: int | None = None,
     ) -> bool:
 
         if channels is None:
@@ -56,10 +57,10 @@ class AlertHub:
         for channel in channels:
             alert_id = db.execute_insert(
                 """
-                INSERT INTO alerts (project_id, alert_type, severity, message, channel)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO alerts (project_id, alert_type, severity, message, channel, org_id)
+                VALUES (?, ?, ?, ?, ?, ?)
             """,
-                (project_id, alert_type, severity, message, channel),
+                (project_id, alert_type, severity, message, channel, org_id),
             )
             alert_ids.append(alert_id)
 

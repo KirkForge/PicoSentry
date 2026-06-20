@@ -406,6 +406,30 @@ MIGRATIONS = [
             ON correlation_chains(chain_score DESC);
     """,
     ),
+    Migration(
+        10,
+        "add_org_id_to_tenant_tables",
+        """
+        -- Tenant isolation: tag data that belongs to an organization.
+        -- These columns are nullable so background/system jobs without an
+        -- org context can still write.  API-facing reads filter by the
+        -- caller's org.
+
+        ALTER TABLE intelligence ADD COLUMN org_id INTEGER;
+        ALTER TABLE alerts ADD COLUMN org_id INTEGER;
+        ALTER TABLE metrics ADD COLUMN org_id INTEGER;
+        ALTER TABLE webhooks ADD COLUMN org_id INTEGER;
+        ALTER TABLE scheduled_jobs ADD COLUMN org_id INTEGER;
+        ALTER TABLE correlation_chains ADD COLUMN org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_org ON intelligence(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alerts_org ON alerts(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_metrics_org ON metrics(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_webhooks_org ON webhooks(org_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_org ON scheduled_jobs(org_id);
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
+    """,
+    ),
 ]
 
 

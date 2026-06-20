@@ -101,25 +101,40 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     (pid, meta.name, meta.category, meta.priority, meta.status, meta.version),
                 )
 
-    def get_status(self) -> dict[str, Any]:
-        conn_stats = db.execute_one(f"""
+    def get_status(self, org_id: int | None = None) -> dict[str, Any]:
+        org_filter = "AND org_id = ?" if org_id is not None else ""
+        params_runs: list[Any] = [org_id] if org_id is not None else []
+        conn_stats = db.execute_one(
+            f"""
             SELECT
                 COUNT(*) as total,
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
             FROM project_runs
             WHERE run_start > {db.dialect.date_add_hours("now", -24)}
-        """)
+            {org_filter}
+        """,
+            tuple(params_runs),
+        )
 
-        threats = db.execute_one(f"""
+        params_intel: list[Any] = [org_id] if org_id is not None else []
+        threats = db.execute_one(
+            f"""
             SELECT COUNT(*) as count FROM intelligence
             WHERE severity IN ('critical', 'high')
             AND created_at > {db.dialect.date_add_hours("now", -24)}
-        """)
+            {org_filter}
+        """,
+            tuple(params_intel),
+        )
 
-        pending = db.execute_one("""
-            SELECT COUNT(*) as count FROM alerts WHERE sent = 0
-        """)
+        params_alerts: list[Any] = [org_id] if org_id is not None else []
+        pending = db.execute_one(
+            f"""
+            SELECT COUNT(*) as count FROM alerts WHERE sent = 0 {org_filter}
+        """,
+            tuple(params_alerts),
+        )
 
         health = "healthy"
         failed = (conn_stats["failed"] or 0) if conn_stats else 0
@@ -129,7 +144,11 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         if threats and (threats["count"] or 0) > 10:
             health = "critical"
 
-        running_row = db.execute_one("SELECT COUNT(*) as c FROM project_runs WHERE status = 'running'")
+        params_running: list[Any] = [org_id] if org_id is not None else []
+        running_row = db.execute_one(
+            f"SELECT COUNT(*) as c FROM project_runs WHERE status = 'running' {org_filter}",
+            tuple(params_running),
+        )
         return {
             "projects_total": len(self.registry),
             "projects_active": (running_row or {}).get("c") or 0,
@@ -165,7 +184,9 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         row = db.execute_one("SELECT * FROM projects WHERE id = ?", (project_id,))
         return dict(row) if row else None
 
-    def run_project(self, project_id: str, timeout: int | None = None) -> dict[str, Any]:
+    def run_project(
+        self, project_id: str, timeout: int | None = None, org_id: int | None = None
+    ) -> dict[str, Any]:
         meta = self.registry.get(project_id)
         if not meta:
             return {"error": f"Unknown project: {project_id}"}
@@ -174,16 +195,18 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         timeout = timeout or settings.orchestrator.default_timeout
 
         with self._semaphore:
-            return self._execute_project(project_id, cli_args, timeout)
+            return self._execute_project(project_id, cli_args, timeout, org_id=org_id)
 
-    def _execute_project(self, project_id: str, cli_args: list[str], timeout: int) -> dict[str, Any]:
+    def _execute_project(
+        self, project_id: str, cli_args: list[str], timeout: int, org_id: int | None = None
+    ) -> dict[str, Any]:
 
         run_id = db.execute_insert(
             """
-            INSERT INTO project_runs (project_id, run_start, status)
-            VALUES (?, ?, ?)
+            INSERT INTO project_runs (project_id, run_start, status, org_id)
+            VALUES (?, ?, ?, ?)
         """,
-            (project_id, datetime.now(timezone.utc), "running"),
+            (project_id, datetime.now(timezone.utc), "running", org_id),
         )
 
         event_bus.publish(
@@ -250,7 +273,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
             self._update_project_stats(project_id)
 
-            metrics.project_run(project_id, duration, status)
+            metrics.project_run(project_id, duration, status, org_id=org_id)
 
             event_bus.publish(
                 "project.run.completed",
@@ -267,7 +290,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             )
 
             for intel in intel_data:
-                self.intel.ingest(project_id, intel)
+                self.intel.ingest(project_id, intel, org_id=org_id)
 
             layer = PROJECT_LAYER_MAP.get(project_id, "scan")
             correlated_events = []
@@ -292,6 +315,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     f"Intel signals: {len(intel_data)}. "
                     f"Stderr: {result.stderr[:200]}",
                     metadata={"exit_code": result.returncode, "run_id": run_id, "intelligence_count": len(intel_data)},
+                    org_id=org_id,
                 )
 
             plugin_manager.dispatch(
@@ -338,7 +362,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 (datetime.now(timezone.utc), "timeout", duration, run_id),
             )
 
-            self.alerts.send(project_id, "timeout", "high", f"Project timed out after {timeout}s")
+            self.alerts.send(project_id, "timeout", "high", f"Project timed out after {timeout}s", org_id=org_id)
 
             plugin_manager.dispatch(
                 "alert",
@@ -369,7 +393,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 (datetime.now(timezone.utc), "failed", duration, run_id),
             )
 
-            self.alerts.send(project_id, "execution_error", "high", str(e))
+            self.alerts.send(project_id, "execution_error", "high", str(e), org_id=org_id)
 
             plugin_manager.dispatch(
                 "alert",
@@ -413,16 +437,23 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 (datetime.now(timezone.utc), stats["total"], success_rate, stats["avg_dur"] or 0, project_id),
             )
 
-    def run_batch(self, project_ids: list[str], timeout: int | None = None) -> dict[str, dict]:
+    def run_batch(
+        self, project_ids: list[str], timeout: int | None = None, org_id: int | None = None
+    ) -> dict[str, dict]:
         results = {}
         for pid in project_ids:
-            results[pid] = self.run_project(pid, timeout)
+            results[pid] = self.run_project(pid, timeout, org_id=org_id)
         return results
 
-    def list_intelligence(self, severity: str | None = None, source: str | None = None, limit: int = 50) -> list[dict]:
+    def list_intelligence(
+        self, severity: str | None = None, source: str | None = None, limit: int = 50, org_id: int | None = None
+    ) -> list[dict]:
         query = "SELECT * FROM intelligence WHERE 1=1"
-        params: list[str | int] = []
+        params: list[Any] = []
 
+        if org_id is not None:
+            query += " AND org_id = ?"
+            params.append(org_id)
         if severity:
             query += " AND severity = ?"
             params.append(severity)
@@ -475,10 +506,15 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             return "medium"
         return "low"
 
-    def list_alerts(self, sent: bool | None = None, severity: str | None = None, limit: int = 50) -> list[dict]:
+    def list_alerts(
+        self, sent: bool | None = None, severity: str | None = None, limit: int = 50, org_id: int | None = None
+    ) -> list[dict]:
         query = "SELECT * FROM alerts WHERE 1=1"
-        params: list[str | int] = []
+        params: list[Any] = []
 
+        if org_id is not None:
+            query += " AND org_id = ?"
+            params.append(org_id)
         if sent is not None:
             query += " AND sent = ?"
             params.append(1 if sent else 0)
@@ -502,11 +538,18 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         return result > 0
 
     def get_metrics(
-        self, project_id: str | None = None, metric_name: str | None = None, limit: int = 100
+        self,
+        project_id: str | None = None,
+        metric_name: str | None = None,
+        limit: int = 100,
+        org_id: int | None = None,
     ) -> list[dict]:
         query = "SELECT * FROM metrics WHERE 1=1"
-        params: list[str | int] = []
+        params: list[Any] = []
 
+        if org_id is not None:
+            query += " AND org_id = ?"
+            params.append(org_id)
         if project_id:
             query += " AND project_id = ?"
             params.append(project_id)
@@ -637,8 +680,8 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
         return checks
 
-    def generate_summary_report(self) -> str:
-        status = self.get_status()
+    def generate_summary_report(self, org_id: int | None = None) -> str:
+        status = self.get_status(org_id=org_id)
 
         report = f"""
 ╔══════════════════════════════════════════════════════════════════╗
@@ -666,27 +709,34 @@ THREAT SCORE BREAKDOWN
 
         return report
 
-    def generate_project_report(self, project_id: str) -> dict[str, Any] | None:
+    def generate_project_report(self, project_id: str, org_id: int | None = None) -> dict[str, Any] | None:
         project = self.get_project(project_id)
         if not project:
             return None
 
+        org_filter = "AND org_id = ?" if org_id is not None else ""
+        params_runs: list[Any] = [project_id]
+        if org_id is not None:
+            params_runs.append(org_id)
         runs = db.execute(
-            """
+            f"""
             SELECT * FROM project_runs
-            WHERE project_id = ?
+            WHERE project_id = ? {org_filter}
             ORDER BY run_start DESC LIMIT 10
         """,
-            (project_id,),
+            tuple(params_runs),
         )
 
+        params_intel: list[Any] = [project_id]
+        if org_id is not None:
+            params_intel.append(org_id)
         intel = db.execute(
-            """
+            f"""
             SELECT * FROM intelligence
-            WHERE source_project = ?
+            WHERE source_project = ? {org_filter}
             ORDER BY created_at DESC LIMIT 10
         """,
-            (project_id,),
+            tuple(params_intel),
         )
 
         return {

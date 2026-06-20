@@ -82,6 +82,7 @@ class Webhook:
     active: bool
     retries: int
     created_at: datetime
+    org_id: int | None = None
 
 
 class WebhookManager:
@@ -102,10 +103,13 @@ class WebhookManager:
                 active=row["active"],
                 retries=row["retries"],
                 created_at=row["created_at"],
+                org_id=row.get("org_id"),
             )
             self.webhooks[row["name"]] = webhook
 
-    def create(self, name: str, url: str, events: list[str], secret: str | None = None) -> int:
+    def create(
+        self, name: str, url: str, events: list[str], secret: str | None = None, org_id: int | None = None
+    ) -> int:
 
         is_safe, reason = _is_safe_webhook_url(url, dns_resolver=self.dns_resolver)
         if not is_safe:
@@ -115,10 +119,10 @@ class WebhookManager:
 
         webhook_id = db.execute_insert(
             """
-            INSERT INTO webhooks (name, url, secret, events, active, retries)
-            VALUES (?, ?, ?, ?, 1, 0)
+            INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
+            VALUES (?, ?, ?, ?, 1, 0, ?)
         """,
-            (name, url, secret, json.dumps(events)),
+            (name, url, secret, json.dumps(events), org_id),
         )
 
         self._load_webhooks()

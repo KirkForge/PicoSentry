@@ -18,10 +18,15 @@ class Permission(str, Enum):
     READ_HEALTH = "read:health"
     READ_BACKUPS = "read:backups"
     READ_AUDIT = "read:audit"
+    READ_WEBHOOKS = "read:webhooks"
+    READ_SCHEDULER = "read:scheduler"
+    READ_ANOMALY = "read:anomaly"
 
     RUN_PROJECTS = "run:projects"
     WRITE_WEBHOOKS = "write:webhooks"
     WRITE_INTELLIGENCE = "write:intelligence"
+    WRITE_SCHEDULER = "write:scheduler"
+    WRITE_ANOMALY = "write:anomaly"
 
     ADMIN_USERS = "admin:users"
     ADMIN_ORGS = "admin:orgs"
@@ -41,6 +46,9 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.READ_ORGS,
         Permission.READ_PLUGINS,
         Permission.READ_EVENTS,
+        Permission.READ_WEBHOOKS,
+        Permission.READ_SCHEDULER,
+        Permission.READ_ANOMALY,
     },
     "operator": {
         Permission.READ_PROJECTS,
@@ -54,9 +62,14 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.READ_EVENTS,
         Permission.READ_LOGS,
         Permission.READ_BACKUPS,
+        Permission.READ_WEBHOOKS,
+        Permission.READ_SCHEDULER,
+        Permission.READ_ANOMALY,
         Permission.RUN_PROJECTS,
         Permission.WRITE_WEBHOOKS,
         Permission.WRITE_INTELLIGENCE,
+        Permission.WRITE_SCHEDULER,
+        Permission.WRITE_ANOMALY,
     },
     "admin": {
         *Permission.__members__.values(),

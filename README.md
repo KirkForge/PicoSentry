@@ -27,7 +27,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | `picosentry watch` | **Beta** | Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
-| `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning |
+| `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; live-tested against a kind cluster |
 | `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
 | Cross-layer correlation | **Beta** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested |
 | Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |

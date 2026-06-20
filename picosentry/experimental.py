@@ -48,7 +48,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry admission`",
         status="Beta",
-        notes="K8s admission webhook; pod security validation + optional image scanning",
+        notes=(
+            "K8s admission webhook; pod security validation + optional image scanning; "
+            "live-tested against a kind cluster"
+        ),
     ),
     ComponentStatus(
         name="`picosentry corpus`",

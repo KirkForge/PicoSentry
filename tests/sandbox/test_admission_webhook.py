@@ -17,6 +17,8 @@ import threading
 from http.server import HTTPServer
 from typing import Any
 
+import pytest
+
 from picosentry.sandbox.admission import (
     AdmissionHandler,
     AdmissionRequest,
@@ -180,6 +182,40 @@ class TestAdmissionHandler:
     def test_response_preserves_uid(self):
         result = self._make_request("/validate", SAMPLE_ADMISSION_REVIEW)
         assert result["response"]["uid"] == "abc-123-def"
+
+    def test_validate_with_timeout_query_parameter(self):
+        """Kubernetes appends ?timeout=<s> to webhook URLs; path must still match."""
+
+        def allow_all(req):
+            return True, ""
+
+        result = self._make_request("/validate?timeout=10s", SAMPLE_ADMISSION_REVIEW, validator=allow_all)
+        assert result["response"]["allowed"] is True
+
+    def test_non_validate_path_still_404(self):
+        # HTTP 404 with no AdmissionReview body; urllib raises HTTPError.
+        import urllib.error
+        import urllib.request
+
+        AdmissionHandler.validator = None
+        server = HTTPServer(("127.0.0.1", 0), AdmissionHandler)
+        port = server.server_address[1]
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+
+        try:
+            url = f"http://127.0.0.1:{port}/not-validate"
+            req = urllib.request.Request(
+                url,
+                data=json.dumps(SAMPLE_ADMISSION_REVIEW).encode("utf-8"),
+                headers={"Content-Type": "application/json"},
+                method="POST",
+            )
+            with pytest.raises(urllib.error.HTTPError) as exc_info:
+                urllib.request.urlopen(req, timeout=5)
+            assert exc_info.value.code == 404
+        finally:
+            server.shutdown()
 
 
 class TestAdmissionWebhookServer:

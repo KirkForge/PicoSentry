@@ -4,6 +4,7 @@ import base64
 import json
 import logging
 import ssl
+import urllib.parse
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -79,7 +80,8 @@ class AdmissionHandler(BaseHTTPRequestHandler):
     validator: ClassVar[Callable[[AdmissionRequest], tuple[bool, str]] | None] = None
 
     def do_POST(self) -> None:
-        if self.path != "/validate":
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/validate":
             self.send_response(404)
             self.end_headers()
             return

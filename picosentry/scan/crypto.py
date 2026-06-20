@@ -181,17 +181,7 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
         signature_b64 = base64.b64encode(sig_path.read_bytes()).decode()
         sig_path.unlink(missing_ok=True)
 
-        try:
-            subprocess.run(
-                ["minisign", "-G", "-p", "-"],  # won't work for this
-                capture_output=True,
-                text=True,
-                timeout=5,
-                check=False,
-            )
-            signer = "minisign-key"
-        except Exception:
-            signer = "minisign-key"
+        signer = "minisign-key"
 
         logger.info("Signed content with minisign (key=%s, digest=%s...)", secret_key, digest[:12])
 

@@ -7,6 +7,8 @@ import sys
 from collections.abc import Callable
 from pathlib import Path
 
+from picosentry.scan.cli_commands import update as _update_mod
+
 
 _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
     "scan": ("STABLE", "Core supply-chain scanner (7 ecosystems)."),
@@ -284,7 +286,6 @@ def main(argv: list[str] | None = None) -> None:
     init_parser.add_argument("--force", action="store_true", help="Overwrite existing config file")
     rules_parser = subparsers.add_parser("rules", help="List available scanner rules")
     rules_parser.add_argument("--json", "-j", action="store_true", dest="json_output", help="Output as JSON")
-    subparsers.add_parser("update", help="Download latest npm corpus")
     diff_parser = subparsers.add_parser("diff", help="Compare two scan result JSONs")
     diff_parser.add_argument("path_a", type=str, help="First scan result")
     diff_parser.add_argument("path_b", type=str, help="Second scan result")
@@ -355,6 +356,11 @@ def main(argv: list[str] | None = None) -> None:
         help="PicoDome daemon URL for image scanning (default: http://127.0.0.1:8443)",
     )
 
+    # -- update subcommand ----------------------------------------------------
+    # Delegates to picosentry/scan/cli_commands/update.py; mirrors the
+    # `picosentry scan update ...` interface at the top level.
+    _update_mod.add_arguments(subparsers)
+
     # -- corpus subcommand ----------------------------------------------------
     # Delegates to picosentry/scan/cli_commands/corpus.py via add_arguments().
     # The corpus module has its own sub-subparsers (export/import/validate/list/sign).
@@ -395,7 +401,7 @@ def main(argv: list[str] | None = None) -> None:
     elif args.command == "rules":
         exit_code = _handle_rules(args)
     elif args.command == "update":
-        exit_code = _handle_update()
+        exit_code = _handle_update(args)
     elif args.command == "diff":
         _handle_diff(args)
     elif args.command == "daemon":
@@ -524,13 +530,8 @@ def _handle_rules(args: argparse.Namespace) -> int:
     return scan_main(argv=scan_argv)
 
 
-def _handle_update() -> int:
-    scan_main = _import_or_warn(
-        lambda: __import__("picosentry.scan.cli", fromlist=["main"]).main,
-        extra="scan",
-        what="'picosentry update' (online corpus download)",
-    )
-    return scan_main(argv=["update"])
+def _handle_update(args: argparse.Namespace) -> int:
+    return _update_mod.cmd(args)
 
 
 def _handle_diff(args: argparse.Namespace) -> None:

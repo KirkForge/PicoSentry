@@ -248,6 +248,23 @@ picosentry serve --port 8765                    # beta — API + dashboard
 picosentry health
 ```
 
+### Corpus management
+
+PicoSentry ships with a small built-in typosquat/dep-confusion corpus.  For
+stronger coverage, download per-ecosystem top-package lists and keep them
+fresh:
+
+```bash
+picosentry update --ecosystem npm --top 5000
+picosentry update --ecosystem all --top 10000
+```
+
+Supported ecosystems: `npm`, `pypi`, `go`, `cargo`, `maven`, `rubygems`,
+`nuget`.  npm and PyPI have live registry fetchers; other ecosystems merge a
+built-in fallback with any names supplied via `--source-url`.  The command
+writes a `corpus.json` manifest, and the scanner warns when any ecosystem
+corpus is older than 30 days.
+
 ---
 
 ## Plugins (serve mode)

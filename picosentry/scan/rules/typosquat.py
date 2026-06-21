@@ -18,6 +18,7 @@ from .pypi_utils import (
     parse_requirements_file,
 )
 from .rubygems_utils import detect_rubygems_project, get_rubygems_dep_names, parse_gemfile
+from .corpus_index import check_typosquat_against_index, load_indexed_corpus
 from .typosquat_utils import (
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
@@ -26,8 +27,6 @@ from .typosquat_utils import (
     BUILTIN_PYPI_TOP_100,
     BUILTIN_RUBYGEMS_TOP_100,
     BUILTIN_TOP_100,
-    check_typosquat,
-    load_corpus_for_ecosystem,
     typosquat_severity_confidence,
 )
 from .utils import get_dep_names, load_package_json
@@ -63,7 +62,7 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
     if not config.detect_project(target):
         return findings
 
-    corpus = load_corpus_for_ecosystem(corpus_dir, config.ecosystem, config.builtin_corpus)
+    index = load_indexed_corpus(corpus_dir, config.ecosystem, config.builtin_corpus)
 
     all_deps = config.collect_deps(target) if config.collect_deps else set()
     if not all_deps:
@@ -79,10 +78,10 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         if not compare_name or compare_name in config.known_legitimate:
             continue
 
-        if compare_name in corpus:
+        if compare_name in index:
             continue
 
-        close_matches = check_typosquat(compare_name, corpus)
+        close_matches = check_typosquat_against_index(compare_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(compare_name, best_match, best_dist)
@@ -419,7 +418,7 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
 
 def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     findings: list[Finding] = []
-    corpus = load_corpus_for_ecosystem(corpus_dir, "npm", BUILTIN_TOP_100)
+    index = load_indexed_corpus(corpus_dir, "npm", BUILTIN_TOP_100)
 
     KNOWN_LEGITIMATE: frozenset[str] = frozenset(
         {
@@ -448,8 +447,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
         return findings
 
     pkg_name = pkg.get("name", "")
-    if pkg_name and not pkg_name.startswith("@") and pkg_name not in corpus and pkg_name not in KNOWN_LEGITIMATE:
-        close_matches = check_typosquat(pkg_name, corpus)
+    if pkg_name and not pkg_name.startswith("@") and pkg_name not in index and pkg_name not in KNOWN_LEGITIMATE:
+        close_matches = check_typosquat_against_index(pkg_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(pkg_name, best_match, best_dist)
@@ -502,9 +501,9 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                             all_deps.update(get_dep_names(dep_data))
 
     for dep_name in sorted(all_deps):
-        if dep_name in corpus or dep_name in KNOWN_LEGITIMATE:
+        if dep_name in index or dep_name in KNOWN_LEGITIMATE:
             continue
-        close_matches = check_typosquat(dep_name, corpus)
+        close_matches = check_typosquat_against_index(dep_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(dep_name, best_match, best_dist)

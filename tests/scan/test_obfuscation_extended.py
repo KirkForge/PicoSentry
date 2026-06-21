@@ -110,6 +110,20 @@ class TestScanFile(unittest.TestCase):
         self.assertIn(".map", SKIP_EXTENSIONS)
         self.assertIn(".woff", SKIP_EXTENSIONS)
 
+    def test_large_benign_file_no_tokens(self):
+        """A large JS file without obfuscation tokens should return zero quickly.
+
+        This exercises the literal-token fast path: none of the required
+        tokens (eval, function, \\x, \\u, atob, Buffer.from) are present, so the
+        expensive regexes are skipped.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "big.js"
+            # Content is long but contains no suspicious tokens.
+            f.write_text("// benign module\n" + "const x = 1;\n" * 20_000)
+            findings = _scan_file(f)
+            self.assertEqual(len(findings), 0)
+
 
 class TestDetectObfuscation(unittest.TestCase):
     """Test detect_obfuscation on project trees."""

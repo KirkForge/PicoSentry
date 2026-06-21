@@ -158,8 +158,9 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-OBFS-001",
                 category="false_positive_tendency",
-                description="Obfuscation detection may flag minified production code that uses "
-                "hex encodings or base64 for legitimate purposes (e.g. inline images).",
+                description="Obfuscation detection uses a staged literal-token filter (eval/Function) "
+                "so benign files without those tokens are skipped, but minified production code that "
+                "contains the tokens legitimately can still be flagged.",
                 impact="Moderate FP rate on projects bundling minified assets.",
                 workaround="Use baseline to suppress known-good minified bundles.",
                 tracked_in="DEEP_REVIEW.md",
@@ -167,8 +168,9 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-OBFS-003",
                 category="false_positive_tendency",
-                description="Base64+eval detection flags webpack bundles that embed base64 data URIs. "
-                "Common in SPAs and electron apps.",
+                description="Base64+eval detection uses a staged literal-token filter (atob, Buffer.from, "
+                "eval/Function), which avoids scanning files that cannot match. Webpack bundles that embed "
+                "base64 data URIs and also contain eval/Function tokens may still be flagged.",
                 impact="High FP rate on projects using webpack with data URI loaders.",
                 workaround="Suppress in baseline or set confidence=MEDIUM for webpack bundles.",
                 tracked_in="DEEP_REVIEW.md",
@@ -176,10 +178,13 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-TYPO-001",
                 category="edge_case",
-                description="Typosquat detection requires the top-N corpus. If the corpus is stale "
-                "or incomplete, legitimate packages near the top-N boundary may be misclassified.",
-                impact="Low FP rate; accuracy depends on corpus freshness.",
-                workaround="Keep corpus updated. Pin corpus version for reproducibility.",
+                description="Typosquat detection indexes the corpus by length and only compares "
+                "against compatible buckets, so it scales to top-10k+ corpora. Accuracy still depends "
+                "on a fresh, complete corpus; stale corpora can miss new popular packages or misclassify "
+                "packages near the top-N boundary.",
+                impact="Low FP rate; accuracy depends on corpus freshness and coverage.",
+                workaround="Run 'picosentry update --ecosystem <ecosystem>' regularly. "
+                "Pin corpus version for reproducibility.",
                 tracked_in="DEEP_REVIEW.md",
             ),
             KnownLimitation(

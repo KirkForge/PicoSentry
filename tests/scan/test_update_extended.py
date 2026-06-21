@@ -33,27 +33,17 @@ def test_update_all_ecosystems_writes_manifest(tmp_path: Path):
     def mock_urlopen(req, **kwargs):
         url = req.full_url if hasattr(req, "full_url") else str(req)
         if "npm-rank" in url:
-            body = json.dumps(
-                [{"name": "express"}, {"name": "lodash"}]
-            ).encode("utf-8")
+            body = json.dumps([{"name": "express"}, {"name": "lodash"}]).encode("utf-8")
         elif "hugovk.github.io" in url:
-            body = json.dumps(
-                {"rows": [{"project": "requests"}, {"project": "urllib3"}]}
-            ).encode("utf-8")
+            body = json.dumps({"rows": [{"project": "requests"}, {"project": "urllib3"}]}).encode("utf-8")
         elif "crates.io" in url:
-            body = json.dumps(
-                {"crates": [{"id": "serde"}, {"id": "tokio"}]}
-            ).encode("utf-8")
+            body = json.dumps({"crates": [{"id": "serde"}, {"id": "tokio"}]}).encode("utf-8")
         elif "mvdan/corpus" in url:
             body = b"module\tcount\ngithub.com/gin-gonic/gin\t100\ngithub.com/urfave/cli\t90\n"
         elif "packages.ecosyste.ms" in url and "maven" in url:
-            body = json.dumps(
-                [{"name": "com.google.guava:guava"}, {"name": "org.slf4j:slf4j-api"}]
-            ).encode("utf-8")
+            body = json.dumps([{"name": "com.google.guava:guava"}, {"name": "org.slf4j:slf4j-api"}]).encode("utf-8")
         elif "packages.ecosyste.ms" in url and "rubygems" in url:
-            body = json.dumps(
-                [{"name": "rails"}, {"name": "rake"}]
-            ).encode("utf-8")
+            body = json.dumps([{"name": "rails"}, {"name": "rake"}]).encode("utf-8")
         elif "nuget.org" in url:
             body = json.dumps(
                 {
@@ -96,9 +86,7 @@ def test_update_all_ecosystems_writes_manifest(tmp_path: Path):
 
 def test_update_npm_fetcher_parses_npm_rank():
     """The npm fetcher extracts names from the npm-rank dataset."""
-    body = json.dumps(
-        [{"name": "express"}, {"name": "lodash"}, {"name": ""}]
-    ).encode("utf-8")
+    body = json.dumps([{"name": "express"}, {"name": "lodash"}, {"name": ""}]).encode("utf-8")
     mock_urlopen = _make_urlopen_mock(body)
 
     with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
@@ -111,9 +99,7 @@ def test_update_npm_fetcher_parses_npm_rank():
 
 def test_update_pypi_fetcher_parses_leaderboard():
     """The PyPI fetcher extracts project names from the public leaderboard."""
-    body = json.dumps(
-        {"rows": [{"project": "requests"}, {"project": "numpy"}, {"project": ""}]}
-    ).encode("utf-8")
+    body = json.dumps({"rows": [{"project": "requests"}, {"project": "numpy"}, {"project": ""}]}).encode("utf-8")
     mock_urlopen = _make_urlopen_mock(body)
 
     with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
@@ -126,9 +112,7 @@ def test_update_pypi_fetcher_parses_leaderboard():
 
 def test_update_cargo_fetcher_parses_crates_io():
     """The cargo fetcher extracts crate ids from crates.io."""
-    body = json.dumps(
-        {"crates": [{"id": "serde"}, {"id": "tokio"}]}
-    ).encode("utf-8")
+    body = json.dumps({"crates": [{"id": "serde"}, {"id": "tokio"}]}).encode("utf-8")
     mock_urlopen = _make_urlopen_mock(body)
 
     with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
@@ -154,9 +138,7 @@ def test_update_go_fetcher_parses_tsv():
 
 def test_update_maven_fetcher_parses_ecosyste_ms():
     """The Maven fetcher extracts package names from Ecosyste.ms."""
-    body = json.dumps(
-        [{"name": "com.google.guava:guava"}, {"name": "org.slf4j:slf4j-api"}]
-    ).encode("utf-8")
+    body = json.dumps([{"name": "com.google.guava:guava"}, {"name": "org.slf4j:slf4j-api"}]).encode("utf-8")
     mock_urlopen = _make_urlopen_mock(body)
 
     with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
@@ -202,9 +184,7 @@ def test_update_nuget_fetcher_parses_search():
 
 def test_update_merges_builtin_and_filters_obscure_short_names(tmp_path: Path):
     """Fetched names under 4 chars not in the built-in list are dropped."""
-    npm_response = json.dumps(
-        [{"name": "express"}, {"name": "x"}]
-    ).encode("utf-8")
+    npm_response = json.dumps([{"name": "express"}, {"name": "x"}]).encode("utf-8")
 
     args = argparse.Namespace(
         ecosystem="npm",

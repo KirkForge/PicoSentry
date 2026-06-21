@@ -179,7 +179,9 @@ def _fetch_cargo(top_n: int) -> tuple[list[str], str, bool]:
     page = 1
     while len(names) < top_n:
         url = f"{source_url}?page={page}&per_page={per_page}&sort=downloads"
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"})
+        req = urllib.request.Request(
+            url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"}
+        )
         try:
             resp, body = safe_urlopen(req, timeout=60)
         except (InsecureURLError, ResponseTooLargeError) as e:
@@ -210,12 +212,17 @@ def _fetch_go(top_n: int) -> tuple[list[str], str, bool]:
     url = "https://raw.githubusercontent.com/mvdan/corpus/master/top-1000.tsv"
     req = urllib.request.Request(url, headers={"User-Agent": "picosentry-corpus-fetcher"})
     try:
-        resp, body = safe_urlopen(req, timeout=60)
+        _resp, body = safe_urlopen(req, timeout=60)
     except (InsecureURLError, ResponseTooLargeError) as e:
         raise RuntimeError(f"mvdan/corpus fetch failed: {e}") from e
 
-    import csv
-    rows = list(csv.reader(body.decode("utf-8").splitlines(), delimiter="\t"))
+    try:
+        import csv
+
+        rows = list(csv.reader(body.decode("utf-8").splitlines(), delimiter="\t"))
+    finally:
+        _resp.close()
+
     if not rows:
         return [], url, False
     # First row is a header.
@@ -230,7 +237,9 @@ def _fetch_maven(top_n: int) -> tuple[list[str], str, bool]:
     page = 1
     while len(names) < top_n:
         url = f"{source_url}?order=desc&sort=dependent_repos_count&per_page=100&page={page}"
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"})
+        req = urllib.request.Request(
+            url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"}
+        )
         try:
             resp, body = safe_urlopen(req, timeout=60)
         except (InsecureURLError, ResponseTooLargeError) as e:
@@ -264,7 +273,9 @@ def _fetch_rubygems(top_n: int) -> tuple[list[str], str, bool]:
     page = 1
     while len(names) < top_n:
         url = f"{source_url}?order=desc&sort=dependent_repos_count&per_page=100&page={page}"
-        req = urllib.request.Request(url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"})
+        req = urllib.request.Request(
+            url, headers={"Accept": "application/json", "User-Agent": "picosentry-corpus-fetcher"}
+        )
         try:
             resp, body = safe_urlopen(req, timeout=60)
         except (InsecureURLError, ResponseTooLargeError) as e:
@@ -418,19 +429,13 @@ def cmd(args: argparse.Namespace) -> int:
 
     for ecosystem in ecosystems:
         try:
-            names, source_url, used_builtin = _fetch_ecosystem(
-                ecosystem, top_n, getattr(args, "source_url", None)
-            )
+            names, source_url, used_builtin = _fetch_ecosystem(ecosystem, top_n, getattr(args, "source_url", None))
         except Exception as e:
             print(f"Error fetching {ecosystem}: {e}", file=sys.stderr)
             failed.append(ecosystem)
             continue
 
-        corpus_file = (
-            output_path
-            if output_path and single_ecosystem
-            else output_dir / f"{ecosystem}_top_packages.json"
-        )
+        corpus_file = output_path if output_path and single_ecosystem else output_dir / f"{ecosystem}_top_packages.json"
 
         existing: set[str] = set()
         if merge:
@@ -439,11 +444,7 @@ def cmd(args: argparse.Namespace) -> int:
         builtin = set(_BUILTIN_FALLBACK.get(ecosystem, []))
         # Always merge built-in names and drop obscure fetched short names
         # (<4 chars) that are not already in the curated built-in list.
-        filtered = {
-            n
-            for n in names
-            if isinstance(n, str) and n and (len(n) >= 4 or n in builtin)
-        }
+        filtered = {n for n in names if isinstance(n, str) and n and (len(n) >= 4 or n in builtin)}
         merged = sorted(existing | filtered | builtin)
         save_indexed_corpus(corpus_file.parent, ecosystem, merged)
 

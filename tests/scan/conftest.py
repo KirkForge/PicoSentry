@@ -15,6 +15,7 @@ Or, for pytest-style fixtures (the ``scan_fixtures_dir`` fixture)::
     def test_something(scan_fixtures_dir: Path) -> None:
         ...
 """
+
 from __future__ import annotations
 
 import json
@@ -39,9 +40,7 @@ FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 # ─── Project builders ──────────────────────────────────────────────────────
 
 
-def make_npm_project(
-    tmp_path: Path, pkg_json: dict, files: dict | None = None
-) -> Path:
+def make_npm_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
     """Create a minimal npm project tree at ``tmp_path``.
 
     Writes a ``package.json`` and any optional ``files`` mapping (relative

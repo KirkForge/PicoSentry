@@ -65,8 +65,7 @@ class TestTokenBucketLimiter:
         results = []
 
         def worker():
-            for _ in range(20):
-                results.append(limiter.allow("shared-actor"))
+            results.extend(limiter.allow("shared-actor") for _ in range(20))
 
         threads = [threading.Thread(target=worker) for _ in range(5)]
         for t in threads:
@@ -128,7 +127,7 @@ class TestJobQueue:
         q = JobQueue(max_size=10)
         job = q.enqueue(command=["echo", "test"], actor="u1")
         q.dequeue(timeout=1.0)
-        q.fail(job.job_id, error="timeout")
+        q.fail(job.job_id)
         j = q.get(job.job_id)
         assert j.status == "failed"
 

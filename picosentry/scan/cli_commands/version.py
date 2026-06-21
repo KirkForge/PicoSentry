@@ -12,7 +12,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     subparsers.add_parser(NAME, help="Show PicoSentry version")
 
 
-def cmd(args: argparse.Namespace) -> int:
+def cmd(_args: argparse.Namespace) -> int:
     from picosentry.scan.rules import RULE_INFO
 
     engine = create_default_engine()

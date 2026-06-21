@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import threading
@@ -24,7 +24,6 @@ MAX_JOBS = 1000
 
 
 class PersistentScanJobStore:
-
     def __init__(
         self,
         store_dir: Path | None = None,
@@ -53,7 +52,6 @@ class PersistentScanJobStore:
         if not self._store_file.exists():
             return
 
-
         try:
             file_size = self._store_file.stat().st_size
         except OSError:
@@ -63,12 +61,11 @@ class PersistentScanJobStore:
             self._compact()
             return
 
-
         jobs: dict[str, dict[str, Any]] = {}
         try:
-            with open(self._store_file, encoding="utf-8") as f:
-                for line_num, line in enumerate(f, 1):
-                    line = line.strip()
+            with self._store_file.open(encoding="utf-8") as f:
+                for line_num, raw_line in enumerate(f, 1):
+                    line = raw_line.strip()
                     if not line:
                         continue
                     try:
@@ -81,7 +78,6 @@ class PersistentScanJobStore:
         except OSError as e:
             logger.warning("Failed to read job store: %s", e)
             return
-
 
         if len(jobs) > self._max_jobs:
             sorted_jobs = sorted(
@@ -97,12 +93,11 @@ class PersistentScanJobStore:
     def _compact(self) -> None:
         logger.info("Compacting job store %s", self._store_file)
 
-
         jobs: dict[str, dict[str, Any]] = {}
         try:
-            with open(self._store_file, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
+            with self._store_file.open(encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
                     if not line:
                         continue
                     try:
@@ -115,35 +110,31 @@ class PersistentScanJobStore:
         except OSError:
             return
 
-
         sorted_jobs = sorted(
             jobs.values(),
             key=lambda j: j.get("created_at", ""),
             reverse=True,
         )[: self._max_jobs]
 
-
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
+            with tmp_file.open("w", encoding="utf-8") as f:
                 for job in sorted_jobs:
                     f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
             tmp_file.replace(self._store_file)
             logger.info("Compacted job store: %d → %d jobs", len(jobs), len(sorted_jobs))
         except OSError as e:
             logger.warning("Failed to compact job store: %s", e)
-            try:
+            with contextlib.suppress(OSError):
                 tmp_file.unlink()
-            except OSError:
-                pass
 
         self._jobs = {j["job_id"]: j for j in sorted_jobs}
 
     def _append_to_disk(self, job: dict[str, Any]) -> None:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         try:
-            with open(self._store_file, "a", encoding="utf-8") as f:
+            with self._store_file.open("a", encoding="utf-8") as f:
                 f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
         except OSError as e:
             logger.warning("Failed to persist job %s: %s", job.get("job_id", "?"), e)
@@ -198,13 +189,10 @@ class PersistentScanJobStore:
         self._store_dir.mkdir(parents=True, exist_ok=True)
         tmp_file = self._store_file.with_suffix(".jsonl.tmp")
         try:
-            with open(tmp_file, "w", encoding="utf-8") as f:
-                for job in self._jobs.values():
-                    f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
+            with tmp_file.open("w", encoding="utf-8") as f:
+                f.writelines(json.dumps(job, sort_keys=True, default=str) + "\n" for job in self._jobs.values())
             tmp_file.replace(self._store_file)
         except OSError as e:
             logger.warning("Failed to rewrite job store: %s", e)
-            try:
+            with contextlib.suppress(OSError):
                 tmp_file.unlink()
-            except OSError:
-                pass

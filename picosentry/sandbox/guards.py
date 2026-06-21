@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -34,14 +33,11 @@ __all__ = [
     "deterministic_hash",
     "diff_results",
     "validate_findings_deterministic",
-    "validate_no_randomness",
-    "validate_result_sorted",
     "verify_determinism",
 ]
 
 
 class DeterministicGuard(_CoreGuard):
-
     def check(self, result: SandboxResult | AnalysisResult) -> list[str]:
         violations: list[str] = []
 
@@ -49,7 +45,6 @@ class DeterministicGuard(_CoreGuard):
             violations.extend(self._check_sandbox(result))
         elif isinstance(result, AnalysisResult):
             violations.extend(self._check_analysis(result))
-
 
         result_dict = result.to_dict(deterministic=True)
         violations.extend(self.check_dict(result_dict))
@@ -64,19 +59,17 @@ class DeterministicGuard(_CoreGuard):
     def _check_sandbox(self, result: SandboxResult) -> list[str]:
         violations: list[str] = []
 
-
         if result.run_id and _UUID_PATTERN.fullmatch(result.run_id):
             violations.append(f"run_id is a UUID (non-deterministic): {result.run_id}")
-
 
         if result.timestamp and _ISO_TIMESTAMP_PATTERN.search(result.timestamp):
             violations.append(f"timestamp is non-deterministic: {result.timestamp}")
 
-
-        for event in result.events:
-            if _UUID_PATTERN.search(event.detail):
-                violations.append(f"event {event.rule_id} contains UUID in detail: {event.detail[:80]}")
-
+        violations.extend(
+            f"event {event.rule_id} contains UUID in detail: {event.detail[:80]}"
+            for event in result.events
+            if _UUID_PATTERN.search(event.detail)
+        )
 
         d = result.to_dict(deterministic=True)
         if list(d.keys()) != sorted(d.keys()):
@@ -87,23 +80,24 @@ class DeterministicGuard(_CoreGuard):
     def _check_analysis(self, result: AnalysisResult) -> list[str]:
         violations: list[str] = []
 
+        violations.extend(
+            f"Finding {f.rule_id} has UUID finding_id: {f.finding_id}"
+            for f in result.findings
+            if f.finding_id and _UUID_PATTERN.fullmatch(f.finding_id)
+        )
 
-        for f in result.findings:
-            if f.finding_id and _UUID_PATTERN.fullmatch(f.finding_id):
-                violations.append(f"Finding {f.rule_id} has UUID finding_id: {f.finding_id}")
-
-
-        for f in result.findings:
-            if hasattr(f, "timestamp") and f.timestamp:
-                violations.append(f"Finding {f.rule_id} has timestamp: {f.timestamp}")
-
+        violations.extend(
+            f"Finding {f.rule_id} has timestamp: {f.timestamp}"
+            for f in result.findings
+            if hasattr(f, "timestamp") and f.timestamp
+        )
 
         def _sort_tuple(f):
             return (f.rule_id, f.file, getattr(f, "line", 0), f.finding_id)
+
         sorted_findings = sorted(result.findings, key=_sort_tuple)
         if result.findings != sorted_findings:
             violations.append("findings not sorted by (rule_id, file, line, finding_id)")
-
 
         d = result.to_dict(deterministic=True)
         if list(d.keys()) != sorted(d.keys()):
@@ -124,41 +118,6 @@ def validate_findings_deterministic(findings: list) -> list[str]:
         if _UUID_PATTERN.search(evidence_str):
             violations.append(f"finding {f.rule_id} has UUID in evidence")
 
-    return violations
-
-
-def validate_result_sorted(result_dict: dict) -> list[str]:
-    violations: list[str] = []
-
-    def _check_sorted(d: dict, path: str = "") -> None:
-        keys = list(d.keys())
-        if keys != sorted(keys):
-            violations.append(f"keys not sorted at {path or 'root'}: {keys}")
-        for k, v in d.items():
-            if isinstance(v, dict):
-                _check_sorted(v, f"{path}.{k}" if path else k)
-
-    _check_sorted(result_dict)
-    return violations
-
-
-def validate_no_randomness(result_dict: dict) -> list[str]:
-    violations: list[str] = []
-
-    def _check_value(v, path: str = "") -> None:
-        if isinstance(v, str):
-            if _UUID_PATTERN.search(v):
-                violations.append(f"UUID found at {path}: {v[:50]}")
-            if _ISO_TIMESTAMP_PATTERN.search(v):
-                violations.append(f"timestamp found at {path}: {v[:50]}")
-        elif isinstance(v, dict):
-            for k2, v2 in v.items():
-                _check_value(v2, f"{path}.{k2}")
-        elif isinstance(v, list):
-            for i, item in enumerate(v):
-                _check_value(item, f"{path}[{i}]")
-
-    _check_value(result_dict)
     return violations
 
 

@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import gzip
 import hashlib
 import json
@@ -18,33 +18,26 @@ logger = logging.getLogger("picodome.audit")
 
 
 class AuditEventType(str, Enum):
-
-
     SCAN_START = "scan_start"
     SCAN_COMPLETE = "scan_complete"
     SCAN_ALERT = "scan_alert"
-
 
     POLICY_CREATE = "policy_create"
     POLICY_UPDATE = "policy_update"
     POLICY_ROLLBACK = "policy_rollback"
     POLICY_DELETE = "policy_delete"
 
-
     BASELINE_CREATE = "baseline_create"
     BASELINE_UPDATE = "baseline_update"
     BASELINE_DELETE = "baseline_delete"
-
 
     DAEMON_START = "daemon_start"
     DAEMON_STOP = "daemon_stop"
     AUTH_SUCCESS = "auth_success"
     AUTH_FAILURE = "auth_failure"
 
-
     COMMAND_DENIED = "command_denied"
     RATE_LIMITED = "rate_limited"
-
 
     DATA_RETENTION_CLEANUP = "data_retention_cleanup"
     DATA_EXPORT = "data_export"
@@ -55,7 +48,6 @@ class AuditEventType(str, Enum):
 
 @dataclass(frozen=True)
 class AuditEvent:
-
     event_type: AuditEventType
     actor: str
     detail: str = ""
@@ -78,7 +70,7 @@ class AuditEvent:
             "target": self.target,
             "timestamp": self.timestamp,
         }
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
     def to_json_line(self) -> str:
         return json.dumps(self.to_dict(), sort_keys=True, default=str)
@@ -93,7 +85,6 @@ AUDIT_SCHEMA_COMPAT = {1, 2}  # Versions we can read
 
 
 class AuditLogger:
-
     def __init__(
         self,
         log_dir: Path | None = None,
@@ -112,12 +103,9 @@ class AuditLogger:
         self._sinks: list[Any] = sinks or []  # AuditSink instances
         self._lock = threading.Lock()
 
-
         self._log_dir.mkdir(parents=True, exist_ok=True)
 
-
         self._prev_hash = self._read_last_hash()
-
 
     def record(
         self,
@@ -145,24 +133,19 @@ class AuditLogger:
             line = event.to_json_line()
             self._append_line(line)
 
-
             self._prev_hash = hashlib.sha256(line.encode("utf-8")).hexdigest()
-
 
         if self._notary is not None:
             try:
                 notary_uuid = self._notary.submit_entry(event.to_dict())
                 logger.debug("Notarized event %s as %s", event.event_id[:8], notary_uuid[:8])
             except Exception as exc:
-
                 logger.warning("Notary submission failed for %s: %s", event.event_id[:8], exc)
-
 
         for sink in self._sinks:
             try:
                 sink.send(event)
             except Exception as exc:
-
                 logger.warning("Sink %s failed for event %s: %s", sink.name, event.event_id[:8], exc)
 
         logger.debug(
@@ -184,9 +167,9 @@ class AuditLogger:
         line_num = 0
 
         try:
-            with open(path, encoding="utf-8") as f:
-                for line_num, line in enumerate(f, start=1):
-                    line = line.strip()
+            with path.open(encoding="utf-8") as f:
+                for line_num, raw_line in enumerate(f, start=1):
+                    line = raw_line.strip()
                     if not line:
                         continue
 
@@ -203,7 +186,6 @@ class AuditLogger:
                             f"expected {expected_prev[:16]}... "
                             f"got {recorded_prev[:16]}..."
                         )
-
 
                     expected_prev = hashlib.sha256(line.encode("utf-8")).hexdigest()
 
@@ -227,9 +209,9 @@ class AuditLogger:
             return results
 
         try:
-            with open(self._log_path, encoding="utf-8") as f:
-                for line in f:
-                    line = line.strip()
+            with self._log_path.open(encoding="utf-8") as f:
+                for raw_line in f:
+                    line = raw_line.strip()
                     if not line:
                         continue
 
@@ -237,7 +219,6 @@ class AuditLogger:
                         data = json.loads(line)
                     except json.JSONDecodeError:
                         continue
-
 
                     if event_type and data.get("event_type") != event_type.value:
                         continue
@@ -249,7 +230,6 @@ class AuditLogger:
                         continue
                     if until and data.get("timestamp", "") > until:
                         continue
-
 
                     schema_ver = data.get("schema_version", 1)
                     if schema_ver not in AUDIT_SCHEMA_COMPAT:
@@ -276,7 +256,6 @@ class AuditLogger:
         except OSError:
             pass
 
-
         results.reverse()
         return results
 
@@ -287,7 +266,7 @@ class AuditLogger:
         stat = self._log_path.stat()
         events = 0
         try:
-            with open(self._log_path, encoding="utf-8") as f:
+            with self._log_path.open(encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         events += 1
@@ -316,26 +295,20 @@ class AuditLogger:
 
     def remove_sink(self, sink: Any) -> None:
         if sink in self._sinks:
-            try:
+            with contextlib.suppress(Exception):
                 sink.stop()
-            except Exception:
-                pass
             self._sinks.remove(sink)
-
 
     def _append_line(self, line: str) -> None:
 
         if self._log_path.exists() and self._log_path.stat().st_size >= self._max_bytes:
             self._rotate()
 
-        with open(self._log_path, "a", encoding="utf-8") as f:
+        with self._log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
 
-
-        try:
+        with contextlib.suppress(OSError):
             self._log_path.chmod(0o600)
-        except OSError:
-            pass
 
     def _rotate(self) -> None:
 
@@ -345,11 +318,9 @@ class AuditLogger:
             if src.exists():
                 shutil.move(str(src), str(dst))
 
-
         one_path = self._log_path.with_suffix(".1.jsonl.gz")
-        with open(self._log_path, "rb") as f_in, gzip.open(one_path, "wb") as f_out:
+        with self._log_path.open("rb") as f_in, gzip.open(one_path, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
-
 
         self._log_path.write_text("", encoding="utf-8")
 
@@ -359,7 +330,7 @@ class AuditLogger:
 
         last_line = ""
         try:
-            with open(self._log_path, encoding="utf-8") as f:
+            with self._log_path.open(encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
                         last_line = line.strip()

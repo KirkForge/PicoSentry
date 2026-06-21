@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import heapq
@@ -14,7 +13,6 @@ logger = logging.getLogger("picodome.ratelimit.queue")
 
 
 class JobPriority(IntEnum):
-
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
@@ -23,7 +21,6 @@ class JobPriority(IntEnum):
 
 @dataclass(order=False)
 class QueuedJob:
-
     job_id: str
     command: list[str]
     actor: str
@@ -50,7 +47,6 @@ class QueuedJob:
 
 
 class JobQueue:
-
     def __init__(self, max_size: int = 1000) -> None:
         self._heap: list[QueuedJob] = []
         self._jobs: dict[str, QueuedJob] = {}
@@ -75,7 +71,6 @@ class JobQueue:
     ) -> QueuedJob | None:
         with self._not_empty:
             if len(self._heap) >= self._max_size:
-
                 if priority >= JobPriority.LOW:
                     self._stats["dropped"] += 1
                     logger.warning("Job queue full (%d), dropping LOW priority job", len(self._heap))
@@ -134,7 +129,7 @@ class JobQueue:
                     self._completed[job_id] = result
                 self._stats["completed"] += 1
 
-    def fail(self, job_id: str, error: str = "") -> None:
+    def fail(self, job_id: str) -> None:
         with self._lock:
             if job_id in self._jobs:
                 self._jobs[job_id].status = "failed"
@@ -147,12 +142,6 @@ class JobQueue:
     def get_result(self, job_id: str) -> dict | None:
         with self._lock:
             return self._completed.get(job_id)
-
-    def list_pending(self, limit: int = 50) -> list[QueuedJob]:
-        with self._lock:
-            pending = [j for j in self._jobs.values() if j.status == "queued"]
-            pending.sort()
-            return pending[:limit]
 
     def size(self) -> int:
         with self._lock:

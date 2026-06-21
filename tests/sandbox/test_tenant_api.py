@@ -26,12 +26,6 @@ class _TestHandler:
     def __init__(self, headers: dict[str, str] | None = None):
         self.headers_map = headers or {}
 
-    def _get_token(self) -> str | None:
-        auth = self.headers_map.get("Authorization", "")
-        if auth.startswith("Bearer "):
-            return auth[7:].strip()
-        return None
-
     def _resolve_tenant(self, token: str | None) -> TenantId:
         """Same logic as PicoDomeHandler._resolve_tenant."""
         from picosentry.sandbox.tenant import get_tenant_registry

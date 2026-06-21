@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -69,7 +68,6 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
     except OSError:
         return findings
 
-
     has_suspicious_code = False
     risk_tags: list[str] = []
     evidence_lines: list[str] = []
@@ -78,8 +76,7 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
     for i, line in enumerate(lines):
         stripped = line.strip()
 
-
-        if stripped.startswith("#") or stripped.startswith(('"""', "'''", '"', "'")):
+        if stripped.startswith(("#", '"""', "'''", '"', "'")):
             continue
 
         for pattern in EXEC_PATTERNS:
@@ -107,7 +104,9 @@ def _scan_setup_py(setup_path: Path) -> list[Finding]:
 
     if has_suspicious_code:
         risk_tags = list(dict.fromkeys(risk_tags))  # Deduplicate preserving order
-        severity = Severity.CRITICAL if "network access" in risk_tags or "credential reading" in risk_tags else Severity.HIGH
+        severity = (
+            Severity.CRITICAL if "network access" in risk_tags or "credential reading" in risk_tags else Severity.HIGH
+        )
 
         findings.append(
             Finding(
@@ -144,16 +143,13 @@ def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
     if not project_data:
         return findings
 
-
     build_system = project_data.get("build-system", {})
     build_backend = build_system.get("build-backend", "")
 
     if "setuptools" in build_backend:
-
         setup_py = pyproject_path.parent / "setup.py"
         if setup_py.is_file():
             findings.extend(_scan_setup_py(setup_py))
-
 
     poetry_tool = project_data.get("tool", {}).get("poetry", {})
     if "scripts" in poetry_tool:
@@ -186,12 +182,11 @@ def _scan_pyproject_build(pyproject_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_pypi_post_install(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     if not detect_pypi_project(target):
         return findings
-
 
     setup_py = target / "setup.py"
     if setup_py.is_file():
@@ -201,11 +196,9 @@ def detect_pypi_post_install(target: Path, corpus_dir: Path) -> list[Finding]:
     if pyproject.is_file():
         findings.extend(_scan_pyproject_build(pyproject))
 
-
     for meta_path, metadata in iter_site_packages(target):
         metadata.get("name", "") if metadata else meta_path.parent.name
         pkg_dir = meta_path.parent
-
 
         setup_py_path = pkg_dir / "setup.py"
         if setup_py_path.is_file():

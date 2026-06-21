@@ -1,4 +1,3 @@
-
 from .engine import ScanEngine, create_default_engine, user_corpus_dir
 from .models import (
     BaselineResult,
@@ -12,7 +11,7 @@ from .models import (
     load_baseline,
 )
 
-__version__ = "2.0.13"
+__version__ = "2.0.15"
 __all__ = [
     "BaselineResult",
     "Confidence",

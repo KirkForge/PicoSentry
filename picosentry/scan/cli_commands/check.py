@@ -44,7 +44,6 @@ def cmd(args: argparse.Namespace) -> int:
     severity_order = dict(SEVERITY_ORDER)
     fail_level = severity_order[args.fail_on.lower()]
 
-
     failed_rules = [r for r in result.rule_executions if r.status == "failed"]
     if failed_rules:
         for r in failed_rules:

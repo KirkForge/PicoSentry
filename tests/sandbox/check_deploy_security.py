@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """PicoDome — Deployment Security Checker.
 
 Validates that deployment manifests and configuration don't contain
@@ -13,7 +12,7 @@ Runs as part of CI to catch:
   - Missing security contexts in containers
 
 Usage:
-  python scripts/check_deploy_security.py [--strict]
+  python tests/sandbox/check_deploy_security.py [--strict]
 
   --strict  Treat warnings as errors (exit 1 on any finding)
 """
@@ -66,8 +65,7 @@ def _env_var_enabled_in_line(var: str, line: str, lines: list[str], i: int) -> b
     if var not in line:
         return False
     return bool(
-        re.search(rf"{re.escape(var)}.*1", line)
-        or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
+        re.search(rf"{re.escape(var)}.*1", line) or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
     )
 
 
@@ -76,14 +74,14 @@ def _load_yaml_file(path: Path) -> dict | list | None:
     try:
         import yaml
 
-        with open(path) as f:
+        with path.open() as f:
             return yaml.safe_load(f)
     except ImportError:
         pass
 
     # Minimal YAML parser for simple key: value files
     try:
-        with open(path) as f:
+        with path.open() as f:
             text = f.read()
         # Try JSON first (some .yaml files are actually JSON)
         try:
@@ -92,8 +90,8 @@ def _load_yaml_file(path: Path) -> dict | list | None:
             pass
         # Very basic YAML: extract top-level key: value pairs
         result: dict = {}
-        for line in text.splitlines():
-            line = line.strip()
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             match = re.match(r'^(\w+):\s*["\']?(.+?)["\']?\s*$', line)
@@ -105,7 +103,7 @@ def _load_yaml_file(path: Path) -> dict | list | None:
                     result[key] = int(val)
                 else:
                     result[key] = val
-        return result if result else None
+        return result or None
     except Exception:
         return None
 
@@ -134,7 +132,7 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
         # Dev-bypass env vars enabled in the manifest
         for var, severity, reason in _DEV_BYPASS_ENV_VARS:
             if _env_var_enabled_in_line(var, line, lines, i):
-                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
+                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                 findings.append(
                     Finding(
                         severity,
@@ -307,45 +305,55 @@ def check_helm_values(findings: list[Finding]) -> None:
     # Check data structure if YAML parsed (dedup with line-level checks)
     if data and isinstance(data, dict):
         enterprise = data.get("enterprise", {})
-        if isinstance(enterprise, dict) and not enterprise.get("enabled", False):
+        if (
+            isinstance(enterprise, dict)
+            and not enterprise.get("enabled", False)
             # Only add if not already found by line-level check
-            if not any(f.check == "enterprise-disabled-helm" for f in findings):
-                findings.append(
-                    Finding(
-                        "MEDIUM",
-                        "enterprise-disabled-helm",
-                        "enterprise.enabled is false — production deployments should enable enterprise mode",
-                        str(values_path),
-                    )
+            and not any(f.check == "enterprise-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "enterprise-disabled-helm",
+                    "enterprise.enabled is false — production deployments should enable enterprise mode",
+                    str(values_path),
                 )
+            )
 
         auth = data.get("auth", {})
         if isinstance(auth, dict):
             tokens = auth.get("tokens", "")
-            if tokens and isinstance(tokens, str) and tokens not in ("", '""', "''"):
+            if (
+                tokens
+                and isinstance(tokens, str)
+                and tokens not in ("", '""', "''")
                 # Non-empty inline token — check if it's not a placeholder
-                if tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME"):
-                    if not any(f.check == "inline-tokens-helm" for f in findings):
-                        findings.append(
-                            Finding(
-                                "HIGH",
-                                "inline-tokens-helm",
-                                "auth.tokens is set inline in values.yaml — use existingSecret instead",
-                                str(values_path),
-                            )
-                        )
-
-        mtls = data.get("mtls", {})
-        if isinstance(mtls, dict) and not mtls.get("enabled", False):
-            if not any(f.check == "mtls-disabled-helm" for f in findings):
+                and tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME")
+                and not any(f.check == "inline-tokens-helm" for f in findings)
+            ):
                 findings.append(
                     Finding(
-                        "MEDIUM",
-                        "mtls-disabled-helm",
-                        "mtls.enabled is false — no mutual TLS in production",
+                        "HIGH",
+                        "inline-tokens-helm",
+                        "auth.tokens is set inline in values.yaml — use existingSecret instead",
                         str(values_path),
                     )
                 )
+
+        mtls = data.get("mtls", {})
+        if (
+            isinstance(mtls, dict)
+            and not mtls.get("enabled", False)
+            and not any(f.check == "mtls-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "mtls-disabled-helm",
+                    "mtls.enabled is false — no mutual TLS in production",
+                    str(values_path),
+                )
+            )
 
 
 def check_helm_templates(findings: list[Finding]) -> None:
@@ -359,11 +367,11 @@ def check_helm_templates(findings: list[Finding]) -> None:
 
         for i, line in enumerate(lines, 1):
             # Dev-bypass env vars enabled in templates
-            for var, severity, reason in _DEV_BYPASS_ENV_VARS:
+            for var, severity, _reason in _DEV_BYPASS_ENV_VARS:
                 if var not in line or "comment" in line.lower():
                     continue
                 if _env_var_enabled_in_line(var, line, lines, i):
-                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace('_', '-'))
+                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                     findings.append(
                         Finding(
                             severity,
@@ -443,7 +451,7 @@ def check_dockerfile(findings: list[Finding]) -> None:
 
     if user_lines:
         last_user_line = user_lines[-1][0]
-        for copy_i, copy_l in copy_lines:
+        for copy_i, _copy_l in copy_lines:
             if copy_i > last_user_line:
                 # COPY after last USER is fine (running as non-root)
                 pass
@@ -474,7 +482,7 @@ def check_source_hardcoded_secrets(findings: list[Finding], src_dir: Path | None
         for i, line in enumerate(lines, 1):
             # Skip comments and docstrings
             stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+            if stripped.startswith(("#", '"""', "'''")):
                 continue
 
             # Hardcoded tokens/passwords (but not in docstrings, comments, or config params)
@@ -590,16 +598,15 @@ def check_gitignore_secrets(findings: list[Finding]) -> None:
                         str(gitignore_path),
                     )
                 )
-        else:
-            if pattern not in content:
-                findings.append(
-                    Finding(
-                        "LOW",
-                        "gitignore-missing",
-                        f".gitignore missing '{pattern}' — {reason}",
-                        str(gitignore_path),
-                    )
+        elif pattern not in content:
+            findings.append(
+                Finding(
+                    "LOW",
+                    "gitignore-missing",
+                    f".gitignore missing '{pattern}' — {reason}",
+                    str(gitignore_path),
                 )
+            )
 
 
 # ── Main ───────────────────────────────────────────────────────────────
@@ -664,12 +671,11 @@ def main(args: list[str] | None = None) -> int:
     if critical_high:
         print("❌ FAIL — Critical or High severity findings detected")
         return 1
-    elif parsed.strict and findings:
+    if parsed.strict and findings:
         print("❌ FAIL — Findings detected in strict mode")
         return 1
-    else:
-        print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
-        return 0
+    print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
+    return 0
 
 
 if __name__ == "__main__":

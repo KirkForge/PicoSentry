@@ -1,5 +1,7 @@
 import logging
+import time
 from typing import ClassVar
+from collections.abc import Callable
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -8,8 +10,6 @@ logger = logging.getLogger("picoshogun.DDoSShield")
 
 
 class DDoSShieldMiddleware(BaseHTTPMiddleware):
-
-
     HIGH_RISK_PATHS: ClassVar[set[str]] = {"/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"}
 
     # Health and readiness probes are called by load balancers and
@@ -25,9 +25,16 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         "/health/ready",
     )
 
-    def __init__(self, app, enabled: bool = True):
+    def __init__(
+        self,
+        app,
+        enabled: bool = True,
+        *,
+        _now: Callable[[], float] = time.monotonic,
+    ):
         super().__init__(app)
         self.enabled = enabled
+        self._now = _now
         self._path_buckets: dict[str, list[float]] = {}
         self._global_bucket: list[float] = []
         self._burst_limit = 50  # requests per 10-second window per path
@@ -40,10 +47,7 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         We do not match ``/health-history`` or other lookalikes — the
         verdict's concern is the load-balancer probes, not arbitrary
         health-flavoured URLs."""
-        return any(
-            path == prefix or path.startswith(prefix + "/")
-            for prefix in cls.HEALTH_PATHS
-        )
+        return any(path == prefix or path.startswith(prefix + "/") for prefix in cls.HEALTH_PATHS)
 
     async def dispatch(self, request: Request, call_next):
         if not self.enabled:
@@ -56,28 +60,34 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         if self._is_health_path(request.url.path):
             return await call_next(request)
 
-        import time
-        now = time.monotonic()
+        now = self._now()
         cutoff = now - 10.0  # 10-second window
-
 
         self._global_bucket = [t for t in self._global_bucket if t > cutoff]
 
-
         if len(self._global_bucket) >= self._global_limit:
-            logger.warning("DDoS shield: global rate limit exceeded from %s", request.client.host if request.client else "unknown")
+            client = request.client.host if request.client else "unknown"
+            logger.warning("DDoS shield: global rate limit exceeded from %s", client)
             from starlette.responses import JSONResponse
-            return JSONResponse({"error": "rate_limit_exceeded", "detail": "Global rate limit exceeded"}, status_code=429)
 
+            return JSONResponse(
+                {"error": "rate_limit_exceeded", "detail": "Global rate limit exceeded"},
+                status_code=429,
+            )
 
         path = request.url.path
         if path in self.HIGH_RISK_PATHS:
             bucket = self._path_buckets.get(path, [])
             bucket = [t for t in bucket if t > cutoff]
             if len(bucket) >= self._burst_limit:
-                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", path, request.client.host if request.client else "unknown")
+                client = request.client.host if request.client else "unknown"
+                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", path, client)
                 from starlette.responses import JSONResponse
-                return JSONResponse({"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {path}"}, status_code=429)
+
+                return JSONResponse(
+                    {"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {path}"},
+                    status_code=429,
+                )
             bucket.append(now)
             self._path_buckets[path] = bucket
 

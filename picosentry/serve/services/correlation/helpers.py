@@ -56,10 +56,8 @@ def build_event_from_intel(
     intel_data = intel.get("data", {})
     confidence_val = intel.get("confidence", 0.5)
 
-
-    if intel_type in ("metrics",):
+    if intel_type == "metrics":
         return None
-
 
     project = intel_data.get("project", project_id)
     artifact_id = intel_data.get("package", project)

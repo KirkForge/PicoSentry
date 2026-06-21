@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -18,7 +17,6 @@ TENANT_VERSION = "1.0"
 
 @dataclass
 class TenantConfig:
-
     tenant_id: str = ""
     display_name: str = ""
     created_at: str = ""
@@ -29,7 +27,6 @@ class TenantConfig:
     max_targets: int = 0  # 0 = unlimited
     rbac_scopes: list[str] = field(default_factory=lambda: ["read", "scan"])
     metadata: dict[str, Any] = field(default_factory=dict)
-
 
     base_path: str = ""
 
@@ -92,7 +89,6 @@ class TenantConfig:
 
 
 class TenantManager:
-
     def __init__(self, base_dir: Path | None = None) -> None:
         self.base_dir = base_dir or Path.home() / ".local" / "share" / "picosentry" / "tenants"
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -122,7 +118,6 @@ class TenantManager:
             "version": TENANT_VERSION,
         }
         tenants_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
-
 
     def create_tenant(
         self,
@@ -154,15 +149,12 @@ class TenantManager:
             metadata=metadata or {},
         )
 
-
         tenant_dir = self.base_dir / tenant_id
         tenant_dir.mkdir(parents=True, exist_ok=True)
         config.base_path = str(tenant_dir)
 
-
         for subdir in ("audit", "corpus", "policy", "ioc", "cache"):
             (tenant_dir / subdir).mkdir(exist_ok=True)
-
 
         config.config_path.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
 
@@ -186,9 +178,8 @@ class TenantManager:
 
         config = self._tenants[tenant_id]
         for key, value in kwargs.items():
-            if hasattr(config, key) and key != "tenant_id" and key != "base_path":
+            if hasattr(config, key) and key not in {"tenant_id", "base_path"}:
                 setattr(config, key, value)
-
 
         config.config_path.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
         self._save_state()
@@ -207,7 +198,6 @@ class TenantManager:
 
         config = self._tenants[tenant_id]
         tenant_dir = Path(config.base_path)
-
 
         if tenant_dir.is_dir():
             shutil.rmtree(tenant_dir)
@@ -230,7 +220,6 @@ class TenantManager:
 
     def enable_tenant(self, tenant_id: str) -> TenantConfig:
         return self.update_tenant(tenant_id, enabled=True)
-
 
     def tenant_audit_path(self, tenant_id: str, filename: str = "audit.jsonl") -> Path | None:
         config = self._tenants.get(tenant_id)
@@ -262,7 +251,6 @@ class TenantManager:
             return None
         return config.cache_dir
 
-
     def tenant_health(self, tenant_id: str) -> dict[str, Any]:
         config = self._tenants.get(tenant_id)
         if not config:
@@ -273,22 +261,16 @@ class TenantManager:
         corpus_dir = config.corpus_dir
         audit_dir = config.audit_dir
 
-
         dirs_ok = tenant_dir.is_dir()
-
 
         policy_file = policy_dir / ".picosentry-policy.yml"
         has_policy = policy_file.is_file()
 
-
         has_audit = any(audit_dir.glob("*.jsonl"))
-
 
         has_corpus = any(corpus_dir.glob("*.json"))
 
-
         has_ioc = any((config.ioc_dir).glob("*.json"))
-
 
         disk_usage = sum(f.stat().st_size for f in tenant_dir.rglob("*") if f.is_file()) if dirs_ok else 0
 

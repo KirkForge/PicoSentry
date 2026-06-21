@@ -19,16 +19,21 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--auth-token", type=str, default=None, help="Static bearer token (token auth mode)")
     parser.add_argument("--rate-limit", type=float, default=None, help="Max requests per second per IP (0=unlimited)")
     parser.add_argument("--enterprise", action="store_true", help="Enable enterprise mode.")
-    parser.add_argument("--tls-cert", type=str, default=None, help="Path to TLS certificate file (PEM format) for HTTPS daemon.")
-    parser.add_argument("--tls-key", type=str, default=None, help="Path to TLS private key file (PEM format) for HTTPS daemon.")
-    parser.add_argument("--mtls-ca", type=str, default=None, help="Path to CA certificate for mutual TLS client verification.")
+    parser.add_argument(
+        "--tls-cert", type=str, default=None, help="Path to TLS certificate file (PEM format) for HTTPS daemon."
+    )
+    parser.add_argument(
+        "--tls-key", type=str, default=None, help="Path to TLS private key file (PEM format) for HTTPS daemon."
+    )
+    parser.add_argument(
+        "--mtls-ca", type=str, default=None, help="Path to CA certificate for mutual TLS client verification."
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:
     from picosentry.scan.auth import AuthConfig
     from picosentry.scan.daemon import TLSConfig, run_daemon
     from picosentry.scan.enterprise import is_enterprise_mode
-
 
     auth_config = AuthConfig.from_env()
     if getattr(args, "auth_mode", None) is not None:
@@ -38,12 +43,10 @@ def cmd(args: argparse.Namespace) -> int:
     if getattr(args, "rate_limit", None) is not None:
         auth_config.rate_limit_rps = args.rate_limit
 
-
     if getattr(args, "enterprise", False) and not is_enterprise_mode():
         import os
 
         os.environ["PICOSENTRY_ENTERPRISE_MODE"] = "1"
-
 
     tls_config = TLSConfig(
         cert_file=getattr(args, "tls_cert", None) or "",

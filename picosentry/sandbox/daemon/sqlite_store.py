@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -54,7 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 
 
 class SQLiteScanJobStore:
-
     def __init__(
         self,
         db_path: Path | str | None = None,
@@ -131,7 +130,6 @@ class SQLiteScanJobStore:
                     (json.dumps(command), actor, "pending", now, job_id),
                 )
                 conn.commit()
-
 
         self._prune_old_jobs()
 
@@ -240,10 +238,8 @@ class SQLiteScanJobStore:
         d = dict(row)
 
         if "command" in d and isinstance(d["command"], str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 d["command"] = json.loads(d["command"])
-            except json.JSONDecodeError:
-                pass
 
         for field in ("completed_at", "result", "error"):
             if d.get(field) == "":

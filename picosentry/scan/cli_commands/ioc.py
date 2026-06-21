@@ -39,7 +39,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"  {ioc.id}  {ioc.package_name:30s}  [{ioc.severity}]  {ioc.name}")
         return 0
 
-    elif args.ioc_action == "register":
+    if args.ioc_action == "register":
         path = Path(args.path)
         if not path.exists():
             print(f"Error: IoC file not found: {path}", file=sys.stderr)
@@ -59,7 +59,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
         return 0
 
-    elif args.ioc_action == "remove":
+    if args.ioc_action == "remove":
         try:
             found = remove_ioc(args.id)
         except ValueError as e:

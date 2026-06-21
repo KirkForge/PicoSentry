@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -10,36 +9,8 @@ from typing import Any, Protocol, runtime_checkable
 logger = logging.getLogger("picosentry._core.config")
 
 
-def from_env(key: str, default: str | None = None, required: bool = False) -> str | None:
-    value = os.environ.get(key)
-    if value is not None:
-        return value
-    if required:
-        raise ValueError(f"Required environment variable {key} is not set")
-    return default
-
-
-def from_env_int(key: str, default: int = 0) -> int:
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        logger.warning("Invalid integer for %s=%r, using default %d", key, value, default)
-        return default
-
-
-def from_env_bool(key: str, default: bool = False) -> bool:
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    return value.strip().lower() in ("true", "1", "yes")
-
-
 @dataclass(frozen=True)
 class SecurityViolation:
-
     check: str
     message: str
     severity: str = "ERROR"  # ERROR = block boot, WARN = allow but log
@@ -47,7 +18,6 @@ class SecurityViolation:
 
 @runtime_checkable
 class SecureBootCheck(Protocol):
-
     def check(self) -> SecurityViolation | None: ...
 
 
@@ -74,17 +44,19 @@ def assert_secure(
     # code path that signs JWTs or hashes passwords should accept one of
     # these.  ALLOW_INSECURE_SECRET=true is the explicit escape hatch for
     # local dev work that hasn't picked a real key yet.
-    _WEAK_SECRET_DENYLIST = frozenset({
-        "",
-        "change-me-in-production",
-        "changeme",
-        "default",
-        "secret",
-        "password",
-        "please-change-me",
-        "your-secret-key",
-        "your-secret-key-here",
-    })
+    _WEAK_SECRET_DENYLIST = frozenset(
+        {
+            "",
+            "change-me-in-production",
+            "changeme",
+            "default",
+            "secret",
+            "password",
+            "please-change-me",
+            "your-secret-key",
+            "your-secret-key-here",
+        }
+    )
     _MIN_SECRET_KEY_LENGTH = 32
 
     insecure_secret_override = os.environ.get("ALLOW_INSECURE_SECRET", "").lower() in ("true", "1", "yes")
@@ -113,7 +85,6 @@ def assert_secure(
                 )
             )
 
-
     if bind_host == "0.0.0.0":
         violations.append(
             SecurityViolation(
@@ -122,7 +93,6 @@ def assert_secure(
                 severity="WARN",
             )
         )
-
 
     if cors_origin == "*":
         violations.append(
@@ -133,7 +103,6 @@ def assert_secure(
             )
         )
 
-
     if is_production and debug:
         violations.append(
             SecurityViolation(
@@ -143,17 +112,14 @@ def assert_secure(
             )
         )
 
-
-    for custom_check in (checks or []):
+    for custom_check in checks or []:
         result = custom_check.check()
         if result is not None:
             violations.append(result)
 
-
     for v in violations:
         log_method = logging.ERROR if v.severity == "ERROR" else logging.WARNING
         logger.log(log_method, "Security: [%s] %s", v.check, v.message)
-
 
     if block_on_error:
         errors = [v for v in violations if v.severity == "ERROR"]
@@ -170,7 +136,6 @@ def assert_secure(
 
 @runtime_checkable
 class ConfigProtocol(Protocol):
-
     def to_dict(self) -> dict[str, Any]: ...
 
 
@@ -180,7 +145,4 @@ __all__ = [
     "SecureBootCheck",
     "SecurityViolation",
     "assert_secure",
-    "from_env",
-    "from_env_bool",
-    "from_env_int",
 ]

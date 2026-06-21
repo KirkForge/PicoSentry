@@ -75,7 +75,6 @@ def cmd(args: argparse.Namespace) -> int:
         engine=engine,
         config=config,
         rules=args.rules,
-        fail_on=args.fail_on,
         timeout=args.timeout,
     )
 
@@ -111,8 +110,7 @@ def cmd(args: argparse.Namespace) -> int:
         if wr.errors:
             lines.append("")
             lines.append("Errors:")
-            for err in wr.errors:
-                lines.append(f"  * {err}")
+            lines.extend(f"  * {err}" for err in wr.errors)
         output = "\n".join(lines)
 
     if args.output:

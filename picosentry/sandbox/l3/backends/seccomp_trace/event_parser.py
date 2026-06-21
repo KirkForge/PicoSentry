@@ -54,7 +54,6 @@ def parse_seccomp_log(
 
     events: list[SandboxEvent] = []
 
-
     denied_syscalls: set[str] = set()
     for rule in policy.rules:
         if rule.action in (SyscallAction.DENY, SyscallAction.KILL):
@@ -71,20 +70,13 @@ def parse_seccomp_log(
             arch = int(m.group("arch"), 16)
         except (ValueError, TypeError):
             continue
-        if arch == _ARCH_X86_64:
-            name = x86_64_nr_to_name.get(syscall_nr)
-        else:
-
-
-            name = None
+        name = x86_64_nr_to_name.get(syscall_nr) if arch == _ARCH_X86_64 else None
         if name is None:
             name = f"unknown_{arch:x}_{syscall_nr}"
         operation, rule_id_prefix = classify_syscall(name)
         if name in denied_syscalls:
             verdict = Verdict.DENY
         elif name in NETWORK_SYSCALLS and policy.default_action == SyscallAction.ALLOW:
-
-
             verdict = Verdict.ALLOW
         else:
             verdict = Verdict.ALLOW
@@ -93,11 +85,7 @@ def parse_seccomp_log(
                 rule_id=f"{rule_id_prefix}-{name}",
                 verdict=verdict,
                 operation=operation,
-                detail=(
-                    f"{name} syscall "
-                    f"(no path/address: SCMP_ACT_LOG does not capture "
-                    f"args in v2.0.8)"
-                ),
+                detail=(f"{name} syscall (no path/address: SCMP_ACT_LOG does not capture args in v2.0.8)"),
                 timestamp_ms=int(_now_ms() - start_ms),
             )
         )

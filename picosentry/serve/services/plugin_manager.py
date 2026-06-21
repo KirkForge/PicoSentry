@@ -1,5 +1,5 @@
 import hashlib
-import importlib
+import importlib.util
 import inspect
 import json
 import logging
@@ -7,16 +7,11 @@ import os
 import re
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 
-HAS_NACL = False
-try:
-    import nacl.exceptions
-    import nacl.signing  # noqa: F401
-    HAS_NACL = True
-except ImportError:
-    pass
+HAS_NACL = importlib.util.find_spec("nacl") is not None
 
 
 logger = logging.getLogger("picoshogun.Plugins")
@@ -27,8 +22,12 @@ VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
 REQUIRED_MANIFEST_FIELDS = {"name": str, "entry_point": str}
 OPTIONAL_MANIFEST_FIELDS = {
-    "version": str, "author": str, "description": str,
-    "hooks": list, "dependencies": list, "config": dict,
+    "version": str,
+    "author": str,
+    "description": str,
+    "hooks": list,
+    "dependencies": list,
+    "config": dict,
 }
 
 
@@ -50,7 +49,6 @@ class PluginMetadata:
 
 
 class PluginInterface:
-
     def initialize(self, config: dict[str, Any]) -> bool:
         raise NotImplementedError
 
@@ -73,7 +71,7 @@ class PluginInterface:
         pass
 
 
-DEFAULT_USER_PLUGIN_DIR = os.path.expanduser("~/.picosentry/plugins")
+DEFAULT_USER_PLUGIN_DIR = str(Path("~/.picosentry/plugins").expanduser())
 
 
 def _split_plugin_dir_env(raw: str) -> list[str]:
@@ -82,9 +80,7 @@ def _split_plugin_dir_env(raw: str) -> list[str]:
 
 
 class PluginManager:
-
-    def __init__(self, plugin_dir: str | None = None,
-                 extra_plugin_dirs: list[str] | None = None):
+    def __init__(self, plugin_dir: str | None = None, extra_plugin_dirs: list[str] | None = None):
         # The bundled plugin directory (shipped inside the wheel as
         # picosentry/serve/plugins/) is the lowest-priority source — it
         # must work in both the dev tree and a wheel install. A previous
@@ -93,12 +89,10 @@ class PluginManager:
         # actual package is `picosentry.serve.plugins`) and has been
         # removed. The relative `../plugins` fallback is the canonical
         # path in both layouts.
-        self.bundled_plugin_dir: str = os.path.realpath(
-            os.path.join(os.path.dirname(__file__), "../plugins")
-        )
+        self.bundled_plugin_dir: str = str((Path(__file__).parent / "../plugins").resolve())
 
         if plugin_dir is not None:
-            self._explicit_plugin_dir: str = os.path.realpath(plugin_dir)
+            self._explicit_plugin_dir: str = str(Path(plugin_dir).resolve())
         else:
             self._explicit_plugin_dir = ""
 
@@ -108,9 +102,9 @@ class PluginManager:
         # extra wiring; runtime reload (see `reload()`) is how the CLI
         # injects additional dirs after Settings have been parsed.
         env_dirs = _split_plugin_dir_env(os.environ.get("PICOSHOGUN_PLUGIN_DIR", ""))
-        user_default = [DEFAULT_USER_PLUGIN_DIR] if os.path.isdir(DEFAULT_USER_PLUGIN_DIR) else []
+        user_default = [DEFAULT_USER_PLUGIN_DIR] if Path(DEFAULT_USER_PLUGIN_DIR).is_dir() else []
         self.extra_plugin_dirs: list[str] = [
-            os.path.realpath(p) for p in (list(extra_plugin_dirs or []) + env_dirs + user_default)
+            str(Path(p).resolve()) for p in (list(extra_plugin_dirs or []) + env_dirs + user_default)
         ]
 
         self.plugins: dict[str, PluginInterface] = {}
@@ -143,7 +137,7 @@ class PluginManager:
             if not raw:
                 continue
             try:
-                rp = os.path.realpath(raw)
+                rp = str(Path(raw).resolve())
             except OSError:
                 continue
             if rp in seen:
@@ -163,15 +157,14 @@ class PluginManager:
         """
         if extra_dirs:
             for p in extra_dirs:
-                rp = os.path.realpath(p)
+                rp = str(Path(p).resolve())
                 if rp not in self.extra_plugin_dirs:
                     self.extra_plugin_dirs.append(rp)
         self._load_plugins()
 
     @staticmethod
-    def _validate_manifest(meta: dict, manifest_path: str) -> list[str]:
+    def _validate_manifest(meta: dict) -> list[str]:
         issues: list[str] = []
-
 
         for field, expected_type in REQUIRED_MANIFEST_FIELDS.items():
             if field not in meta:
@@ -182,14 +175,12 @@ class PluginManager:
         if issues:
             return issues  # Can't validate further without name/entry_point
 
-
         entry_point = meta["entry_point"]
         if not _ENTRY_POINT_RE.match(entry_point):
             issues.append(
                 f"entry_point '{entry_point}' is not a valid Python module identifier "
                 f"(must match {_ENTRY_POINT_RE.pattern})"
             )
-
 
         hooks = meta.get("hooks", [])
         if not isinstance(hooks, list):
@@ -198,7 +189,6 @@ class PluginManager:
             unknown = [h for h in hooks if h not in VALID_HOOKS]
             if unknown:
                 issues.append(f"Unknown hooks: {unknown}. Valid hooks: {sorted(VALID_HOOKS)}")
-
 
         name = meta.get("name", "")
         if not isinstance(name, str) or not name.strip():
@@ -209,17 +199,20 @@ class PluginManager:
     @staticmethod
     def _compute_manifest_signature_content(meta: dict, module_checksum: str) -> str:
         hooks = meta.get("hooks", [])
-        return json.dumps({
-            "name": meta.get("name", ""),
-            "version": meta.get("version", ""),
-            "entry_point": meta.get("entry_point", ""),
-            "hooks": sorted(hooks) if isinstance(hooks, list) else [],
-            "module_sha256": module_checksum,
-        }, sort_keys=True, separators=(",", ":"))
+        return json.dumps(
+            {
+                "name": meta.get("name", ""),
+                "version": meta.get("version", ""),
+                "entry_point": meta.get("entry_point", ""),
+                "hooks": sorted(hooks) if isinstance(hooks, list) else [],
+                "module_sha256": module_checksum,
+            },
+            sort_keys=True,
+            separators=(",", ":"),
+        )
 
     @staticmethod
-    def verify_manifest_signature(meta: dict, module_checksum: str,
-                                  signature_hex: str, public_key_hex: str) -> bool:
+    def verify_manifest_signature(meta: dict, module_checksum: str, signature_hex: str, public_key_hex: str) -> bool:
         if not HAS_NACL:
             logger.warning("pynacl not installed — cannot verify Ed25519 signatures")
             return False
@@ -243,23 +236,23 @@ class PluginManager:
         dirs = self.resolved_dirs()
         loaded_count = 0
         for d in dirs:
-            if not os.path.isdir(d):
+            d_path = Path(d)
+            if not d_path.is_dir():
                 logger.info("Plugin directory not found: %s", d)
                 continue
-            for entry in os.listdir(d):
-                plugin_path = os.path.join(d, entry)
-                manifest_path = os.path.join(plugin_path, "plugin.json")
+            for plugin_path in d_path.iterdir():
+                manifest_path = plugin_path / "plugin.json"
 
-                if not os.path.isdir(plugin_path) or not os.path.exists(manifest_path):
+                if not plugin_path.is_dir() or not manifest_path.exists():
                     continue
 
-                real_plugin_path = os.path.realpath(plugin_path)
+                real_plugin_path = str(plugin_path.resolve())
 
                 # Containment check: a symlinked subdir must resolve
                 # back into the directory we are scanning. This is the
                 # symlink-escape guard from the original code, kept
                 # verbatim per directory.
-                if not real_plugin_path.startswith(d + os.sep) and real_plugin_path != d:
+                if not plugin_path.resolve().is_relative_to(d_path.resolve()):
                     logger.error("Plugin path escapes plugin_dir: %s -> %s", plugin_path, real_plugin_path)
                     continue
 
@@ -269,23 +262,25 @@ class PluginManager:
                     continue
 
                 try:
-                    with open(manifest_path) as f:
+                    with manifest_path.open() as f:
                         meta = json.load(f)
 
-                    issues = self._validate_manifest(meta, manifest_path)
+                    issues = self._validate_manifest(meta)
                     if issues:
-                        logger.error("Plugin '%s' manifest validation failed: %s", entry, '; '.join(issues))
+                        logger.error("Plugin '%s' manifest validation failed: %s", plugin_path.name, "; ".join(issues))
                         continue
 
-                    if self._load_plugin(plugin_path, meta):
+                    if self._load_plugin(str(plugin_path), meta):
                         self._loaded_plugin_paths.add(real_plugin_path)
                         loaded_count += 1
-                except Exception as e:
-                    logger.error("Failed to load plugin %s: %s", entry, e)
+                except Exception:
+                    logger.exception("Failed to load plugin %s", plugin_path.name)
 
         logger.info(
             "Resolved plugin dirs: %s; loaded %d plugin(s) from %d dir(s)",
-            dirs, loaded_count, sum(1 for d in dirs if os.path.isdir(d)),
+            dirs,
+            loaded_count,
+            sum(1 for d in dirs if Path(d).is_dir()),
         )
 
     def _load_plugin(self, path: str, meta: dict) -> bool:
@@ -295,16 +290,14 @@ class PluginManager:
         name = meta["name"]
         entry = meta["entry_point"]
 
-
-        module_file = os.path.join(path, f"{entry}.py")
+        module_file = Path(path) / f"{entry}.py"
         module_checksum = ""
-        if os.path.exists(module_file):
-            with open(module_file, "rb") as f:
+        if module_file.exists():
+            with module_file.open("rb") as f:
                 module_checksum = hashlib.sha256(f.read()).hexdigest()
             logger.info("Plugin '%s' entry module checksum: sha256:%s", name, module_checksum[:16])
         else:
             logger.warning("Plugin '%s' entry module not found at %s", name, module_file)
-
 
         require_signed = os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() in ("1", "true", "yes")
         sig_hex = meta.get("signature")
@@ -312,7 +305,10 @@ class PluginManager:
 
         if require_signed:
             if not sig_hex or not pub_key_hex:
-                logger.error("Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no signature/public_key in manifest", name)
+                logger.error(
+                    "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no signature/public_key in manifest",
+                    name,
+                )
                 return False
             if not module_checksum:
                 logger.error("Plugin '%s': cannot verify signature — entry module not found", name)
@@ -322,12 +318,13 @@ class PluginManager:
                 return False
             logger.info("Plugin '%s': Ed25519 signature verified", name)
         elif sig_hex and pub_key_hex and module_checksum and HAS_NACL:
-
             if self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
                 logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
             else:
-                logger.warning("Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)", name)
-
+                logger.warning(
+                    "Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)",
+                    name,
+                )
 
         sys.path.insert(0, path)
         try:
@@ -340,13 +337,10 @@ class PluginManager:
             sys.modules.pop(entry, None)
             module = importlib.import_module(entry)
 
-
             plugin_class = None
             for attr_name in dir(module):
                 attr = getattr(module, attr_name)
-                if (inspect.isclass(attr) and
-                    issubclass(attr, PluginInterface) and
-                    attr != PluginInterface):
+                if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr != PluginInterface:
                     plugin_class = attr
                     break
 
@@ -373,15 +367,14 @@ class PluginManager:
                 signed=require_signed or bool(sig_hex and pub_key_hex),
             )
 
-
             for hook in meta.get("hooks", []):
                 if hook in self.hooks:
                     self.hooks[hook].append(name)
 
             logger.info("Plugin loaded: %s v%s", name, self.metadata[name].version)
             return True
-        except Exception as e:
-            logger.error("Failed to load plugin '%s': %s", name, e)
+        except Exception:
+            logger.exception("Failed to load plugin '%s'", name)
             return False
         finally:
             # Also drop the imported module — the plugin owns the
@@ -410,8 +403,8 @@ class PluginManager:
                     result = method(**kwargs)
                     if result:
                         results.append({"plugin": plugin_name, "result": result})
-            except Exception as e:
-                logger.error("Plugin %s hook %s failed: %s", plugin_name, hook, e)
+            except Exception:
+                logger.exception("Plugin %s hook %s failed", plugin_name, hook)
 
         return results
 
@@ -421,7 +414,7 @@ class PluginManager:
             try:
                 health = plugin.health_check()
                 status[name] = {
-                    "metadata": {k: v for k, v in self.metadata[name].__dict__.items()},
+                    "metadata": dict(self.metadata[name].__dict__.items()),
                     "health": health,
                 }
             except Exception as e:
@@ -436,8 +429,8 @@ class PluginManager:
             try:
                 plugin.shutdown()
                 logger.info("Plugin unloaded: %s", name)
-            except Exception as e:
-                logger.error("Plugin %s shutdown failed: %s", name, e)
+            except Exception:
+                logger.exception("Plugin %s shutdown failed", name)
 
         self.plugins.clear()
         self.metadata.clear()

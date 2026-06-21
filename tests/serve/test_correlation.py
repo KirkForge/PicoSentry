@@ -19,6 +19,7 @@ from picosentry.serve.services.correlation import (
 # Fixtures
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 @pytest.fixture
 def engine():
     """Fresh correlation engine for each test."""
@@ -123,6 +124,7 @@ def single_layer_events(ts):
 # Data Model Tests
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestCorrelatedEvent:
     def test_frozen(self):
         event = CorrelatedEvent(
@@ -213,6 +215,7 @@ class TestKillChainTimeline:
 # KillChainPhase Tests
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestKillChainPhase:
     def test_enum_values(self):
         assert KillChainPhase.RECONNAISSANCE.value == "reconnaissance"
@@ -228,12 +231,14 @@ class TestKillChainPhase:
         phases = list(KillChainPhase)
         for i in range(len(phases) - 1):
             from picosentry.serve.services.correlation import PHASE_WEIGHTS
+
             assert PHASE_WEIGHTS[phases[i]] <= PHASE_WEIGHTS[phases[i + 1]]
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # CorrelationEngine Tests
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestCorrelationEngineIngestion:
     def test_ingest_single_event(self, engine):
@@ -493,6 +498,7 @@ class TestCorrelationEngineEscalation:
 # Helper Function Tests
 # ═══════════════════════════════════════════════════════════════════════════
 
+
 class TestBuildEventFromIntel:
     def test_valid_intel(self):
         intel = {
@@ -586,6 +592,7 @@ class TestSeverityHelpers:
 # ═══════════════════════════════════════════════════════════════════════════
 # Edge Cases
 # ═══════════════════════════════════════════════════════════════════════════
+
 
 class TestEdgeCases:
     def test_very_long_artifact_id(self, engine):

@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -23,13 +24,13 @@ logger = logging.getLogger("picoshogun.Webhooks")
 
 SSRF_BLOCKED_SCHEMES = {"file", "ftp", "data", "javascript", "vbscript"}
 SSRF_BLOCKED_NETWORKS = [
-    ipaddress.ip_network("127.0.0.0/8"),       # Loopback
-    ipaddress.ip_network("10.0.0.0/8"),        # Private
-    ipaddress.ip_network("172.16.0.0/12"),     # Private
-    ipaddress.ip_network("192.168.0.0/16"),     # Private
-    ipaddress.ip_network("169.254.0.0/16"),     # Link-local (AWS metadata)
-    ipaddress.ip_network("::1/128"),            # IPv6 loopback
-    ipaddress.ip_network("fc00::/7"),           # IPv6 private
+    ipaddress.ip_network("127.0.0.0/8"),  # Loopback
+    ipaddress.ip_network("10.0.0.0/8"),  # Private
+    ipaddress.ip_network("172.16.0.0/12"),  # Private
+    ipaddress.ip_network("192.168.0.0/16"),  # Private
+    ipaddress.ip_network("169.254.0.0/16"),  # Link-local (AWS metadata)
+    ipaddress.ip_network("::1/128"),  # IPv6 loopback
+    ipaddress.ip_network("fc00::/7"),  # IPv6 private
 ]
 
 
@@ -47,21 +48,16 @@ def _is_safe_webhook_url(url: str, dns_resolver=None) -> tuple:
     except Exception:
         return False, "Invalid URL format"
 
-
     if parsed.scheme not in ("http", "https"):
         return False, f"Scheme '{parsed.scheme}' not allowed. Only http/https."
 
-
     if not parsed.hostname:
         return False, "URL must have a hostname"
-
 
     resolve = dns_resolver or _resolve_hostname
     ips = resolve(parsed.hostname)
 
     if ips is None:
-
-
         return False, f"Cannot resolve hostname '{parsed.hostname}'"
 
     for ip_str in ips:
@@ -86,9 +82,10 @@ class Webhook:
     active: bool
     retries: int
     created_at: datetime
+    org_id: int | None = None
+
 
 class WebhookManager:
-
     def __init__(self, dns_resolver=None):
         self.dns_resolver = dns_resolver
         self.webhooks: dict[str, Webhook] = {}
@@ -105,11 +102,14 @@ class WebhookManager:
                 events=json.loads(row["events"]),
                 active=row["active"],
                 retries=row["retries"],
-                created_at=row["created_at"]
+                created_at=row["created_at"],
+                org_id=row.get("org_id"),
             )
             self.webhooks[row["name"]] = webhook
 
-    def create(self, name: str, url: str, events: list[str], secret: str | None = None) -> int:
+    def create(
+        self, name: str, url: str, events: list[str], secret: str | None = None, org_id: int | None = None
+    ) -> int:
 
         is_safe, reason = _is_safe_webhook_url(url, dns_resolver=self.dns_resolver)
         if not is_safe:
@@ -117,10 +117,13 @@ class WebhookManager:
 
         secret = secret or secrets.token_urlsafe(32)
 
-        webhook_id = db.execute_insert("""
-            INSERT INTO webhooks (name, url, secret, events, active, retries)
-            VALUES (?, ?, ?, ?, 1, 0)
-        """, (name, url, secret, json.dumps(events)))
+        webhook_id = db.execute_insert(
+            """
+            INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
+            VALUES (?, ?, ?, ?, 1, 0, ?)
+        """,
+            (name, url, secret, json.dumps(events), org_id),
+        )
 
         self._load_webhooks()
         logger.info("Webhook created: %s -> %s", name, url)
@@ -133,11 +136,7 @@ class WebhookManager:
 
     def sign_payload(self, payload: dict, secret: str) -> str:
         payload_json = json.dumps(payload, sort_keys=True)
-        return hmac.new(
-            secret.encode(),
-            payload_json.encode(),
-            hashlib.sha256
-        ).hexdigest()
+        return hmac.new(secret.encode(), payload_json.encode(), hashlib.sha256).hexdigest()
 
     def _sign_payload(self, payload: dict, secret: str) -> str:
         return self.sign_payload(payload, secret)
@@ -156,7 +155,7 @@ class WebhookManager:
             event_payload: dict[str, Any] = {
                 "event": event,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
-                "data": payload
+                "data": payload,
             }
 
             signature = self._sign_payload(event_payload, webhook.secret)
@@ -169,37 +168,25 @@ class WebhookManager:
                         "Content-Type": "application/json",
                         "X-PicoShogun-Signature": f"sha256={signature}",
                         "X-PicoShogun-Event": event,
-                        "User-Agent": "PicoShogun-Webhook/2.0"
+                        "User-Agent": "PicoShogun-Webhook/2.0",
                     },
-                    timeout=10
+                    timeout=10,
                 )
 
-                results.append({
-                    "webhook": name,
-                    "status": response.status_code,
-                    "success": 200 <= response.status_code < 300
-                })
+                results.append(
+                    {"webhook": name, "status": response.status_code, "success": 200 <= response.status_code < 300}
+                )
 
                 logger.info("Webhook %s: %s", name, response.status_code)
 
             except Exception as e:
-                logger.error("Webhook %s failed: %s", name, e)
-                results.append({
-                    "webhook": name,
-                    "status": 0,
-                    "success": False,
-                    "error": str(e)
-                })
+                logger.exception("Webhook %s failed", name)
+                results.append({"webhook": name, "status": 0, "success": False, "error": str(e)})
 
         return results
 
     def verify_signature(self, payload: bytes, signature: str, secret: str) -> bool:
-        expected = hmac.new(
-            secret.encode(),
-            payload,
-            hashlib.sha256
-        ).hexdigest()
-
+        expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
         return hmac.compare_digest(signature, expected)
 

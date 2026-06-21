@@ -19,38 +19,63 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser(NAME, help="Manage custom IoC corpus packs (export/import/list)")
     sub = parser.add_subparsers(dest="corpus_action", help="Corpus actions")
 
-
     export = sub.add_parser("export", help="Export custom IoCs as a shareable pack")
     export.add_argument("output", type=str, help="Output file path (.json)")
     export.add_argument("--name", type=str, default="my-iocs", help="Pack name")
     export.add_argument("--description", type=str, default="", help="Pack description")
     export.add_argument("--author", type=str, default="", help="Pack author")
-    export.add_argument("--sign", choices=["sigstore", "minisign"], default=None, help="Cryptographically sign the pack")
-    export.add_argument("--sign-key", type=str, default="", help="Path to minisign secret key (for --sign minisign)")
-
+    export.add_argument(
+        "--sign",
+        choices=["sigstore", "minisign"],
+        default=None,
+        help="Cryptographically sign the pack",
+    )
+    export.add_argument(
+        "--sign-key",
+        type=str,
+        default="",
+        help="Path to minisign secret key (for --sign minisign)",
+    )
 
     import_ = sub.add_parser("import", help="Import a corpus pack into your IoC registry")
     import_.add_argument("path", type=str, help="Path to corpus pack .json file")
     import_.add_argument("--force", action="store_true", help="Overwrite existing IoCs")
     import_.add_argument("--dry-run", action="store_true", help="Validate only, don't import")
-    import_.add_argument("--verify-crypto", action="store_true", help="Verify cryptographic signature (Sigstore/minisign)")
+    import_.add_argument(
+        "--verify-crypto",
+        action="store_true",
+        help="Verify cryptographic signature (Sigstore/minisign)",
+    )
     import_.add_argument("--no-verify-crypto", action="store_true", help="Skip cryptographic signature verification")
-    import_.add_argument("--public-key", type=str, default="", help="Path to minisign public key (for minisign verification)")
+    import_.add_argument(
+        "--public-key",
+        type=str,
+        default="",
+        help="Path to minisign public key (for minisign verification)",
+    )
     import_.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
-
 
     validate = sub.add_parser("validate", help="Validate a corpus pack without importing")
     validate.add_argument("path", type=str, help="Path to corpus pack .json file")
 
-
     sub.add_parser("list", help="List available corpus packs (built-in + user)")
-
 
     sign = sub.add_parser("sign", help="Sign a corpus pack with cryptographic signature")
     sign.add_argument("path", type=str, help="Path to corpus pack .json file to sign")
-    sign.add_argument("--method", choices=["sigstore", "minisign", "digest"], default="digest", help="Signing method (default: digest-only)")
+    sign.add_argument(
+        "--method",
+        choices=["sigstore", "minisign", "digest"],
+        default="digest",
+        help="Signing method (default: digest-only)",
+    )
     sign.add_argument("--secret-key", type=str, default="", help="Path to minisign secret key (for minisign method)")
-    sign.add_argument("--output", "-o", type=str, default="", help="Output path for signature file (default: <path>.sig)")
+    sign.add_argument(
+        "--output",
+        "-o",
+        type=str,
+        default="",
+        help="Output path for signature file (default: <path>.sig)",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:
@@ -74,7 +99,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print("    {}".format(p["file"]))
         return 0
 
-    elif args.corpus_action == "export":
+    if args.corpus_action == "export":
         output = Path(args.output)
         try:
             pack = export_corpus_pack(
@@ -96,7 +121,7 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Import with: picosentry corpus import {output}")
         return 0
 
-    elif args.corpus_action == "import":
+    if args.corpus_action == "import":
         path = Path(args.path)
         if not path.exists():
             print(f"Error: file not found: {path}", file=sys.stderr)
@@ -123,7 +148,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print(f"    - {err}")
         return 1 if stats["errors"] else 0
 
-    elif args.corpus_action == "validate":
+    if args.corpus_action == "validate":
         path = Path(args.path)
         if not path.exists():
             print(f"Error: file not found: {path}", file=sys.stderr)
@@ -137,13 +162,12 @@ def cmd(args: argparse.Namespace) -> int:
                 for w in result["warnings"]:
                     print(f"  Warning: {w}")
             return 0
-        else:
-            print("Corpus pack is INVALID")
-            for err in result["errors"]:
-                print(f"  Error: {err}")
-            return 1
+        print("Corpus pack is INVALID")
+        for err in result["errors"]:
+            print(f"  Error: {err}")
+        return 1
 
-    elif args.corpus_action == "sign":
+    if args.corpus_action == "sign":
         from picosentry.scan.crypto import content_digest, sign_content, write_detached_signature
 
         path = Path(args.path)

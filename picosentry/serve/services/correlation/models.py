@@ -8,7 +8,6 @@ from picosentry._core.models import Confidence, Severity
 
 
 class KillChainPhase(str, Enum):
-
     RECONNAISSANCE = "reconnaissance"
     DELIVERY = "delivery"
     EXECUTION = "execution"
@@ -62,39 +61,28 @@ LAYER_PHASE_MAP: dict[str, list[KillChainPhase]] = {
 
 
 RULE_PHASE_OVERRIDES: dict[str, KillChainPhase] = {
-
     "L2-TYPO-001": KillChainPhase.DELIVERY,
     "L2-DEPC-001": KillChainPhase.DELIVERY,
-
     "L2-POST-001": KillChainPhase.EXECUTION,
     "L2-OBFS-001": KillChainPhase.EXECUTION,
     "L2-MAL-001": KillChainPhase.EXECUTION,
     "L2-POSTINSTALL-001": KillChainPhase.EXECUTION,
-
     "L2-PROV-001": KillChainPhase.PERSISTENCE,
-
     "L3-PROC-001": KillChainPhase.EXECUTION,
     "L3-PROC-002": KillChainPhase.EXECUTION,
     "L3-PROC-003": KillChainPhase.EXECUTION,
-
     "L3-NET-001": KillChainPhase.C2,
     "L3-NET-002": KillChainPhase.C2,
-
     "L4-DNS-001": KillChainPhase.RECONNAISSANCE,
-
     "L4-FILE-001": KillChainPhase.EXFILTRATION,
-
     "L5-PROMPT-001": KillChainPhase.RECONNAISSANCE,
-
     "L5-PROMPT-002": KillChainPhase.IMPACT,
-
     "L6-OUTPUT-001": KillChainPhase.EXFILTRATION,
 }
 
 
 @dataclass(frozen=True)
 class CorrelatedEvent:
-
     artifact_id: str
     """Package@version, globally unique (e.g. 'lodash@4.17.21')."""
 
@@ -142,7 +130,6 @@ class CorrelatedEvent:
 
 @dataclass
 class KillChainTimeline:
-
     artifact_id: str
     """The package under analysis."""
 
@@ -171,10 +158,7 @@ class KillChainTimeline:
             "severity": self.severity.value,
             "confidence": self.confidence.value,
             "narrative": self.narrative,
-            "phases": {
-                phase: [e.to_dict() for e in events]
-                for phase, events in sorted(self.phases.items())
-            },
+            "phases": {phase: [e.to_dict() for e in events] for phase, events in sorted(self.phases.items())},
             "related_targets": self.related_targets,
             "event_count": sum(len(events) for events in self.phases.values()),
             "phase_count": len(self.phases),

@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -30,7 +30,6 @@ ALLOWED_COLUMNS = frozenset(
 
 
 class RedisScanJobStore:
-
     def __init__(
         self,
         redis_url: str | None = None,
@@ -69,21 +68,9 @@ class RedisScanJobStore:
             self._get_client()
         return self._available
 
-    def _check_available(self) -> bool:
-        if self._client is None:
-            return False
-        try:
-            self._client.ping()
-        except Exception:
-            self._available = False
-            return False
-        self._available = True
-        return True
-
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
         client = self._get_client()
         if not self._available:
-
             logger.warning("Redis unavailable, job %s not persisted", job_id)
             return {
                 "job_id": job_id,
@@ -112,7 +99,6 @@ class RedisScanJobStore:
         pipe.hset(key, mapping=job)
         pipe.zadd(_JOB_LIST_KEY, {job_id: time.time()})
         pipe.execute()
-
 
         return {
             "job_id": job_id,
@@ -147,7 +133,6 @@ class RedisScanJobStore:
         if not existing:
             return None
 
-
         updates = {}
         for k, v in kwargs.items():
             if k not in ALLOWED_COLUMNS:
@@ -165,7 +150,6 @@ class RedisScanJobStore:
 
         client.hset(key, mapping=updates)
 
-
         data = client.hgetall(key)
         return self._deserialize_job(data)
 
@@ -174,32 +158,23 @@ class RedisScanJobStore:
         if not self._available:
             return []
 
-
         job_ids = client.zrevrange(_JOB_LIST_KEY, 0, limit - 1)
         if not job_ids:
             return []
-
 
         pipe = client.pipeline()
         for job_id in job_ids:
             pipe.hgetall(f"{_JOB_KEY_PREFIX}{job_id}")
         results = pipe.execute()
 
-        jobs = []
-        for data in results:
-            if data:
-                jobs.append(self._deserialize_job(data))
-
-        return jobs
+        return [self._deserialize_job(data) for data in results if data]
 
     def _deserialize_job(self, data: dict[str, str]) -> dict[str, Any]:
         job: dict[str, Any] = dict(data)
 
         if "command" in job and isinstance(job["command"], str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 job["command"] = json.loads(job["command"])
-            except json.JSONDecodeError:
-                pass
 
         for field in ("completed_at", "result", "error"):
             if job.get(field) == "":

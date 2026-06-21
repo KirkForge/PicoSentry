@@ -1,10 +1,8 @@
-
 from __future__ import annotations
 
 import ipaddress
 import re
 
-from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult
 from picosentry.sandbox.l4.models import (
     BehavioralProfile,
     DnsQuery,
@@ -13,6 +11,10 @@ from picosentry.sandbox.l4.models import (
     ProcessSpawn,
     TimingPoint,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult
 
 
 _NETWORK_OPS = frozenset({"network_outbound"})
@@ -82,30 +84,16 @@ def _extract_spawns_from_events(events: list[SandboxEvent]) -> list[ProcessSpawn
 def profile_from_sandbox_result(result: SandboxResult) -> BehavioralProfile:
     combined = result.stdout + "\n" + result.stderr
     package = (
-        ".".join(result.command[:2]) if len(result.command) >= 2
-        else result.command[0] if result.command else "unknown"
+        ".".join(result.command[:2]) if len(result.command) >= 2 else result.command[0] if result.command else "unknown"
     )
 
     has_events = bool(result.events)
 
+    network_calls = _extract_network_from_events(result.events) if has_events else _extract_network_calls(combined)
 
-    if has_events:
-        network_calls = _extract_network_from_events(result.events)
-    else:
-        network_calls = _extract_network_calls(combined)
+    fs_ops = _extract_fs_from_events(result.events) if has_events else _extract_file_operations(combined)
 
-
-    if has_events:
-        fs_ops = _extract_fs_from_events(result.events)
-    else:
-        fs_ops = _extract_file_operations(combined)
-
-
-    if has_events:
-        spawns = _extract_spawns_from_events(result.events)
-    else:
-        spawns = _extract_spawns(combined)
-
+    spawns = _extract_spawns_from_events(result.events) if has_events else _extract_spawns(combined)
 
     dns_queries = _extract_dns_queries(combined)
     timing_points = _extract_timing_points(combined)
@@ -137,32 +125,26 @@ def profile_from_trace(trace_text: str, package: str = "unknown") -> BehavioralP
 
 
 def _extract_timing_points(output: str) -> list[TimingPoint]:
-    points: list[TimingPoint] = []
     pattern = re.compile(r"\[TIMING\]\s+(\S+)\s+(\d+)\s*ms", re.IGNORECASE)
-
-    for match in pattern.finditer(output):
-        points.append(
-            TimingPoint(
-                label=match.group(1),
-                elapsed_ms=int(match.group(2)),
-            )
+    return [
+        TimingPoint(
+            label=match.group(1),
+            elapsed_ms=int(match.group(2)),
         )
-    return points
+        for match in pattern.finditer(output)
+    ]
 
 
 def _parse_ip_port(output: str) -> list[tuple[str, int]]:
     results: list[tuple[str, int]] = []
 
-
     _strace_intervals: list[tuple[int, int]] = []
-
 
     strace_block = re.compile(
         r"(?:^|\n)\s*(getaddrinfo|connect|bind|sendto|sendmsg|recvfrom|recvmsg)\s*\(",
         re.MULTILINE,
     )
     for block_match in strace_block.finditer(output):
-
         block_start = block_match.start()
         depth, cursor = 0, block_match.end()
         while cursor < len(output):
@@ -178,15 +160,12 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
         _strace_intervals.append((block_start, block_end))
         block_text = output[block_start:block_end]
 
-
         port = 0
         port_match = re.search(r"sin(?:6|_6|)_port\s*=\s*(?:htons\s*\()?(\d+)", block_text)
         if port_match:
             port = int(port_match.group(1))
 
-
         addr: str | None = None
-
 
         v4_raw = re.search(
             r"sa_family=AF_INET(?:$|[^6])\D.*?sin_addr\s*=\s*\{?\s*s_addr=([^}\s]+)",
@@ -202,7 +181,6 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
             if ip_m:
                 addr = ip_m.group(0)
 
-
         if addr is None:
             v4_inet = re.search(
                 r'sin_addr\s*=\s*inet_addr\s*\(\s*"([^"]+)"\s*\)',
@@ -210,7 +188,6 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
             )
             if v4_inet:
                 addr = v4_inet.group(1)
-
 
         if addr is None:
             v6_pton = re.search(
@@ -225,7 +202,6 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
                 except ipaddress.AddressValueError:
                     pass
 
-
         if addr is None:
             v6_raw = re.search(
                 r"sa_family=AF_INET6.*?sin6_addr\s*=\s*([^}\s,]+)",
@@ -235,7 +211,9 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
                 raw = v6_raw.group(1).strip()
                 if raw not in ("", "in6addr_any"):
                     v6_literal = re.search(
-                        r'"((?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4})"', raw, re.IGNORECASE,
+                        r'"((?:[0-9a-f]{0,4}:){1,7}[0-9a-f]{0,4})"',
+                        raw,
+                        re.IGNORECASE,
                     )
                     if v6_literal:
                         try:
@@ -247,21 +225,18 @@ def _parse_ip_port(output: str) -> list[tuple[str, int]]:
         if addr and _is_not_loopback(addr):
             results.append((addr, port))
 
-
     for match in re.finditer(
         r"((?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}"
         r"(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2}))"
         r"(?::(\d+))?",
         output,
     ):
-
         if any(start <= match.start() < end for start, end in _strace_intervals):
             continue
         ip = match.group(1)
         port = int(match.group(2)) if match.group(2) else 0
         if _is_not_loopback(ip):
             results.append((ip, port))
-
 
     for match in re.finditer(
         r"\[([0-9a-f:]+(?:%[\w.]+)?)\](?::(\d+))?",
@@ -331,7 +306,6 @@ def _extract_file_operations(output: str) -> list[FileOperation]:
                 seen.add(path)
                 ops.append(FileOperation(path=path, operation=op_type))
 
-
     strace_read = re.compile(
         r"(?:openat|open|read)\s*\([^)]*\"([^\"]+)\"",
     )
@@ -378,7 +352,6 @@ def _extract_spawns(output: str) -> list[ProcessSpawn]:
             if exe not in seen:
                 seen.add(exe)
                 spawns.append(ProcessSpawn(executable=exe, args=[exe]))
-
 
     for match in re.finditer(r'execve(?:at)?\s*\(\s*"([^"]+)"', output):
         exe = match.group(1).strip()

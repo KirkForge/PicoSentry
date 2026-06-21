@@ -18,11 +18,13 @@ After the fix:
   running in a wheel install).
 - The /plugins router surfaces the resolved dirs in the response.
 """
+
 import json
 import os
 from pathlib import Path
 
 import pytest
+import contextlib
 
 # Ensure the test settings match tests/serve/conftest.py
 os.environ.setdefault("PICOSHOGUN_ENV", "test")
@@ -75,6 +77,7 @@ def reloaded_manager():
     was loaded once is still loaded; re-discovery is idempotent
     (see `reload()` and the `_loaded_plugin_paths` set)."""
     from picosentry.serve.services import plugin_manager as pm_mod
+
     return pm_mod.PluginManager, pm_mod
 
 
@@ -176,18 +179,19 @@ def test_get_plugins_endpoint_returns_dirs_field():
     client = TestClient(app)
     # The /plugins endpoint requires auth; register+login to get a
     # token (matches the pattern in tests/serve/test_api.py).
-    try:
-        client.post("/auth/register", json={
-            "username": "plugin_user",
-            "password": "testpassword123",
-        })
-    except Exception:
-        pass
-    resp = client.post("/auth/login?username=plugin_user&password=testpassword123")
-    if resp.status_code == 200:
-        token = resp.json().get("access_token", "")
-    else:
-        token = ""
+    with contextlib.suppress(Exception):
+        client.post(
+            "/auth/register",
+            json={
+                "username": "plugin_user",
+                "password": "testpassword123",
+            },
+        )
+    resp = client.post(
+        "/auth/login",
+        json={"username": "plugin_user", "password": "testpassword123"},
+    )
+    token = resp.json().get("access_token", "") if resp.status_code == 200 else ""
     headers = {"Authorization": f"Bearer {token}"} if token else {}
 
     resp = client.get("/plugins", headers=headers)
@@ -205,6 +209,7 @@ def test_get_plugins_endpoint_returns_dirs_field():
         # the surface contract.
         from picosentry.serve.api.routers.plugins import list_plugins
         import asyncio
+
         result = asyncio.run(list_plugins(user={}))
         assert "plugins" in result
         assert "dirs" in result
@@ -224,5 +229,5 @@ def test_no_dead_import_plugins_branch(reloaded_manager):
     # And the bundled dir should be the canonical
     # picosentry/serve/plugins/ in the installed package.
     bundled = pm.bundled_plugin_dir
-    assert bundled.endswith("serve/plugins") or bundled.endswith("serve" + os.sep + "plugins")
-    assert os.path.isdir(bundled)
+    assert bundled.endswith(("serve/plugins", "serve" + os.sep + "plugins"))
+    assert Path(bundled).is_dir()

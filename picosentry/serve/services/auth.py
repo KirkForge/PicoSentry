@@ -7,12 +7,14 @@ from typing import Any
 
 try:
     import jwt
+
     HAS_JWT = True
 except ImportError:
     HAS_JWT = False
 
 try:
     import bcrypt
+
     HAS_BCRYPT = True
 except ImportError:
     HAS_BCRYPT = False
@@ -22,8 +24,8 @@ from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Auth")
 
-class AuthService:
 
+class AuthService:
     def __init__(self):
         self.secret_key = settings.security.secret_key
         self.algorithm = settings.security.jwt_algorithm
@@ -31,30 +33,26 @@ class AuthService:
 
     def _hash_password(self, password: str) -> str:
         if HAS_BCRYPT:
-            return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=settings.security.password_hash_rounds)).decode()
-
+            rounds = settings.security.password_hash_rounds
+            return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=rounds)).decode()
 
         salt = secrets.token_hex(32)
-        hashed = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+        hashed = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
         return f"pbkdf2:{salt}:{hashed.hex()}"
 
     def _verify_password(self, password: str, hashed: str) -> bool:
         if HAS_BCRYPT and not hashed.startswith("pbkdf2:"):
             return bcrypt.checkpw(password.encode(), hashed.encode())
 
-
         if hashed.startswith("pbkdf2:"):
             _, salt, hash_value = hashed.split(":")
-            check = hashlib.pbkdf2_hmac('sha256', password.encode(), salt.encode(), 100000)
+            check = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
             return hmac.compare_digest(check.hex(), hash_value)
 
         return False
 
     def authenticate(self, username: str, password: str) -> str | None:
-        user = db.execute_one(
-            "SELECT * FROM users WHERE username = ? AND is_active = 1",
-            (username,)
-        )
+        user = db.execute_one("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
 
         if not user:
             logger.warning("Auth failed: user not found")
@@ -64,12 +62,7 @@ class AuthService:
             logger.warning("Auth failed: invalid password")
             return None
 
-
-        db.execute_insert(
-            "UPDATE users SET last_login = ? WHERE id = ?",
-            (datetime.now(timezone.utc), user["id"])
-        )
-
+        db.execute_insert("UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(timezone.utc), user["id"]))
 
         token = self._generate_token(user["id"], username, user["role"])
 
@@ -78,25 +71,20 @@ class AuthService:
 
     def _generate_token(self, user_id: int, username: str, role: str) -> str:
         if not HAS_JWT:
-            raise RuntimeError(
-                "PyJWT is required for token generation. "
-                "Install with: pip install PyJWT"
-            )
+            raise RuntimeError("PyJWT is required for token generation. Install with: pip install PyJWT")
 
         payload = {
             "user_id": user_id,
             "username": username,
             "role": role,
             "exp": datetime.now(timezone.utc) + timedelta(hours=self.expiration_hours),
-            "iat": datetime.now(timezone.utc)
+            "iat": datetime.now(timezone.utc),
         }
 
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
 
     def validate_token(self, token: str) -> dict[str, Any] | None:
         if token.startswith("simple:"):
-
-
             logger.warning("Rejected legacy simple-token format. Migrate to JWT.")
             return None
 
@@ -110,7 +98,7 @@ class AuthService:
                 "id": payload["user_id"],
                 "user_id": payload["user_id"],
                 "username": payload["username"],
-                "role": payload["role"]
+                "role": payload["role"],
             }
         except jwt.ExpiredSignatureError:
             logger.warning("Token expired")
@@ -119,8 +107,7 @@ class AuthService:
             logger.warning("Invalid token")
             return None
 
-    def create_user(self, username: str, password: str,
-                   email: str | None = None, role: str = "viewer") -> int | None:
+    def create_user(self, username: str, password: str, email: str | None = None, role: str = "viewer") -> int | None:
 
         existing = db.execute_one("SELECT id FROM users WHERE username = ?", (username,))
         if existing:
@@ -128,25 +115,30 @@ class AuthService:
 
         password_hash = self._hash_password(password)
 
-        user_id = db.execute_insert("""
+        user_id = db.execute_insert(
+            """
             INSERT INTO users (username, password_hash, email, role)
             VALUES (?, ?, ?, ?)
-        """, (username, password_hash, email, role))
+        """,
+            (username, password_hash, email, role),
+        )
 
         logger.info("User created: %s (role: %s)", username, role)
         return user_id
 
-    def create_api_key(self, user_id: int, name: str,
-                      permissions: str = "read") -> str | None:
+    def create_api_key(self, user_id: int, name: str, permissions: str = "read") -> str | None:
         api_key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
         expires = datetime.now(timezone.utc) + timedelta(days=90)
 
-        db.execute_insert("""
+        db.execute_insert(
+            """
             INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (key_hash, user_id, name, permissions, expires))
+        """,
+            (key_hash, user_id, name, permissions, expires),
+        )
 
         logger.info("API key created for user %s: %s", user_id, name)
         return api_key
@@ -154,22 +146,21 @@ class AuthService:
     def validate_api_key(self, api_key: str) -> dict[str, Any] | None:
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
-        key = db.execute_one("""
+        key = db.execute_one(
+            """
             SELECT ak.*, u.username, u.role
             FROM api_keys ak
             JOIN users u ON ak.user_id = u.id
             WHERE ak.key_hash = ? AND ak.is_active = 1
             AND (ak.expires_at IS NULL OR ak.expires_at > ?)
-        """, (key_hash, datetime.now(timezone.utc)))
+        """,
+            (key_hash, datetime.now(timezone.utc)),
+        )
 
         if not key:
             return None
 
-
-        db.execute_insert(
-            "UPDATE api_keys SET last_used = ? WHERE id = ?",
-            (datetime.now(timezone.utc), key["id"])
-        )
+        db.execute_insert("UPDATE api_keys SET last_used = ? WHERE id = ?", (datetime.now(timezone.utc), key["id"]))
 
         return {
             "id": key["id"],
@@ -177,78 +168,65 @@ class AuthService:
             "user_id": key["user_id"],
             "username": key["username"],
             "role": key["role"],
-            "permissions": key["permissions"]
+            "permissions": key["permissions"],
         }
 
     def revoke_api_key(self, key_id: int, user_id: int | None = None) -> bool:
         if user_id is not None:
             key = db.execute_one(
-                "SELECT id FROM api_keys WHERE id = ? AND user_id = ? AND is_active = 1",
-                (key_id, user_id)
+                "SELECT id FROM api_keys WHERE id = ? AND user_id = ? AND is_active = 1", (key_id, user_id)
             )
             if not key:
                 return False
         with db.transaction() as conn:
             conn.execute(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?",
-                (datetime.now(timezone.utc), key_id)
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
             )
         return True
 
     def rotate_api_key(self, key_id: int, user_id: int) -> str | None:
 
-        key = db.execute_one(
-            "SELECT * FROM api_keys WHERE id = ? AND user_id = ? AND is_active = 1",
-            (key_id, user_id)
-        )
+        key = db.execute_one("SELECT * FROM api_keys WHERE id = ? AND user_id = ? AND is_active = 1", (key_id, user_id))
         if not key:
             return None
 
-
         with db.transaction() as conn:
             conn.execute(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?",
-                (datetime.now(timezone.utc), key_id)
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
             )
-
 
         new_api_key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(new_api_key.encode()).hexdigest()
         expires = datetime.now(timezone.utc) + timedelta(days=90)
 
-        db.execute_insert("""
+        db.execute_insert(
+            """
             INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
             VALUES (?, ?, ?, ?, ?)
-        """, (key_hash, user_id, key["name"] or "rotated-key", key["permissions"] or "read", expires))
+        """,
+            (key_hash, user_id, key["name"] or "rotated-key", key["permissions"] or "read", expires),
+        )
 
         logger.info("API key rotated for user %s, key_id %s", user_id, key_id)
         return new_api_key
 
     def check_permission(self, user: dict[str, Any], required: str) -> bool:
         role = user.get("role", "viewer")
-        permissions = {
-            "viewer": ["read"],
-            "operator": ["read", "run"],
-            "admin": ["read", "run", "write", "admin"]
-        }
+        permissions = {"viewer": ["read"], "operator": ["read", "run"], "admin": ["read", "run", "write", "admin"]}
         return required in permissions.get(role, [])
 
     def cleanup_expired_keys(self) -> int:
         now = datetime.now(timezone.utc)
         expired = db.execute(
             "SELECT id, name, user_id FROM api_keys WHERE is_active = 1 AND expires_at IS NOT NULL AND expires_at <= ?",
-            (now.isoformat(),)
+            (now.isoformat(),),
         )
         count = 0
         for key in expired:
             db.execute_insert(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?",
-                (now.isoformat(), key["id"])
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (now.isoformat(), key["id"])
             )
-            logger.info(
-                "Expired API key deactivated: id=%d name=%s user_id=%s",
-                key["id"], key["name"], key["user_id"]
-            )
+            logger.info("Expired API key deactivated: id=%d name=%s user_id=%s", key["id"], key["name"], key["user_id"])
             count += 1
         if count:
             logger.info("Deactivated %d expired API key(s)", count)

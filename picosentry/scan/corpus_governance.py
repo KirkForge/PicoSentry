@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -15,7 +14,6 @@ logger = logging.getLogger("picosentry.corpus_governance")
 
 
 class CorpusTrustLevel:
-
     FIRST_PARTY = "first-party"
     COMMERCIAL = "commercial"
     COMMUNITY = "community"
@@ -43,7 +41,6 @@ class CorpusTrustLevel:
 
 @dataclass
 class CorpusSource:
-
     name: str
     trust_level: str = CorpusTrustLevel.FIRST_PARTY
     origin_url: str = ""
@@ -65,7 +62,6 @@ class CorpusSource:
             return True
         try:
             reviewed_at = self.reviewed_at
-
 
             if reviewed_at.endswith("Z"):
                 reviewed_at = reviewed_at[:-1] + "+00:00"
@@ -109,7 +105,6 @@ class CorpusSource:
 
 @dataclass
 class FalsePositiveReport:
-
     finding_id: str
     rule_id: str
     package: str
@@ -163,7 +158,6 @@ class FalsePositiveReport:
 
 @dataclass
 class CorpusReleaseNotes:
-
     version: str
     released_at: str = ""
     released_by: str = ""
@@ -218,7 +212,6 @@ class CorpusReleaseNotes:
 
 @dataclass
 class FreshnessReport:
-
     sources: list[CorpusSource] = field(default_factory=list)
     generated_at: str = ""
 
@@ -228,12 +221,6 @@ class FreshnessReport:
 
     def stale_sources(self, max_age_days: int = 30) -> list[CorpusSource]:
         return [s for s in self.sources if s.is_stale(max_age_days)]
-
-    def sources_by_trust(self) -> dict[str, list[CorpusSource]]:
-        groups: dict[str, list[CorpusSource]] = {}
-        for s in self.sources:
-            groups.setdefault(s.trust_level, []).append(s)
-        return groups
 
     def total_ioc_count(self) -> int:
         return sum(s.ioc_count for s in self.sources)
@@ -266,7 +253,6 @@ class FreshnessReport:
 
 
 class CorpusGovernance:
-
     def __init__(self, governance_dir: Path | None = None) -> None:
         self.governance_dir = governance_dir or (Path.home() / ".local" / "share" / "picosentry" / "governance")
         self.governance_dir.mkdir(parents=True, exist_ok=True)
@@ -354,9 +340,6 @@ class CorpusGovernance:
             return True
         audit("corpus.remove_source", target=name, outcome="not_found")
         return False
-
-    def freshness_report(self, max_age_days: int = 30) -> FreshnessReport:
-        return FreshnessReport(sources=list(self._sources.values()))
 
     def report_false_positive(self, report: FalsePositiveReport) -> None:
         report_id = hashlib.sha256(f"{report.finding_id}:{report.package}:{report.reported_at}".encode()).hexdigest()[

@@ -1,5 +1,4 @@
-
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -37,10 +36,8 @@ SETUID_PATTERNS = ("chmod 4", "chmod 2", "chmod 6", "chmod 47", "chmod 27", "chm
 
 def detect_privilege_escalation(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
-
 
     for op in profile.fs_ops:
         if op.operation not in ("write", "create", "chmod", "chown", "delete"):
@@ -57,7 +54,6 @@ def detect_privilege_escalation(
                     )
                 )
 
-
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in PRIV_ESC_BINARIES:
@@ -70,7 +66,6 @@ def detect_privilege_escalation(
                     evidence={"executable": spawn.executable, "args": spawn.args[:5]},
                 )
             )
-
 
     for op in profile.fs_ops:
         if op.operation == "chmod":
@@ -87,7 +82,6 @@ def detect_privilege_escalation(
                     )
                     break
 
-
     cap_keywords = {"setcap", "getcap", "cap_setuid", "cap_net_raw", "cap_sys_admin", "cap_dac_override"}
     for spawn in profile.spawns:
         exe_lower = spawn.executable.lower()
@@ -103,13 +97,10 @@ def detect_privilege_escalation(
                 )
             )
 
-
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if op.operation in ("write", "create") and (
-            "/etc/cron" in path_lower
-            or path_lower.startswith("/var/spool/cron")
-            or path_lower.startswith("/var/cron")
+            "/etc/cron" in path_lower or path_lower.startswith(("/var/spool/cron", "/var/cron"))
         ):
             findings.append(
                 Finding(

@@ -18,17 +18,20 @@ router = APIRouter()
 async def root():
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun</title></head>
-<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;\
+justify-content:center;align-items:center;height:100vh;margin:0">
 <div style="text-align:center">
 <h1 style="color:#00ff88">⚔️ PicoShogun</h1>
 <p>Security Command Centre — v{__version__}</p>
-<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a> · <a href="/docs" style="color:#00ff88">API Docs</a> · <a href="/health" style="color:#00ff88">Health</a></p>
+<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a> · \
+<a href="/docs" style="color:#00ff88">API Docs</a> · <a href="/health" style="color:#00ff88">Health</a></p>
 </div></body></html>"""
 
 
 @router.get("/dashboard", tags=["Dashboard"], response_class=HTMLResponse)
 async def dashboard():
     from pathlib import Path
+
     base = Path(__file__).resolve().parent.parent.parent / "front"
 
     dashboard_path = base / "build" / "index.html"
@@ -38,11 +41,13 @@ async def dashboard():
         return dashboard_path.read_text()
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun Dashboard</title></head>
-<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;justify-content:center;align-items:center;height:100vh;margin:0">
+<body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;\
+justify-content:center;align-items:center;height:100vh;margin:0">
 <div style="text-align:center">
 <h1 style="color:#00ff88">⚔️ Dashboard</h1>
 <p>PicoShogun v{__version__}</p>
-<p style="color:#888">Dashboard not found — expected <code>front/build/index.html</code> or <code>front/index.html</code></p>
+<p style="color:#888">Dashboard not found — expected <code>front/build/index.html</code> \
+or <code>front/index.html</code></p>
 </div></body></html>"""
 
 
@@ -70,16 +75,19 @@ async def liveness_probe():
 async def readiness_probe():
     try:
         from picosentry.serve.database.manager import db
+
         db.execute_one("SELECT 1")
         return {"status": "ready"}
     except Exception:
         from fastapi.responses import JSONResponse
+
         return JSONResponse(status_code=503, content={"status": "not ready", "detail": "database unavailable"})
 
 
 @router.get("/health/history", tags=["Health"])
 async def health_history(limit: int = 50, user: dict = Depends(get_current_user)):
     from picosentry.serve.database.manager import db as _db
+
     rows = _db.execute(
         "SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?",
         (limit,),

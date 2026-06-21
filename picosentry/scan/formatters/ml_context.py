@@ -1,4 +1,3 @@
-
 from picosentry.scan.models import ScanResult
 
 

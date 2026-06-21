@@ -7,12 +7,11 @@ from picosentry.serve.database.manager import db
 
 
 class Organization:
-
     TIERS: ClassVar[dict[str, dict[str, Any]]] = {
         "free": {"users": 1, "projects": 3, "runs_per_day": 50, "storage_mb": 100},
         "starter": {"users": 5, "projects": 25, "runs_per_day": 500, "storage_mb": 1000},
         "pro": {"users": 25, "projects": 100, "runs_per_day": 5000, "storage_mb": 10000},
-        "enterprise": {"users": 999, "projects": 999, "runs_per_day": 99999, "storage_mb": 999999}
+        "enterprise": {"users": 999, "projects": 999, "runs_per_day": 99999, "storage_mb": 999999},
     }
 
     @staticmethod
@@ -23,37 +22,49 @@ class Organization:
         api_key = f"sk_live_{secrets.token_urlsafe(32)}"
         api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
-        org_id = db.execute_insert("""
+        org_id = db.execute_insert(
+            """
             INSERT INTO orgs (name, slug, owner_id, tier, api_key_hash, is_active, created_at)
             VALUES (?, ?, ?, ?, ?, 1, ?)
-        """, (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)))
+        """,
+            (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)),
+        )
 
-
-        db.execute_insert("""
+        db.execute_insert(
+            """
             INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
             VALUES (?, ?, 'admin', ?, ?)
-        """, (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)))
+        """,
+            (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)),
+        )
 
         return org_id
 
     @staticmethod
     def get_by_api_key(api_key: str) -> dict[str, Any] | None:
         import hashlib
+
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
-        row = db.execute_one("""
+        row = db.execute_one(
+            """
             SELECT * FROM orgs WHERE api_key_hash = ? AND is_active = 1
-        """, (key_hash,))
+        """,
+            (key_hash,),
+        )
         return dict(row) if row else None
 
     @staticmethod
     def get_members(org_id: int) -> list[dict[str, Any]]:
-        rows = db.execute("""
+        rows = db.execute(
+            """
             SELECT u.id, u.username, u.email, u.last_login, ou.role, ou.joined_at
             FROM org_users ou
             JOIN users u ON ou.user_id = u.id
             WHERE ou.org_id = ?
             ORDER BY ou.joined_at DESC
-        """, (org_id,))
+        """,
+            (org_id,),
+        )
         return [dict(r) for r in rows]
 
     @staticmethod
@@ -65,34 +76,43 @@ class Organization:
         tier = org["tier"]
         limits = Organization.TIERS.get(tier, Organization.TIERS["free"])
 
-
-        user_row = db.execute_one(
-            "SELECT COUNT(*) as c FROM org_users WHERE org_id = ?",
-            (org_id,)
-        )
+        user_row = db.execute_one("SELECT COUNT(*) as c FROM org_users WHERE org_id = ?", (org_id,))
         users = (user_row or {}).get("c") or 0
 
-
-        project_row = db.execute_one(
-            "SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?",
-            (org_id,)
-        )
+        project_row = db.execute_one("SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?", (org_id,))
         projects = (project_row or {}).get("c") or 0
 
-
         today_col = db.dialect.date_column("run_start")
-        runs_today_row = db.execute_one(f"""
+        runs_today_row = db.execute_one(
+            f"""
             SELECT COUNT(*) as c FROM project_runs
             WHERE org_id = ? AND {today_col} = {db.dialect.date_now()}
-        """, (org_id,))
+        """,
+            (org_id,),
+        )
         runs_today = runs_today_row["c"] if runs_today_row else 0
+
+        def _pct(used: int, limit: int) -> float:
+            return used / limit * 100 if limit > 0 else 0.0
 
         return {
             "tier": tier,
-            "users": {"used": users, "limit": limits["users"], "pct": users/limits["users"]*100 if limits["users"] > 0 else 0},
-            "projects": {"used": projects, "limit": limits["projects"], "pct": projects/limits["projects"]*100 if limits["projects"] > 0 else 0},
-            "runs_today": {"used": runs_today, "limit": limits["runs_per_day"], "pct": runs_today/limits["runs_per_day"]*100 if limits["runs_per_day"] > 0 else 0},
-            "storage_mb": limits["storage_mb"]
+            "users": {
+                "used": users,
+                "limit": limits["users"],
+                "pct": _pct(users, limits["users"]),
+            },
+            "projects": {
+                "used": projects,
+                "limit": limits["projects"],
+                "pct": _pct(projects, limits["projects"]),
+            },
+            "runs_today": {
+                "used": runs_today,
+                "limit": limits["runs_per_day"],
+                "pct": _pct(runs_today, limits["runs_per_day"]),
+            },
+            "storage_mb": limits["storage_mb"],
         }
 
     @staticmethod
@@ -110,20 +130,22 @@ class Organization:
         if new_tier not in Organization.TIERS:
             return False
         db.execute_insert(
-            "UPDATE orgs SET tier = ?, updated_at = ? WHERE id = ?",
-            (new_tier, datetime.now(timezone.utc), org_id)
+            "UPDATE orgs SET tier = ?, updated_at = ? WHERE id = ?", (new_tier, datetime.now(timezone.utc), org_id)
         )
         return True
 
     @staticmethod
     def list_orgs_for_user(user_id: int) -> list[dict[str, Any]]:
-        rows = db.execute("""
+        rows = db.execute(
+            """
             SELECT o.*, ou.role as user_role
             FROM org_users ou
             JOIN orgs o ON ou.org_id = o.id
             WHERE ou.user_id = ? AND o.is_active = 1
             ORDER BY o.created_at DESC
-        """, (user_id,))
+        """,
+            (user_id,),
+        )
         return [dict(r) for r in rows]
 
 

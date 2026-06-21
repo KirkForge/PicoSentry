@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -38,10 +37,8 @@ def safe_urlopen(
     try:
         resp = urllib.request.urlopen(url, timeout=timeout)
     except urllib.error.URLError as exc:
-
         exc.url = url_str if isinstance(url_str, str) else getattr(url, "full_url", "")  # type: ignore[attr-defined]
         raise
-
 
     body = resp.read(max_bytes + 1)
     if len(body) > max_bytes:

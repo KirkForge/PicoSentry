@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 
-from picosentry._core.models import Confidence, Severity
 from picosentry.serve.services.correlation.models import (
     CorrelatedEvent,
     KillChainPhase,
     PHASE_WEIGHTS,
     SEVERITY_WEIGHTS,
 )
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry._core.models import Confidence, Severity
 
 _PHASE_ORDER: list[KillChainPhase] = [
     KillChainPhase.RECONNAISSANCE,
@@ -35,19 +38,14 @@ def generate_narrative(
     max_confidence: Confidence,
     layers_observed: set[str],
 ) -> str:
-    active_phases: list[str] = [
-        p.value for p in _PHASE_ORDER if p.value in phase_events
-    ]
+    active_phases: list[str] = [p.value for p in _PHASE_ORDER if p.value in phase_events]
 
     if not active_phases:
         return f"No kill-chain activity detected for '{artifact_id}'."
 
     parts: list[str] = []
 
-
-    layer_labels = [
-        _LAYER_NAMES.get(layer, layer) for layer in sorted(layers_observed)
-    ]
+    layer_labels = [_LAYER_NAMES.get(layer, layer) for layer in sorted(layers_observed)]
     severity_label = max_severity.value.title()
     confidence_label = max_confidence.value.title()
 
@@ -60,7 +58,6 @@ def generate_narrative(
         f"rated **{severity_label} severity** with **{confidence_label} confidence**."
     )
 
-
     parts.append("**Phase Progression:**")
     for i, phase_name in enumerate(active_phases):
         try:
@@ -70,7 +67,6 @@ def generate_narrative(
 
         weight = PHASE_WEIGHTS.get(phase, 0.5)
         phase_events_list = phase_events[phase_name]
-
 
         max_sev_weight = 0.0
         max_sev_name = "INFO"
@@ -82,9 +78,7 @@ def generate_narrative(
                 max_sev_weight = sev_weight
                 max_sev_name = evt.severity.value
             layers_in_phase.add(evt.layer)
-            event_descriptions.append(
-                f"{evt.rule_id} ({evt.severity.value}) from {evt.layer}: {evt.title}"
-            )
+            event_descriptions.append(f"{evt.rule_id} ({evt.severity.value}) from {evt.layer}: {evt.title}")
 
         phase_sev = f"{max_sev_name} severity" if max_sev_name != "INFO" else "informational"
         progression = ""
@@ -96,12 +90,11 @@ def generate_narrative(
         layer_tag = f" [{', '.join(sorted(layers_in_phase))}]" if len(layers_in_phase) > 1 else ""
 
         parts.append(
-            f"  {i+1}. **{phase_name.replace('_', ' ').title()}**{layer_tag} — "
+            f"  {i + 1}. **{phase_name.replace('_', ' ').title()}**{layer_tag} — "
             f"{len(phase_events_list)} event(s) at {phase_sev}{progression}: "
             + "; ".join(event_descriptions[:3])
             + (f" (+{len(event_descriptions) - 3} more)" if len(event_descriptions) > 3 else "")
         )
-
 
     if len(layers_observed) >= 2:
         layers_by_phase: dict[str, set[str]] = {}
@@ -109,9 +102,7 @@ def generate_narrative(
             for e in phase_events[phase_name]:
                 layers_by_phase.setdefault(phase_name, set()).add(e.layer)
 
-        multi_layer_phases = [
-            pn for pn, ls in layers_by_phase.items() if len(ls) >= 2
-        ]
+        multi_layer_phases = [pn for pn, ls in layers_by_phase.items() if len(ls) >= 2]
 
         if multi_layer_phases:
             parts.append(
@@ -122,7 +113,6 @@ def generate_narrative(
                 "This cross-layer corroboration significantly increases confidence "
                 "in the assessed attack pattern."
             )
-
 
     if chain_score >= 0.8:
         score_assessment = (
@@ -148,7 +138,6 @@ def generate_narrative(
         )
 
     parts.append(f"**Assessment:** {score_assessment}")
-
 
     covered = len(active_phases)
     total_phases = len(_PHASE_ORDER)

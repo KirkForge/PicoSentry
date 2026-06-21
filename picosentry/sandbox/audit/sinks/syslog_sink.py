@@ -1,12 +1,15 @@
-
 from __future__ import annotations
 
+import contextlib
 import logging
 import socket
 import time
 
-from picosentry.sandbox.audit.logger import AuditEvent
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.audit.logger import AuditEvent
 
 logger = logging.getLogger("picodome.audit.sink.syslog")
 
@@ -55,7 +58,6 @@ _DEFAULT_APP_NAME = "picodome"
 
 
 class SyslogSink(AuditSink):
-
     def __init__(
         self,
         config: SinkConfig | None = None,
@@ -71,24 +73,20 @@ class SyslogSink(AuditSink):
         self._facility = facility
         self._sock: socket.socket | None = None
 
-
     def start(self) -> None:
         super().start()
         try:
             self._sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
             logger.info("SyslogSink: UDP socket created for %s:%d", self._host, self._port)
         except OSError as exc:
-            logger.error("SyslogSink: failed to create socket: %s", exc)
+            logger.exception("SyslogSink: failed to create socket")
             self._record_failure(str(exc))
 
     def stop(self) -> None:
         if self._sock:
-            try:
+            with contextlib.suppress(OSError):
                 self._sock.close()
-            except OSError:
-                pass
             self._sock = None
-
 
     def send(self, event: AuditEvent) -> None:
         if self._sock is None:
@@ -105,7 +103,6 @@ class SyslogSink(AuditSink):
             self._record_dropped()
             logger.debug("SyslogSink: UDP send failed: %s", exc)
 
-
     @property
     def host(self) -> str:
         return self._host
@@ -114,14 +111,12 @@ class SyslogSink(AuditSink):
     def port(self) -> int:
         return self._port
 
-
     def _format_message(self, event: AuditEvent) -> str:
         priority = _EVENT_SEVERITY.get(event.event_type.value, PRIORITY_INFO)
         timestamp = event.timestamp or time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         hostname = socket.gethostname()
         procid = event.event_id[:36]  # truncate to reasonable length
         msgid = f"picodome.{event.event_type.value}"
-
 
         sd_pairs = [
             f'actor="{event.actor}"',
@@ -135,10 +130,8 @@ class SyslogSink(AuditSink):
 
         sd = f"[{self._app_name} {' '.join(sd_pairs)}]"
 
-
         msg = f"{event.event_type.value} by {event.actor}"
         if event.detail:
             msg += f": {event.detail}"
-
 
         return f"<{priority}>1 {timestamp} {hostname} {self._app_name} {procid} {msgid} {sd} {msg}"

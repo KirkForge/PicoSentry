@@ -1,4 +1,3 @@
-
 from .cyclonedx import format_cyclonedx
 from .github import format_github
 from .json_fmt import format_json

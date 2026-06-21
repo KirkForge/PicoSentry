@@ -59,22 +59,19 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 def cmd(args: argparse.Namespace) -> int:
 
-    if args.command and args.command[0] == '--':
+    if args.command and args.command[0] == "--":
         args.command = args.command[1:]
     if not args.command:
         print("Error: no command specified", file=sys.stderr)
         return 1
-
 
     if getattr(args, "allow_runtime", None) and not args.policy:
         policy = load_policy(name=args.allow_runtime)
     elif args.policy:
         policy = load_policy(args.policy)
     else:
-
         policy = _auto_detect_policy(args.command)
     deterministic = args.deterministic_output
-
 
     from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
 
@@ -93,7 +90,6 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"Error: {e}", file=sys.stderr)
         return 1
 
-
     sandbox = sandbox_run(
         command=args.command,
         policy=policy,
@@ -103,11 +99,9 @@ def cmd(args: argparse.Namespace) -> int:
         deterministic=deterministic,
     )
 
-
     profile = profile_from_sandbox_result(sandbox)
     engine = create_default_engine()
     analysis = engine.analyze(profile, rules=args.rules, deterministic=deterministic)
-
 
     if deterministic:
         guard = DeterministicGuard()
@@ -115,7 +109,6 @@ def cmd(args: argparse.Namespace) -> int:
         if violations:
             for v in violations:
                 print(f"DETERMINISM VIOLATION: {v}", file=sys.stderr)
-
 
     if not args.quiet:
         from picosentry.sandbox.cli_commands._common import _output_summary_pipeline
@@ -142,7 +135,7 @@ def cmd(args: argparse.Namespace) -> int:
             print()
             print(format_table(analysis))
 
-    return _compute_exit_code_pipeline(sandbox, analysis, args)
+    return _compute_exit_code_pipeline(analysis, args)
 
 
 __all__ = ["NAME", "add_arguments", "cmd"]

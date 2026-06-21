@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -14,7 +13,6 @@ logger = logging.getLogger("picosentry.metrics")
 
 @dataclass
 class MetricsRegistry:
-
     MAX_HISTOGRAM_OBSERVATIONS = 10000  # Cap per metric to bound memory
 
     counters: dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -36,7 +34,6 @@ class MetricsRegistry:
             hist = self.histograms[name]
             hist.append(value)
             if len(hist) > self.MAX_HISTOGRAM_OBSERVATIONS:
-
                 self.histograms[name] = hist[len(hist) // 2 :]
 
     def set_gauge(self, name: str, value: float) -> None:
@@ -61,7 +58,6 @@ class MetricsRegistry:
 
 @dataclass
 class MetricsSnapshot:
-
     counters: dict[str, int]
     histograms: dict[str, list[int]]
     gauges: dict[str, float]
@@ -102,12 +98,10 @@ class MetricsSnapshot:
     def to_prometheus(self) -> str:
         lines = []
 
-
         lines.append("# HELP picosentry_info Metadata about the PicoSentry instance")
         lines.append("# TYPE picosentry_info gauge")
         for k, v in self.labels.items():
             lines.append(f'picosentry_info{{key="{k}"}} {v}')
-
 
         for name, value in self.counters.items():
             safe_name = name.replace(".", "_").replace("-", "_")
@@ -115,13 +109,14 @@ class MetricsSnapshot:
             lines.append(f"# TYPE picosentry_{safe_name} counter")
             lines.append(f"picosentry_{safe_name} {value}")
 
-
         for name, stats in self.to_dict().get("histograms", {}).items():
             safe_name = name.replace(".", "_").replace("-", "_")
             lines.append(f"# HELP picosentry_{safe_name} Histogram for {name}")
             lines.append(f"# TYPE picosentry_{safe_name} summary")
-            for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg"):
-                lines.append(f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}')
+            lines.extend(
+                f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}'
+                for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg")
+            )
 
         return "\n".join(lines) + "\n"
 

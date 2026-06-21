@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import argparse
@@ -25,7 +24,6 @@ def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             sys.exit(1)
     else:
-
         if sys.stdin.isatty():
             print("Error: Provide --text or --file, or pipe input to stdin", file=sys.stderr)
             sys.exit(1)
@@ -46,7 +44,6 @@ def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     print(json.dumps(output, indent=2))
 
     if args.verify_determinism:
-
         result2 = guard.check(text)
         if result.score != result2.score or result.rules_matched != result2.rules_matched:
             print("DETERMINISM CHECK FAILED: results differ between runs", file=sys.stderr)
@@ -101,7 +98,6 @@ def _serve(args: argparse.Namespace, config: PicoWatchConfig) -> None:
 
     print(f"PicoWatch {__version__} starting on {args.host}:{args.port}", file=sys.stderr)
 
-
     guard = PromptGuard(config=config)
     h = health_check(
         rules_loaded=len(guard.rules),
@@ -129,7 +125,7 @@ def _serve(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     run_server(config=config, host=args.host, port=args.port)
 
 
-def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
+def _rules(_args: argparse.Namespace, config: PicoWatchConfig) -> None:
     guard = PromptGuard(config=config)
     rules_list = [
         {"id": r.id, "category": r.category, "weight": r.weight, "description": r.description} for r in guard.rules
@@ -137,7 +133,7 @@ def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     print(json.dumps(rules_list, indent=2))
 
 
-def _run_picoshogun_plugin(config: PicoWatchConfig) -> None:
+def _run_picoshogun_plugin() -> None:
     from picosentry.watch.picoshogun import PicoWatchPlugin
 
     plugin = PicoWatchPlugin()
@@ -148,7 +144,6 @@ def _run_picoshogun_plugin(config: PicoWatchConfig) -> None:
     print(f"  Corpus hash: {h['corpus_hash']}", file=sys.stderr)
     print(f"  Corpus version: {h['corpus_version']}", file=sys.stderr)
     print("Ready for PicoShogun event bus integration.", file=sys.stderr)
-
 
     print(json.dumps({"plugin": "picowatch", "status": "ready", **h}, indent=2))
 
@@ -164,24 +159,19 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--version", action="version", version=f"PicoWatch {__version__}")
     sub = parser.add_subparsers(dest="command")
 
-
     sp = sub.add_parser("scan-prompt", help="Scan a prompt for injection patterns")
     sp.add_argument("--text", "-t", help="Prompt text to scan")
     sp.add_argument("--file", "-f", help="File containing prompt text")
-
 
     vo = sub.add_parser("validate-output", help="Validate LLM output against a schema")
     vo.add_argument("--schema", "-s", required=True, help="JSON schema file")
     vo.add_argument("--output", "-o", required=True, help="LLM output file")
 
-
     se = sub.add_parser("serve", help="Start HTTP daemon (FastAPI + uvicorn)")
     se.add_argument("--host", default="127.0.0.1", help="Bind host")
     se.add_argument("--port", "-p", type=int, default=8766, help="Bind port")
 
-
     sub.add_parser("rules", help="List active defense rules")
-
 
     sub.add_parser("health", help="Show health status")
 
@@ -193,7 +183,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     if args.picoshogun_plugin:
-        _run_picoshogun_plugin(config)
+        _run_picoshogun_plugin()
     elif args.command == "scan-prompt":
         _scan_prompt(args, config)
     elif args.command == "validate-output":

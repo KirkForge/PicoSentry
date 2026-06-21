@@ -1,7 +1,7 @@
-
 from .advisory_check import detect_all_advisory_vulnerabilities
 from .bundled_shadow import detect_bundled_shadows
 from .credential_read import detect_credential_reading
+from .dangerous_build_hooks import detect_dangerous_build_hooks
 from .dep_confusion import detect_all_dep_confusion
 from .engine import detect_engine_issues
 from .fork_drift import detect_fork_drift
@@ -30,6 +30,7 @@ __all__ = [
     "detect_all_typosquat",
     "detect_bundled_shadows",
     "detect_credential_reading",
+    "detect_dangerous_build_hooks",
     "detect_engine_issues",
     "detect_fork_drift",
     "detect_license_issues",
@@ -213,7 +214,6 @@ RULE_INFO = {
         "category": "supply-chain",
         "helpUri": f"{_DOCS_BASE}/L2-NETEX-001.md",
     },
-
     "L2-GO-TYPO-001": {
         "name": "go_typosquat",
         "description": "Go module short names within edit distance <=2 of top Go packages",
@@ -235,7 +235,6 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-GO-ADV-001.md",
     },
-
     "L2-CARGO-TYPO-001": {
         "name": "cargo_typosquat",
         "description": "Crate names within edit distance <=2 of top Rust crates",
@@ -257,7 +256,6 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-CARGO-ADV-001.md",
     },
-
     "L2-PYPI-TYPO-001": {
         "name": "pypi_typosquat",
         "description": "Package names within edit distance <=2 of top PyPI packages",
@@ -335,7 +333,6 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-PYPI-ADV-001.md",
     },
-
     "L2-MAVEN-TYPO-001": {
         "name": "maven_typosquat",
         "description": "Artifact IDs within edit distance <=2 of top Maven packages",
@@ -357,7 +354,6 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-MAVEN-ADV-001.md",
     },
-
     "L2-RUBYGEMS-TYPO-001": {
         "name": "rubygems_typosquat",
         "description": "Gem names within edit distance <=2 of top RubyGems packages",
@@ -379,7 +375,6 @@ RULE_INFO = {
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-RUBYGEMS-ADV-001.md",
     },
-
     "L2-NUGET-TYPO-001": {
         "name": "nuget_typosquat",
         "description": "Package IDs within edit distance <=2 of top NuGet packages",
@@ -400,6 +395,16 @@ RULE_INFO = {
         "severity": "HIGH",
         "category": "vulnerability",
         "helpUri": f"{_DOCS_BASE}/L2-NUGET-ADV-001.md",
+    },
+    "L2-BUILD-001": {
+        "name": "dangerous_build_hooks",
+        "description": (
+            "Build scripts (Cargo, Go, RubyGems, Maven, NuGet) that spawn processes, "
+            "download code, or read credentials during install"
+        ),
+        "severity": "CRITICAL",
+        "category": "execution",
+        "helpUri": f"{_DOCS_BASE}/L2-BUILD-001.md",
     },
 }
 

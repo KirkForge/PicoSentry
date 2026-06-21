@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -14,7 +13,6 @@ logger = logging.getLogger("picodome.health")
 
 @dataclass(frozen=True)
 class HealthStatus:
-
     healthy: bool
     component: str
     detail: str = ""
@@ -33,7 +31,6 @@ def check_health() -> list[HealthStatus]:
     checks: list[HealthStatus] = []
     now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
 
-
     checks.append(
         HealthStatus(
             healthy=True,
@@ -42,7 +39,6 @@ def check_health() -> list[HealthStatus]:
             timestamp=now,
         )
     )
-
 
     try:
         backend = get_backend()
@@ -64,7 +60,6 @@ def check_health() -> list[HealthStatus]:
                 timestamp=now,
             )
         )
-
 
     try:
         from picosentry.sandbox.audit import get_audit_logger
@@ -90,7 +85,6 @@ def check_health() -> list[HealthStatus]:
             )
         )
 
-
     try:
         from picosentry.sandbox.retention import get_retention_manager
 
@@ -114,7 +108,6 @@ def check_health() -> list[HealthStatus]:
                 timestamp=now,
             )
         )
-
 
     try:
         import os

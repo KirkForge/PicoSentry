@@ -163,7 +163,7 @@ class TestForkDriftDetection:
         nm.mkdir(parents=True)
         (nm / "package.json").write_text(json.dumps({"name": "mystery-pkg", "version": "1.0.0"}))
 
-        findings = detect_fork_drift(tmp_path, tmp_path)
+        findings = detect_fork_drift(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value in ("low", "LOW")
 
@@ -177,7 +177,7 @@ class TestForkDriftDetection:
             )
         )
 
-        findings = detect_fork_drift(tmp_path, tmp_path)
+        findings = detect_fork_drift(tmp_path)
         fork_findings = [f for f in findings if "fork" in f.message.lower()]
         assert len(fork_findings) == 0
 
@@ -195,7 +195,7 @@ class TestForkDriftDetection:
             )
         )
 
-        findings = detect_fork_drift(tmp_path, tmp_path)
+        findings = detect_fork_drift(tmp_path)
         assert any(f.rule_id == "L2-FORK-001" for f in findings)
 
 
@@ -223,14 +223,14 @@ class TestMani002Consolidation:
     def test_single_finding_per_package(self, tmp_path):
         """10 optional deps + install scripts → 1 finding, not 10."""
         self._make_pkg_with_optional_deps_and_scripts(tmp_path, dep_count=10)
-        findings = detect_manifest_issues(tmp_path, tmp_path)
+        findings = detect_manifest_issues(tmp_path)
         mani_002 = [f for f in findings if f.rule_id == "L2-MANI-002"]
         assert len(mani_002) == 1, f"Expected 1 MANI-002 finding, got {len(mani_002)}"
 
     def test_finding_mentions_count(self, tmp_path):
         """The consolidated finding should mention the count of optional deps."""
         self._make_pkg_with_optional_deps_and_scripts(tmp_path, dep_count=3)
-        findings = detect_manifest_issues(tmp_path, tmp_path)
+        findings = detect_manifest_issues(tmp_path)
         mani_002 = [f for f in findings if f.rule_id == "L2-MANI-002"]
         assert len(mani_002) == 1
         assert "3 optional dependencies" in mani_002[0].message
@@ -238,7 +238,7 @@ class TestMani002Consolidation:
     def test_single_dep_singular(self, tmp_path):
         """1 optional dep → '1 optional dependency' (singular)."""
         self._make_pkg_with_optional_deps_and_scripts(tmp_path, dep_count=1)
-        findings = detect_manifest_issues(tmp_path, tmp_path)
+        findings = detect_manifest_issues(tmp_path)
         mani_002 = [f for f in findings if f.rule_id == "L2-MANI-002"]
         assert len(mani_002) == 1
         assert "1 optional dependency" in mani_002[0].message
@@ -246,7 +246,7 @@ class TestMani002Consolidation:
     def test_evidence_lists_all_deps(self, tmp_path):
         """Evidence field should list all optional dep names."""
         self._make_pkg_with_optional_deps_and_scripts(tmp_path, dep_count=3)
-        findings = detect_manifest_issues(tmp_path, tmp_path)
+        findings = detect_manifest_issues(tmp_path)
         mani_002 = [f for f in findings if f.rule_id == "L2-MANI-002"]
         assert "opt-dep-0" in mani_002[0].evidence
         assert "opt-dep-1" in mani_002[0].evidence
@@ -300,6 +300,6 @@ class TestCredentialReadBudget:
             (nm / f"file{i}.js").write_text("// innocent file\n")
 
         # Should complete without scanning all 300 files
-        findings = detect_credential_reading(tmp_path, tmp_path)
+        findings = detect_credential_reading(tmp_path)
         # No credential patterns → no findings, but should not hang
         assert isinstance(findings, list)

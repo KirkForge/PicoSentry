@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -13,7 +12,6 @@ _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 
 @dataclass(frozen=True)
 class RedisConfig:
-
     url: str = ""
     enabled: bool | None = None  # None = auto-detect
     socket_timeout: float = 5.0
@@ -51,7 +49,6 @@ def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
             socket_connect_timeout=config.socket_connect_timeout,
             decode_responses=True,
         )
-
 
         import time
 

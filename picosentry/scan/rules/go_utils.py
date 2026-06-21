@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -9,17 +8,15 @@ logger = logging.getLogger("picosentry.go_utils")
 
 
 _GO_MOD_REQUIRE_RE = re.compile(
-    r'^require\s+(\S+)\s+(\S+)'  # column-0 single require line (real-world go.mod format)
+    r"^require\s+(\S+)\s+(\S+)"  # column-0 single require line (real-world go.mod format)
 )
 _GO_MOD_PAREN_REQUIRE_RE = re.compile(
-    r'\t(\S+)\s+(\S+)'  # tab-indented line within require () block
+    r"\t(\S+)\s+(\S+)"  # tab-indented line within require () block
 )
 _GO_MOD_REPLACE_RE = re.compile(
-    r'^\t?replace\s+(\S+)\s*=>\s*(\S+)'  # replace directive with => separator
+    r"^\t?replace\s+(\S+)\s*=>\s*(\S+)"  # replace directive with => separator
 )
-_GO_MOD_EXCLUDE_RE = re.compile(
-    r'\texclude\s+(\S+)\s+(\S+)'
-)
+_GO_MOD_EXCLUDE_RE = re.compile(r"\texclude\s+(\S+)\s+(\S+)")
 
 
 def detect_go_project(target: Path) -> bool:
@@ -55,14 +52,11 @@ def parse_go_mod(target: Path) -> dict | None:
     for line in lines:
         stripped = line.strip()
 
-
         if stripped.startswith("module "):
             result["module"] = stripped[7:].strip()
 
-
         elif stripped.startswith("go "):
             result["go_version"] = stripped[3:].strip()
-
 
         elif stripped == "require (":
             in_require_block = True
@@ -71,7 +65,6 @@ def parse_go_mod(target: Path) -> dict | None:
             if in_require_block:
                 in_require_block = False
             continue
-
 
         elif in_require_block is False and stripped.startswith("require "):
             m = _GO_MOD_REQUIRE_RE.match(line)
@@ -84,7 +77,6 @@ def parse_go_mod(target: Path) -> dict | None:
                     result["require"].append((mod_path, version))
             continue
 
-
         elif in_require_block and stripped:
             m = _GO_MOD_PAREN_REQUIRE_RE.match(line)
             if m:
@@ -96,14 +88,12 @@ def parse_go_mod(target: Path) -> dict | None:
                     result["require"].append((mod_path, version))
             continue
 
-
         elif stripped.startswith("replace "):
             m = _GO_MOD_REPLACE_RE.match(line)
             if m:
                 original = m.group(1)
-                replacement = m.group(2) if m.group(2) else ""
+                replacement = m.group(2) or ""
                 result["replace"][original] = replacement
-
 
         elif stripped.startswith("exclude "):
             m = _GO_MOD_EXCLUDE_RE.match(line)
@@ -124,8 +114,8 @@ def parse_go_sum(target: Path) -> list[tuple[str, str, str]]:
         return []
 
     entries: list[tuple[str, str, str]] = []
-    for line in lines:
-        line = line.strip()
+    for raw_line in lines:
+        line = raw_line.strip()
         if not line:
             continue
 
@@ -166,22 +156,20 @@ def detect_goproxy_private(target: Path) -> bool:
     if go_env.is_file():
         try:
             content = go_env.read_text(encoding="utf-8", errors="replace")
-            for line in content.splitlines():
-                line = line.strip()
+            for raw_line in content.splitlines():
+                line = raw_line.strip()
                 if line.startswith("GOPROXY=") and "proxy.golang.org" not in line and "direct" not in line:
                     return True
-                if line.startswith("GONOSUMDB=") or line.startswith("GONOSUMCHECK="):
+                if line.startswith(("GONOSUMDB=", "GONOSUMCHECK=")):
                     return True
                 if line.startswith("GOPRIVATE="):
                     return True
         except OSError:
             pass
 
-
     go_mod_data = parse_go_mod(target)
     if go_mod_data:
-        for _original, replacement in go_mod_data.get("replace", {}).items():
-
+        for replacement in go_mod_data.get("replace", {}).values():
             if replacement and replacement.startswith((".", "/", "../")):
                 return True
 

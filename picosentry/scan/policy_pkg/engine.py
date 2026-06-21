@@ -21,7 +21,6 @@ logger = logging.getLogger("picosentry.policy")
 
 @dataclass
 class Policy:
-
     fail_on_severity: str = "high"  # minimum severity to fail
     fail_on_rules: list[str] = field(default_factory=list)  # specific rules that always fail
     allow_licenses: list[str] = field(default_factory=list)  # SPDX identifiers
@@ -145,10 +144,8 @@ class Policy:
         for pkg, lic in sorted(package_licenses.items()):
             lic_norm = lic.strip()
 
-
             if self.deny_licenses:
                 for denied in self.deny_licenses:
-
                     if denied.lower() == lic_norm.lower():
                         violations.append(
                             PolicyViolation(
@@ -160,11 +157,9 @@ class Policy:
                         )
                         break
                 else:
-
                     if self.allow_licenses:
                         allowed = False
                         for allowed_lic in self.allow_licenses:
-
                             if allowed_lic.lower() == lic_norm.lower():
                                 allowed = True
                                 break
@@ -183,7 +178,6 @@ class Policy:
     @staticmethod
     def _parse_package_name(pkg: str) -> str:
         if pkg.startswith("@"):
-
             last_at = pkg.rfind("@")
             if last_at == 0:
                 return pkg  # '@scope/name' with no version
@@ -214,7 +208,7 @@ class Policy:
 
         return violations
 
-    def check_requirements(self, target: Path, scan_result: Any) -> list[PolicyViolation]:
+    def check_requirements(self, target: Path) -> list[PolicyViolation]:
         violations: list[PolicyViolation] = []
 
         if self.require_lockfile:
@@ -257,18 +251,16 @@ class Policy:
     ) -> PolicyResult:
         violations: list[PolicyViolation] = []
 
-
         from picosentry.scan.models import SEVERITY_ORDER
+
         fail_level = SEVERITY_ORDER.get(self.fail_on_severity.lower(), 1)
 
         waived_count = 0
         for f in scan_result.findings:
-
             is_waived, _waiver = self.is_finding_waived(f.rule_id, f.package)
             if is_waived:
                 waived_count += 1
                 continue
-
 
             if f.rule_id in self.fail_on_rules:
                 violations.append(
@@ -281,7 +273,6 @@ class Policy:
                 )
                 continue
 
-
             f_level = SEVERITY_ORDER.get(f.severity.value.lower(), 4)
             if f_level <= fail_level:
                 violations.append(
@@ -293,20 +284,15 @@ class Policy:
                     )
                 )
 
-
         if package_licenses:
             violations.extend(self.check_licenses(package_licenses))
-
 
         if installed_packages:
             violations.extend(self.check_packages(installed_packages))
 
-
-        violations.extend(self.check_requirements(target, scan_result))
-
+        violations.extend(self.check_requirements(target))
 
         expired = [w.id for w in self.waivers if w.is_expired()]
-
 
         audit(
             "policy.apply",

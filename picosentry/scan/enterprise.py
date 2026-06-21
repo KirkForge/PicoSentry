@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -17,7 +16,6 @@ EXIT_INSECURE_CONFIG = 7
 
 
 class EnterpriseViolation(Exception):
-
     def __init__(self, message: str, exit_code: int = EXIT_INSECURE_CONFIG) -> None:
         super().__init__(message)
         self.exit_code = exit_code
@@ -82,10 +80,8 @@ def require_enterprise(check: str, value: object, message: str = "") -> None:
 def enterprise_daemon_checks(auth_mode: str, host: str) -> list[str]:
     warnings: list[str] = []
 
-
     require_enterprise("auth_not_off", auth_mode)
     require_enterprise("host_not_any", host)
-
 
     if auth_mode == "token":
         warnings.append("Enterprise mode: token auth is accepted but OIDC is recommended for production deployments.")
@@ -100,9 +96,7 @@ def enterprise_scan_checks(
 ) -> list[str]:
     warnings: list[str] = []
 
-
     require_enterprise("fail_on_rule_error", fail_on_rule_error)
-
 
     if not policy_digest:
         warnings.append("Enterprise mode: policy_digest is empty. Default-policy digest will be populated.")

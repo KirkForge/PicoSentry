@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -58,7 +57,6 @@ def _walk_node_modules(target: Path) -> list[dict]:
                             comp["hashes"] = [{"alg": "SHA-1", "content": shasum}]
                     components[key] = comp
 
-
         if child.name.startswith("@") and child.is_dir():
             for scoped_child in sorted(child.iterdir()):
                 if not scoped_child.is_dir():
@@ -104,17 +102,13 @@ def format_cyclonedx(result: ScanResult) -> str:
         "LOW": 0.2,
     }
 
-
     _sid = result.scan_id  # sha256-based, 16 hex chars
     det_timestamp = f"20{_sid[:2]}-{_sid[2:4]}-{_sid[4:6]}T{_sid[6:8]}:{_sid[8:10]}:{_sid[10:12]}Z"
-
 
     target_path = Path(result.target)
     components = _walk_node_modules(target_path)
 
-
     comp_refs: dict[str, str] = {c["name"]: c["bom-ref"] for c in components}
-
 
     vulns: list[dict] = []
     seen_vulns: set[tuple] = set()
@@ -154,7 +148,6 @@ def format_cyclonedx(result: ScanResult) -> str:
         if f.references:
             vuln["advisories"] = [{"url": ref} for ref in f.references]
         vulns.append(vuln)
-
 
     root_name = result.target.rsplit("/", 1)[-1] if "/" in result.target else result.target
 

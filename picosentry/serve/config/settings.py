@@ -46,6 +46,7 @@ class DatabaseConfig:
     def from_env(cls) -> "DatabaseConfig":
         return cls()  # defaults already read from env via field default_factory
 
+
 @dataclass
 class APIConfig:
     host: str = field(default_factory=lambda: _env("API_HOST", "127.0.0.1"))
@@ -61,10 +62,10 @@ class APIConfig:
     def from_env(cls) -> "APIConfig":
         return cls()  # defaults already read from env via field default_factory
 
+
 @dataclass
 class SecurityConfig:
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "change-me-in-production"))
-
 
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
@@ -85,14 +86,13 @@ class SecurityConfig:
     # enable it.  Default is "unset" so a fresh deploy does NOT silently
     # accept arbitrary paths.
     scans_workspace_root: Path | None = field(
-        default_factory=lambda: (
-            Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
-        )
+        default_factory=lambda: Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
     )
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":
         return cls()  # defaults already read from env via field default_factory
+
 
 @dataclass
 class LoggingConfig:
@@ -102,6 +102,7 @@ class LoggingConfig:
     backup_count: int = 10
     log_dir: Path = BASE_DIR / "logs"
     structured: bool = True  # JSON logging for production
+
 
 @dataclass
 class AlertConfig:
@@ -114,17 +115,16 @@ class AlertConfig:
     email_smtp_use_ssl: bool = field(default_factory=lambda: _env_bool("SMTP_USE_SSL", "false"))
     email_smtp_starttls: bool = field(default_factory=lambda: _env_bool("SMTP_STARTTLS", "true"))
     email_from: str | None = field(default_factory=lambda: _env("EMAIL_FROM", "picoshogun@localhost"))
-    email_to: list[str] = field(default_factory=lambda: [
-        addr.strip()
-        for addr in _env("EMAIL_TO", "").split(",")
-        if addr.strip()
-    ])
+    email_to: list[str] = field(
+        default_factory=lambda: [addr.strip() for addr in _env("EMAIL_TO", "").split(",") if addr.strip()]
+    )
     cooldown_seconds: int = 300
     max_retries: int = 3
 
     @classmethod
     def from_env(cls) -> "AlertConfig":
         return cls()  # defaults already read from env via field default_factory
+
 
 @dataclass
 class OrchestratorConfig:
@@ -154,14 +154,15 @@ class PluginsConfig:
     """User-supplied plugin directories. The bundled
     picosentry/serve/plugins/ is always scanned; this is for extras.
     """
+
     plugin_dirs: list[Path] = field(default_factory=_env_plugin_dirs)
 
     @classmethod
     def from_env(cls) -> "PluginsConfig":
         return cls()  # defaults already read from env via field default_factory
 
-class _SslCertCheck:
 
+class _SslCertCheck:
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
 
@@ -169,14 +170,16 @@ class _SslCertCheck:
         if self._settings.is_production() and not self._settings.security.ssl_cert_path:
             return SecurityViolation(
                 check="ssl_cert",
-                message="No SSL certificate configured in production — set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination",
+                message=(
+                    "No SSL certificate configured in production — "
+                    "set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination"
+                ),
                 severity="ERROR",
             )
         return None
 
 
 class _WildcardHostsCheck:
-
     def __init__(self, settings: "Settings") -> None:
         self._settings = settings
 
@@ -212,14 +215,16 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
             if self.security.secret_key == "change-me-in-production":
                 issues.append("SECURITY: Default secret key in production")
             if not self.security.ssl_cert_path:
-                issues.append("SECURITY: No SSL certificate configured (set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination upstream)")
+                issues.append(
+                    "SECURITY: No SSL certificate configured "
+                    "(set PICOSHOGUN_SSL_CERT_PATH or configure TLS termination upstream)"
+                )
             if self.debug:
                 issues.append("SECURITY: Debug mode enabled in production")
             if "*" in self.security.allowed_hosts:
                 issues.append("SECURITY: Wildcard allowed hosts in production")
             if "*" in self.api.cors_origins and self.api.cors_origins == ["*"]:
                 issues.append("SECURITY: Wildcard CORS origin in production — specify explicit origins")
-
 
         if not self.is_production():
             if self.security.secret_key == "change-me-in-production":
@@ -233,7 +238,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
         if _env("SKIP_SECURE_ASSERT", "") == "1":
             __import__("logging").getLogger("picoshogun.config").warning(
-                "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. "
+                "This bypasses startup security checks."
             )
             return
 
@@ -269,30 +275,31 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     def from_file(cls, path: Path) -> "Settings":
         import logging
         from dataclasses import fields as dc_fields
-        logger = logging.getLogger("picoshogun.config")
-        with open(path) as f:
-            data = json.load(f)
 
+        logger = logging.getLogger("picoshogun.config")
+        with path.open() as f:
+            data = json.load(f)
 
         known_hints = get_type_hints(cls)
         known_field_names = {f.name for f in dc_fields(cls)}
-
 
         unknown = set(data.keys()) - known_field_names
         if unknown:
             logger.warning("Ignoring unknown config fields in %s: %s", path, unknown)
         data = {k: v for k, v in data.items() if k in known_field_names}
 
-
         for field_name, field_type in known_hints.items():
-            if field_name in data and isinstance(data[field_name], dict):
-                if hasattr(field_type, "__dataclass_fields__"):
-                    data[field_name] = field_type(**data[field_name])
+            if (
+                field_name in data
+                and isinstance(data[field_name], dict)
+                and hasattr(field_type, "__dataclass_fields__")
+            ):
+                data[field_name] = field_type(**data[field_name])
 
         return cls(**data)
 
     def to_file(self, path: Path):
-        with open(path, "w") as f:
+        with path.open("w") as f:
             json.dump(self.__dict__, f, indent=2, default=str)
 
 

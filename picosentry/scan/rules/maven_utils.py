@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -19,21 +18,11 @@ _GRADLE_DEP_SIMPLE_RE = re.compile(
 _GRADLE_DEP_PROJECT_RE = re.compile(
     r"^\s*(?:implementation|api|compileOnly|runtimeOnly)\s+project\(['\"]([^'\"]+)['\"]\)"
 )
-_GRADLE_REPO_URL_RE = re.compile(
-    r"^\s*maven\s*\(\s*['\"]([^'\"]+)['\"]\s*\)\s*$"
-)
-_GRADLE_MAVEN_BLOCK_RE = re.compile(
-    r"^\s*maven\s*\{\s*$"
-)
-_GRADLE_URL_RE = re.compile(
-    r"^\s*url\s+['\"]([^'\"]+)['\"]"
-)
-_GRADLE_GROUP_RE = re.compile(
-    r"^\s*group\s+['\"]([^'\"]+)['\"]"
-)
-_GRADLE_VERSION_RE = re.compile(
-    r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]"
-)
+_GRADLE_REPO_URL_RE = re.compile(r"^\s*maven\s*\(\s*['\"]([^'\"]+)['\"]\s*\)\s*$")
+_GRADLE_MAVEN_BLOCK_RE = re.compile(r"^\s*maven\s*\{\s*$")
+_GRADLE_URL_RE = re.compile(r"^\s*url\s+['\"]([^'\"]+)['\"]")
+_GRADLE_GROUP_RE = re.compile(r"^\s*group\s+['\"]([^'\"]+)['\"]")
+_GRADLE_VERSION_RE = re.compile(r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]")
 
 
 def detect_maven_project(target: Path) -> bool:
@@ -73,7 +62,6 @@ def parse_pom_xml(target: Path) -> dict | None:
 
     root = tree.getroot()
 
-
     def _find(tag: str, parent: ET.Element = root) -> ET.Element | None:
         result = parent.find(f"mvn:{tag}", _NS)
         if result is not None:
@@ -97,12 +85,10 @@ def parse_pom_xml(target: Path) -> dict | None:
         "parent": None,
     }
 
-
     props_elem = _find("properties")
     if props_elem is not None:
         for prop in props_elem:
             result["properties"][prop.tag.split("}", 1)[-1]] = prop.text or ""
-
 
     parent_elem = _find("parent")
     if parent_elem is not None:
@@ -115,12 +101,10 @@ def parse_pom_xml(target: Path) -> dict | None:
             "version": pv.text if pv is not None else "",
         }
 
-
     gid = _find("groupId")
     if gid is not None:
         result["group_id"] = _resolve_property(gid.text or "", result["properties"])
     else:
-
         result["group_id"] = result["parent"]["group_id"] if result["parent"] else ""
 
     aid = _find("artifactId")
@@ -132,7 +116,6 @@ def parse_pom_xml(target: Path) -> dict | None:
         result["version"] = _resolve_property(ver.text or "", result["properties"])
     elif result["parent"]:
         result["version"] = result["parent"]["version"]
-
 
     deps_elem = _find("dependencies")
     if deps_elem is not None:
@@ -148,7 +131,6 @@ def parse_pom_xml(target: Path) -> dict | None:
             if group and art:
                 result["dependencies"].append((group, art, version, scope))
 
-
     dep_mgmt = _find("dependencyManagement")
     if dep_mgmt is not None:
         deps_m = _find("dependencies", dep_mgmt)
@@ -162,7 +144,6 @@ def parse_pom_xml(target: Path) -> dict | None:
                 version = _resolve_property(d_ver.text or "" if d_ver is not None else "", result["properties"])
                 if group and art:
                     result["dependency_management"].append((group, art, version))
-
 
     repos_elem = _find("repositories")
     if repos_elem is not None:
@@ -204,10 +185,8 @@ def parse_gradle_build(target: Path) -> dict | None:
     for line in lines:
         stripped = line.strip()
 
-
-        if not stripped or stripped.startswith("//") or stripped.startswith("#"):
+        if not stripped or stripped.startswith(("//", "#")):
             continue
-
 
         if stripped == "repositories {":
             in_repositories_block = 1
@@ -221,7 +200,6 @@ def parse_gradle_build(target: Path) -> dict | None:
             if in_dependencies_block > 0:
                 in_dependencies_block -= 1
             continue
-
 
         if in_repositories_block > 0:
             url_match = _GRADLE_REPO_URL_RE.match(stripped)
@@ -248,16 +226,12 @@ def parse_gradle_build(target: Path) -> dict | None:
                 result["repositories"].append("https://jcenter.bintray.com")
                 continue
 
-
         if in_dependencies_block > 0:
             dep_match = _GRADLE_DEP_SIMPLE_RE.match(stripped)
             if dep_match:
                 config = dep_match.group(0).split("(")[0] if "(" in dep_match.group(0) else ""
-                result["dependencies"].append(
-                    (dep_match.group(1), dep_match.group(2), dep_match.group(3), config)
-                )
+                result["dependencies"].append((dep_match.group(1), dep_match.group(2), dep_match.group(3), config))
                 continue
-
 
         if stripped.startswith("group "):
             grp_match = re.match(r"group\s+['\"]([^'\"]+)['\"]", stripped)
@@ -277,7 +251,6 @@ def get_maven_dep_identifiers(maven_data: dict) -> set[str]:
     names: set[str] = set()
 
     for dep in maven_data.get("dependencies", []):
-
         artifact_id = dep[1]
         if artifact_id:
             names.add(artifact_id)
@@ -302,10 +275,9 @@ def detect_private_maven_repository(target: Path) -> bool:
 
     pom_data = parse_pom_xml(target)
     if pom_data:
-        for repo_id, repo_url in pom_data.get("repositories", []):
+        for _repo_id, repo_url in pom_data.get("repositories", []):
             if repo_url and not _is_public_repo_url(repo_url):
                 return True
-
 
         pom_path = target / "pom.xml"
         if pom_path.is_file():
@@ -321,15 +293,13 @@ def detect_private_maven_repository(target: Path) -> bool:
             except (ET.ParseError, OSError):
                 pass
 
-
     gradle_data = parse_gradle_build(target)
     if gradle_data:
         for repo in gradle_data.get("repositories", []):
-            if repo and repo not in ("mavenLocal",) and not _is_public_repo_url(repo):
+            if repo and repo != "mavenLocal" and not _is_public_repo_url(repo):
                 return True
         if gradle_data.get("has_maven_publish"):
             return True
-
 
     mvn_settings = target / ".mvn" / "settings.xml"
     if mvn_settings.is_file():

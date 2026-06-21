@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -72,7 +71,6 @@ def verify_entry_signature(
 
 @dataclass(frozen=True)
 class NotaryResult:
-
     uuid: str
     entry: dict[str, Any]
     hmac_signature: str
@@ -81,7 +79,6 @@ class NotaryResult:
 
 
 class AuditNotary(ABC):
-
     @abstractmethod
     def submit_entry(self, entry: dict[str, Any]) -> str:
         """Submit an audit entry to the notary.
@@ -122,7 +119,6 @@ class AuditNotary(ABC):
 
 
 class NullNotary(AuditNotary):
-
     def __init__(self, hmac_key: str = DEFAULT_HMAC_KEY) -> None:
         self._hmac_key = hmac_key
         self._entries: dict[str, dict[str, Any]] = {}
@@ -152,11 +148,9 @@ class NullNotary(AuditNotary):
         stored_entry = record["entry"]
         stored_sig = record["hmac_signature"]
 
-
         if json.dumps(stored_entry, sort_keys=True, default=str) != json.dumps(entry, sort_keys=True, default=str):
             logger.warning("NullNotary: entry content mismatch for %s", uuid[:8])
             return False
-
 
         return verify_entry_signature(entry, stored_sig, key=self._hmac_key)
 
@@ -175,7 +169,6 @@ class NullNotary(AuditNotary):
 
 
 class RekorNotary(AuditNotary):
-
     def __init__(
         self,
         rekor_url: str = DEFAULT_REKOR_URL,
@@ -195,7 +188,6 @@ class RekorNotary(AuditNotary):
 
         hmac_signature = sign_entry(entry, key=self._hmac_key)
 
-
         try:
             rekor_uuid = self._submit_to_rekor(entry, hmac_signature)
             self._entries[rekor_uuid] = {
@@ -208,7 +200,6 @@ class RekorNotary(AuditNotary):
             logger.info("RekorNotary: submitted entry %s to Rekor", rekor_uuid[:8])
             return rekor_uuid
         except NotaryError as exc:
-
             local_uuid = str(uuid.uuid4())
             self._entries[local_uuid] = {
                 "entry": entry,
@@ -227,7 +218,6 @@ class RekorNotary(AuditNotary):
     def verify_entry(self, uuid: str, entry: dict[str, Any]) -> bool:
         record = self._entries.get(uuid)
         if record is None:
-
             try:
                 return self._verify_in_rekor(uuid, entry)
             except NotaryError:
@@ -237,23 +227,19 @@ class RekorNotary(AuditNotary):
         stored_entry = record["entry"]
         stored_sig = record["hmac_signature"]
 
-
         if not verify_entry_signature(entry, stored_sig, key=self._hmac_key):
             logger.warning("RekorNotary: HMAC verification failed for %s", uuid[:8])
             return False
 
-
         if json.dumps(stored_entry, sort_keys=True, default=str) != json.dumps(entry, sort_keys=True, default=str):
             logger.warning("RekorNotary: entry content mismatch for %s", uuid[:8])
             return False
-
 
         rekor_uuid = record.get("rekor_uuid")
         if rekor_uuid and record.get("notary") == "rekor":
             try:
                 return self._verify_in_rekor(rekor_uuid, entry)
             except NotaryError:
-
                 logger.warning("RekorNotary: Rekor unavailable for verification of %s", uuid[:8])
                 return True  # Local HMAC passed
 
@@ -262,7 +248,6 @@ class RekorNotary(AuditNotary):
     def get_proof(self, uuid: str) -> dict[str, Any]:
         record = self._entries.get(uuid)
         if record is None:
-
             try:
                 return self._get_rekor_proof(uuid)
             except NotaryError:
@@ -275,7 +260,6 @@ class RekorNotary(AuditNotary):
             "submitted_at": record["submitted_at"],
         }
 
-
         rekor_uuid = record.get("rekor_uuid")
         if rekor_uuid and record.get("notary") == "rekor":
             try:
@@ -285,7 +269,6 @@ class RekorNotary(AuditNotary):
                 proof["rekor_proof"] = {"error": "Rekor unavailable"}
 
         return proof
-
 
     def _submit_to_rekor(self, entry: dict[str, Any], hmac_signature: str) -> str:
         if not _HAS_URLLIB:
@@ -324,8 +307,7 @@ class RekorNotary(AuditNotary):
                         return uuids[0]
 
                     return str(uuid.uuid4())
-                else:
-                    raise NotaryConnectionError(f"Rekor returned status {resp.status}")
+                raise NotaryConnectionError(f"Rekor returned status {resp.status}")
         except NotaryError:
             raise
         except urllib.error.URLError as exc:

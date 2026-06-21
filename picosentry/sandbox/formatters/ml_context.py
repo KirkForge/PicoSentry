@@ -1,10 +1,12 @@
-
 from __future__ import annotations
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
 
 
 _DOME_LABELS = {
@@ -38,8 +40,10 @@ def _l3_ml_context(result: SandboxResult, token_budget: int) -> str:
 
     if result.events:
         lines.append(f"events: {len(result.events)}")
-        for event in result.events:
-            lines.append(f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}")
+        lines.extend(
+            f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}"
+            for event in result.events
+        )
     else:
         lines.append("events: 0")
 
@@ -56,7 +60,6 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
     ]
 
     if result.findings:
-
         by_severity: dict = {}
         for f in result.findings:
             sev = f.severity.value
@@ -78,8 +81,7 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
 
     if result.drift_results:
         lines.append(f"\ndrift: {len(result.drift_results)}")
-        for d in result.drift_results:
-            lines.append(f"  baseline={d.baseline_name} score={d.score:.0%}")
+        lines.extend(f"  baseline={d.baseline_name} score={d.score:.0%}" for d in result.drift_results)
 
     output = "\n".join(lines)
     return _truncate_to_budget(output, token_budget)
@@ -90,5 +92,4 @@ def _truncate_to_budget(text: str, token_budget: int) -> str:
     if len(text) <= max_chars:
         return text
 
-    truncated = text[: max_chars - 3] + "..."
-    return truncated
+    return text[: max_chars - 3] + "..."

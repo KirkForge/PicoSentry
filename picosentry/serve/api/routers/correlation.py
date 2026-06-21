@@ -19,7 +19,6 @@ def list_chains(
     if threshold > 0:
         chains = correlation_engine.critical_chains(threshold=threshold)
     else:
-
         all_ids = correlation_engine.all_artifact_ids()
         chains = []
         for artifact_id in all_ids:
@@ -86,7 +85,6 @@ def ingest_event(
 
     from picosentry._core.models import Confidence, Severity
     from picosentry.serve.services.correlation import CorrelatedEvent
-
 
     try:
         sev = Severity(severity.upper())

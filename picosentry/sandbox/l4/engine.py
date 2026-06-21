@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import inspect
@@ -25,7 +24,6 @@ DetectorRule = Callable[..., list[Finding]]
 
 
 class L4Engine:
-
     def __init__(self) -> None:
         self._rules: dict[str, DetectorRule] = {}
 
@@ -70,36 +68,32 @@ class L4Engine:
 
         for rule_id, rule_fn in selected.items():
             try:
-
                 sig = inspect.signature(rule_fn)
                 param_count = len(sig.parameters)
-                if param_count >= 2:
-                    findings = rule_fn(profile, baselines)
-                else:
-                    findings = rule_fn(profile)
+                findings = rule_fn(profile, baselines) if param_count >= 2 else rule_fn(profile)
                 all_findings.extend(findings)
                 logger.debug("L4 rule %s: %d findings", rule_id, len(findings))
             except Exception:
-                logger.exception("L4 rule %s raised an exception", rule_id)
-
+                logger.exception("L4 rule")
 
         if not deterministic:
             filled_findings = []
-            for f in all_findings:
-                if not f.finding_id:
+            for finding in all_findings:
+                if not finding.finding_id:
                     f = Finding(
-                        rule_id=f.rule_id,
-                        severity=f.severity,
-                        message=f.message,
-                        location=f.location,
-                        evidence=f.evidence,
+                        rule_id=finding.rule_id,
+                        severity=finding.severity,
+                        message=finding.message,
+                        location=finding.location,
+                        evidence=finding.evidence,
                         finding_id=_generate_finding_id(),
                     )
+                else:
+                    f = finding
                 filled_findings.append(f)
             all_findings = filled_findings
 
         duration = int(_now_ms() - start_ms)
-
 
         drift_results: list[DriftResult] = []
         best_match = find_best_baseline(profile, baselines)
@@ -107,9 +101,7 @@ class L4Engine:
             _, drift = best_match
             drift_results.append(drift)
 
-
         overall = _compute_verdict(all_findings)
-
 
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}

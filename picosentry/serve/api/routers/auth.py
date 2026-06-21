@@ -35,9 +35,14 @@ async def register(request: RegisterRequest):
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
+class _LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 @router.post("/login", tags=["Authentication"])
-async def login(username: str, password: str):
-    token = auth_service.authenticate(username, password)
+async def login(request: _LoginRequest):
+    token = auth_service.authenticate(request.username, request.password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_info = auth_service.validate_token(token) or {}

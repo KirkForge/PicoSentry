@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -29,7 +28,6 @@ ORG_ADVISORY_URL_ENV = "PICOSENTRY_ADVISORY_URL"
 
 
 class OrgConfig:
-
     def __init__(self) -> None:
         self.policy_url: str = ""
         self.advisory_url: str = ""
@@ -42,15 +40,10 @@ class OrgConfig:
 
         config = OrgConfig()
 
-
         config.policy_url = os.environ.get(ORG_POLICY_URL_ENV, "")
         config.advisory_url = os.environ.get(ORG_ADVISORY_URL_ENV, "")
 
-
-        search_paths = []
-        if root and root.is_dir():
-            for name in ORG_CONFIG_PATHS[:2]:
-                search_paths.append(root / name)
+        search_paths = [root / name for name in ORG_CONFIG_PATHS[:2]] if root and root.is_dir() else []
         search_paths.append(Path("/etc/picosentry/org.yml"))
 
         for path in search_paths:
@@ -83,8 +76,8 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/json"})
         resp, data = safe_urlopen(req, timeout=timeout)
-    except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError) as e:
-        logger.error("Failed to fetch policy: %s", e)
+    except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError):
+        logger.exception("Failed to fetch policy")
         raise
     finally:
         if "resp" in locals() and resp:
@@ -105,7 +98,6 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
 def _validate_zip_paths(zf: zipfile.ZipFile, output_dir: Path) -> None:
     root = output_dir.resolve()
     for member in zf.infolist():
-
         if member.filename.startswith("/"):
             raise ValueError(f"Unsafe ZIP path (absolute): {member.filename}")
         if ".." in Path(member.filename).parts:
@@ -131,15 +123,14 @@ def fetch_advisories(
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/zip, application/json"})
         resp, data = safe_urlopen(req, timeout=timeout)
-    except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError) as e:
-        logger.error("Failed to fetch advisories: %s", e)
+    except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError):
+        logger.exception("Failed to fetch advisories")
         raise
     finally:
         if "resp" in locals() and resp:
             resp.close()
 
     output_dir.mkdir(parents=True, exist_ok=True)
-
 
     if verify_crypto:
         sig_url = url + ".sig"
@@ -174,7 +165,6 @@ def fetch_advisories(
         else:
             sig_resp.close()
 
-
     if data[:4] == b"PK\x03\x04":
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
             tf.write(data)
@@ -182,7 +172,6 @@ def fetch_advisories(
 
         try:
             with zipfile.ZipFile(tmp_zip, "r") as zf:
-
                 _validate_zip_paths(zf, output_dir)
                 zf.extractall(output_dir)
         finally:
@@ -191,13 +180,12 @@ def fetch_advisories(
         count = len(list(output_dir.rglob("*.json")))
         logger.info("Extracted %d advisory files to %s", count, output_dir)
         return count
-    else:
 
-        digest = hashlib.sha256(data).hexdigest()[:12]
-        out_file = output_dir / f"advisory-{digest}.json"
-        out_file.write_bytes(data)
-        logger.info("Saved advisory data to %s", out_file)
-        return 1
+    digest = hashlib.sha256(data).hexdigest()[:12]
+    out_file = output_dir / f"advisory-{digest}.json"
+    out_file.write_bytes(data)
+    logger.info("Saved advisory data to %s", out_file)
+    return 1
 
 
 def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 30) -> bool:
@@ -221,8 +209,8 @@ def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 3
         resp, _body = safe_urlopen(req, timeout=timeout)
         status = resp.status
         resp.close()
-    except (urllib.error.URLError, InsecureURLError) as e:
-        logger.error("Failed to push policy: %s", e)
+    except (urllib.error.URLError, InsecureURLError):
+        logger.exception("Failed to push policy")
         raise
 
     ok: bool = 200 <= status < 300
@@ -275,7 +263,6 @@ def make_authenticated_request(
     token = get_auth_token(api_key)
     headers = {"Accept": "application/json"}
     if token:
-
         if token.startswith("eyJ") or len(token) > 40:
             headers["Authorization"] = f"Bearer {token}"
         else:

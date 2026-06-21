@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.14"
+version = "2.0.15"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
 license = {text = "BUSL-1.1"}
@@ -78,11 +78,11 @@ sigstore = [
 ]
 # gRPC transport (PicoDome daemon).  The generated protobuf stubs are
 # committed (scripts/regen_proto.sh) so this extra only needs the
-# runtime grpcio package, not grpcio-tools.  Pin to >=1.50 because
-# ``grpc.ServiceRpcHandlers`` (which our fallback used to call) was
-# removed in 1.50.
+# runtime grpcio package, not grpcio-tools.  Pin to >=1.81.1 because
+# the committed stubs check the runtime grpc version and raise at
+# import time if it is older than the grpcio-tools used to generate them.
 grpc = [
-    "grpcio>=1.50",
+    "grpcio>=1.81.1",
 ]
 # Everything
 all = [
@@ -151,7 +151,7 @@ pythonpath = ["picosentry", "tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-ra", "--strict-markers", "--tb=short"]
+addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto"]
 norecursedirs = ["scripts", "plugins"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
@@ -179,14 +179,23 @@ asyncio_default_fixture_loop_scope = "function"
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+exclude = [
+    # Malicious and clean scanner fixtures must keep their original layout.
+    # Detectors assert on line numbers and whitespace-sensitive obfuscation
+    # patterns; re-formatting them silently breaks validation.
+    "tests/scan/fixtures/",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC", "ARG", "FA", "TCH"]
 ignore = [
-    "E501", "N806", "N818", "N802", "N812",
-    "A002", "B007", "B905",
-    "SIM105", "SIM102", "SIM108", "SIM117", "C416",
+    "N806", "N818", "N802", "N812",
+    "A002",
     "B008",
+    # TC003 (move standard-library imports into type-checking blocks) is more
+    # churn than value for CLI modules that already import argparse/pathlib at
+    # runtime for function signatures.
+    "TC003",
     # I001 (isort "import block is un-sorted or un-formatted") is suppressed
     # for the shipped codebase. The minifier (.tools/minify.py) strips
     # module docstrings and most blank lines to reduce token cost, which
@@ -200,16 +209,37 @@ ignore = [
 [tool.ruff.lint.per-file-ignores]
 # Intentional / pre-existing typographic and stylistic choices:
 # - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
-# - E741 single-letter `l` for `layer` in correlation scoring
-# - RUF001/RUF002 en-dashes in docstrings ("0.0–1.0" range notation) and ℹ emoji icon
+# - RUF001 in security output formatters that intentionally use ℹ️ icons
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
-"picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
-"picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
-"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC", "ARG002"]
 "picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
 "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
 "tests/scan/fixtures/validation/positive/pypi_obfs_marshal_load/_evil.py" = ["SIM115"]
+"tests/scan/fixtures/**/*.py" = ["Q000"]
+# Fixture lockfiles contain long cryptographic hashes that cannot be wrapped
+# without breaking the YAML format.
+"tests/scan/test_pnpm_lock_parser.py" = ["E501"]
+# Tests spawn subprocesses and explicitly assert on return codes/text output;
+# requiring an explicit `check` argument on every call is noise without value.
+"tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005", "TC001", "TC002"]
+
+# ARG (unused-argument) noise is expected in these patterns:
+# - generated gRPC stubs and their implementations have fixed method signatures
+# - backend method overrides must keep base-class parameter names
+# - NoOp tracer/meter implementations intentionally ignore parameters
+# - plugin interface methods declare contract parameters not all callers use
+# - router endpoints receive injected auth dependencies that individual handlers
+#   may not need
+# - test helpers and mocks often accept parameters for API compatibility
+"picosentry/serve/api/routers/*.py" = ["ARG001"]
+"picosentry/sandbox/grpc_transport/_servicer.py" = ["ARG002"]
+"picosentry/sandbox/l3/backends/*.py" = ["ARG002"]
+"picosentry/sandbox/tracing.py" = ["ARG002"]
+"picosentry/serve/services/observability.py" = ["ARG002"]
+"picosentry/serve/services/plugin_manager.py" = ["ARG002"]
+"picosentry/serve/database/pools.py" = ["ARG002"]
+"picosentry/serve/plugins/test_plugin/test_handler.py" = ["ARG002"]
 
 [tool.ruff.format]
 quote-style = "double"

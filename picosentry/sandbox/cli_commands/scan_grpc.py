@@ -10,9 +10,7 @@ NAME = "scan_grpc"  # Python identifier; argparse subcommand is "scan-grpc"
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser = subparsers.add_parser("scan-grpc", help="Scan via gRPC client")
     parser.add_argument("target", nargs=argparse.REMAINDER, help="Command to scan")
-    parser.add_argument(
-        "--address", default="localhost:50051", help="gRPC server address (default: localhost:50051)"
-    )
+    parser.add_argument("--address", default="localhost:50051", help="gRPC server address (default: localhost:50051)")
     parser.add_argument("--policy", "-p", help="Policy name")
     parser.add_argument("--timeout", "-t", type=float, default=30.0, help="Timeout in seconds")
     parser.add_argument("--cwd", "-C", help="Working directory")
@@ -35,7 +33,6 @@ def cmd(args: argparse.Namespace) -> int:
     if not command:
         print("Error: no command specified", file=sys.stderr)
         return 1
-
 
     mtls_config = None
     if args.tls_cert or args.tls_key or args.tls_ca:
@@ -67,7 +64,6 @@ def cmd(args: argparse.Namespace) -> int:
             cwd=args.cwd,
         )
 
-
         if result.result_json:
             try:
                 data = json.loads(result.result_json)
@@ -82,7 +78,6 @@ def cmd(args: argparse.Namespace) -> int:
             if result.l4_verdict:
                 print(f"L4 verdict: {result.l4_verdict}")
             print(f"Findings: {result.findings_count}")
-
 
         bad_verdicts = {"DENY", "KILL", "MALICIOUS", "SUSPICIOUS"}
         if result.verdict in bad_verdicts:

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -6,6 +5,7 @@ import os
 import platform
 import subprocess
 import tempfile
+from pathlib import Path
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -24,12 +24,10 @@ logger = logging.getLogger("picodome.l3.seatbelt")
 
 def _escape_seatbelt_path(path: str) -> str:
     path = path.replace(chr(92), chr(92) + chr(92))  # backslash -> double-backslash
-    path = path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
-    return path
+    return path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
 
 
 class SeatbeltBackend(SandboxBackend):
-
     @property
     def name(self) -> str:
         return "seatbelt"
@@ -50,6 +48,7 @@ class SeatbeltBackend(SandboxBackend):
                 ["sandbox-exec", "-h"],
                 capture_output=True,
                 timeout=2,
+                check=False,
             )
             return True
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -71,7 +70,6 @@ class SeatbeltBackend(SandboxBackend):
             return self._fallback_run(command, policy, timeout, cwd, env)
 
         try:
-
             profile = self._generate_profile(policy, command, cwd)
 
             with tempfile.NamedTemporaryFile(mode="w", suffix=".sb", delete=False, prefix="picodome_") as f:
@@ -79,7 +77,6 @@ class SeatbeltBackend(SandboxBackend):
                 profile_path = f.name
 
             try:
-
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
                 run_env = os.environ.copy()
@@ -115,7 +112,6 @@ class SeatbeltBackend(SandboxBackend):
                         )
                     )
 
-
                 if "deny" in stderr.lower() or "violation" in stderr.lower():
                     events.append(
                         SandboxEvent(
@@ -127,14 +123,13 @@ class SeatbeltBackend(SandboxBackend):
                         )
                     )
 
-
                 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 
                 sb = SubprocessBackend()
                 events.extend(sb._check_suspicious_patterns(stdout, stderr))
 
             finally:
-                os.unlink(profile_path)
+                Path(profile_path).unlink()
 
         except FileNotFoundError:
             events.append(
@@ -186,7 +181,6 @@ class SeatbeltBackend(SandboxBackend):
     ) -> str:
         lines = ["(version 1)"]
 
-
         if policy.default_action == SyscallAction.DENY:
             lines.append("(deny default)")
         else:
@@ -230,8 +224,7 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.NETWORK_OUT:
             parts.append("network-outbound")
             if rule.addresses:
-                for addr in rule.addresses:
-                    parts.append(f'(remote ip "{_escape_seatbelt_path(addr)}")')
+                parts.extend(f'(remote ip "{_escape_seatbelt_path(addr)}")' for addr in rule.addresses)
 
         elif rule.target == RuleTarget.NETWORK_IN:
             parts.append("network-inbound")
@@ -266,12 +259,10 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.FILE_WRITE:
             parts.append("file-write*")
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(subpath "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(subpath "{_escape_seatbelt_path(path)}")' for path in rule.paths)
         elif rule.target == RuleTarget.FILE_READ:
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(literal "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(literal "{_escape_seatbelt_path(path)}")' for path in rule.paths)
             else:
                 parts.append("file-read*")
 
@@ -286,8 +277,8 @@ class SeatbeltBackend(SandboxBackend):
         if path.startswith("/"):
             return path
         if cwd:
-            return os.path.join(cwd, path)
-        return os.path.abspath(path)
+            return str(Path(cwd) / path)
+        return str(Path(path).resolve())
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
         for event in events:

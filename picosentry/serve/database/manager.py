@@ -1,4 +1,5 @@
 import logging
+import re
 import sqlite3
 import threading
 from contextlib import contextmanager
@@ -29,7 +30,6 @@ logger = logging.getLogger("picoshogun.DB")
 
 
 class ConnectionPool:
-
     def acquire(self):
         raise NotImplementedError
 
@@ -62,8 +62,10 @@ def _sqlite_to_postgres(sql: str) -> str:
     characters inside string literals, so a direct replacement is safe.
     """
     sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
-    sql = sql.replace("?", "%s")
-    return sql
+    # SQLite stores BOOLEAN as INTEGER (0/1); Postgres BOOLEAN expects FALSE/TRUE.
+    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+0", "BOOLEAN DEFAULT FALSE", sql, flags=re.IGNORECASE)
+    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+1", "BOOLEAN DEFAULT TRUE", sql, flags=re.IGNORECASE)
+    return sql.replace("?", "%s")
 
 
 @dataclass(frozen=True)
@@ -103,8 +105,12 @@ class SQLDialect:
     def bool_false(self) -> int | bool:
         return False if self.backend == "postgres" else 0
 
+
 MIGRATIONS = [
-    Migration(1, "initial", """
+    Migration(
+        1,
+        "initial",
+        """
         CREATE TABLE IF NOT EXISTS schema_version (
             version INTEGER PRIMARY KEY,
             applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -192,9 +198,105 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_intelligence_severity ON intelligence(severity, created_at);
         CREATE INDEX IF NOT EXISTS idx_alerts_sent ON alerts(sent, created_at);
         CREATE INDEX IF NOT EXISTS idx_metrics_project ON metrics(project_id, metric_name, created_at);
-    """),
+    """,
+        # Postgres enforces foreign-key references at CREATE TABLE time. The orgs
+        # table is not created until migration 5, so the sqlite SQL above cannot
+        # be auto-translated for Postgres. We omit the project_runs -> orgs FK
+        # here and create the equivalent index; referential integrity is enforced
+        # by application code for the nullable org_id column.
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS schema_version (
+            version INTEGER PRIMARY KEY,
+            applied_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            name TEXT
+        );
 
-    Migration(2, "add_users", """
+        CREATE TABLE IF NOT EXISTS project_runs (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT NOT NULL,
+            org_id INTEGER,
+            run_start TIMESTAMP,
+            run_end TIMESTAMP,
+            status TEXT,
+            exit_code INTEGER,
+            output TEXT,
+            stderr TEXT,
+            duration_seconds REAL,
+            alerts_generated INTEGER DEFAULT 0,
+            intelligence_extracted TEXT,
+            metadata TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS intelligence (
+            id SERIAL PRIMARY KEY,
+            source_project TEXT,
+            intel_type TEXT,
+            severity TEXT,
+            data TEXT,
+            related_projects TEXT,
+            action_taken TEXT,
+            confidence REAL DEFAULT 0.0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS alerts (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT,
+            alert_type TEXT,
+            severity TEXT,
+            message TEXT,
+            channel TEXT,
+            sent BOOLEAN DEFAULT FALSE,
+            retry_count INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS metrics (
+            id SERIAL PRIMARY KEY,
+            project_id TEXT,
+            metric_name TEXT,
+            metric_value REAL,
+            unit TEXT,
+            labels TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT,
+            category TEXT,
+            priority INTEGER,
+            status TEXT,
+            version TEXT,
+            last_run TIMESTAMP,
+            run_count INTEGER DEFAULT 0,
+            success_rate REAL DEFAULT 0.0,
+            avg_duration REAL DEFAULT 0.0,
+            metadata TEXT,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS health_checks (
+            id SERIAL PRIMARY KEY,
+            component TEXT,
+            status TEXT,
+            message TEXT,
+            latency_ms REAL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_project_runs_project ON project_runs(project_id, run_start);
+        CREATE INDEX IF NOT EXISTS idx_project_runs_status ON project_runs(status);
+        CREATE INDEX IF NOT EXISTS idx_intelligence_severity ON intelligence(severity, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alerts_sent ON alerts(sent, created_at);
+        CREATE INDEX IF NOT EXISTS idx_metrics_project ON metrics(project_id, metric_name, created_at);
+    """,
+    ),
+    Migration(
+        2,
+        "add_users",
+        """
         CREATE TABLE IF NOT EXISTS users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             username TEXT UNIQUE NOT NULL,
@@ -219,9 +321,12 @@ MIGRATIONS = [
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
-    """),
-
-    Migration(3, "add_audit_log", """
+    """,
+    ),
+    Migration(
+        3,
+        "add_audit_log",
+        """
         CREATE TABLE IF NOT EXISTS audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             action TEXT NOT NULL,
@@ -236,9 +341,12 @@ MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, resource_type);
-    """),
-
-    Migration(4, "add_webhooks_scheduler", """
+    """,
+    ),
+    Migration(
+        4,
+        "add_webhooks_scheduler",
+        """
         CREATE TABLE IF NOT EXISTS webhooks (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT,
@@ -266,9 +374,12 @@ MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(active);
         CREATE INDEX IF NOT EXISTS idx_jobs_active ON scheduled_jobs(enabled, next_run);
-    """),
-
-    Migration(5, "add_orgs", """
+    """,
+    ),
+    Migration(
+        5,
+        "add_orgs",
+        """
         CREATE TABLE IF NOT EXISTS orgs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             name TEXT NOT NULL,
@@ -303,9 +414,12 @@ MIGRATIONS = [
         CREATE INDEX IF NOT EXISTS idx_orgs_slug ON orgs(slug);
         CREATE INDEX IF NOT EXISTS idx_orgs_key ON orgs(api_key_hash);
         CREATE INDEX IF NOT EXISTS idx_org_members ON org_users(org_id, user_id);
-    """),
-
-    Migration(6, "add_org_id_to_runs_and_revoked_at", """
+    """,
+    ),
+    Migration(
+        6,
+        "add_org_id_to_runs_and_revoked_at",
+        """
         -- Add org_id column to project_runs (P0 fix: get_usage() crashed)
         -- Using IF NOT EXISTS pattern via try/except at Python level for SQLite compat
 
@@ -314,8 +428,12 @@ MIGRATIONS = [
 
         -- Add index for org-filtered run queries
         CREATE INDEX IF NOT EXISTS idx_project_runs_org ON project_runs(org_id, run_start);
-    """),
-    Migration(7, "add_anomaly_alerts", """
+    """,
+    ),
+    Migration(
+        7,
+        "add_anomaly_alerts",
+        """
         CREATE TABLE IF NOT EXISTS anomaly_alerts (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             rule_id TEXT NOT NULL,
@@ -330,15 +448,21 @@ MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_rule ON anomaly_alerts(rule_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_severity ON anomaly_alerts(severity, created_at);
-    """),
-
-    Migration(8, "orgs_api_key_to_hash", """
+    """,
+    ),
+    Migration(
+        8,
+        "orgs_api_key_to_hash",
+        """
         -- No-op: column rename handled in Python _migrate_orgs_api_key_hash()
         -- This placeholder ensures migration 8 is recorded as applied.
         SELECT 1;
-    """),
-
-    Migration(9, "add_correlation_events", """
+    """,
+    ),
+    Migration(
+        9,
+        "add_correlation_events",
+        """
         CREATE TABLE IF NOT EXISTS correlation_events (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             dedup_key TEXT UNIQUE NOT NULL,
@@ -377,11 +501,36 @@ MIGRATIONS = [
 
         CREATE INDEX IF NOT EXISTS idx_correlation_chains_score
             ON correlation_chains(chain_score DESC);
-    """)]
+    """,
+    ),
+    Migration(
+        10,
+        "add_org_id_to_tenant_tables",
+        """
+        -- Tenant isolation: tag data that belongs to an organization.
+        -- These columns are nullable so background/system jobs without an
+        -- org context can still write.  API-facing reads filter by the
+        -- caller's org.
+
+        ALTER TABLE intelligence ADD COLUMN org_id INTEGER;
+        ALTER TABLE alerts ADD COLUMN org_id INTEGER;
+        ALTER TABLE metrics ADD COLUMN org_id INTEGER;
+        ALTER TABLE webhooks ADD COLUMN org_id INTEGER;
+        ALTER TABLE scheduled_jobs ADD COLUMN org_id INTEGER;
+        ALTER TABLE correlation_chains ADD COLUMN org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_org ON intelligence(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alerts_org ON alerts(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_metrics_org ON metrics(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_webhooks_org ON webhooks(org_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_org ON scheduled_jobs(org_id);
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
+    """,
+    ),
+]
 
 
 class DatabaseManager:
-
     def __init__(self, db_path: Path | None = None, backend: str | None = None):
         self._backend = backend or settings.database.backend
         self._pool = create_pool(backend=self._backend, db_path=db_path)
@@ -392,7 +541,7 @@ class DatabaseManager:
     def db_path(self) -> Path:
         if isinstance(self._pool, SQLitePool):
             return self._pool.db_path
-        return Path("")
+        return Path()
 
     @property
     def backend(self) -> str:
@@ -435,10 +584,9 @@ class DatabaseManager:
         sql = self._prepare_sql(sql)
         if isinstance(self._pool, SQLitePool):
             return conn.execute(sql, params)
-        else:
-            cursor = conn.cursor()
-            cursor.execute(sql, params)
-            return cursor
+        cursor = conn.cursor()
+        cursor.execute(sql, params)
+        return cursor
 
     def _row_to_dict(self, row, cursor) -> dict:
         """Convert a fetched row to dict, handling backend differences.
@@ -446,14 +594,18 @@ class DatabaseManager:
         """
         if isinstance(self._pool, SQLitePool):
             return dict(row)
-        else:
-            cols = [desc[0] for desc in cursor.description] if cursor.description else []
-            return dict(zip(cols, row))
+        cols = [desc[0] for desc in cursor.description] if cursor.description else []
+        return dict(zip(cols, row, strict=False))
 
     def execute(self, sql: str, params: tuple = ()) -> list:
         with self._lock:
             conn = self._get_connection()
             cursor = self._cursor(conn, sql, params)
+            # DDL and DML statements do not return a result set. SQLite tolerates
+            # fetchall() in that case, but psycopg2 raises ProgrammingError, so
+            # we guard on cursor.description before fetching.
+            if cursor.description is None:
+                return []
             rows = cursor.fetchall()
             return [self._row_to_dict(r, cursor) for r in rows]
 
@@ -468,14 +620,13 @@ class DatabaseManager:
             conn.commit()
             if isinstance(self._pool, SQLitePool):
                 return cursor.lastrowid
-            else:
-                # Postgres: ask for the last sequence value assigned in this
-                # session. Tables without a serial column will raise; we return 0.
-                try:
-                    cursor.execute("SELECT lastval()")
-                    return cursor.fetchone()[0]
-                except Exception:
-                    return 0
+            # Postgres: ask for the last sequence value assigned in this
+            # session. Tables without a serial column will raise; we return 0.
+            try:
+                cursor.execute("SELECT lastval()")
+                return cursor.fetchone()[0]
+            except Exception:
+                return 0
 
     def _migrate_orgs_api_key_hash(self):
 
@@ -492,15 +643,11 @@ class DatabaseManager:
                     return  # Table doesn't exist yet
                 col_names = [row["name"] for row in cols]
             if "api_key" in col_names and "api_key_hash" not in col_names:
-
                 self.execute("ALTER TABLE orgs RENAME COLUMN api_key TO api_key_hash")
                 logger.info("Renamed orgs.api_key → orgs.api_key_hash")
             elif "api_key" in col_names and "api_key_hash" in col_names:
-
-
                 logger.warning("Both api_key and api_key_hash exist in orgs — skipping rename")
         except Exception as e:
-
             logger.debug("orgs migration check skipped: %s", e)
 
     def _init_migrations(self):
@@ -512,22 +659,19 @@ class DatabaseManager:
             )
         """)
 
-        current_version = self.execute_one(
-            "SELECT MAX(version) as v FROM schema_version"
-        )
+        current_version = self.execute_one("SELECT MAX(version) as v FROM schema_version")
         current = current_version["v"] if current_version and current_version["v"] is not None else 0
 
         for migration in MIGRATIONS:
             if migration.version > current:
                 logger.info("Applying migration %s: %s", migration.version, migration.name)
                 sql = migration.sql_for(self._backend)
-                for stmt in sql.split(";"):
-                    stmt = stmt.strip()
+                for raw_stmt in sql.split(";"):
+                    stmt = raw_stmt.strip()
                     if stmt:
                         try:
                             self.execute(stmt + ";")
                         except Exception as e:
-
                             err_str = str(e).lower()
                             if "duplicate column" in err_str or "already exists" in err_str:
                                 logger.debug("Migration idempotent skip: %s", e)
@@ -536,8 +680,7 @@ class DatabaseManager:
                 # schema_version has a simple integer primary key; use execute()
                 # to avoid needing a generated id on either backend.
                 self.execute(
-                    "INSERT INTO schema_version (version, name) VALUES (?, ?)",
-                    (migration.version, migration.name)
+                    "INSERT INTO schema_version (version, name) VALUES (?, ?)", (migration.version, migration.name)
                 )
                 logger.info("Migration %s applied", migration.version)
 

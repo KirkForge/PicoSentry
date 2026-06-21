@@ -176,9 +176,11 @@ class TestGRPCServer:
 
         server = PicoDomeGRPCServer()
 
-        with patch("picosentry.sandbox.grpc_transport.server.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError, match="grpcio"):
-                server.start()
+        with (
+            patch("picosentry.sandbox.grpc_transport.server.is_grpc_available", return_value=False),
+            pytest.raises(ImportError, match="grpcio"),
+        ):
+            server.start()
 
     def test_server_stop_without_start(self):
         """Server.stop() should be safe to call without starting."""
@@ -249,9 +251,11 @@ class TestGRPCClient:
 
         client = PicoDomeGRPCClient()
 
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError, match="grpcio"):
-                client.scan(command=["echo", "hello"])
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False),
+            pytest.raises(ImportError, match="grpcio"),
+        ):
+            client.scan(command=["echo", "hello"])
 
     def test_client_mtls_config_none(self):
         """Client with no mTLS config should use insecure channel."""
@@ -606,10 +610,12 @@ class TestGRPCClientRetry:
 
         client = PicoDomeGRPCClient(max_retries=2, retry_delay=0.01)
 
-        with patch.object(client, "_ensure_channel"):
-            with patch.object(client, "_do_scan", side_effect=ConnectionError("refused")):
-                with pytest.raises(ConnectionError, match="Failed to scan after 2 attempts"):
-                    client.scan(command=["echo", "hello"])
+        with (
+            patch.object(client, "_ensure_channel"),
+            patch.object(client, "_do_scan", side_effect=ConnectionError("refused")),
+            pytest.raises(ConnectionError, match="Failed to scan after 2 attempts"),
+        ):
+            client.scan(command=["echo", "hello"])
 
     def test_client_scan_retry_succeeds_on_second(self):
         """scan() should return result if second attempt succeeds."""
@@ -618,10 +624,12 @@ class TestGRPCClientRetry:
         client = PicoDomeGRPCClient(max_retries=3, retry_delay=0.01)
         good_result = ScanResult(verdict="ALLOW", exit_code=0)
 
-        with patch.object(client, "_ensure_channel"):
-            with patch.object(client, "_do_scan", side_effect=[ConnectionError("fail"), good_result]):
-                result = client.scan(command=["echo", "hello"])
-                assert result.verdict == "ALLOW"
+        with (
+            patch.object(client, "_ensure_channel"),
+            patch.object(client, "_do_scan", side_effect=[ConnectionError("fail"), good_result]),
+        ):
+            result = client.scan(command=["echo", "hello"])
+            assert result.verdict == "ALLOW"
 
     def test_client_ensure_channel_called_lazily(self):
         """Channel should not be created until first RPC call."""
@@ -636,9 +644,11 @@ class TestGRPCClientRetry:
         from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
 
         client = PicoDomeGRPCClient()
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError, match="grpcio"):
-                client._ensure_channel()
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False),
+            pytest.raises(ImportError, match="grpcio"),
+        ):
+            client._ensure_channel()
 
     def test_client_ensure_channel_insecure(self):
         """_ensure_channel should create insecure channel when no mTLS."""
@@ -650,16 +660,20 @@ class TestGRPCClientRetry:
         mock_grpc = MagicMock()
         mock_grpc.insecure_channel.return_value = mock_channel
 
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=True):
-            with patch.dict("sys.modules", {"grpc": mock_grpc}):
-                with patch.dict(
-                    "sys.modules",
-                    {
-                        "picosentry.sandbox.grpc_transport.proto.picodome_pb2_grpc": MagicMock(PicoDomeServiceStub=mock_stub),
-                    },
-                ):
-                    client._ensure_channel()
-                    mock_grpc.insecure_channel.assert_called_once_with("localhost:50051")
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=True),
+            patch.dict("sys.modules", {"grpc": mock_grpc}),
+            patch.dict(
+                "sys.modules",
+                {
+                    "picosentry.sandbox.grpc_transport.proto.picodome_pb2_grpc": MagicMock(
+                        PicoDomeServiceStub=mock_stub
+                    ),
+                },
+            ),
+        ):
+            client._ensure_channel()
+            mock_grpc.insecure_channel.assert_called_once_with("localhost:50051")
 
     def test_client_ensure_channel_secure(self):
         """_ensure_channel should create secure channel with mTLS config."""
@@ -672,17 +686,21 @@ class TestGRPCClientRetry:
         mock_grpc = MagicMock()
         mock_grpc.secure_channel.return_value = mock_channel
 
-        with patch.object(client, "_create_client_credentials", return_value=mock_creds):
-            with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=True):
-                with patch.dict("sys.modules", {"grpc": mock_grpc}):
-                    with patch.dict(
-                        "sys.modules",
-                        {
-                            "picosentry.sandbox.grpc_transport.proto.picodome_pb2_grpc": MagicMock(PicoDomeServiceStub=mock_stub),
-                        },
-                    ):
-                        client._ensure_channel()
-                        mock_grpc.secure_channel.assert_called_once()
+        with (
+            patch.object(client, "_create_client_credentials", return_value=mock_creds),
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=True),
+            patch.dict("sys.modules", {"grpc": mock_grpc}),
+            patch.dict(
+                "sys.modules",
+                {
+                    "picosentry.sandbox.grpc_transport.proto.picodome_pb2_grpc": MagicMock(
+                        PicoDomeServiceStub=mock_stub
+                    ),
+                },
+            ),
+        ):
+            client._ensure_channel()
+            mock_grpc.secure_channel.assert_called_once()
 
     def test_client_create_credentials_dev_mode(self):
         """_create_client_credentials should return None in dev mode."""
@@ -743,27 +761,33 @@ class TestGRPCClientRetry:
         from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
 
         client = PicoDomeGRPCClient()
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError):
-                client.health()
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False),
+            pytest.raises(ImportError),
+        ):
+            client.health()
 
     def test_client_get_policy_without_grpc(self):
         """get_policy() should raise when grpcio not installed."""
         from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
 
         client = PicoDomeGRPCClient()
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError):
-                client.get_policy("test-policy")
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False),
+            pytest.raises(ImportError),
+        ):
+            client.get_policy("test-policy")
 
     def test_client_query_audit_without_grpc(self):
         """query_audit() should raise when grpcio not installed."""
         from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
 
         client = PicoDomeGRPCClient()
-        with patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False):
-            with pytest.raises(ImportError):
-                client.query_audit()
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.is_grpc_available", return_value=False),
+            pytest.raises(ImportError),
+        ):
+            client.query_audit()
 
     def test_client_scan_async_delegates_to_sync(self):
         """scan_async should delegate to synchronous scan."""

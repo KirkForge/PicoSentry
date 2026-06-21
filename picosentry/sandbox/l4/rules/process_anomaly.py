@@ -1,22 +1,40 @@
-
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 FORBIDDEN_SHELL_COMMANDS = {
-    "bash", "sh", "zsh", "fish", "dash", "ksh", "csh", "tcsh",
-    "cmd.exe", "powershell.exe", "pwsh.exe",
+    "bash",
+    "sh",
+    "zsh",
+    "fish",
+    "dash",
+    "ksh",
+    "csh",
+    "tcsh",
+    "cmd.exe",
+    "powershell.exe",
+    "pwsh.exe",
 }
 
 
 REVERSE_SHELL_INDICATORS = {
-    "nc", "ncat", "netcat", "socat", "nmap", "telnet",
-    "cryptcat", "sbd",
+    "nc",
+    "ncat",
+    "netcat",
+    "socat",
+    "nmap",
+    "telnet",
+    "cryptcat",
+    "sbd",
 }
 
 
 SUSPICIOUS_SPAWN_CONTEXTS = {
-    "postinstall", "preinstall", "install", "prepare", "postpack",
+    "postinstall",
+    "preinstall",
+    "install",
+    "prepare",
+    "postpack",
 }
 
 
@@ -30,7 +48,6 @@ def detect_process_anomalies(
         exe = spawn.executable
         exe_base = exe.split("/")[-1].lower() if "/" in exe else exe.lower()
 
-
         if exe_base in FORBIDDEN_SHELL_COMMANDS:
             findings.append(
                 Finding(
@@ -42,7 +59,6 @@ def detect_process_anomalies(
                 )
             )
 
-
         if exe_base in REVERSE_SHELL_INDICATORS:
             findings.append(
                 Finding(
@@ -53,7 +69,6 @@ def detect_process_anomalies(
                     evidence={"executable": exe, "args": spawn.args},
                 )
             )
-
 
     if len(profile.spawns) > 5:
         spawn_names = [s.executable for s in profile.spawns]
@@ -67,13 +82,12 @@ def detect_process_anomalies(
             )
         )
 
-
     if baselines:
         from picosentry.sandbox.l4.differ import find_best_baseline
 
         best = find_best_baseline(profile, baselines)
         if best and best[1].spawn_drift:
-            spawn_extras = len(profile.spawns) - (best[0].expected_spawns if best[0].expected_spawns >= 0 else 0)
+            spawn_extras = len(profile.spawns) - (max(best[0].expected_spawns, 0))
             if spawn_extras > 3:
                 findings.append(
                     Finding(

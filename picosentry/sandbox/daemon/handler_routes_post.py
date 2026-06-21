@@ -12,7 +12,6 @@ from urllib.parse import urlparse
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
 from picosentry.sandbox.errors import ErrorCodes
-from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
 from picosentry.sandbox.l4.engine import create_default_engine
@@ -20,6 +19,7 @@ from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
 from picosentry.sandbox.retention import get_retention_manager
 
 if TYPE_CHECKING:
+    from picosentry.sandbox.l3.backends.base import SandboxBackend
     from picosentry.sandbox.daemon.handler import PicoDomeHandler
 
 logger = logging.getLogger("picodome.daemon")
@@ -59,7 +59,6 @@ _DAEMON_BACKEND_MAP: dict[str, str] = {
 
 
 class PicoDomePostRoutesMixin:
-
     def _handle_post(self: PicoDomeHandler) -> None:
 
         content_length = self.headers.get("Content-Length")
@@ -86,7 +85,7 @@ class PicoDomePostRoutesMixin:
         elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
             token = self._require_permission("scan:write")
             if token:
-                self._handle_cluster_merge_snapshot(token)
+                self._handle_cluster_merge_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
 
@@ -112,10 +111,8 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.MISSING_COMMAND)
             return
 
-
         deny_error = self._validate_command(command)
         if deny_error:
-
             actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
             try:
                 audit = get_audit_logger()
@@ -136,11 +133,9 @@ class PicoDomePostRoutesMixin:
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
 
-
         tenant_id = self._resolve_tenant(token)
 
         self.job_store.add(job_id, command, actor)
-
 
         try:
             audit = get_audit_logger()
@@ -155,7 +150,6 @@ class PicoDomePostRoutesMixin:
             pass
 
         try:
-
             policy_name = data.get("policy")
             if policy_name:
                 try:
@@ -166,12 +160,14 @@ class PicoDomePostRoutesMixin:
             else:
                 policy = default_policy()
 
-
             backend_name = data.get("backend", "auto")
             backend: SandboxBackend | None = None
 
             if _ENTERPRISE_MODE and backend_name == "subprocess":
-                self._send_error(ErrorCodes.ENTERPRISE_ENFORCEMENT, detail="subprocess backend is not allowed in enterprise mode")
+                self._send_error(
+                    ErrorCodes.ENTERPRISE_ENFORCEMENT,
+                    detail="subprocess backend is not allowed in enterprise mode",
+                )
                 return
             if backend_name != "auto":
                 cls_path = _DAEMON_BACKEND_MAP.get(backend_name)
@@ -190,7 +186,6 @@ class PicoDomePostRoutesMixin:
                     self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=str(e))
                     return
 
-
             sandbox_result = sandbox_run(
                 command=command,
                 policy=policy,
@@ -199,11 +194,9 @@ class PicoDomePostRoutesMixin:
                 deterministic=False,
             )
 
-
             engine = create_default_engine()
             profile = profile_from_sandbox_result(sandbox_result)
             analysis_result = engine.analyze(profile, deterministic=False)
-
 
             result = {
                 "job_id": job_id,
@@ -227,11 +220,9 @@ class PicoDomePostRoutesMixin:
                 result=result,
             )
 
-
             self._scan_count += 1
             self._scan_total_ms += sandbox_result.duration_ms
             self._alert_count += len(analysis_result.findings)
-
 
             try:
                 audit = get_audit_logger()
@@ -244,7 +235,6 @@ class PicoDomePostRoutesMixin:
                 )
             except Exception:
                 pass
-
 
             try:
                 rm = get_retention_manager()
@@ -264,7 +254,7 @@ class PicoDomePostRoutesMixin:
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 error=str(e),
             )
-            logger.exception("Scan job %s failed", job_id)
+            logger.exception("Scan job")
             self._send_error(ErrorCodes.SCAN_FAILED, detail=str(e))
 
     def _handle_create_policy(self: PicoDomeHandler, token: str) -> None:
@@ -293,7 +283,7 @@ class PicoDomePostRoutesMixin:
         except Exception as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
 
-    def _handle_cluster_merge_snapshot(self: PicoDomeHandler, token: str) -> None:
+    def _handle_cluster_merge_snapshot(self: PicoDomeHandler) -> None:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
 
         Called by cluster peers to gossip their state to this node.
@@ -334,16 +324,18 @@ class PicoDomePostRoutesMixin:
                 detail=f"Merged peer snapshot: {before_nodes}→{after_nodes} nodes",
             )
 
-            self._send_json({
-                "status": "merged",
-                "nodes_before": before_nodes,
-                "nodes_after": after_nodes,
-                "leader_id": mgr.state.get_leader_id(),
-            })
+            self._send_json(
+                {
+                    "status": "merged",
+                    "nodes_before": before_nodes,
+                    "nodes_after": after_nodes,
+                    "leader_id": mgr.state.get_leader_id(),
+                }
+            )
         except json.JSONDecodeError:
             self._send_error(400, "invalid JSON body")
-        except Exception as exc:
-            logger.exception("Cluster snapshot merge failed: %s", exc)
+        except Exception:
+            logger.exception("Cluster snapshot merge failed")
             self._send_error(500, "cluster merge failed")
 
 

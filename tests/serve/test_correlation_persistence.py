@@ -22,6 +22,7 @@ def engine(db_manager, monkeypatch):
     """Fresh engine with persistence enabled against the test DB."""
     # Ensure the module-level db singleton points at our test DB for the test.
     from picosentry.serve.database import manager as db_module
+
     monkeypatch.setattr(db_module, "db", db_manager)
 
     e = CorrelationEngine()
@@ -46,14 +47,9 @@ def sample_event():
     )
 
 
-def _count_events(engine) -> int:
-    from picosentry.serve.database import manager as db_module
-    row = db_module.db.execute_one("SELECT COUNT(*) AS c FROM correlation_events")
-    return row["c"] if row else 0
-
-
 def _count_chains(engine) -> int:
     from picosentry.serve.database import manager as db_module
+
     row = db_module.db.execute_one("SELECT COUNT(*) AS c FROM correlation_chains")
     return row["c"] if row else 0
 
@@ -117,9 +113,9 @@ class TestCorrelationChainsCache:
         assert _count_chains(engine) == 1
 
         from picosentry.serve.database import manager as db_module
+
         row = db_module.db.execute_one(
-            "SELECT artifact_id, chain_score, event_count, phase_count "
-            "FROM correlation_chains WHERE artifact_id = ?",
+            "SELECT artifact_id, chain_score, event_count, phase_count FROM correlation_chains WHERE artifact_id = ?",
             ("pkg@1.0.0",),
         )
         assert row is not None
@@ -158,6 +154,7 @@ class TestCorrelationBackpressure:
             return fake_time["now"]
 
         import time as time_module
+
         monkeypatch.setattr(time_module, "monotonic", fake_monotonic)
 
         events = [

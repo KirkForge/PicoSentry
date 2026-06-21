@@ -9,7 +9,6 @@ from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class SQLiteStateBackend(StateBackend):
-
     def __init__(self, db_path: Path | None = None) -> None:
         if db_path is None:
             db_path = Path.home() / ".picodome" / "cluster" / "cluster.db"

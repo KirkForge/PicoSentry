@@ -1,9 +1,9 @@
-
 from __future__ import annotations
 
 import logging
 import os
 from enum import Enum
+from pathlib import Path
 
 logger = logging.getLogger("picodome.license")
 
@@ -11,14 +11,12 @@ __all__ = ["LicenseInfo", "LicenseTier", "check_license", "get_license_info"]
 
 
 class LicenseTier(str, Enum):
-
     PERSONAL = "personal"
     COMMERCIAL = "commercial"
     ENTERPRISE = "enterprise"
 
 
 class LicenseInfo:
-
     def __init__(
         self,
         tier: LicenseTier = LicenseTier.PERSONAL,
@@ -69,7 +67,6 @@ def check_license() -> LicenseInfo:
     if _cached_license is not None:
         return _cached_license
 
-
     env_key = os.environ.get("PICODOME_LICENSE_KEY", "").strip()
     if env_key:
         info = _validate_key(env_key)
@@ -77,22 +74,19 @@ def check_license() -> LicenseInfo:
             _cached_license = info
             return info
 
-
-    local_path = os.path.join(os.getcwd(), ".picodome-license")
-    if os.path.isfile(local_path):
+    local_path = Path.cwd() / ".picodome-license"
+    if local_path.is_file():
         info = _load_license_file(local_path)
         if info:
             _cached_license = info
             return info
 
-
-    user_path = os.path.expanduser("~/.picodome/license.json")
-    if os.path.isfile(user_path):
+    user_path = Path("~/.picodome/license.json").expanduser()
+    if user_path.is_file():
         info = _load_license_file(user_path)
         if info:
             _cached_license = info
             return info
-
 
     _cached_license = LicenseInfo(
         tier=LicenseTier.PERSONAL,
@@ -127,11 +121,9 @@ def _validate_key(key: str) -> LicenseInfo | None:
         logger.warning("Invalid license key tier: %s (expected: personal, commercial, enterprise)", tier_str)
         return None
 
-
     if len(key_hash) < 16:
         logger.warning("License key hash too short (%d chars, minimum 16)", len(key_hash))
         return None
-
 
     return LicenseInfo(
         tier=tier,
@@ -142,11 +134,11 @@ def _validate_key(key: str) -> LicenseInfo | None:
     )
 
 
-def _load_license_file(path: str) -> LicenseInfo | None:
+def _load_license_file(path: str | Path) -> LicenseInfo | None:
     import json
 
     try:
-        with open(path) as f:
+        with Path(path).open() as f:
             data = json.load(f)
     except (json.JSONDecodeError, OSError) as e:
         logger.warning("Failed to load license file %s: %s", path, e)
@@ -161,7 +153,6 @@ def _load_license_file(path: str) -> LicenseInfo | None:
             info.expires = data.get("expires")
             info.source = f"file:{path}"
             return info
-
 
     tier_str = data.get("tier", "personal")
     try:

@@ -7,10 +7,11 @@ from pathlib import Path
 
 logger = logging.getLogger("picoshogun.LogManager")
 
-class LogManager:
 
-    def __init__(self, log_dir: str | None = None, max_size_mb: int = 100,
-                 max_files: int = 10, retention_days: int = 30):
+class LogManager:
+    def __init__(
+        self, log_dir: str | None = None, max_size_mb: int = 100, max_files: int = 10, retention_days: int = 30
+    ):
         self.log_dir = Path(log_dir) if log_dir else Path(__file__).parent.parent / "logs"
         self.max_size = max_size_mb * 1024 * 1024
         self.max_files = max_files
@@ -25,7 +26,6 @@ class LogManager:
         if log_file:
             target = Path(log_file)
         else:
-
             logs = self._get_log_files()
             if not logs:
                 return None
@@ -39,9 +39,7 @@ class LogManager:
             if size < self.max_size:
                 return None
 
-
             self._rotate_files(target)
-
 
             self._compress_old(target)
 
@@ -54,13 +52,11 @@ class LogManager:
         if oldest.exists():
             oldest.unlink()
 
-
         for i in range(self.max_files - 1, 0, -1):
             old = Path(f"{target}.{i}.gz")
-            new = Path(f"{target}.{i+1}.gz")
+            new = Path(f"{target}.{i + 1}.gz")
             if old.exists():
                 shutil.move(str(old), str(new))
-
 
         first = Path(f"{target}.1")
         if target.exists():
@@ -70,7 +66,7 @@ class LogManager:
         first = Path(f"{target}.1")
         if first.exists():
             gz_path = Path(f"{target}.1.gz")
-            with open(first, "rb") as f_in, gzip.open(gz_path, "wb") as f_out:
+            with first.open("rb") as f_in, gzip.open(gz_path, "wb") as f_out:
                 shutil.copyfileobj(f_in, f_out)
             first.unlink()
 
@@ -112,14 +108,15 @@ class LogManager:
                 {
                     "name": f.name,
                     "size": f.stat().st_size,
-                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat()
+                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
                 }
                 for f in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
-            ]
+            ],
         }
 
-    def query(self, level: str | None = None, source: str | None = None,
-              search: str | None = None, limit: int = 100) -> list[dict]:
+    def query(
+        self, level: str | None = None, source: str | None = None, search: str | None = None, limit: int = 100
+    ) -> list[dict]:
         import re
 
         entries = []
@@ -129,9 +126,9 @@ class LogManager:
             if log_file.suffix != ".log":
                 continue
             try:
-                with open(log_file) as f:
-                    for line in f:
-                        line = line.strip()
+                with log_file.open() as f:
+                    for raw_line in f:
+                        line = raw_line.strip()
                         if not line:
                             continue
                         if level_pattern and not level_pattern.search(line):

@@ -18,6 +18,7 @@ from .pypi_utils import (
     parse_requirements_file,
 )
 from .rubygems_utils import detect_rubygems_project, get_rubygems_dep_names, parse_gemfile
+from .corpus_index import check_typosquat_against_index, load_indexed_corpus
 from .typosquat_utils import (
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
@@ -26,8 +27,6 @@ from .typosquat_utils import (
     BUILTIN_PYPI_TOP_100,
     BUILTIN_RUBYGEMS_TOP_100,
     BUILTIN_TOP_100,
-    check_typosquat,
-    load_corpus_for_ecosystem,
     typosquat_severity_confidence,
 )
 from .utils import get_dep_names, load_package_json
@@ -39,7 +38,6 @@ __all__ = ["detect_all_typosquat"]
 
 @dataclass(frozen=True)
 class TyposquatConfig:
-
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
@@ -64,7 +62,7 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
     if not config.detect_project(target):
         return findings
 
-    corpus = load_corpus_for_ecosystem(corpus_dir, config.ecosystem, config.builtin_corpus)
+    index = load_indexed_corpus(corpus_dir, config.ecosystem, config.builtin_corpus)
 
     all_deps = config.collect_deps(target) if config.collect_deps else set()
     if not all_deps:
@@ -80,11 +78,10 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         if not compare_name or compare_name in config.known_legitimate:
             continue
 
-
-        if compare_name in corpus:
+        if compare_name in index:
             continue
 
-        close_matches = check_typosquat(compare_name, corpus)
+        close_matches = check_typosquat_against_index(compare_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(compare_name, best_match, best_dist)
@@ -243,10 +240,19 @@ _GO_CONFIG = TyposquatConfig(
     rule_id="L2-GO-TYPO-001",
     detect_project=detect_go_project,
     builtin_corpus=BUILTIN_GO_TOP_100,
-    known_legitimate=frozenset({
-        "x", "v2", "v3", "api", "client", "server",
-        "internal", "cmd", "pkg",
-    }),
+    known_legitimate=frozenset(
+        {
+            "x",
+            "v2",
+            "v3",
+            "api",
+            "client",
+            "server",
+            "internal",
+            "cmd",
+            "pkg",
+        }
+    ),
     use_short_name=True,
     manifest_file="go.mod",
     collect_deps=_collect_go_deps,
@@ -257,10 +263,21 @@ _CARGO_CONFIG = TyposquatConfig(
     rule_id="L2-CARGO-TYPO-001",
     detect_project=detect_cargo_project,
     builtin_corpus=BUILTIN_CARGO_TOP_100,
-    known_legitimate=frozenset({
-        "x", "v2", "v3", "api", "client", "server",
-        "core", "sys", "bindings", "ffi", "derive",
-    }),
+    known_legitimate=frozenset(
+        {
+            "x",
+            "v2",
+            "v3",
+            "api",
+            "client",
+            "server",
+            "core",
+            "sys",
+            "bindings",
+            "ffi",
+            "derive",
+        }
+    ),
     manifest_file="Cargo.toml",
     collect_deps=_collect_cargo_deps,
 )
@@ -270,10 +287,16 @@ _PYPI_CONFIG = TyposquatConfig(
     rule_id="L2-PYPI-TYPO-001",
     detect_project=detect_pypi_project,
     builtin_corpus=BUILTIN_PYPI_TOP_100,
-    known_legitimate=frozenset({
-        "ruamel-yaml", "python-dateutil", "typing-extensions",
-        "importlib-metadata", "importlib-resources", "pkgutil-resolve-name",
-    }),
+    known_legitimate=frozenset(
+        {
+            "ruamel-yaml",
+            "python-dateutil",
+            "typing-extensions",
+            "importlib-metadata",
+            "importlib-resources",
+            "pkgutil-resolve-name",
+        }
+    ),
     collect_deps=_collect_pypi_deps,
     file_detection_fn=_pypi_finding_file,
 )
@@ -283,13 +306,37 @@ _MAVEN_CONFIG = TyposquatConfig(
     rule_id="L2-MAVEN-TYPO-001",
     detect_project=detect_maven_project,
     builtin_corpus=BUILTIN_MAVEN_TOP_100,
-    known_legitimate=frozenset({
-        "api", "core", "client", "server", "common", "util",
-        "utils", "annotations", "model", "dto", "service",
-        "dao", "impl", "shared", "parent", "starter", "boot",
-        "cloud", "data", "jpa", "security", "web", "config",
-        "support", "base", "abstract", "spi",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "core",
+            "client",
+            "server",
+            "common",
+            "util",
+            "utils",
+            "annotations",
+            "model",
+            "dto",
+            "service",
+            "dao",
+            "impl",
+            "shared",
+            "parent",
+            "starter",
+            "boot",
+            "cloud",
+            "data",
+            "jpa",
+            "security",
+            "web",
+            "config",
+            "support",
+            "base",
+            "abstract",
+            "spi",
+        }
+    ),
     collect_deps=_collect_maven_deps,
     file_detection_fn=_maven_finding_file,
 )
@@ -299,14 +346,38 @@ _NUGET_CONFIG = TyposquatConfig(
     rule_id="L2-NUGET-TYPO-001",
     detect_project=detect_nuget_project,
     builtin_corpus=BUILTIN_NUGET_TOP_100,
-    known_legitimate=frozenset({
-        "api", "client", "server", "core", "common", "extensions",
-        "abstractions", "implementation", "interfaces", "models",
-        "services", "data", "entity", "domain", "infrastructure",
-        "provider", "contracts", "helpers", "logging", "configuration",
-        "security", "serialization", "validation", "componentmodel",
-        "component", "design", "runtime", "sdk",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "client",
+            "server",
+            "core",
+            "common",
+            "extensions",
+            "abstractions",
+            "implementation",
+            "interfaces",
+            "models",
+            "services",
+            "data",
+            "entity",
+            "domain",
+            "infrastructure",
+            "provider",
+            "contracts",
+            "helpers",
+            "logging",
+            "configuration",
+            "security",
+            "serialization",
+            "validation",
+            "componentmodel",
+            "component",
+            "design",
+            "runtime",
+            "sdk",
+        }
+    ),
     collect_deps=_collect_nuget_deps,
     file_detection_fn=_nuget_finding_file,
 )
@@ -316,12 +387,30 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
     rule_id="L2-RUBYGEMS-TYPO-001",
     detect_project=detect_rubygems_project,
     builtin_corpus=BUILTIN_RUBYGEMS_TOP_100,
-    known_legitimate=frozenset({
-        "api", "client", "server", "core", "ext", "base",
-        "common", "mixins", "helpers", "utils", "engine",
-        "rails", "active", "action", "rack", "middleware",
-        "plugin", "adapter", "provider", "strategy",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "client",
+            "server",
+            "core",
+            "ext",
+            "base",
+            "common",
+            "mixins",
+            "helpers",
+            "utils",
+            "engine",
+            "rails",
+            "active",
+            "action",
+            "rack",
+            "middleware",
+            "plugin",
+            "adapter",
+            "provider",
+            "strategy",
+        }
+    ),
     manifest_file="Gemfile",
     collect_deps=_collect_rubygems_deps,
 )
@@ -329,12 +418,25 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
 
 def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     findings: list[Finding] = []
-    corpus = load_corpus_for_ecosystem(corpus_dir, "npm", BUILTIN_TOP_100)
+    index = load_indexed_corpus(corpus_dir, "npm", BUILTIN_TOP_100)
 
-    KNOWN_LEGITIMATE: frozenset[str] = frozenset({
-        "preact", "remix", "vite", "vitest", "svelte", "solid-js",
-        "pino", "ora", "got", "prettier", "knex", "mobx", "zod",
-    })
+    KNOWN_LEGITIMATE: frozenset[str] = frozenset(
+        {
+            "preact",
+            "remix",
+            "vite",
+            "vitest",
+            "svelte",
+            "solid-js",
+            "pino",
+            "ora",
+            "got",
+            "prettier",
+            "knex",
+            "mobx",
+            "zod",
+        }
+    )
 
     root_pkg = target / "package.json"
     if not root_pkg.is_file():
@@ -344,10 +446,9 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     if not pkg:
         return findings
 
-
     pkg_name = pkg.get("name", "")
-    if pkg_name and not pkg_name.startswith("@") and pkg_name not in corpus and pkg_name not in KNOWN_LEGITIMATE:
-        close_matches = check_typosquat(pkg_name, corpus)
+    if pkg_name and not pkg_name.startswith("@") and pkg_name not in index and pkg_name not in KNOWN_LEGITIMATE:
+        close_matches = check_typosquat_against_index(pkg_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(pkg_name, best_match, best_dist)
@@ -359,7 +460,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=pkg_name,
                     file=str(root_pkg),
                     message=(
-                        f"Package '{pkg_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Package '{pkg_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"package_name({pkg_name}) is edit_distance {best_dist} from {best_match}",
                     remediation=(
@@ -376,7 +478,6 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
             )
 
     all_deps = get_dep_names(pkg)
-
 
     nm = target / "node_modules"
     if nm.is_dir():
@@ -400,9 +501,9 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                             all_deps.update(get_dep_names(dep_data))
 
     for dep_name in sorted(all_deps):
-        if dep_name in corpus or dep_name in KNOWN_LEGITIMATE:
+        if dep_name in index or dep_name in KNOWN_LEGITIMATE:
             continue
-        close_matches = check_typosquat(dep_name, corpus)
+        close_matches = check_typosquat_against_index(dep_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(dep_name, best_match, best_dist)
@@ -414,7 +515,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=dep_name,
                     file=str(root_pkg),
                     message=(
-                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"edit_distance({dep_name}, {best_match}) = {best_dist}",
                     remediation=(
@@ -436,9 +538,7 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
 def detect_all_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-
     findings.extend(_detect_npm_typosquat(target, corpus_dir))
-
 
     for config in (_GO_CONFIG, _CARGO_CONFIG, _PYPI_CONFIG, _MAVEN_CONFIG, _NUGET_CONFIG, _RUBYGEMS_CONFIG):
         findings.extend(_detect_all_typosquat_standard(target, corpus_dir, config))

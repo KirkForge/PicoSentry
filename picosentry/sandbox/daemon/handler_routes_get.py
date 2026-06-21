@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import logging
 import time
@@ -42,7 +43,6 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
 
 
 class PicoDomeGetRoutesMixin:
-
     def _handle_get(self: PicoDomeHandler) -> None:
 
         content_length = self.headers.get("Content-Length")
@@ -59,9 +59,7 @@ class PicoDomeGetRoutesMixin:
         path = parsed.path.rstrip("/")
         query = parse_qs(parsed.query)
 
-
         if path == "/health":
-
             if not self.rate_limiter.allow(actor="__health__"):
                 self._send_error(ErrorCodes.RATE_LIMITED)
             else:
@@ -72,7 +70,6 @@ class PicoDomeGetRoutesMixin:
             else:
                 self._handle_ready()
         elif path == "/metrics":
-
             metrics_only = getattr(self, "_metrics_only", False)
             if metrics_only:
                 self._handle_metrics()
@@ -80,7 +77,6 @@ class PicoDomeGetRoutesMixin:
                 token = self._require_permission("scan:read")
                 if token:
                     self._handle_metrics()
-
 
         elif path == f"/api/{self.API_VERSION}/scans":
             token = self._require_permission("scan:read")
@@ -130,7 +126,6 @@ class PicoDomeGetRoutesMixin:
     def _handle_health(self: PicoDomeHandler) -> None:
         uptime = int(time.time() - self._start_time)
 
-
         redis_health = {}
         try:
             from picosentry.sandbox.redis_health import check_redis_health
@@ -138,7 +133,6 @@ class PicoDomeGetRoutesMixin:
             redis_health = check_redis_health()
         except Exception:
             redis_health = {"connected": False, "mode": "in-memory"}
-
 
         health_data: dict[str, Any] = {
             "status": "healthy",
@@ -153,7 +147,6 @@ class PicoDomeGetRoutesMixin:
         self._send_json(health_data)
 
     def _handle_ready(self: PicoDomeHandler) -> None:
-
 
         try:
             from picosentry.sandbox.l3.engine import _detect_backend
@@ -267,10 +260,8 @@ class PicoDomeGetRoutesMixin:
 
         event_type = None
         if "event_type" in query:
-            try:
+            with contextlib.suppress(ValueError):
                 event_type = AuditEventType(query["event_type"][0])
-            except ValueError:
-                pass
 
         events = audit.query(
             event_type=event_type,
@@ -318,7 +309,6 @@ class PicoDomeGetRoutesMixin:
         audit = get_audit_logger()
         audit_stats = audit.get_stats()
 
-
         stats_data: dict[str, Any] = {
             "scans_total": self._scan_count,
             "scans_avg_ms": self._scan_total_ms / max(self._scan_count, 1),
@@ -344,10 +334,12 @@ class PicoDomeGetRoutesMixin:
 
             mgr = get_cluster_manager()
             if not mgr.is_running:
-                self._send_json({
-                    "cluster": "inactive",
-                    "detail": "Cluster manager is not running on this node",
-                })
+                self._send_json(
+                    {
+                        "cluster": "inactive",
+                        "detail": "Cluster manager is not running on this node",
+                    }
+                )
                 return
 
             if not _check_cluster_token(self, mgr):
@@ -355,8 +347,8 @@ class PicoDomeGetRoutesMixin:
 
             snapshot = mgr.state.get_state_snapshot()
             self._send_json(snapshot)
-        except Exception as exc:
-            logger.exception("Failed to get cluster snapshot: %s", exc)
+        except Exception:
+            logger.exception("Failed to get cluster snapshot")
             self._send_error(500, "cluster snapshot unavailable")
 
 

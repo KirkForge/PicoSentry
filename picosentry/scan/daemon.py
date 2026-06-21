@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -10,6 +9,7 @@ import threading
 import time
 from dataclasses import dataclass
 from http.server import BaseHTTPRequestHandler, HTTPServer
+from pathlib import Path
 from typing import Any
 
 from picosentry.scan.auth import AuthConfig, AuthResult, RateLimiter, check_auth, check_authorization
@@ -25,8 +25,6 @@ _request_counter = 0
 
 
 class HealthHandler(BaseHTTPRequestHandler):
-
-
     auth_config: AuthConfig = AuthConfig()
     rate_limiter: RateLimiter = RateLimiter()
     _engine_cache: Any = None
@@ -70,7 +68,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def _check_auth(self, request_id: str) -> AuthResult:
         headers = self._get_headers_dict()
-
 
         path = self.path.split("?")[0].split("#")[0]
         if path in self.auth_config.public_endpoints and self.auth_config.mode != "off":
@@ -194,7 +191,6 @@ class HealthHandler(BaseHTTPRequestHandler):
             else:
                 self.send_error(404, "Not Found")
         finally:
-
             from picosentry.scan.logging import clear_request_context
 
             clear_request_context()
@@ -214,7 +210,6 @@ class HealthHandler(BaseHTTPRequestHandler):
                 auth_result = self._check_auth(request_id)
                 if not auth_result.ok:
                     return
-
 
                 from picosentry.scan.auth import check_authorization
 
@@ -250,8 +245,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             self._send_json(400, {"error": "Missing 'target' field", "request_id": request_id}, request_id, start_time)
             return
 
-
-        if os.path.isabs(target) or ".." in target:
+        if Path(target).is_absolute() or ".." in target:
             self._send_json(
                 400,
                 {"error": "Scan target must be a relative path under the workspace root", "request_id": request_id},
@@ -259,15 +253,15 @@ class HealthHandler(BaseHTTPRequestHandler):
                 start_time,
             )
             return
-        scan_root = os.environ.get("PICOSENTRY_SCAN_ROOT", os.getcwd())
-        scan_root_real = os.path.realpath(scan_root)
-        resolved = os.path.realpath(os.path.join(scan_root, target))
-        if resolved != scan_root_real and not resolved.startswith(scan_root_real + os.sep):
+        scan_root = Path(os.environ.get("PICOSENTRY_SCAN_ROOT") or Path.cwd())
+        scan_root_real = scan_root.resolve()
+        resolved = (scan_root_real / target).resolve()
+        if not resolved.is_relative_to(scan_root_real):
             self._send_json(
                 400, {"error": "Scan target escapes workspace root", "request_id": request_id}, request_id, start_time
             )
             return
-        target = resolved
+        target = str(resolved)
 
         try:
             from picosentry.scan.engine import create_default_engine
@@ -280,7 +274,7 @@ class HealthHandler(BaseHTTPRequestHandler):
             output = format_json(result)
             self._send_json(200, _json.loads(output) if isinstance(output, str) else output, request_id, start_time)
         except Exception as e:
-            logger.error("Scan failed: %s", e, exc_info=True)
+            logger.exception("Scan failed")
             self._send_json(500, {"error": str(e), "request_id": request_id}, request_id, start_time)
 
     def _handle_health(self, request_id: str = "", start_time: float | None = None) -> None:
@@ -356,7 +350,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
         metrics = get_metrics().snapshot()
 
-
         advisory_status = "not_loaded"
         advisory_count = 0
         has_errors = False
@@ -371,14 +364,12 @@ class HealthHandler(BaseHTTPRequestHandler):
             advisory_status = "error"
             has_errors = True
 
-
         tenant_summary = {"enabled": 0, "disabled": 0, "total": 0}
         try:
             from picosentry.scan.tenant import TenantManager
 
             tm = TenantManager()
             if tenant_id:
-
                 health = tm.tenant_health(tenant_id)
                 if health.get("status") == "not_found":
                     self._send_json(
@@ -402,7 +393,6 @@ class HealthHandler(BaseHTTPRequestHandler):
                 }
         except Exception:
             pass
-
 
         fleet_summary = {"active_rollouts": 0, "failed_rollouts": 0, "total_targets": 0}
         try:
@@ -509,7 +499,6 @@ class HealthHandler(BaseHTTPRequestHandler):
 
 @dataclass
 class TLSConfig:
-
     cert_file: str = ""
     key_file: str = ""
     mtls_ca: str = ""
@@ -545,7 +534,6 @@ class TLSConfig:
         else:
             ctx.verify_mode = ssl.CERT_NONE
 
-
         ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 
         return ctx
@@ -563,7 +551,6 @@ def run_daemon(
     from picosentry.scan.metrics import increment, set_gauge
 
     if auth_config is None:
-
         from pathlib import Path
 
         from picosentry.scan.config import load_config
@@ -575,13 +562,10 @@ def run_daemon(
             logger.debug("Config file not found or invalid, falling back to env vars", exc_info=True)
             auth_config = AuthConfig.from_env()
 
-
     rate_limiter = RateLimiter(rps=auth_config.rate_limit_rps)
-
 
     HealthHandler.auth_config = auth_config
     HealthHandler.rate_limiter = rate_limiter
-
 
     if is_enterprise_mode():
         try:
@@ -601,40 +585,36 @@ def run_daemon(
             )
             sys.exit(e.exit_code)
         print("  Enterprise: ON (fail-closed enforced)")
-    else:
-        if auth_config.mode == "off":
-            if host not in ("127.0.0.1", "localhost", "::1"):
-                logger.critical(
-                    "SECURITY: auth=off on non-loopback interface %s — refusing to start. "
-                    "Bind to 127.0.0.1 or enable authentication (PICOSENTRY_AUTH_MODE=token).",
-                    host,
-                )
-                print(
-                    f"  FATAL: auth=off on non-loopback {host} — refusing to start. "
-                    "Bind to 127.0.0.1 or set PICOSENTRY_AUTH_MODE=token.",
-                    file=sys.stderr,
-                )
-                audit(
-                    "daemon.start_denied",
-                    target=f"{host}:{port}",
-                    outcome="failure",
-                    metadata={"reason": "auth=off on non-loopback"},
-                )
-                sys.exit(7)
-            logger.warning(
-                "Daemon running with auth=off (loopback only). Not recommended for production. "
-                "Set PICOSENTRY_ENTERPRISE_MODE=1 to enforce auth."
+    elif auth_config.mode == "off":
+        if host not in ("127.0.0.1", "localhost", "::1"):
+            logger.critical(
+                "SECURITY: auth=off on non-loopback interface %s — refusing to start. "
+                "Bind to 127.0.0.1 or enable authentication (PICOSENTRY_AUTH_MODE=token).",
+                host,
             )
-            print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
-
+            print(
+                f"  FATAL: auth=off on non-loopback {host} — refusing to start. "
+                "Bind to 127.0.0.1 or set PICOSENTRY_AUTH_MODE=token.",
+                file=sys.stderr,
+            )
+            audit(
+                "daemon.start_denied",
+                target=f"{host}:{port}",
+                outcome="failure",
+                metadata={"reason": "auth=off on non-loopback"},
+            )
+            sys.exit(7)
+        logger.warning(
+            "Daemon running with auth=off (loopback only). Not recommended for production. "
+            "Set PICOSENTRY_ENTERPRISE_MODE=1 to enforce auth."
+        )
+        print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
 
     set_gauge("daemon.active_requests", 0)
     increment("daemon.start")
 
-
     if tls_config is None:
         tls_config = TLSConfig.from_env()
-
 
     ssl_ctx = None
     if tls_config and tls_config.is_enabled():
@@ -651,8 +631,7 @@ def run_daemon(
         server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
     server_name = f"{host}:{port}"
 
-
-    def shutdown(signum: int, frame) -> None:
+    def shutdown(signum: int, _frame) -> None:
         logger.info("Received signal %d, shutting down daemon...", signum)
         audit("daemon.stop", target=f"{host}:{port}", metadata={"signal": signum})
         server.shutdown()
@@ -686,4 +665,6 @@ def run_daemon(
     finally:
         server.server_close()
         logger.info("Daemon stopped.")
+
+
 _request_counter_lock = threading.Lock()

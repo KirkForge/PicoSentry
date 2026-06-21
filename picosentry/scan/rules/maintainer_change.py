@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,10 +10,8 @@ __all__ = ["detect_maintainer_changes"]
 
 def _extract_author_name(author) -> str:
     if isinstance(author, str):
-
-        name = author.split("<")[0].split("(")[0].strip()
-        return name
-    elif isinstance(author, dict):
+        return author.split("<")[0].split("(")[0].strip()
+    if isinstance(author, dict):
         return str(author.get("name", ""))
     return ""
 
@@ -22,19 +19,16 @@ def _extract_author_name(author) -> str:
 def _extract_author_names(pkg: dict) -> list[str]:
     names: list[str] = []
 
-
     author = pkg.get("author")
     if author:
         name = _extract_author_name(author)
         if name:
             names.append(name)
 
-
     for c in pkg.get("contributors", []):
         name = _extract_author_name(c)
         if name:
             names.append(name)
-
 
     for m in pkg.get("maintainers", []):
         name = _extract_author_name(m)
@@ -63,7 +57,7 @@ def _extract_npm_user_name(pkg: dict) -> str:
     npm_user = pkg.get("_npmUser")
     if isinstance(npm_user, dict):
         return str(npm_user.get("name", ""))
-    elif isinstance(npm_user, str):
+    if isinstance(npm_user, str):
         return npm_user.split("<")[0].strip()
     return ""
 
@@ -87,11 +81,9 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
     author_names = _extract_author_names(pkg)
     has_scripts = _has_install_scripts(pkg)
 
-
     npm_user = _extract_npm_user_name(pkg)
     author_name = _extract_author_name(pkg.get("author", ""))
     if npm_user and author_name:
-
         npm_lower = npm_user.lower().replace("-", "").replace("_", "")
         author_lower = author_name.lower().replace("-", "").replace("_", "")
         if npm_lower != author_lower and npm_lower not in author_lower and author_lower not in npm_lower:
@@ -118,7 +110,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 )
             )
 
-
     maintainer_domains = _extract_maintainer_domains(pkg)
     if len(maintainer_domains) >= 2 and len(set(maintainer_domains)) >= 2:
         unique_domains = sorted(set(maintainer_domains))
@@ -144,8 +135,10 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-
     if not author_names and has_scripts and pkg_name != "root":
+        _install_script_names = (
+            s for s in pkg.get("scripts", {}) if s in {"install", "postinstall", "preinstall", "prepare"}
+        )
         findings.append(
             Finding(
                 rule_id="L2-MAINT-001",
@@ -157,7 +150,7 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                     f"Package '{pkg_name}' has no author/maintainer info but "
                     f"has install scripts — unaccountable code execution"
                 ),
-                evidence=f"no author field, scripts: {', '.join(s for s in pkg.get('scripts', {}) if s in {'install', 'postinstall', 'preinstall', 'prepare'})}",
+                evidence=(f"no author field, scripts: {', '.join(sorted(_install_script_names))}"),
                 remediation=(
                     "Packages without author information that run code on install "
                     "are a critical supply chain risk. Verify the package source, "
@@ -169,7 +162,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 ],
             )
         )
-
 
     if len(author_names) == 1 and has_scripts:
         findings.append(
@@ -193,7 +185,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-
     if not author_names and not has_scripts and pkg_name != "root":
         findings.append(
             Finding(
@@ -214,38 +205,35 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-
     if author_names:
-        for author in author_names:
-            if len(author) <= 2:
-                findings.append(
-                    Finding(
-                        rule_id="L2-MAINT-001",
-                        severity=Severity.LOW,
-                        confidence=Confidence.MEDIUM,
-                        package=pkg_label,
-                        file=str(pkg_json),
-                        message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
-                        evidence=f"author = '{author}'",
-                        remediation=(
-                            "Very short author names may indicate a pseudonymous publisher. "
-                            "Verify the author's identity through npm or GitHub."
-                        ),
-                        references=[],
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L2-MAINT-001",
+                severity=Severity.LOW,
+                confidence=Confidence.MEDIUM,
+                package=pkg_label,
+                file=str(pkg_json),
+                message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
+                evidence=f"author = '{author}'",
+                remediation=(
+                    "Very short author names may indicate a pseudonymous publisher. "
+                    "Verify the author's identity through npm or GitHub."
+                ),
+                references=[],
+            )
+            for author in author_names
+            if len(author) <= 2
+        )
 
 
-def detect_maintainer_changes(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_maintainer_changes(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             _check_maintainer_signals(pkg, root_pkg, findings)
-
 
     for pkg_json, pkg in iter_node_modules(target):
         _check_maintainer_signals(pkg, pkg_json, findings)

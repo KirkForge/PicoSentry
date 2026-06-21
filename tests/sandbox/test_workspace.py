@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -188,11 +187,11 @@ class TestDiscoverProjects:
         no_access = tmp_path / "noperm"
         no_access.mkdir()
         try:
-            os.chmod(no_access, 0o000)
+            no_access.chmod(0o000)
             projects = discover_projects(tmp_path)
             assert len(projects) >= 1
         finally:
-            os.chmod(no_access, 0o755)
+            no_access.chmod(0o755)
 
     def test_package_json_name_fallback(self, tmp_path):
         (tmp_path / "package.json").write_text("{}")

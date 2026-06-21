@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -24,14 +23,12 @@ logger = logging.getLogger(__name__)
 
 
 class PromptScanRequest(BaseModel):
-
     text: str = Field(..., min_length=1, description="Prompt text to scan")
     context: dict[str, Any] | None = Field(default=None, description="Optional context (user_id, model, etc.)")
     request_id: str | None = Field(default=None, description="Optional request ID for telemetry correlation")
 
 
 class OutputScanRequest(BaseModel):
-
     model_config = {"populate_by_name": True}
 
     output: str = Field(..., min_length=1, description="LLM output text to validate")
@@ -57,29 +54,28 @@ def _get_client_ip(request: Request) -> str:
 def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None) -> FastAPI:
     config = config or PicoWatchConfig.from_env()
 
-
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
         logger.info("API key configured — write endpoints require authentication")
-
 
     prompt_guard = PromptGuard(config=config)
     output_guard = OutputGuard(config=config)
     if sink is None:
         from picosentry.watch.telemetry.sink import TelemetryConfig
-        sink = TelemetrySink(config=TelemetryConfig(
-            audit_retention_days=config.audit_retention_days,
-            otel_endpoint=config.otel_endpoint,
-        ))
-    limiter = RateLimiter(max_requests=config.rate_limit, window_seconds=config.rate_limit_window)
 
+        sink = TelemetrySink(
+            config=TelemetryConfig(
+                audit_retention_days=config.audit_retention_days,
+                otel_endpoint=config.otel_endpoint,
+            )
+        )
+    limiter = RateLimiter(max_requests=config.rate_limit, window_seconds=config.rate_limit_window)
 
     otel_enabled = init_tracing(service_name="picowatch", endpoint=config.otel_endpoint)
     if otel_enabled:
         import logging
 
         logging.getLogger("picowatch.otel").info("OpenTelemetry tracing enabled (endpoint=%s)", config.otel_endpoint)
-
 
     api_key = config.api_key or ""
 
@@ -88,7 +84,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         version=__version__,
         description="LLM defender with telemetry — prompt injection detection, output validation, and observability",
     )
-
 
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next: Any) -> Any:
@@ -101,7 +96,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                     headers={"Retry-After": str(config.rate_limit_window)},
                 )
         return await call_next(request)
-
 
     async def verify_api_key(
         x_api_key: str | None = Header(None, alias="X-API-Key"),
@@ -118,7 +112,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
         if not provided_key or not secrets.compare_digest(provided_key, api_key):
             raise HTTPException(status_code=401, detail="Invalid or missing API key")
-
 
     @app.get("/v1/health")
     async def get_health() -> dict[str, Any]:
@@ -174,14 +167,12 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 }
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 
-
     @app.post("/v1/scan/prompt")
     async def scan_prompt(
         body: PromptScanRequest,
         _auth: None = Depends(verify_api_key),
     ) -> dict[str, Any]:
         text = body.text
-
 
         if len(text) > config.max_prompt_size:
             raise HTTPException(
@@ -191,12 +182,9 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
         result = prompt_guard.check(text, context=body.context)
 
-
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
-
         sink.record_prompt_scan(result, request_id=request_id)
-
 
         model = body.context.get("model") if body.context else None
         trace_prompt_scan(result, model=model)
@@ -231,7 +219,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 detail=f"Input exceeds maximum size ({config.max_prompt_size} bytes). Rejecting immediately.",
             )
 
-
         prompt_result = None
         if body.prompt_result and isinstance(body.prompt_result, dict):
             pr = body.prompt_result
@@ -246,12 +233,9 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
         result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
 
-
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
-
         sink.record_validation(result, request_id=request_id)
-
 
         model = body.prompt_result.get("model") if body.prompt_result and isinstance(body.prompt_result, dict) else None
         trace_output_validation(result, model=model)
@@ -277,10 +261,10 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
     return app
 
 
-def create_admin_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None,
-                          prompt_guard: PromptGuard | None = None) -> FastAPI:
+def create_admin_app(
+    config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None, prompt_guard: PromptGuard | None = None
+) -> FastAPI:
     config = config or PicoWatchConfig.from_env()
-
 
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
@@ -353,16 +337,13 @@ def run_server(config: PicoWatchConfig | None = None, host: str = "127.0.0.1", p
 
     config = config or PicoWatchConfig.from_env()
 
-
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
         logger.info("API key configured — write endpoints require authentication")
     shared_sink = TelemetrySink()
     app = create_app(config, sink=shared_sink)
 
-
     shared_prompt_guard = PromptGuard(config=config)
-
 
     admin_app = create_admin_app(config, sink=shared_sink, prompt_guard=shared_prompt_guard)
     import threading

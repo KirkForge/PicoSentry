@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -7,7 +6,10 @@ import os
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from picosentry.sandbox.admission import AdmissionRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.admission import AdmissionRequest
 
 logger = logging.getLogger("picodome.admission.scanner")
 
@@ -25,7 +27,6 @@ SEVERITY_LEVELS = {
 
 
 class ImageScanner:
-
     def __init__(
         self,
         enabled: bool | None = None,
@@ -41,7 +42,6 @@ class ImageScanner:
         self.daemon_url = daemon_url or os.environ.get("PICODOME_ADMISSION_DAEMON_URL", _DEFAULT_DAEMON_URL)
         self.timeout = timeout
         self._min_level = SEVERITY_LEVELS.get(min_severity, 3)
-
 
         if fail_closed is None:
             self._fail_closed = os.environ.get("PICODOME_ADMISSION_FAIL_CLOSED", "").lower() in ("1", "true", "yes")
@@ -77,7 +77,6 @@ class ImageScanner:
 
     def _scan_image(self, image: str, container_name: str) -> tuple[bool, str]:
         try:
-
             url = f"{self.daemon_url}/api/v1/scan"
             payload = json.dumps(
                 {
@@ -96,13 +95,11 @@ class ImageScanner:
             response = urlopen(req, timeout=self.timeout)
             result = json.loads(response.read())
 
-
             verdict = result.get("verdict", "CLEAN")
             findings = result.get("findings", [])
 
             if verdict == "DENY":
                 return False, (f"container '{container_name}' image '{image}' denied: {len(findings)} findings")
-
 
             blocking_findings = [
                 f for f in findings if SEVERITY_LEVELS.get(f.get("severity", "low"), 0) >= self._min_level
@@ -121,27 +118,24 @@ class ImageScanner:
 
         except URLError as exc:
             if self._fail_closed:
-                logger.error(
-                    "Cannot reach PicoDome daemon for image scan '%s': %s — denying (fail-closed)",
+                logger.exception(
+                    "Cannot reach PicoDome daemon for image scan '%s' — denying (fail-closed)",
                     image,
-                    exc,
                 )
                 return False, f"daemon unreachable: image '{image}' scan could not be performed"
-            else:
-                logger.warning(
-                    "Cannot reach PicoDome daemon for image scan '%s': %s — allowing (fail-open)",
-                    image,
-                    exc,
-                )
-                return True, ""
+            logger.warning(
+                "Cannot reach PicoDome daemon for image scan '%s': %s — allowing (fail-open)",
+                image,
+                exc,
+            )
+            return True, ""
 
         except Exception as exc:
             if self._fail_closed:
-                logger.error("Image scan failed for '%s': %s — denying (fail-closed)", image, exc)
+                logger.exception("Image scan failed for '")
                 return False, f"scan failed: image '{image}' scan error: {exc}"
-            else:
-                logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
-                return True, ""
+            logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
+            return True, ""
 
     @property
     def min_severity_level(self) -> int:

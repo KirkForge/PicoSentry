@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -12,7 +11,6 @@ from picosentry.sandbox.models import (
 
 @dataclass(frozen=True)
 class NetworkCall:
-
     address: str
     port: int = 0
     protocol: str = "tcp"
@@ -30,12 +28,11 @@ class NetworkCall:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class DnsQuery:
-
     hostname: str
     resolved_ips: list[str] = field(default_factory=list)
     timestamp_ms: int = 0
@@ -47,12 +44,11 @@ class DnsQuery:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class FileOperation:
-
     path: str
     operation: str  # read, write, delete, create, chmod, chown
     success: bool = True
@@ -68,12 +64,11 @@ class FileOperation:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class ProcessSpawn:
-
     executable: str
     args: list[str] = field(default_factory=list)
     pid: int = 0
@@ -89,12 +84,11 @@ class ProcessSpawn:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class TimingPoint:
-
     label: str
     elapsed_ms: int
     timestamp_ms: int = 0
@@ -106,12 +100,11 @@ class TimingPoint:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class BehavioralProfile:
-
     package: str
     timing_points: list[TimingPoint] = field(default_factory=list)
     network_calls: list[NetworkCall] = field(default_factory=list)
@@ -139,12 +132,11 @@ class BehavioralProfile:
         }
         if not deterministic:
             d["total_runtime_ms"] = self.total_runtime_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class Baseline:
-
     name: str
     package: str
     version: str = ""
@@ -175,7 +167,6 @@ class Baseline:
 
 @dataclass(frozen=True)
 class DriftResult:
-
     baseline_name: str
     score: float  # 0.0 = identical, 1.0 = completely different
     network_drift: bool = False
@@ -200,7 +191,6 @@ class DriftResult:
 
 @dataclass(frozen=True)
 class AnalysisResult:
-
     target: str
     findings: list[Finding] = field(default_factory=list)
     profile: BehavioralProfile | None = None

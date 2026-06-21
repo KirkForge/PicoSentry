@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -17,7 +16,6 @@ POLICY_LIFECYCLE_VERSION = "1.0"
 
 
 class PolicyLayer:
-
     GLOBAL = "global"  # Organization-wide defaults
     ORG = "org"  # Organization/team overrides
     REPO = "repo"  # Repository/project overrides
@@ -39,7 +37,6 @@ class PolicyLayer:
 
 @dataclass
 class InheritedPolicy:
-
     policy: Policy
     layer: str = PolicyLayer.GLOBAL
     source: str = ""  # File path or URL where policy was loaded from
@@ -78,7 +75,6 @@ class InheritedPolicy:
     def from_file(path: Path, layer: str = PolicyLayer.REPO) -> InheritedPolicy:
         data = json.loads(path.read_text(encoding="utf-8"))
 
-
         policy_data = data.get("policy", data)
 
         policy = Policy.from_dict(policy_data)
@@ -93,7 +89,6 @@ class InheritedPolicy:
 
 
 class PolicyStack:
-
     def __init__(self) -> None:
         self._layers: dict[str, InheritedPolicy] = {}
 
@@ -128,9 +123,7 @@ class PolicyStack:
         if not sorted_layers:
             return Policy()
 
-
         base = sorted_layers[0].policy
-
 
         for inherited in sorted_layers[1:]:
             base = _merge_policies(base, inherited.policy)
@@ -155,8 +148,8 @@ class PolicyStack:
             lower = sorted_layers[i - 1]
             upper = sorted_layers[i]
 
-
             from picosentry.scan.models import SEVERITY_ORDER
+
             severity_order = dict(SEVERITY_ORDER)  # canonical from models
             lower_sev = severity_order.get(lower.policy.fail_on_severity or "low", 0)
             upper_sev = severity_order.get(upper.policy.fail_on_severity or "low", 0)
@@ -167,14 +160,16 @@ class PolicyStack:
                         "type": "severity_relaxation",
                         "lower_layer": lower.layer,
                         "upper_layer": upper.layer,
-                        "detail": f"{upper.layer} relaxes fail_on_severity from {lower.policy.fail_on_severity} to {upper.policy.fail_on_severity}",
+                        "detail": (
+                            f"{upper.layer} relaxes fail_on_severity from "
+                            f"{lower.policy.fail_on_severity} to {upper.policy.fail_on_severity}"
+                        ),
                     }
                 )
                 warnings.append(
                     f"Policy drift: {upper.layer} relaxes severity threshold from "
                     f"{lower.policy.fail_on_severity} to {upper.policy.fail_on_severity}"
                 )
-
 
             if lower.policy.deny_licenses and upper.policy.allow_licenses:
                 conflicts = set(upper.policy.allow_licenses) & set(lower.policy.deny_licenses)
@@ -207,6 +202,7 @@ class PolicyStack:
 def _merge_policies(base: Policy, override: Policy) -> Policy:
 
     from picosentry.scan.models import SEVERITY_ORDER
+
     severity_order = dict(SEVERITY_ORDER)  # canonical from models
     base_sev = severity_order.get(base.fail_on_severity or "low", 0)
     override_sev = severity_order.get(override.fail_on_severity or "low", 0)
@@ -214,9 +210,7 @@ def _merge_policies(base: Policy, override: Policy) -> Policy:
     if override_sev < base_sev:
         effective_severity = override.fail_on_severity
 
-
     effective_rules = list(set(base.fail_on_rules + override.fail_on_rules))
-
 
     if base.allow_licenses and override.allow_licenses:
         effective_allow = list(set(base.allow_licenses) & set(override.allow_licenses))
@@ -229,14 +223,11 @@ def _merge_policies(base: Policy, override: Policy) -> Policy:
 
     effective_deny = list(set(base.deny_licenses + override.deny_licenses))
 
-
     effective_require_lockfile = base.require_lockfile or override.require_lockfile
     effective_require_integrity = base.require_integrity or override.require_integrity
     effective_require_provenance = base.require_provenance or override.require_provenance
 
-
     effective_deny_packages = list(set(base.deny_packages + override.deny_packages))
-
 
     effective_waivers = list(base.waivers) + list(override.waivers)
 
@@ -257,7 +248,6 @@ def migrate_policy(policy_data: dict[str, Any], from_version: int = 0) -> dict[s
     if from_version == 0:
         from_version = policy_data.get("version", 0)
 
-
     if from_version < 1:
         policy_data.setdefault("version", 1)
         policy_data.setdefault("fail_on_severity", "medium")
@@ -268,11 +258,9 @@ def migrate_policy(policy_data: dict[str, Any], from_version: int = 0) -> dict[s
         policy_data.setdefault("require", {})
         policy_data.setdefault("waivers", [])
 
-
         for flag in ("lockfile", "integrity", "provenance"):
             if flag in policy_data and flag not in policy_data.get("require", {}):
                 policy_data.setdefault("require", {})[flag] = policy_data.pop(flag)
-
 
     policy_data["version"] = 1
 

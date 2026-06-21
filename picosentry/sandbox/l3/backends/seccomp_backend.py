@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -59,7 +59,6 @@ __all__ = [
 
 
 class SeccompBackend(SandboxBackend):
-
     def __init__(self):
         self._syscall_cache: dict[str, int] = {}
 
@@ -82,12 +81,10 @@ class SeccompBackend(SandboxBackend):
             lib.seccomp_init.restype = ctypes.c_void_p
             lib.seccomp_release.argtypes = [ctypes.c_void_p]
 
-
             ctx_allow = lib.seccomp_init(SCMP_ACT_ALLOW)
             if not ctx_allow:
                 return False
             lib.seccomp_release(ctx_allow)
-
 
             ctx_kill = lib.seccomp_init(SCMP_ACT_KILL_PROCESS)
             if not ctx_kill:
@@ -114,55 +111,43 @@ class SeccompBackend(SandboxBackend):
             lib = ctypes.CDLL("libseccomp.so.2")
             self._setup_lib(lib)
 
-
             ctx, blocked = self._build_filter(lib, policy)
             if ctx is None:
                 return self._fallback_run(command, policy, timeout, cwd, env)
-
 
             cmd_path = shutil.which(command[0])
             if cmd_path is None:
                 cmd_path = command[0]  # Try as-is
 
-
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
-
 
             child_env = os.environ.copy()
             if env:
                 child_env.update(env)
             env_list = child_env
 
-
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 pid = os.fork()
 
             if pid == 0:
-
                 os.close(out_r)
                 os.close(err_r)
-
 
                 os.dup2(out_w, 1)
                 os.dup2(err_w, 2)
                 os.close(out_w)
                 os.close(err_w)
 
-
                 if cwd:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.chdir(cwd)
-                    except OSError:
-                        pass
-
 
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)
                 if ret != 0:
                     os._exit(127)  # seccomp filter failed — exit child immediately
-
 
                 try:
                     os.execve(cmd_path, command, env_list)
@@ -173,13 +158,10 @@ class SeccompBackend(SandboxBackend):
                 os._exit(1)
 
             else:
-
                 os.close(out_w)
                 os.close(err_w)
 
-
                 lib.seccomp_release(ctx)
-
 
                 stdout_bytes, stderr_bytes, exit_code = self._wait_with_timeout(pid, out_r, err_r, effective_timeout)
 
@@ -197,22 +179,30 @@ class SeccompBackend(SandboxBackend):
                         )
                     )
 
-
                 if exit_code == -31:
-
                     denied_categories = []
                     if blocked:
                         denied_categories.append(f"blocked={', '.join(sorted(blocked)[:10])}")
-                    if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+                    if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
                         denied_categories.append("default_action=DENY")
 
                     suggestions = []
                     if "clone" in blocked or "clone3" in blocked or "fork" in blocked:
-                        suggestions.append("Process spawning was denied. Use --allow-runtime node/python or add process_spawn: allow to your policy.")
+                        suggestions.append(
+                            "Process spawning was denied. Use --allow-runtime node/python "
+                            "or add process_spawn: allow to your policy."
+                        )
                     if "wait4" in blocked or "waitid" in blocked:
-                        suggestions.append("Child reaping was denied. If you allow process spawning, child reaping syscalls must also be allowed.")
+                        suggestions.append(
+                            "Child reaping was denied. If you allow process spawning, "
+                            "child reaping syscalls must also be allowed."
+                        )
                     if not suggestions:
-                        suggestions.append("A syscall was blocked by the sandbox policy. Use --allow-runtime node/python for common package managers, or use a permissive policy with default_action=ALLOW.")
+                        suggestions.append(
+                            "A syscall was blocked by the sandbox policy. "
+                            "Use --allow-runtime node/python for common package managers, "
+                            "or use a permissive policy with default_action=ALLOW."
+                        )
 
                     diagnostic = "Process killed by seccomp — syscall violation."
                     if denied_categories:
@@ -229,7 +219,6 @@ class SeccompBackend(SandboxBackend):
                             timestamp_ms=int(_now_ms() - start_ms),
                         )
                     )
-
 
                 events.extend(self._posthoc_analysis(stdout, stderr))
 
@@ -272,7 +261,7 @@ class SeccompBackend(SandboxBackend):
     def _build_filter(self, lib: ctypes.CDLL, policy: Policy) -> tuple:
         blocked: set[str] = set()
 
-        if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+        if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
             default_action = SCMP_ACT_KILL_PROCESS
         else:
             default_action = SCMP_ACT_ALLOW
@@ -296,7 +285,6 @@ class SeccompBackend(SandboxBackend):
                     if num >= 0:
                         add_rule_safely(lib, ctx, SCMP_ACT_KILL_PROCESS, num, name)
                         blocked.add(name)
-
 
         for name in SAFE_SYSCALLS:
             num = self._resolve(lib, name)
@@ -341,7 +329,6 @@ class SeccompBackend(SandboxBackend):
                 except OSError:
                     pass
 
-
             wpid, status = os.waitpid(pid, os.WNOHANG)
             if wpid == pid:
                 if os.WIFEXITED(status):
@@ -350,12 +337,9 @@ class SeccompBackend(SandboxBackend):
                     exit_code = -os.WTERMSIG(status)
                 break
 
-
         for fd in [out_fd, err_fd]:
-            try:
+            with contextlib.suppress(OSError):
                 os.set_blocking(fd, False)
-            except OSError:
-                pass
             try:
                 while True:
                     data = os.read(fd, 65536)
@@ -367,7 +351,6 @@ class SeccompBackend(SandboxBackend):
                         stderr_chunks.append(data)
             except OSError:
                 pass
-
 
         if exit_code is None:
             try:

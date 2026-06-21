@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import time
@@ -15,7 +14,6 @@ __all__ = ["Normalizer", "PromptGuard", "RuleEngine", "Scorer"]
 
 
 class PromptGuard:
-
     def __init__(
         self,
         rules_dir: Path | None = None,
@@ -54,7 +52,6 @@ class PromptGuard:
     def check(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
         start = time.perf_counter()
 
-
         if len(text) > self._config.max_prompt_size:
             return PromptScanResult(
                 blocked=True,
@@ -67,12 +64,9 @@ class PromptGuard:
                 details={"error": f"Input exceeds maximum size ({self._config.max_prompt_size} bytes)"},
             )
 
-
         normalized = self._normalizer.normalize(text)
 
-
         matches = self._engine.evaluate(normalized)
-
 
         decoded_texts = self._normalizer.decode_and_rescan(text)
         for decoded in decoded_texts:
@@ -80,8 +74,7 @@ class PromptGuard:
             decoded_matches = self._engine.evaluate(decoded_normalized)
             matches.extend(decoded_matches)
 
-
-        score, matched_ids = self._scorer.score(matches, self._engine.rules)
+        score, matched_ids = self._scorer.score(matches)
 
         duration_ms = round((time.perf_counter() - start) * 1000, 3)
 

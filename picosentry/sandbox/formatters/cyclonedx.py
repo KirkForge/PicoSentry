@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -6,8 +5,11 @@ import json
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
 
 
 _SEVERITY_RATING = {
@@ -28,7 +30,6 @@ def format_cyclonedx(result: SandboxResult | AnalysisResult) -> str:
 def _l3_cyclonedx(result: SandboxResult) -> str:
 
     det_timestamp = _deterministic_timestamp(__version__)
-
 
     vulns: list = []
     seen: set = set()
@@ -55,7 +56,6 @@ def _l3_cyclonedx(result: SandboxResult) -> str:
             },
         }
         vulns.append(vuln)
-
 
     root_name = " ".join(result.command) if result.command else result.policy_name or "unknown"
 
@@ -89,7 +89,6 @@ def _l4_cyclonedx(result: AnalysisResult) -> str:
 
     det_timestamp = _deterministic_timestamp(__version__)
 
-
     vulns: list = []
     seen: set = set()
     for f in result.findings:
@@ -119,7 +118,6 @@ def _l4_cyclonedx(result: AnalysisResult) -> str:
             vuln["evidence"] = [{"description": str(f.evidence)}]
 
         vulns.append(vuln)
-
 
     root_name = result.target or "unknown"
 

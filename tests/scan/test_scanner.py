@@ -1455,9 +1455,7 @@ class TestUpdateCommand:
         from picosentry.scan.cli import _cmd_update
 
         # Mock a valid npm-rank response
-        valid_response = json.dumps(
-            [{"name": "express"}]
-        ).encode("utf-8")
+        valid_response = json.dumps([{"name": "express"}]).encode("utf-8")
 
         mock_urlopen = self._mock_urlopen(valid_response)
 

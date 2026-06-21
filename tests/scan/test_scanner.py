@@ -1407,14 +1407,11 @@ class TestUpdateCommand:
     """Test the 'update' command's network safety features."""
 
     def _mock_urlopen(self, response_data: bytes):
-        """Create a mock for urllib.request.urlopen that returns response_data."""
+        """Create a mock for safe_urlopen that returns (response, body)."""
         from unittest.mock import MagicMock
 
         mock_resp = MagicMock()
-        mock_resp.read.return_value = response_data
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        return MagicMock(return_value=mock_resp)
+        return MagicMock(return_value=(mock_resp, response_data))
 
     def test_update_response_size_limit(self, tmp_path):
         """update command rejects responses larger than 10MB."""
@@ -1430,7 +1427,7 @@ class TestUpdateCommand:
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result == 1  # Should fail due to size limit
 
@@ -1446,7 +1443,7 @@ class TestUpdateCommand:
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result != 0  # Should fail
 
@@ -1457,12 +1454,9 @@ class TestUpdateCommand:
 
         from picosentry.scan.cli import _cmd_update
 
-        # Mock a valid npm response
+        # Mock a valid npm-rank response
         valid_response = json.dumps(
-            {
-                "objects": [{"package": {"name": "express"}}],
-                "total": 1,
-            }
+            [{"name": "express"}]
         ).encode("utf-8")
 
         mock_urlopen = self._mock_urlopen(valid_response)
@@ -1470,26 +1464,26 @@ class TestUpdateCommand:
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result == 0
         assert Path(output).is_file()
 
     def test_update_validates_response_format(self, tmp_path):
-        """update command validates that response has 'objects' key."""
+        """update command validates that npm-rank response is a list."""
         import argparse
         from unittest.mock import patch
 
         from picosentry.scan.cli import _cmd_update
 
-        # Response is valid JSON but wrong format (no "objects" key)
+        # Response is valid JSON but wrong format (npm-rank expects a list)
         bad_format = json.dumps({"error": "not found"}).encode("utf-8")
         mock_urlopen = self._mock_urlopen(bad_format)
 
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         # Should fail — response doesn't have expected format
         assert result == 1

@@ -26,11 +26,12 @@ def test_near_matches_matches_brute_force():
     """The indexed search must return the same results as the brute-force scan."""
     names = BUILTIN_TOP_100[:50]
     corpus = set(names)
-    index = CorpusIndex(corpus)
+    # Treat every name as priority so the brute-force and indexed paths agree.
+    index = CorpusIndex(corpus, priority_names=corpus)
 
     queries = ["reac", "reactt", "expres", "lodas", "typescipt", "nonexistent-xyz"]
     for query in queries:
-        expected = check_typosquat(query, corpus)
+        expected = check_typosquat(query, corpus, priority_names=corpus)
         actual = check_typosquat_against_index(query, index)
         assert actual == expected, f"mismatch for {query}: {actual} != {expected}"
 

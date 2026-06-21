@@ -91,6 +91,8 @@ def check_typosquat(
     corpus: set[str],
     max_distance: float = 2.0,
     use_keyboard: bool = False,
+    *,
+    priority_names: set[str] | None = None,
 ) -> list[tuple[str, float]]:
 
     if dep_name.startswith("@"):
@@ -100,15 +102,36 @@ def check_typosquat(
 
     name_len = len(dep_name)
     matches: list[tuple[str, float]] = []
+    # Short queries are restricted to the curated priority set to stay
+    # consistent with ``CorpusIndex.near_matches`` and avoid false positives
+    # against obscure short names in large corpuses.
+    short_query = name_len < 4
+    priority = priority_names if priority_names is not None else corpus
+
     for popular in sorted(corpus):  # sorted for determinism
         if popular == dep_name:
+            continue
+
+        if short_query and popular not in priority:
             continue
 
         if abs(name_len - len(popular)) > max_distance:
             continue
         dist = distance_fn(dep_name, popular)
-        if dist <= max_distance:
-            matches.append((popular, dist))
+        if dist > max_distance:
+            continue
+
+        # Two very short names must differ by at most one character to avoid
+        # unrelated 3-letter package collisions (e.g. npm's tap vs yup).
+        if short_query and len(popular) < 4 and dist > 1.0:
+            continue
+        # A 3-character query against a 4+ character name only counts if the
+        # first character matches; this catches nx1->next while avoiding
+        # tap->gsap style collisions.
+        if short_query and len(popular) >= 4 and not popular.startswith(dep_name[0]):
+            continue
+
+        matches.append((popular, dist))
 
     matches.sort(key=lambda m: (m[1], m[0]))
     return matches

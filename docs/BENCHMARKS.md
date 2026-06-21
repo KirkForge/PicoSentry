@@ -1,9 +1,9 @@
 # PicoSentry — Detection Quality Benchmarks
 
-> **Version:** 2.0.14 (2026-06-16)
+> **Version:** 2.0.15 (2026-06-16)
 >
 > **Reproducible from a fresh clone:** `picosentry scan --validate` (see [Reproduction](#reproduction) below).
-> **Updated on every minor release.** The numbers in this document are the v2.0.14 baseline;
+> **Updated on every minor release.** The numbers in this document are the v2.0.15 baseline;
 > the next release is expected to expand the fixture corpus (see [v2.1.0 expansion target](#v210-expansion-target)).
 >
 > **A checked-in JSON dump of the latest run lives at**
@@ -35,7 +35,7 @@
 ## Honest limitations — read this first
 
 The headline number (**100% precision, 100% recall**) is reproducible from a single
-command and is enforced by CI. But it is a **v2.0.14 baseline expanded through the
+command and is enforced by CI. But it is a **v2.0.15 baseline expanded through the
 v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
 Specifically:
 
@@ -57,7 +57,7 @@ Specifically:
    backend settling in and are scheduled for v2.1.0+ (see backlog).
 5. **All 50 L2 rule_ids + 4 L2-CAMP rule_ids are now covered.** v2.0.8 had only 5 L2
    rules; v2.0.9 expanded the corpus to 45 fixtures covering the first 49 L2 rule_ids.
-   v2.0.14 added 143 more fixtures to bring the corpus to 188 with per-rule negatives,
+   v2.0.15 added 143 more fixtures to bring the corpus to 188 with per-rule negatives,
    per-rule depth variants, the new L2-BUILD-001 cross-ecosystem build-hook detector,
    and explicit CAMP-rule coverage (4 of 4 L2-CAMP rule_ids now have a positive
    fixture and a negative fixture).
@@ -149,7 +149,7 @@ disappearing after a refactor.
 
 ---
 
-## Per-rule results (v2.0.14)
+## Per-rule results (v2.0.15)
 
 All 50 L2 rule_ids in `RULE_INFO` (plus 4 L2-CAMP rule_ids from the IoC
 corpus) have at least one positive fixture. The harness reproduces

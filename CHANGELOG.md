@@ -2,6 +2,35 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.15] — 2026-06-21
+
+### Staged token-filtered scanning + multi-ecosystem typosquat corpus
+
+Adds a shared `PatternScanner` that pre-filters expensive regex rules with cheap
+literal tokens, then refactors obfuscation, PyPI obfuscation, network exfil,
+and worm propagation rules into deterministic sub-patterns carrying
+`required_tokens`. Replaces brute-force typosquat checking with a
+length-bucketed trie + iterative Levenshtein automaton (`CorpusIndex`),
+pure Python and dependency-free.
+
+Extends `picosentry update` with `--ecosystem {npm,pypi,go,cargo,maven,rubygems,nuget,all}`,
+live npm/pypi fetchers, built-in fallbacks, and a `corpus.json` manifest; warns
+when any ecosystem corpus is older than 30 days. Also fixes optional-dependency
+test skips so the full suite runs clean in environments with or without
+`pytest-timeout`/`sigstore` installed.
+
+**Files changed:**
+- New: `picosentry/scan/rules/pattern_scanner.py`, `corpus_index.py`
+- Refactored: `obfuscation.py`, `pypi_obfuscation.py`, `network_exfil.py`,
+  `worm_propagation.py`, `typosquat.py`, `engine.py`, `cli.py`
+- Tests: `tests/scan/test_pattern_scanner.py`, `test_corpus_index.py`,
+  `test_update_extended.py`, `test_timeout_plugin.py`, `test_benchmark.py`
+
+**Version bump:** all `__version__` strings and deployment manifests bumped
+from 2.0.14 to 2.0.15.
+
+---
+
 ## [2.0.14] — 2026-06-16
 
 ### Detection corpus expansion — L2-BUILD-001 cross-ecosystem build hooks

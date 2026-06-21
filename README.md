@@ -34,8 +34,8 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.14` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.0.14 published |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.15` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.0.15 published |
 
 The scanner is the stable product. Everything else is beta or experimental —
 read the notes column honestly. "Beta" means it works but hasn't been
@@ -61,7 +61,7 @@ security review — don't expose it to untrusted networks.
 - **Admission controller is not tested against a real K8s cluster.** The code
   exists and the CLI works, but it hasn't seen a real API server.
 - **Has published detection-benchmark data** in
-  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.14 corpus is 188
+  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.15 corpus is 188
   fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids
   / 100% precision / 100% recall. The corpus is small (mean ~3
   positives + ~3 negatives per rule across 54 rules) and the fixtures are

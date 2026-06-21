@@ -202,6 +202,15 @@ class TestPyPIObfuscation:
         findings = detect_pypi_obfuscation(tmp_path)
         assert len(findings) == 0
 
+    def test_large_benign_python_file_no_tokens(self, tmp_path):
+        """A large Python file without obfuscation tokens returns zero quickly."""
+        from picosentry.scan.rules.pypi_obfuscation import detect_pypi_obfuscation
+
+        (tmp_path / "pyproject.toml").write_text('[project]\nname = "test"\nversion = "0.1.0"\n')
+        (tmp_path / "big.py").write_text("# benign\n" + "x = 1\n" * 20_000)
+        findings = detect_pypi_obfuscation(tmp_path)
+        assert len(findings) == 0
+
 
 # ── Full engine integration tests ──────────────────────────────────────
 

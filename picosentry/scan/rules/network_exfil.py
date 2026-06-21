@@ -4,6 +4,7 @@ import re
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
+from .pattern_scanner import PatternScanner, TokenPattern
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_network_exfiltration"]
@@ -47,222 +48,307 @@ SKIP_EXTENSIONS = frozenset(
 )
 
 
-C2_DOMAINS: list[tuple[str, str, Severity, str]] = [
-    (r"\bshai-hulud\.cc\b", "Shai-Hulud C2", Severity.CRITICAL, "Shai-Hulud worm C2 domain"),
-    (r"\bfirebase\.su\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
-    (r"\bdieorsuffer\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 domain"),
-    (r"\bsmartscreen-api\.com\b", "Scavenger C2", Severity.CRITICAL, "CVE-2025-54313 Scavenger C2 phishing domain"),
-    (
-        r"\bwebhook\.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7",
-        "Shai-Hulud exfil",
-        Severity.CRITICAL,
-        "Known Shai-Hulud exfiltration webhook",
-    ),
+_SCRIPT_REFERENCES = [
+    "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
+    "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
+    "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/",
+]
+
+_SOURCE_REFERENCES = [
+    "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
+    "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/",
 ]
 
 
-PHISHING_DOMAINS: list[tuple[str, str, Severity, str]] = [
-    (r"\bnpmjs\.(?:help|support|security)\b", "npm phishing", Severity.HIGH, "Phishing domain impersonating npmjs.com"),
-    (r"\bnpnjs\.com\b", "npm typosquat", Severity.HIGH, "Typosquat domain mimicking npmjs.com"),
-    (r"\bnprnjs\.\b", "npm typosquat", Severity.MEDIUM, "Typosquat domain mimicking npmjs.com"),
-    (r"\bnpmj5\.\b", "npm typosquat", Severity.MEDIUM, "Typosquat domain mimicking npmjs.com"),
-    (r"\bnpn-js\.\b", "npm typosquat", Severity.MEDIUM, "Typosquat domain mimicking npmjs.com"),
-]
+def _remediation(name: str, in_source: bool) -> str:
+    where = " in source" if in_source else ""
+
+    if "C2" in name or name in ("Shai-Hulud exfil", "Scavenger C2"):
+        return (
+            f"Known supply chain attack C2 domain detected{where}. Remove this dependency immediately. "
+            "Rotate any credentials that may have been exposed. "
+            "See: https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/"
+        )
+    if "metadata" in name.lower() or "IMDS" in name or name == "metadata_header":
+        return (
+            f"Cloud metadata endpoint access detected{where}. This can exfiltrate IAM credentials. "
+            "Ensure your environment blocks IMDS access from npm install. "
+            "See: https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"
+        )
+    if "phishing" in name.lower() or "typosquat" in name.lower():
+        return (
+            f"Phishing/typosquat domain detected{where}. This domain mimics npmjs.com to steal credentials. "
+            "Remove this dependency and verify all npm credentials."
+        )
+    if "env_exfil" in name:
+        return (
+            f"Environment variables are being sent over the network{where}. "
+            "This is a credential exfiltration pattern. Remove this dependency and rotate exposed credentials."
+        )
+    if "Scavenger" in name or "scavenger" in name:
+        return (
+            f"Scavenger malware indicator detected{where} (CVE-2025-54313). "
+            "Remove this dependency immediately and audit all systems."
+        )
+    return f"Suspicious network pattern detected{where}. Review this dependency carefully."
 
 
-CLOUD_METADATA: list[tuple[str, str, Severity, str]] = [
-    (
-        r"169\.254\.169\.254",
-        "AWS IMDS",
-        Severity.CRITICAL,
-        "AWS Instance Metadata Service endpoint — credential exfiltration risk",
-    ),
-    (r"fd00:ec2::254", "AWS IMDS IPv6", Severity.CRITICAL, "AWS Instance Metadata Service IPv6 endpoint"),
-    (
-        r"\[fd00:ec2::254\]",
-        "AWS IMDS IPv6 brackets",
-        Severity.CRITICAL,
-        "AWS Instance Metadata Service IPv6 bracket notation",
-    ),
-    (r"metadata\.google\.internal", "GCP metadata", Severity.CRITICAL, "GCP Compute Engine metadata endpoint"),
-    (r"metadata\.azure\.com", "Azure metadata", Severity.CRITICAL, "Azure Instance Metadata Service endpoint"),
-    (r"/latest/meta-data/", "AWS IMDS path", Severity.CRITICAL, "AWS IMDS metadata path pattern"),
-    (r"/computeMetadata/v1/", "GCP metadata path", Severity.CRITICAL, "GCP metadata path pattern"),
-]
+def _tp(
+    name: str,
+    pattern: re.Pattern[str],
+    severity: Severity,
+    desc: str,
+    required_tokens: frozenset[str],
+    in_source: bool,
+) -> TokenPattern:
+    return TokenPattern(
+        rule_id="L2-NETEX-001",
+        pattern=pattern,
+        severity=severity,
+        message=desc,
+        remediation=_remediation(name, in_source),
+        required_tokens=required_tokens,
+        confidence=Confidence.MEDIUM if in_source else Confidence.HIGH,
+        references=_SOURCE_REFERENCES if in_source else _SCRIPT_REFERENCES,
+    )
 
 
-ALL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = []
+def _build_patterns(in_source: bool) -> list[TokenPattern]:
+    patterns: list[TokenPattern] = []
 
-for pattern_str, name, severity, desc in C2_DOMAINS:
-    ALL_PATTERNS.append((name, re.compile(pattern_str, re.IGNORECASE), severity, desc, name))
-for pattern_str, name, severity, desc in PHISHING_DOMAINS:
-    ALL_PATTERNS.append((name, re.compile(pattern_str, re.IGNORECASE), severity, desc, name))
-for pattern_str, name, severity, desc in CLOUD_METADATA:
-    ALL_PATTERNS.append((name, re.compile(pattern_str), severity, desc, name))
-
-
-ENV_EXFIL_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
-    (
-        "env_exfil_fetch",
-        re.compile(r"(?:fetch|axios|http\.request|https\.request|got|request)\s*.*process\.env", re.IGNORECASE),
-        Severity.CRITICAL,
-        "Environment variable exfiltration via network request",
-        "Network requests that include process.env data are exfiltrating credentials.",
-    ),
-    (
-        "env_exfil_curl",
-        re.compile(r"(?:curl|wget)\s+.*\$(?:AWS_|NPM_TOKEN|GITHUB_TOKEN|NODE_AUTH_TOKEN|GITLAB_TOKEN)", re.IGNORECASE),
-        Severity.CRITICAL,
-        "Environment variable exfiltration via curl/wget",
-        "Shell commands that send credential environment variables over the network.",
-    ),
-    (
-        "metadata_header",
-        re.compile(r"Metadata:\s*true", re.IGNORECASE),
-        Severity.HIGH,
-        "Azure metadata header pattern detected",
-        "The 'Metadata: true' header is used to query Azure Instance Metadata Service.",
-    ),
-    (
-        "scavenger_dll",
-        re.compile(
-            r"\b(?:node-gyp\.(?:dll|so)|loader\.(?:dll|so)|version\.(?:dll|so)|umpdc\.(?:dll|so)|profapi\.(?:dll|so)|libumpdc\.so|libprofapi\.so)\b"
+    # C2 domains.
+    c2_domains: list[tuple[str, str, Severity, str, frozenset[str]]] = [
+        (
+            r"\bshai-hulud\.cc\b",
+            "Shai-Hulud C2",
+            Severity.CRITICAL,
+            "Shai-Hulud worm C2 domain",
+            frozenset({"shai-hulud.cc"}),
         ),
-        Severity.CRITICAL,
-        "Scavenger malware DLL/SO file reference detected",
-        "Known Scavenger malware native library files (CVE-2025-54313).",
-    ),
-]
+        (
+            r"\bfirebase\.su\b",
+            "Scavenger C2",
+            Severity.CRITICAL,
+            "CVE-2025-54313 Scavenger C2 domain",
+            frozenset({"firebase.su"}),
+        ),
+        (
+            r"\bdieorsuffer\.com\b",
+            "Scavenger C2",
+            Severity.CRITICAL,
+            "CVE-2025-54313 Scavenger C2 domain",
+            frozenset({"dieorsuffer.com"}),
+        ),
+        (
+            r"\bsmartscreen-api\.com\b",
+            "Scavenger C2",
+            Severity.CRITICAL,
+            "CVE-2025-54313 Scavenger C2 phishing domain",
+            frozenset({"smartscreen-api.com"}),
+        ),
+        (
+            r"\bwebhook\.site/bb8ca5f6-4175-45d2-b042-fc9ebb8170b7",
+            "Shai-Hulud exfil",
+            Severity.CRITICAL,
+            "Known Shai-Hulud exfiltration webhook",
+            frozenset({"webhook.site"}),
+        ),
+    ]
+    for pattern_str, name, severity, desc, tokens in c2_domains:
+        patterns.append(_tp(name, re.compile(pattern_str, re.IGNORECASE), severity, desc, tokens, in_source))
+
+    # Phishing domains.
+    phishing_domains: list[tuple[str, str, Severity, str, frozenset[str]]] = [
+        (
+            r"\bnpmjs\.(?:help|support|security)\b",
+            "npm phishing",
+            Severity.HIGH,
+            "Phishing domain impersonating npmjs.com",
+            frozenset({"npmjs."}),
+        ),
+        (
+            r"\bnpnjs\.com\b",
+            "npm typosquat",
+            Severity.HIGH,
+            "Typosquat domain mimicking npmjs.com",
+            frozenset({"npnjs.com"}),
+        ),
+        (
+            r"\bnprnjs\.\b",
+            "npm typosquat",
+            Severity.MEDIUM,
+            "Typosquat domain mimicking npmjs.com",
+            frozenset({"nprnjs."}),
+        ),
+        (
+            r"\bnpmj5\.\b",
+            "npm typosquat",
+            Severity.MEDIUM,
+            "Typosquat domain mimicking npmjs.com",
+            frozenset({"npmj5."}),
+        ),
+        (
+            r"\bnpn-js\.\b",
+            "npm typosquat",
+            Severity.MEDIUM,
+            "Typosquat domain mimicking npmjs.com",
+            frozenset({"npn-js."}),
+        ),
+    ]
+    for pattern_str, name, severity, desc, tokens in phishing_domains:
+        patterns.append(_tp(name, re.compile(pattern_str, re.IGNORECASE), severity, desc, tokens, in_source))
+
+    # Cloud metadata.
+    cloud_metadata: list[tuple[str, str, Severity, str, frozenset[str]]] = [
+        (
+            r"169\.254\.169\.254",
+            "AWS IMDS",
+            Severity.CRITICAL,
+            "AWS Instance Metadata Service endpoint",
+            frozenset({"169.254.169.254"}),
+        ),
+        (
+            r"fd00:ec2::254",
+            "AWS IMDS IPv6",
+            Severity.CRITICAL,
+            "AWS Instance Metadata Service IPv6 endpoint",
+            frozenset({"fd00:ec2::254"}),
+        ),
+        (
+            r"\[fd00:ec2::254\]",
+            "AWS IMDS IPv6 brackets",
+            Severity.CRITICAL,
+            "AWS IMDS IPv6 bracket notation",
+            frozenset({"[fd00:ec2::254]"}),
+        ),
+        (
+            r"metadata\.google\.internal",
+            "GCP metadata",
+            Severity.CRITICAL,
+            "GCP Compute Engine metadata endpoint",
+            frozenset({"metadata.google.internal"}),
+        ),
+        (
+            r"metadata\.azure\.com",
+            "Azure metadata",
+            Severity.CRITICAL,
+            "Azure Instance Metadata Service endpoint",
+            frozenset({"metadata.azure.com"}),
+        ),
+        (
+            r"/latest/meta-data/",
+            "AWS IMDS path",
+            Severity.CRITICAL,
+            "AWS IMDS metadata path pattern",
+            frozenset({"/latest/meta-data/"}),
+        ),
+        (
+            r"/computeMetadata/v1/",
+            "GCP metadata path",
+            Severity.CRITICAL,
+            "GCP metadata path pattern",
+            frozenset({"/computemetadata/v1/"}),
+        ),
+    ]
+    for pattern_str, name, severity, desc, tokens in cloud_metadata:
+        patterns.append(_tp(name, re.compile(pattern_str), severity, desc, tokens, in_source))
+
+    return patterns
+
+
+def _build_env_exfil_patterns(in_source: bool) -> list[TokenPattern]:
+    patterns: list[TokenPattern] = []
+
+    # Network requests that include process.env.
+    http_libs: list[tuple[str, str]] = [
+        (r"fetch", "fetch"),
+        (r"axios", "axios"),
+        (r"http\.request", "http.request"),
+        (r"https\.request", "https.request"),
+        (r"got", "got"),
+        (r"request", "request"),
+    ]
+    for lib, token in http_libs:
+        patterns.append(
+            _tp(
+                "env_exfil_fetch",
+                re.compile(rf"\b{lib}\s*.*process\.env", re.IGNORECASE),
+                Severity.CRITICAL,
+                "Environment variable exfiltration via network request",
+                frozenset({token, "process.env"}),
+                in_source,
+            )
+        )
+
+    # curl/wget sending credential env vars.
+    for tool, tool_token in ((r"curl", "curl"), (r"wget", "wget")):
+        patterns.append(
+            _tp(
+                "env_exfil_curl",
+                re.compile(
+                    rf"\b{tool}\s+.*\$(?:AWS_|NPM_TOKEN|GITHUB_TOKEN|NODE_AUTH_TOKEN|GITLAB_TOKEN)",
+                    re.IGNORECASE,
+                ),
+                Severity.CRITICAL,
+                "Environment variable exfiltration via curl/wget",
+                frozenset({tool_token}),
+                in_source,
+            )
+        )
+
+    # Azure metadata header.
+    patterns.append(
+        _tp(
+            "metadata_header",
+            re.compile(r"Metadata:\s*true", re.IGNORECASE),
+            Severity.HIGH,
+            "Azure metadata header pattern detected",
+            frozenset({"metadata:"}),
+            in_source,
+        )
+    )
+
+    # Scavenger malware native libraries.
+    scavenger_files: list[tuple[str, str, str]] = [
+        (r"\bnode-gyp\.(?:dll|so)\b", "node-gyp", "node-gyp"),
+        (r"\bloader\.(?:dll|so)\b", "loader", "loader."),
+        (r"\bversion\.(?:dll|so)\b", "version", "version."),
+        (r"\b(?:umpdc\.(?:dll|so)|libumpdc\.so)\b", "umpdc", "umpdc"),
+        (r"\b(?:profapi\.(?:dll|so)|libprofapi\.so)\b", "profapi", "profapi"),
+    ]
+    for regex, _label, token in scavenger_files:
+        patterns.append(
+            _tp(
+                "scavenger_dll",
+                re.compile(regex),
+                Severity.CRITICAL,
+                "Scavenger malware DLL/SO file reference detected",
+                frozenset({token}),
+                in_source,
+            )
+        )
+
+    return patterns
+
+
+_SCRIPT_SCANNER = PatternScanner(_build_patterns(in_source=False) + _build_env_exfil_patterns(in_source=False))
+_TEXT_SCANNER = PatternScanner(_build_patterns(in_source=False))  # no env-exfil for non-script text
+_SOURCE_SCANNER = PatternScanner(_build_patterns(in_source=True) + _build_env_exfil_patterns(in_source=True))
 
 
 def _scan_text_for_exfil(text: str, source_label: str, is_script: bool = False) -> list[Finding]:
-    findings: list[Finding] = []
-
-    patterns = ALL_PATTERNS + ENV_EXFIL_PATTERNS if is_script else ALL_PATTERNS
-
-    for name, pattern, severity, desc, _remediation_key in patterns:
-        for match in pattern.finditer(text):
-            matched_text = match.group(0)[:120]
-
-            if "C2" in name or name in ("Shai-Hulud exfil", "Scavenger C2"):
-                remediation = (
-                    "Known supply chain attack C2 domain detected. Remove this dependency immediately. "
-                    "Rotate any credentials that may have been exposed. "
-                    "See: https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/"
-                )
-            elif "metadata" in name.lower() or "IMDS" in name or name == "metadata_header":
-                remediation = (
-                    "Cloud metadata endpoint access detected. This can exfiltrate IAM credentials. "
-                    "Ensure your environment blocks IMDS access from npm install. "
-                    "See: https://owasp.org/www-community/attacks/Server_Side_Request_Forgery"
-                )
-            elif "phishing" in name.lower() or "typosquat" in name.lower():
-                remediation = (
-                    "Phishing/typosquat domain detected. This domain mimics npmjs.com to steal credentials. "
-                    "Remove this dependency and verify all npm credentials."
-                )
-            elif "env_exfil" in name:
-                remediation = (
-                    "Environment variables are being sent over the network. "
-                    "This is a credential exfiltration pattern. Remove this dependency and rotate exposed credentials."
-                )
-            elif "Scavenger" in name or "scavenger" in name:
-                remediation = (
-                    "Scavenger malware indicator detected (CVE-2025-54313). "
-                    "Remove this dependency immediately and audit all systems."
-                )
-            else:
-                remediation = "Suspicious network pattern detected. Review this dependency carefully."
-
-            findings.append(
-                Finding(
-                    rule_id="L2-NETEX-001",
-                    severity=severity,
-                    confidence=Confidence.HIGH,
-                    package=source_label,
-                    file="",
-                    message=desc,
-                    evidence=matched_text,
-                    remediation=remediation,
-                    references=[
-                        "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
-                        "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
-                        "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/",
-                    ],
-                )
-            )
-
-    return findings
+    scanner = _SCRIPT_SCANNER if is_script else _TEXT_SCANNER
+    return scanner.scan_text(text, source_label, "")
 
 
 def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
-    findings: list[Finding] = []
-
-    if file_path.suffix in SKIP_EXTENSIONS:
-        return findings
-
-    try:
-        size = file_path.stat().st_size
-    except OSError:
-        return findings
-
-    if size > MAX_FILE_BYTES:
-        return findings
-
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return findings
-
-    all_patterns = ALL_PATTERNS + ENV_EXFIL_PATTERNS
-
-    for name, pattern, severity, desc, _remediation_key in all_patterns:
-        for match in pattern.finditer(content):
-            line_num = content[: match.start()].count("\n") + 1
-            matched_text = match.group(0)[:120]
-
-            if "C2" in name or name == "Shai-Hulud exfil":
-                remediation = (
-                    "Known supply chain attack C2 domain detected in source. "
-                    "Remove this dependency and rotate any exposed credentials."
-                )
-            elif "IMDS" in name or "metadata" in name.lower():
-                remediation = (
-                    "Cloud metadata endpoint access in source. This can exfiltrate IAM credentials. Block IMDS access."
-                )
-            elif "phishing" in name.lower() or "typosquat" in name.lower():
-                remediation = "Phishing/typosquat domain in source. Remove this dependency."
-            elif "env_exfil" in name:
-                remediation = (
-                    "Environment variable exfiltration via network in source. "
-                    "Remove this dependency and rotate exposed credentials."
-                )
-            elif "Scavenger" in name or "scavenger" in name:
-                remediation = (
-                    "Scavenger malware indicator in source (CVE-2025-54313). Remove this dependency immediately."
-                )
-            else:
-                remediation = "Suspicious network pattern in source. Review carefully."
-
-            findings.append(
-                Finding(
-                    rule_id="L2-NETEX-001",
-                    severity=severity,
-                    confidence=Confidence.MEDIUM,
-                    package=pkg_label,
-                    file=str(file_path),
-                    line=line_num,
-                    message=desc,
-                    evidence=matched_text,
-                    remediation=remediation,
-                    references=[
-                        "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
-                        "https://unit42.paloaltonetworks.com/npm-supply-chain-attack-shai-hulud-2-0/",
-                    ],
-                )
-            )
-
-    return findings
+    return _SOURCE_SCANNER.scan_file(
+        file_path,
+        pkg_label,
+        max_bytes=MAX_FILE_BYTES,
+        skip_extensions=SKIP_EXTENSIONS,
+        skip_dirs=SKIP_DIRS,
+    )
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:

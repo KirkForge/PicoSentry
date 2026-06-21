@@ -28,6 +28,8 @@ import pytest
 
 from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import ScanResult
+from picosentry.scan.rules.corpus_index import CorpusIndex
+from picosentry.scan.rules.obfuscation import detect_obfuscation
 
 # Skip benchmark tests by default unless --benchmark flag is passed
 pytestmark = pytest.mark.slow
@@ -43,6 +45,12 @@ TARGETS = {
     "corpus_load_ms": 200,  # JSON corpus file loading
     "json_format_ms": 100,  # JSON serialization
     "cyclonedx_format_ms": 200,  # CycloneDX SBOM generation
+    "token_filter_negative_ms": 50,  # 100 KB clean JS file scans without suspicious tokens
+    # Pure-Python exact Levenshtein over 10k names and 100 queries is ~1.2s on
+    # quiet reference hardware and ~2s under loaded CI.  The target guards
+    # against regressions; a native distance library would lower it, but we keep
+    # the implementation dependency-free.
+    "corpus_index_10k_ms": 3000,
 }
 
 
@@ -62,6 +70,23 @@ def small_project():
         (pkg_dir / "package.json").write_text(json.dumps({"name": "left-pad", "version": "1.3.0"}))
         (pkg_dir / "index.js").write_text("module.exports = function leftpad(str, len, ch) { return str; }")
         yield root
+
+
+@pytest.fixture
+def benign_large_js(tmp_path):
+    """Create a 100 KB JavaScript file with no suspicious obfuscation tokens."""
+    root = tmp_path / "project"
+    root.mkdir()
+    pkg = {"name": "clean-pkg", "version": "1.0.0"}
+    (root / "package.json").write_text(json.dumps(pkg))
+    nm = root / "node_modules" / "clean-lib"
+    nm.mkdir(parents=True)
+    (nm / "package.json").write_text(json.dumps({"name": "clean-lib", "version": "1.0.0"}))
+    # Repeat a benign snippet until we exceed 100 KB.
+    snippet = "function add(a, b) { return a + b; }\n"
+    repeats = (100 * 1024 // len(snippet)) + 1
+    (nm / "index.js").write_text(snippet * repeats)
+    return root
 
 
 @pytest.fixture
@@ -209,6 +234,47 @@ def test_bench_cyclonedx_output(engine, small_project):
     if elapsed_ms > TARGETS["cyclonedx_format_ms"]:
         pytest.fail(f"CycloneDX format too slow: {elapsed_ms:.0f}ms > {TARGETS['cyclonedx_format_ms']}ms target")
     print(f"  cyclonedx_format: {elapsed_ms:.0f}ms, {len(sbom)} chars ✓")
+
+
+# ── Token Filter Fast Path ───────────────────────────────
+
+
+def test_bench_token_filter_negative(benign_large_js):
+    """A clean 100 KB JS file without suspicious tokens should scan quickly."""
+    start = time.monotonic()
+    findings = detect_obfuscation(benign_large_js)
+    elapsed_ms = (time.monotonic() - start) * 1000
+
+    assert len(findings) == 0
+
+    if elapsed_ms > TARGETS["token_filter_negative_ms"]:
+        pytest.fail(
+            f"Token-filter negative path too slow: {elapsed_ms:.0f}ms > "
+            f"{TARGETS['token_filter_negative_ms']}ms target"
+        )
+    print(f"  token_filter_negative: {elapsed_ms:.0f}ms, {len(findings)} findings ✓")
+
+
+# ── Corpus Index Lookup ──────────────────────────────────
+
+
+def test_bench_corpus_index_10k():
+    """Building a 10k-name index and running 100 queries should be fast."""
+    from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100
+
+    # Use realistic, varied package names rather than a single shared prefix.
+    bases = BUILTIN_TOP_100[:50]
+    names = [f"{bases[i % len(bases)]}-{i:05d}" for i in range(10_000)]
+    start = time.monotonic()
+    index = CorpusIndex(names)
+    for i in range(100):
+        base = bases[i % len(bases)]
+        index.near_matches(f"{base}-{i:05d}x", max_distance=2.0)
+    elapsed_ms = (time.monotonic() - start) * 1000
+
+    if elapsed_ms > TARGETS["corpus_index_10k_ms"]:
+        pytest.fail(f"Corpus index 10k too slow: {elapsed_ms:.0f}ms > {TARGETS['corpus_index_10k_ms']}ms target")
+    print(f"  corpus_index_10k: {elapsed_ms:.0f}ms, {len(index)} names, 100 queries ✓")
 
 
 # ── Determinism Verify ───────────────────────────────────

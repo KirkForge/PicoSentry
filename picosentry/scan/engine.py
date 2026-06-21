@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import hashlib
 import inspect
+import json
 import logging
 import os
 import threading
 import time
 from collections.abc import Callable, Sequence
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -143,7 +145,42 @@ class ScanEngine:
                 h.update(f.read_bytes())
             except OSError:
                 continue
+
+        # Include the corpus manifest so version changes when update metadata changes.
+        self._warn_if_corpus_stale()
         return h.hexdigest()[:12]
+
+    def _warn_if_corpus_stale(self) -> None:
+        manifest_path = self._corpus_dir / "corpus.json"
+        if not manifest_path.is_file():
+            return
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        ecosystems = data.get("ecosystems", {})
+        if not isinstance(ecosystems, dict):
+            return
+
+        now = datetime.now(timezone.utc)
+        for ecosystem, entry in ecosystems.items():
+            fetched_at = entry.get("fetched_at")
+            if not isinstance(fetched_at, str):
+                continue
+            try:
+                fetched = datetime.fromisoformat(fetched_at)
+                if fetched.tzinfo is None:
+                    fetched = fetched.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if now - fetched > timedelta(days=30):
+                logger.warning(
+                    "Corpus '%s' was last fetched on %s. Run 'picosentry update --ecosystem %s' to refresh it.",
+                    ecosystem,
+                    fetched.date().isoformat(),
+                    ecosystem,
+                )
 
     def register(self, rule_id: str, rule: DetectorRule) -> ScanEngine:
         self._rules[rule_id] = rule

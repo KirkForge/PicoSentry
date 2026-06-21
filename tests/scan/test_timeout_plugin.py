@@ -9,7 +9,7 @@ import pytest
 
 def test_pytest_timeout_plugin_loaded(pytestconfig):
     """Enterprise CI guard: pytest-timeout must be loaded."""
-    pytest.importorskip("timeout")
+    pytest.importorskip("pytest_timeout")
     assert pytestconfig.pluginmanager.hasplugin("timeout"), (
         "pytest-timeout plugin is not loaded. "
         "Enterprise CI requires timeout protection. "

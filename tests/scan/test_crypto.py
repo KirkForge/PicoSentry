@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import importlib.util
 import json
 import os
 import tempfile
@@ -21,6 +22,10 @@ from picosentry.scan.crypto import (
     verify_content,
     write_detached_signature,
 )
+
+
+def _has_sigstore() -> bool:
+    return importlib.util.find_spec("sigstore") is not None
 
 
 class TestSignatureBundle:
@@ -180,6 +185,10 @@ class TestSignVerifyIntegration:
 class TestSigstoreSigning:
     """Mocked tests for the sigstore 4.x signing path."""
 
+    pytestmark = pytest.mark.skipif(
+        not _has_sigstore(), reason="sigstore extra not installed"
+    )
+
     @patch("picosentry.scan.crypto._check_sigstore")
     @patch("sigstore.models.ClientTrustConfig")
     @patch("sigstore.sign.SigningContext")
@@ -255,6 +264,10 @@ class TestSigstoreSigning:
 
 class TestSigstoreVerification:
     """Mocked tests for the sigstore 4.x verification path."""
+
+    pytestmark = pytest.mark.skipif(
+        not _has_sigstore(), reason="sigstore extra not installed"
+    )
 
     @patch("picosentry.scan.crypto._check_sigstore")
     @patch("sigstore.models.Bundle")

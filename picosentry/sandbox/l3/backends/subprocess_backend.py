@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -21,20 +20,7 @@ from picosentry.sandbox.models import _now_ms
 logger = logging.getLogger("picodome.l3.subprocess")
 
 
-_LINUX_TRACE_PATTERNS = {
-    "open": re.compile(r'open(at)?\("([^"]+)",.*\)\s*=\s*(-?\d+)'),
-    "read": re.compile(r'read\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "write": re.compile(r'write\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "connect": re.compile(r'connect\((\d+),\s*\{.*sin_addr=inet_addr\("([^"]+)"\).*\},\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "bind": re.compile(r"bind\((\d+),\s*\{.*\},\s*(\d+)\)\s*=\s*(-?\d+)"),
-    "execve": re.compile(r'execve\("([^"]+)"'),
-    "socket": re.compile(r"socket\(.*\)\s*=\s*(-?\d+)"),
-    "sendto": re.compile(r"sendto\((\d+),.*\)\s*=\s*(-?\d+)"),
-}
-
-
 class SubprocessBackend(SandboxBackend):
-
     @property
     def name(self) -> str:
         return "subprocess"
@@ -67,24 +53,33 @@ class SubprocessBackend(SandboxBackend):
         effective_timeout = timeout or 30.0
 
         try:
-
-
             if env is not None:
-
                 run_env = dict(env)
             else:
-
                 run_env = {
                     k: v
                     for k, v in os.environ.items()
                     if k
                     in (
-                        'PATH', 'HOME', 'USER', 'LANG', 'LC_ALL', 'LC_CTYPE',
-                        'TERM', 'TMPDIR', 'TEMP', 'TMP',
-                        'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
-                        'PYTHONPATH', 'PYTHONHOME', 'PYTHONIOENCODING',
-                        'NODE_PATH', 'NPM_CONFIG_PREFIX',
-                        'PICODOME_SANDBOX_BACKEND', 'PICODOME_ALLOW_DEGRADED',
+                        "PATH",
+                        "HOME",
+                        "USER",
+                        "LANG",
+                        "LC_ALL",
+                        "LC_CTYPE",
+                        "TERM",
+                        "TMPDIR",
+                        "TEMP",
+                        "TMP",
+                        "LD_LIBRARY_PATH",
+                        "DYLD_LIBRARY_PATH",
+                        "PYTHONPATH",
+                        "PYTHONHOME",
+                        "PYTHONIOENCODING",
+                        "NODE_PATH",
+                        "NPM_CONFIG_PREFIX",
+                        "PICODOME_SANDBOX_BACKEND",
+                        "PICODOME_ALLOW_DEGRADED",
                     )
                 }
 
@@ -115,7 +110,6 @@ class SubprocessBackend(SandboxBackend):
 
             stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
             stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
-
 
             events.extend(self._analyze_output(stdout, stderr, policy, command))
 
@@ -158,13 +152,6 @@ class SubprocessBackend(SandboxBackend):
             stderr=stderr,
         )
 
-    def _parse_linux_trace(self, trace_output: str) -> list[dict]:
-        entries = []
-        for name, pattern in _LINUX_TRACE_PATTERNS.items():
-            for match in pattern.finditer(trace_output):
-                entries.append({"syscall": name, "groups": match.groups()})
-        return entries
-
     def _analyze_output(
         self,
         stdout: str,
@@ -182,7 +169,6 @@ class SubprocessBackend(SandboxBackend):
                 events.extend(self._check_file_write(combined, rule))
             elif rule.target == RuleTarget.PROCESS_SPAWN:
                 events.extend(self._check_process_spawn(combined, rule))
-
 
         events.extend(self._check_suspicious_patterns(stdout, stderr))
 

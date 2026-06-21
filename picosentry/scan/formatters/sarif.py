@@ -1,4 +1,3 @@
-
 import json
 from typing import Any
 
@@ -19,7 +18,6 @@ def format_sarif(result: ScanResult) -> str:
     rules_seen = {}
     results = []
 
-
     for finding in sorted(result.findings, key=lambda f: f.sort_key()):
         if finding.rule_id not in rules_seen:
             info = RULE_INFO.get(finding.rule_id, {})
@@ -38,10 +36,8 @@ def format_sarif(result: ScanResult) -> str:
                 rule_def["helpUri"] = help_uri
             rules_seen[finding.rule_id] = rule_def
 
-
     sorted_rule_ids = sorted(rules_seen.keys())
     rule_index = {rid: idx for idx, rid in enumerate(sorted_rule_ids)}
-
 
     for finding in sorted(result.findings, key=lambda f: f.sort_key()):
         properties: dict[str, Any] = {

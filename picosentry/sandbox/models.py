@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import time
@@ -33,7 +32,6 @@ class BehavioralVerdict(str, Enum):
 
 @dataclass(frozen=True)
 class Finding:  # rationale: sandbox finding, frozen for determinism, empty finding_id by default
-
     rule_id: str
     severity: Severity
     message: str
@@ -51,7 +49,7 @@ class Finding:  # rationale: sandbox finding, frozen for determinism, empty find
         }
         if not deterministic and self.finding_id:
             d["finding_id"] = self.finding_id
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 ScanStats = _ScanStats

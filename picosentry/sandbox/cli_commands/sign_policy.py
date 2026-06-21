@@ -59,7 +59,6 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
 
-
         key = _resolve_signing_key(args)
         if key is None:
             return 1
@@ -82,7 +81,6 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Error: policy file not found: {policy_path}", file=sys.stderr)
             return 1
 
-
         key = _resolve_signing_key(args)
         if key is None:
             return 1
@@ -98,10 +96,9 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"  Key ID:    {result.key_id}")
             print(f"  Timestamp: {result.timestamp}")
             return 0
-        else:
-            print(f"✗ Policy signature INVALID: {policy_path}", file=sys.stderr)
-            print(f"  Error: {result.error}", file=sys.stderr)
-            return 1
+        print(f"✗ Policy signature INVALID: {policy_path}", file=sys.stderr)
+        print(f"  Error: {result.error}", file=sys.stderr)
+        return 1
 
     elif args.sign_action == "generate-key":
         key = generate_key()

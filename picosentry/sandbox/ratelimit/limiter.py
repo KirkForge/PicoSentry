@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -12,8 +11,6 @@ logger = logging.getLogger("picodome.ratelimit")
 
 @dataclass(frozen=True)
 class RateLimitConfig:
-
-
     rate_per_second: float = 2.0
 
     burst_size: int = 10
@@ -35,7 +32,6 @@ class RateLimitConfig:
 
 
 class _TokenBucket:
-
     __slots__ = ("burst", "last_refill", "rate", "tokens")
 
     def __init__(self, rate: float, burst: int) -> None:
@@ -59,7 +55,6 @@ class _TokenBucket:
 
 
 class TokenBucketLimiter:
-
     def __init__(self, config: RateLimitConfig | None = None) -> None:
         self._config = config or RateLimitConfig()
         self._buckets: dict[str, _TokenBucket] = {}
@@ -75,14 +70,11 @@ class TokenBucketLimiter:
 
     def allow(self, actor: str, tokens: float = 1.0) -> bool:
         with self._lock:
-
             if self._global_bucket and not self._global_bucket.consume(tokens):
                 logger.debug("Global rate limit hit: actor=%s", actor)
                 return False
 
-
             if actor not in self._buckets:
-
                 if len(self._buckets) >= self._config.max_actors:
                     self._cleanup_stale()
 
@@ -94,7 +86,6 @@ class TokenBucketLimiter:
             allowed = self._buckets[actor].consume(tokens)
             if not allowed:
                 logger.debug("Rate limit hit for actor=%s", actor)
-
 
             now = time.monotonic()
             if now - self._last_cleanup > 60:

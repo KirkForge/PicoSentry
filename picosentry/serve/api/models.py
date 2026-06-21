@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field
 try:
     from pydantic import Extra  # type: ignore[attr-defined,unused-ignore]
 except ImportError:
-    Extra = None  # type: ignore[assignment,misc]
+    Extra = None  # type: ignore[misc,assignment,no-redef,unused-ignore]
 
 
 class ProjectRunRequest(BaseModel):
@@ -92,6 +92,7 @@ class RegisterRequest(BaseModel):
     # and v2 (``model_config``) so tests pass regardless of which version is
     # installed.
     if pydantic.VERSION.startswith("1."):
+
         class Config:
             extra = Extra.forbid
     else:

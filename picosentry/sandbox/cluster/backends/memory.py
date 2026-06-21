@@ -3,11 +3,13 @@ from __future__ import annotations
 import threading
 
 from picosentry.sandbox.cluster.backends.base import StateBackend
-from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.models import ClusterNode, ScanRequest
 
 
 class MemoryStateBackend(StateBackend):
-
     def __init__(self) -> None:
         self._nodes: dict[str, ClusterNode] = {}
         self._scans: dict[str, ScanRequest] = {}

@@ -1,4 +1,3 @@
-
 from picosentry.scan.models import ScanResult, Severity
 
 
@@ -28,13 +27,11 @@ def format_table(result: ScanResult, color: bool = True) -> str:
 
     lines = []
 
-
     lines.append(f"{B}🦞 PicoSentry{R}")
     lines.append(f"Target: {result.target}")
     lines.append(f"Engine: v{result.engine_version} | Corpus: v{result.corpus_version}")
     lines.append(f"Scan ID: {result.scan_id}")
     lines.append("")
-
 
     stats = result.stats
     lines.append(f"Packages scanned: {stats.packages_scanned}")
@@ -49,7 +46,6 @@ def format_table(result: ScanResult, color: bool = True) -> str:
             lines.append(f"  {rule_id:<18s} {ms:>5d}ms  ({count} findings)")
     lines.append("")
 
-
     if stats.findings_by_severity:
         lines.append(f"{B}Pinches by Severity:{R}")
         for sev in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO):
@@ -59,7 +55,6 @@ def format_table(result: ScanResult, color: bool = True) -> str:
                 pinch = _PINCH_LABELS[sev]
                 lines.append(f"  {c}{pinch:<12s}: {count}{R}")
         lines.append("")
-
 
     if not result.findings:
         lines.append(f"{B}No pinches. All clear. 🦞{R}")

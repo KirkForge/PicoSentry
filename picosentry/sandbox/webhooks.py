@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -26,7 +25,6 @@ class WebhookEvent(str, Enum):
 
 @dataclass(frozen=True)
 class WebhookConfig:
-
     url: str
     secret: str = ""  # HMAC signing secret
     events: list[str] = field(default_factory=lambda: ["scan_alert"])
@@ -49,7 +47,6 @@ class WebhookConfig:
 
 @dataclass(frozen=True)
 class WebhookPayload:
-
     event: str
     timestamp: str
     data: dict[str, Any]
@@ -71,9 +68,7 @@ def _sign_payload(payload_json: str, secret: str) -> str:
 
 
 class WebhookDispatcher:
-
     SEVERITY_ORDER: ClassVar[dict[str, int]] = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
-
 
     BLOCKED_URL_PATTERNS = (
         "169.254.",  # cloud metadata (AWS/GCP/Azure)
@@ -136,11 +131,9 @@ class WebhookDispatcher:
                 skipped += 1
                 continue
 
-
             if event.value not in wh.events and "*" not in wh.events:
                 skipped += 1
                 continue
-
 
             if severity and wh.min_severity:
                 sev_level = self.SEVERITY_ORDER.get(severity.lower(), 99)
@@ -148,7 +141,6 @@ class WebhookDispatcher:
                 if sev_level > min_level:
                     skipped += 1
                     continue
-
 
             timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             payload = WebhookPayload(
@@ -158,7 +150,6 @@ class WebhookDispatcher:
             )
             payload_json = payload.to_json()
             signature = _sign_payload(payload_json, wh.secret)
-
 
             success = self._deliver(wh, payload_json, signature)
             if success:

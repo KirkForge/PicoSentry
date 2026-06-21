@@ -89,7 +89,6 @@ version: 1
     config_path.write_text(template, encoding="utf-8")
     print(f"Created {config_path}")
 
-
     policy_path = target / ".picosentry-policy.yml"
     if not policy_path.exists() or args.force:
         from picosentry.scan.policy import default_policy_template

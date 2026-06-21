@@ -51,12 +51,16 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
     authenticated = user is not None
 
     if authenticated and user is not None:
-        await websocket.send_text(json.dumps({
-            "type": "auth",
-            "status": "ok",
-            "user_id": user.get("user_id"),
-            "note": "connected; send {\"action\": \"subscribe\", \"channels\": [...] } to receive events",
-        }))
+        await websocket.send_text(
+            json.dumps(
+                {
+                    "type": "auth",
+                    "status": "ok",
+                    "user_id": user.get("user_id"),
+                    "note": 'connected; send {"action": "subscribe", "channels": [...] } to receive events',
+                }
+            )
+        )
 
     try:
         while True:
@@ -76,16 +80,24 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
                 user = auth_service.validate_token(auth_token)
                 if user:
                     authenticated = True
-                    await websocket.send_text(json.dumps({
-                        "type": "auth",
-                        "status": "ok",
-                        "user_id": user.get("user_id"),
-                    }))
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "auth",
+                                "status": "ok",
+                                "user_id": user.get("user_id"),
+                            }
+                        )
+                    )
                 else:
-                    await websocket.send_text(json.dumps({
-                        "type": "auth",
-                        "status": "denied",
-                    }))
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "auth",
+                                "status": "denied",
+                            }
+                        )
+                    )
                     # Close the connection on bad in-band auth.  The
                     # client is clearly trying to authenticate and
                     # failed; leaving the connection open with a stale
@@ -96,16 +108,24 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             elif action == "subscribe" and authenticated:
                 channels = msg.get("channels") or ["*"]
                 ws_manager.subscribe(websocket, channels)
-                await websocket.send_text(json.dumps({
-                    "type": "subscribed",
-                    "channels": channels,
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "subscribed",
+                            "channels": channels,
+                        }
+                    )
+                )
 
             elif action == "subscribe" and not authenticated:
-                await websocket.send_text(json.dumps({
-                    "type": "error",
-                    "message": "Authentication required before subscribe",
-                }))
+                await websocket.send_text(
+                    json.dumps(
+                        {
+                            "type": "error",
+                            "message": "Authentication required before subscribe",
+                        }
+                    )
+                )
 
             elif action == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))

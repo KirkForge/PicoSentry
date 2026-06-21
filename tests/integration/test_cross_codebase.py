@@ -3,7 +3,9 @@
 Verifies that all 4 components (_core, scan, sandbox, watch, serve)
 interoperate correctly under the single namespace.
 """
+
 from __future__ import annotations
+import contextlib
 
 
 class TestSharedVerdictEnum:
@@ -51,9 +53,14 @@ class TestFindingProtocol:
         from picosentry.scan.models import Confidence, Finding, Severity
 
         f = Finding(
-            rule_id="test", confidence=Confidence.HIGH, severity=Severity.HIGH,
-            message="test", package="pkg", file="f.py",
-            evidence="ev", remediation="fix",
+            rule_id="test",
+            confidence=Confidence.HIGH,
+            severity=Severity.HIGH,
+            message="test",
+            package="pkg",
+            file="f.py",
+            evidence="ev",
+            remediation="fix",
         )
         assert isinstance(f, FindingProtocol)
 
@@ -99,14 +106,17 @@ class TestInternalImports:
 
     def test_sandbox_l3_importable(self) -> None:
         from picosentry.sandbox.l3.engine import sandbox_run
+
         assert callable(sandbox_run)
 
     def test_watch_prompt_guard_importable(self) -> None:
         from picosentry.watch.prompt_guard import PromptGuard
+
         assert PromptGuard is not None
 
     def test_serve_config_settings_importable(self) -> None:
         from picosentry.serve.config.settings import settings
+
         assert settings is not None
 
 
@@ -146,9 +156,7 @@ class TestUnifiedCLI:
         except SystemExit as e:
             assert e.code != 2, "Argparse should not have rejected the args"
         captured = capsys.readouterr()
-        assert "invalid choice" not in captured.err, (
-            f"Argparse rejected the subcommand form: {captured.err!r}"
-        )
+        assert "invalid choice" not in captured.err, f"Argparse rejected the subcommand form: {captured.err!r}"
 
     def test_sandbox_rules_dispatches(self, capsys) -> None:
         """`picosentry sandbox rules` should reach picodome's rules lister."""
@@ -362,10 +370,8 @@ class TestCacheHmacQuietSuppression:
         # Invoke the CLI main with --quiet
         from picosentry.cli import main
 
-        try:
+        with contextlib.suppress(SystemExit):
             main(["scan", "examples/pypi-obfuscated-setup", "--quiet"])
-        except SystemExit:
-            pass
 
         # After main returns, PICOSENTRY_QUIET should have been set
         # (we use setdefault so it stays set after, even if scan CLI clobbered it)

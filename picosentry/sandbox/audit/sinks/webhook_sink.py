@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -7,14 +6,16 @@ import time
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
-from picosentry.sandbox.audit.logger import AuditEvent
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.audit.logger import AuditEvent
 
 logger = logging.getLogger("picodome.audit.sink.webhook")
 
 
 class WebhookSink(AuditSink):
-
     def __init__(
         self,
         config: SinkConfig | None = None,
@@ -33,7 +34,6 @@ class WebhookSink(AuditSink):
             self._headers.update(headers)
         self._auth_token = auth_token
 
-
     def start(self) -> None:
         super().start()
 
@@ -47,7 +47,6 @@ class WebhookSink(AuditSink):
             logger.info("WebhookSink: endpoint reachable at %s", self._url)
         except Exception as exc:
             logger.warning("WebhookSink: endpoint not reachable at %s: %s", self._url, exc)
-
 
     def send(self, event: AuditEvent) -> None:
         payload = event.to_dict()
@@ -86,11 +85,9 @@ class WebhookSink(AuditSink):
                     exc,
                 )
 
-
             if attempt < self._config.max_retries:
                 backoff = self._config.retry_backoff * (2**attempt)
                 time.sleep(min(backoff, 30.0))  # cap at 30s
-
 
         self._record_failure(last_error)
         self._record_dropped()
@@ -101,11 +98,9 @@ class WebhookSink(AuditSink):
             last_error,
         )
 
-
     @property
     def url(self) -> str:
         return self._url
-
 
     def _build_headers(self) -> dict[str, str]:
         headers = dict(self._headers)

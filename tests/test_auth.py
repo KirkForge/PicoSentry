@@ -211,18 +211,20 @@ class TestTokenAuth:
             assert auth.validate(long_token) is True
 
     def test_enterprise_mode_no_dev_bypass(self):
-        with patch.dict(
-            os.environ,
-            {
-                "PICODOME_ENTERPRISE_MODE": "1",
-                "PICODOME_DEV_MODE": "1",
-                "PICODOME_API_TOKENS": "",
-            },
-            clear=False,
-        ):
+        with (
+            patch.dict(
+                os.environ,
+                {
+                    "PICODOME_ENTERPRISE_MODE": "1",
+                    "PICODOME_DEV_MODE": "1",
+                    "PICODOME_API_TOKENS": "",
+                },
+                clear=False,
+            ),
             # F1: Enterprise + DEV_MODE now raises AuthError at init
-            with pytest.raises(AuthError, match="DEV_MODE"):
-                TokenAuth()
+            pytest.raises(AuthError, match="DEV_MODE"),
+        ):
+            TokenAuth()
 
     def test_has_permission(self):
         with patch.dict(os.environ, {"PICODOME_API_TOKENS": "picodome-admin-secret123"}, clear=False):

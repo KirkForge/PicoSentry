@@ -67,12 +67,11 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
 
         try:
-            with open(args.entry) as f:
+            with args.entry.open() as f:
                 entry = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
-
 
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:
@@ -92,10 +91,8 @@ def cmd(args: argparse.Namespace) -> int:
         else:
             notary = NullNotary(hmac_key=hmac_key)
 
-
         signature = sign_entry(entry, key=hmac_key)
         print(f"HMAC-SHA256 signature: {signature}")
-
 
         try:
             uuid = notary.submit_entry(entry)
@@ -107,18 +104,17 @@ def cmd(args: argparse.Namespace) -> int:
 
         return 0
 
-    elif args.notary_command == "verify":
+    if args.notary_command == "verify":
         if not args.entry or not args.entry.exists():
             print(f"Error: entry file not found: {args.entry}", file=sys.stderr)
             return 1
 
         try:
-            with open(args.entry) as f:
+            with args.entry.open() as f:
                 entry = json.load(f)
         except (json.JSONDecodeError, OSError) as exc:
             print(f"Error: failed to read entry file: {exc}", file=sys.stderr)
             return 1
-
 
         hmac_key = args.hmac_key or os.environ.get("PICODOME_NOTARY_HMAC_KEY")
         if not hmac_key:
@@ -143,9 +139,8 @@ def cmd(args: argparse.Namespace) -> int:
             if verified:
                 print(f"✓ Entry {args.uuid} verified successfully")
                 return 0
-            else:
-                print(f"✗ Entry {args.uuid} verification FAILED", file=sys.stderr)
-                return 1
+            print(f"✗ Entry {args.uuid} verification FAILED", file=sys.stderr)
+            return 1
         except Exception as exc:
             print(f"Error: verification failed: {exc}", file=sys.stderr)
             return 1

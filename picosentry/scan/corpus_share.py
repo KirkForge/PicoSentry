@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -36,7 +35,6 @@ BUILTIN_PACKS = {
 
 
 class CorpusPack:
-
     def __init__(self, name: str, description: str = "", author: str = "") -> None:
         self.name = name
         self.description = description
@@ -158,8 +156,8 @@ def export_corpus_pack(
             write_detached_signature(sig, output_path)
         except ImportError as e:
             logger.warning("Cryptographic signing skipped: %s", e)
-        except Exception as e:
-            logger.error("Cryptographic signing failed: %s", e)
+        except Exception:
+            logger.exception("Cryptographic signing failed")
 
     output_path.write_text(pack.to_json() + "\n", encoding="utf-8")
     logger.info("Exported %d IoCs to %s", len(pack.iocs), output_path)
@@ -178,10 +176,8 @@ def import_corpus_pack(
     if not path.exists():
         raise FileNotFoundError(f"Corpus pack not found: {path}")
 
-
     if path.suffix.lower() != ".json":
         raise ValueError(f"Corpus pack must be a .json file, got: {path.suffix!r}")
-
 
     try:
         size = path.stat().st_size
@@ -191,7 +187,6 @@ def import_corpus_pack(
         raise ValueError(f"Corpus pack file too large: {size} bytes > {_MAX_PACK_BYTES} bytes limit")
 
     pack = CorpusPack.from_file(path)
-
 
     if hasattr(pack, "_signature") and pack._signature:
         expected_digest = pack._signature.get("digest", "")
@@ -206,7 +201,6 @@ def import_corpus_pack(
             pack._signature.get("signer", "unknown"),
             actual_digest,
         )
-
 
     if verify_crypto:
         sig_data = read_detached_signature(path)
@@ -312,7 +306,6 @@ def validate_corpus_pack(path: Path) -> dict:
         "pack_name": "",
     }
 
-
     try:
         file_size = path.stat().st_size
     except OSError as e:
@@ -334,9 +327,7 @@ def validate_corpus_pack(path: Path) -> dict:
         result["errors"].append(f"Parse error: {e}")
         return result
 
-
     for i, ioc in enumerate(pack.iocs):
-
         ioc_id = ioc.get("id", "")
         if ioc_id:
             try:
@@ -366,7 +357,6 @@ def validate_corpus_pack(path: Path) -> dict:
 def list_available_packs() -> list[dict]:
     packs = []
 
-
     for name, desc in BUILTIN_PACKS.items():
         packs.append(
             {
@@ -376,7 +366,6 @@ def list_available_packs() -> list[dict]:
                 "ioc_count": "varies",
             }
         )
-
 
     user_dir = user_corpus_dir()
     for f in sorted(user_dir.glob("*.json")):

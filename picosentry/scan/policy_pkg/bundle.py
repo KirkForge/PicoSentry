@@ -5,6 +5,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 from picosentry.scan.audit import audit
 from picosentry.scan.crypto import (
@@ -32,19 +33,13 @@ def export_signed_policy(
     policy_json = json.dumps(policy_dict, sort_keys=True, separators=(",", ":"))
     digest = f"sha256:{hashlib.sha256(policy_json.encode()).hexdigest()[:32]}"
 
-    pretty_json = json.dumps(policy_dict, sort_keys=True, indent=2)
-
-    bundle = {
+    bundle: dict[str, Any] = {
         "bundle_format": "1.0",
         "digest": digest,
-        "sealed_at": datetime.now(timezone.utc).isoformat(),
+        "signed_at": datetime.now(timezone.utc).isoformat(),
         "signer": signer or "unsigned",
         "policy": policy_dict,
     }
-
-    pretty_json = json.dumps(bundle, sort_keys=True, indent=2)
-    output_path.write_text(pretty_json, encoding="utf-8")
-
 
     if sign_method:
         try:
@@ -57,8 +52,11 @@ def export_signed_policy(
             )
         except ImportError as e:
             logger.warning("Cryptographic signing skipped: %s", e)
-        except Exception as e:
-            logger.error("Cryptographic signing failed: %s", e)
+        except Exception:
+            logger.exception("Cryptographic signing failed")
+
+    pretty_json = json.dumps(bundle, sort_keys=True, indent=2)
+    output_path.write_text(pretty_json, encoding="utf-8")
 
     logger.info("Exported signed policy bundle: %s (digest=%s)", output_path, digest)
     return digest
@@ -84,11 +82,9 @@ def import_policy_bundle(
         if data["digest"] != actual:
             raise ValueError(f"Policy bundle digest mismatch: expected={data['digest']} actual={actual}")
 
-
     if verify_crypto:
         sig_data = read_detached_signature(path)
         if sig_data is None:
-
             crypto_data = data.get("_crypto")
             if crypto_data and isinstance(crypto_data, dict):
                 sig_data = SignatureBundle.from_dict(crypto_data)
@@ -103,7 +99,6 @@ def import_policy_bundle(
                 f"Policy bundle is not cryptographically signed "
                 f"(provider={sig_data.provider}). Use verify_crypto=False to skip."
             )
-
 
         canonical = json.dumps(data["policy"], sort_keys=True, separators=(",", ":"))
         try:
@@ -131,10 +126,11 @@ def import_policy_bundle(
             raise ValueError(f"Cryptographic verification error: {e}") from e
 
     policy = Policy.from_dict(data["policy"])
+    signed_at = data.get("signed_at") or data.get("sealed_at", "unknown")
     logger.info(
         "Imported policy bundle: signed by %s at %s",
         data.get("signer", "unsigned"),
-        data.get("signed_at", "unknown"),
+        signed_at,
     )
     audit(
         "policy.import_bundle",
@@ -142,7 +138,7 @@ def import_policy_bundle(
         metadata={
             "policy_digest": policy.digest,
             "signer": data.get("signer", "unsigned"),
-            "signed_at": data.get("signed_at", "unknown"),
+            "signed_at": signed_at,
             "verified": verify,
         },
     )

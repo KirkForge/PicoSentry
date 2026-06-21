@@ -1,5 +1,4 @@
-
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -32,14 +31,12 @@ SENSITIVE_ENV_VARS = {
 
 def detect_env_leak(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
 
-
     for op in profile.fs_ops:
         path_lower = op.path.lower()
-        if path_lower.endswith(".env") or path_lower.endswith(".env.local") or path_lower.endswith(".env.production"):
+        if path_lower.endswith((".env", ".env.local", ".env.production")):
             findings.append(
                 Finding(
                     rule_id="L4-ENV-001",
@@ -49,7 +46,6 @@ def detect_env_leak(
                     evidence={"operation": op.operation, "path": op.path},
                 )
             )
-
 
     for call in profile.network_calls:
         for var_name in SENSITIVE_ENV_VARS:
@@ -65,7 +61,6 @@ def detect_env_leak(
                         evidence={"env_var": var_name, "address": call.address, "port": call.port},
                     )
                 )
-
 
     env_dump_commands = {"env", "printenv", "set", "export"}
     for spawn in profile.spawns:

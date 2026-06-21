@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -35,7 +34,6 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             has_provenance = True
             break
 
-
     repo = pkg.get("repository")
     if not repo:
         findings.append(
@@ -57,7 +55,6 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
     elif isinstance(repo, str) and "github.com" not in repo.lower():
-
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",
@@ -78,7 +75,6 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
                 ],
             )
         )
-
 
     integrity = pkg.get("_integrity", "")
     if integrity and isinstance(integrity, str) and any(integrity.startswith(algo) for algo in WEAK_INTEGRITY):
@@ -101,7 +97,6 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-
     if not integrity and not pkg.get("_shasum") and "node_modules" in pkg_json.parts:
         findings.append(
             Finding(
@@ -122,10 +117,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             )
         )
 
-
     if not has_provenance and "node_modules" in pkg_json.parts:
-
-
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",
@@ -152,16 +144,14 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
     return findings
 
 
-def detect_provenance_issues(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_provenance_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_provenance(pkg, root_pkg))
-
 
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_provenance(pkg, pkg_json))

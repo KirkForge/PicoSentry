@@ -570,13 +570,12 @@ class TestNotaryCLIDefaultKey:
 
     def _write_entry(self, tmp_path):
         import json
+
         p = tmp_path / "entry.json"
         p.write_text(json.dumps({"event": "test", "actor": "tester", "target": "x"}))
         return p
 
-    def test_notary_submit_hard_errors_without_key(
-        self, tmp_path, capsys, monkeypatch
-    ) -> None:
+    def test_notary_submit_hard_errors_without_key(self, tmp_path, capsys, monkeypatch) -> None:
         """``notary submit`` with no env var and no ``--hmac-key`` exits 1
         with a clear error message. The previous v2.0.9 behavior was
         to print a stderr warning and proceed with the default key.
@@ -588,9 +587,7 @@ class TestNotaryCLIDefaultKey:
         # `sign_entry` is imported locally inside _cmd_notary
         # (cli.py:1025), so patching the source module is the right hook.
         with patch("picosentry.sandbox.notary.sign_entry") as mock_sign:
-            rc = sandbox_main(
-                argv=["notary", "submit", "--entry", str(entry)]
-            )
+            rc = sandbox_main(argv=["notary", "submit", "--entry", str(entry)])
 
         assert rc == 1, "expected exit 1 (hard error) when no HMAC key is configured"
         captured = capsys.readouterr()
@@ -599,31 +596,24 @@ class TestNotaryCLIDefaultKey:
         # And critically: sign_entry was NOT called. The previous
         # v2.0.9 behavior would have called it with the default key.
         assert not mock_sign.called, (
-            "sign_entry must not be called when no HMAC key is set — "
-            "that was the v2.0.9 integrity hole"
+            "sign_entry must not be called when no HMAC key is set — that was the v2.0.9 integrity hole"
         )
 
-    def test_notary_verify_hard_errors_without_key(
-        self, tmp_path, capsys, monkeypatch
-    ) -> None:
+    def test_notary_verify_hard_errors_without_key(self, tmp_path, capsys, monkeypatch) -> None:
         """``notary verify`` with no env var and no ``--hmac-key`` exits 1."""
         monkeypatch.delenv("PICODOME_NOTARY_HMAC_KEY", raising=False)
         entry = self._write_entry(tmp_path)
         from picosentry.sandbox.cli import main as sandbox_main
 
         with patch("picosentry.sandbox.notary.sign_entry") as mock_sign:
-            rc = sandbox_main(
-                argv=["notary", "verify", "--uuid", "test-uuid", "--entry", str(entry)]
-            )
+            rc = sandbox_main(argv=["notary", "verify", "--uuid", "test-uuid", "--entry", str(entry)])
 
         assert rc == 1
         captured = capsys.readouterr()
         assert "PICODOME_NOTARY_HMAC_KEY" in captured.err
         assert not mock_sign.called
 
-    def test_notary_submit_succeeds_with_env_var(
-        self, tmp_path, monkeypatch
-    ) -> None:
+    def test_notary_submit_succeeds_with_env_var(self, tmp_path, monkeypatch) -> None:
         """When ``PICODOME_NOTARY_HMAC_KEY`` is set, ``notary submit``
         proceeds past the key check and calls the notary backend. The
         test patches the notary submit to avoid a real Rekor call.
@@ -634,9 +624,7 @@ class TestNotaryCLIDefaultKey:
         from picosentry.sandbox.notary import NullNotary
 
         with patch.object(NullNotary, "submit_entry", return_value="test-uuid"):
-            rc = sandbox_main(
-                argv=["notary", "submit", "--entry", str(entry)]
-            )
+            rc = sandbox_main(argv=["notary", "submit", "--entry", str(entry)])
 
         # Should NOT have hard-errored. (The actual submit may print
         # the signature and the UUID; we just care that rc is not 1

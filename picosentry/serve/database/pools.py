@@ -10,7 +10,6 @@ logger = logging.getLogger("picoshogun.DB.Pool")
 
 
 class SQLitePool:
-
     param_style = "qmark"  # SQLite uses ? for parameters
 
     def __init__(self, db_path: Path | None = None):
@@ -69,7 +68,6 @@ class SQLitePool:
 
 
 class PostgresPool:
-
     param_style = "format"  # Postgres uses %s for parameters
 
     def __init__(self, url: str | None = None):
@@ -84,6 +82,7 @@ class PostgresPool:
         try:
             import psycopg2 as pg
             import psycopg2.extras
+
             self._psycopg2 = pg
             self._extras = psycopg2.extras
         except ImportError as err:
@@ -112,9 +111,7 @@ class PostgresPool:
         return self._lock
 
     def backup(self, dest_path: Path) -> None:
-        logger.warning(
-            "Backup is not supported for Postgres backend. Use pg_dump manually."
-        )
+        logger.warning("Backup is not supported for Postgres backend. Use pg_dump manually.")
 
 
 def create_pool(backend: str | None = None, db_path: Path | None = None, url: str | None = None):

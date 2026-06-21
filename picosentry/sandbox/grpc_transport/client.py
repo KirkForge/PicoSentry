@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -12,7 +12,6 @@ logger = logging.getLogger("picodome.grpc_transport.client")
 
 
 class ScanResult:
-
     def __init__(
         self,
         result_json: str = "",
@@ -56,7 +55,6 @@ class ScanResult:
 
 
 class PicoDomeGRPCClient:
-
     def __init__(
         self,
         target: str = "localhost:50051",
@@ -91,7 +89,6 @@ class PicoDomeGRPCClient:
             self._channel = grpc.insecure_channel(self._target)
             logger.info("gRPC client connected (plaintext) to %s", self._target)
 
-
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc
 
@@ -111,7 +108,6 @@ class PicoDomeGRPCClient:
             return None
 
         if mtls_config.dev_mode:
-
             return None
 
         if not mtls_config.cert_path or not mtls_config.key_path:
@@ -121,13 +117,13 @@ class PicoDomeGRPCClient:
         import grpc
 
         try:
-            with open(mtls_config.cert_path, "rb") as f:
+            with mtls_config.cert_path.open("rb") as f:
                 cert_chain = f.read()
-            with open(mtls_config.key_path, "rb") as f:
+            with mtls_config.key_path.open("rb") as f:
                 private_key = f.read()
 
             if mtls_config.ca_path:
-                with open(mtls_config.ca_path, "rb") as f:
+                with mtls_config.ca_path.open("rb") as f:
                     root_certs = f.read()
             else:
                 root_certs = None
@@ -139,8 +135,8 @@ class PicoDomeGRPCClient:
             )
             logger.info("gRPC client TLS credentials created")
             return credentials
-        except Exception as e:
-            logger.error("Failed to create gRPC client TLS credentials: %s", e)
+        except Exception:
+            logger.exception("Failed to create gRPC client TLS credentials")
             return None
 
     def scan(
@@ -170,7 +166,7 @@ class PicoDomeGRPCClient:
                     )
                     time.sleep(self._retry_delay)
                 else:
-                    logger.error("All %d scan attempts failed", self._max_retries)
+                    logger.exception("All %d scan attempts failed", self._max_retries)
 
         raise ConnectionError(f"Failed to scan after {self._max_retries} attempts: {last_error}")
 
@@ -206,7 +202,6 @@ class PicoDomeGRPCClient:
                 findings_count=response.findings_count,
             )
         except ImportError:
-
             return self._do_scan_manual(command, policy, timeout, cwd)
 
     def _do_scan_manual(
@@ -218,7 +213,6 @@ class PicoDomeGRPCClient:
     ) -> ScanResult:
         import grpc
 
-
         request_data = json.dumps(
             {
                 "command": command,
@@ -227,7 +221,6 @@ class PicoDomeGRPCClient:
                 "cwd": cwd or "",
             }
         ).encode("utf-8")
-
 
         try:
             response_data = self._channel.unary_unary(
@@ -238,8 +231,8 @@ class PicoDomeGRPCClient:
 
             resp = json.loads(response_data.decode("utf-8"))
             return ScanResult.from_dict(resp)
-        except grpc.RpcError as e:
-            logger.error("gRPC Scan RPC failed: %s", e)
+        except grpc.RpcError:
+            logger.exception("gRPC Scan RPC failed")
             raise
 
     async def scan_async(
@@ -254,9 +247,7 @@ class PicoDomeGRPCClient:
         try:
             loop = asyncio.get_running_loop()
             logger.debug("scan_async: running synchronous scan in thread pool")
-            return await loop.run_in_executor(
-                None, self.scan, command, policy, timeout, cwd
-            )
+            return await loop.run_in_executor(None, self.scan, command, policy, timeout, cwd)
         except RuntimeError:
             logger.debug("scan_async: no event loop, delegating to synchronous scan")
             return self.scan(command=command, policy=policy, timeout=timeout, cwd=cwd)
@@ -280,7 +271,6 @@ class PicoDomeGRPCClient:
                 "uptime_seconds": response.uptime_seconds,
             }
         except ImportError:
-
             import grpc
 
             try:
@@ -291,7 +281,7 @@ class PicoDomeGRPCClient:
                 )(b"", timeout=5.0)
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError as e:
-                logger.error("gRPC Health RPC failed: %s", e)
+                logger.exception("gRPC Health RPC failed")
                 return {"healthy": False, "detail": str(e)}
 
     def get_policy(self, name: str, version: int | None = None) -> dict[str, Any]:
@@ -322,8 +312,8 @@ class PicoDomeGRPCClient:
                     response_deserializer=lambda x: x,
                 )(request_data, timeout=10.0)
                 return json.loads(response_data.decode("utf-8"))
-            except grpc.RpcError as e:
-                logger.error("gRPC GetPolicy RPC failed: %s", e)
+            except grpc.RpcError:
+                logger.exception("gRPC GetPolicy RPC failed")
                 raise
 
     def query_audit(
@@ -377,16 +367,14 @@ class PicoDomeGRPCClient:
                     response_deserializer=lambda x: x,
                 )(request_data, timeout=10.0)
                 return json.loads(response_data.decode("utf-8"))
-            except grpc.RpcError as e:
-                logger.error("gRPC QueryAudit RPC failed: %s", e)
+            except grpc.RpcError:
+                logger.exception("gRPC QueryAudit RPC failed")
                 raise
 
     def close(self) -> None:
         if self._channel is not None:
-            try:
+            with contextlib.suppress(Exception):
                 self._channel.close()
-            except Exception:
-                pass
             self._channel = None
             self._stub = None
 

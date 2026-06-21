@@ -1,17 +1,14 @@
-
 import math
 from collections import Counter
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
 def detect_entropy_anomalies(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
-
 
     for op in profile.fs_ops:
         name = op.path.split("/")[-1] if "/" in op.path else op.path
@@ -26,7 +23,6 @@ def detect_entropy_anomalies(
                     evidence={"entropy": round(ent, 2), "path": op.path},
                 )
             )
-
 
     for dns in profile.dns_queries:
         host_part = dns.hostname.split(".")[0]

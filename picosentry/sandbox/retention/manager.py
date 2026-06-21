@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +20,6 @@ _DEFAULT_SCAN_RESULTS_DIR = _DEFAULT_DATA_DIR / "scans"
 
 @dataclass(frozen=True)
 class RetentionPolicy:
-
     data_type: str
     ttl_days: int  # 0 = never expire
     secure_delete: bool = False
@@ -38,7 +36,6 @@ class RetentionPolicy:
 
 @dataclass
 class RetentionConfig:
-
     scan_results: RetentionPolicy = field(
         default_factory=lambda: RetentionPolicy(
             data_type="scan_results",
@@ -89,14 +86,8 @@ class RetentionConfig:
                 )
         return cfg
 
-    @classmethod
-    def from_yaml_config(cls, config_data: dict[str, Any]) -> RetentionConfig:
-        retention = config_data.get("retention", {})
-        return cls.from_dict(retention)
-
 
 class RetentionManager:
-
     def __init__(
         self,
         config: RetentionConfig | None = None,
@@ -135,7 +126,6 @@ class RetentionManager:
 
         now = time.time()
 
-
         scan_stats = self._cleanup_directory(
             self._scan_dir,
             self._config.scan_results,
@@ -145,7 +135,6 @@ class RetentionManager:
         stats["bytes_freed"] += scan_stats["bytes_freed"]
         stats["errors"].extend(scan_stats["errors"])
         stats["policies_applied"].append(self._config.scan_results.data_type)
-
 
         try:
             audit = get_audit_logger()
@@ -190,7 +179,6 @@ class RetentionManager:
             encoding="utf-8",
         )
 
-
         try:
             audit = get_audit_logger()
             audit.record(
@@ -211,20 +199,17 @@ class RetentionManager:
         try:
             size = path.stat().st_size
 
-
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(b"\x00" * size)
                 f.flush()
                 os.fsync(f.fileno())
 
-
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(os.urandom(size))
                 f.flush()
                 os.fsync(f.fileno())
 
-
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.truncate(0)
                 f.flush()
                 os.fsync(f.fileno())
@@ -237,7 +222,6 @@ class RetentionManager:
             logger.warning("Secure delete failed for %s: %s", path, e)
             return False
 
-
     def _cleanup_directory(
         self,
         directory: Path,
@@ -247,7 +231,6 @@ class RetentionManager:
         stats: dict[str, Any] = {"files_removed": 0, "bytes_freed": 0, "errors": []}
 
         if policy.ttl_days == 0:
-
             return stats
 
         cutoff = now - (policy.ttl_days * 86400)
@@ -269,12 +252,10 @@ class RetentionManager:
             except OSError as e:
                 stats["errors"].append(f"{f.name}: {e}")
 
-
         if policy.max_size_mb > 0:
             dir_stats = self._dir_stats(directory)
             max_bytes = policy.max_size_mb * 1024 * 1024
             if dir_stats["total_bytes"] > max_bytes:
-
                 files = sorted(directory.glob("*.json"), key=lambda f: f.stat().st_mtime)
                 for f in files:
                     if dir_stats["total_bytes"] <= max_bytes:

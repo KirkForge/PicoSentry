@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import time
@@ -13,24 +12,19 @@ from picosentry.watch.types import PromptScanResult, ValidationResult
 
 
 class WatchGuard(Protocol):
-
-    def scan_prompt(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
-        ...
+    def scan_prompt(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult: ...
 
     def validate_output(
         self,
         output: str,
         schema: dict[str, Any] | None = None,
         prompt_result: PromptScanResult | None = None,
-    ) -> ValidationResult:
-        ...
+    ) -> ValidationResult: ...
 
-    def health(self) -> dict[str, Any]:
-        ...
+    def health(self) -> dict[str, Any]: ...
 
 
 class PicoWatchPlugin:
-
     name: ClassVar[str] = "picowatch"
     version: ClassVar[str] = __version__
     layers: ClassVar[list[int]] = [5, 6]  # L5 + L6 in PicoShogun pipeline
@@ -70,7 +64,6 @@ class PicoWatchPlugin:
         pw_cfg.corpus_version = config.get("corpus_version", DEFAULT_CORPUS_VERSION)
         return pw_cfg
 
-
     def scan_prompt(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
         result = self._prompt_guard.check(text, context=context)
         self._sink.record_prompt_scan(result, request_id=context.get("request_id") if context else None)
@@ -98,7 +91,6 @@ class PicoWatchPlugin:
             "corpus_version": self._pw_config.corpus_version,
             "uptime_seconds": round(uptime, 1),
         }
-
 
     def on_event(self, event: dict[str, Any]) -> dict[str, Any] | None:
         event_type = event.get("type")
@@ -144,7 +136,6 @@ class PicoWatchPlugin:
             }
 
         return None  # Unknown event type — pass through
-
 
     def metrics(self) -> str:
         return self._sink.render_prometheus()

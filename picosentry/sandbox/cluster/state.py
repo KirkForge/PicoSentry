@@ -3,17 +3,18 @@ from __future__ import annotations
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.cluster.backends.base import StateBackend
 from picosentry.sandbox.cluster.backends.memory import MemoryStateBackend
 from picosentry.sandbox.cluster.models import ClusterNode, NodeStatus, ScanRequest
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.backends.base import StateBackend
 
 logger = logging.getLogger("picodome.cluster")
 
 
 class ClusterState:
-
     def __init__(self, backend: StateBackend | None = None, cluster_token: str = "") -> None:
         self._backend = backend or MemoryStateBackend()
         self._lock = threading.Lock()
@@ -82,20 +83,15 @@ class ClusterState:
                 return None
 
             if scan.assigned_node is not None:
-
-                node = self._backend.load_node(scan.assigned_node)
-                return node
-
+                return self._backend.load_node(scan.assigned_node)
 
             online_nodes = [n for n in self._backend.load_all_nodes() if n.status == NodeStatus.ONLINE]
             if not online_nodes:
                 logger.warning("No online nodes available for scan %s", scan_id)
                 return None
 
-
             online_nodes.sort(key=lambda n: (n.load, n.node_id))
             target = online_nodes[0]
-
 
             scan.assigned_node = target.node_id
             scan.status = "running"
@@ -139,7 +135,6 @@ class ClusterState:
             scan.version = self._next_version()
             self._backend.save_scan(scan)
 
-
             if old_node:
                 node = self._backend.load_node(old_node)
                 if node and node.load > 0:
@@ -157,12 +152,10 @@ class ClusterState:
         scans = self._backend.load_all_scans()
         return [s for s in scans if s.assigned_node == node_id]
 
-
     def elect_leader(self) -> str | None:
         online_nodes = self.list_nodes(status=NodeStatus.ONLINE)
         if not online_nodes:
             return None
-
 
         leader = online_nodes[0]  # already sorted by node_id
         self._backend.set_leader_id(leader.node_id)
@@ -171,7 +164,6 @@ class ClusterState:
 
     def get_leader_id(self) -> str | None:
         return self._backend.get_leader_id()
-
 
     def get_state_snapshot(self) -> dict[str, Any]:
         with self._lock:
@@ -226,13 +218,11 @@ class ClusterState:
                 if local_node is None or _node_is_newer(remote_node, local_node):
                     self._backend.save_node(remote_node)
 
-
             for scan_data in snapshot.get("scans", []):
                 remote_scan = ScanRequest.from_dict(scan_data)
                 local_scan = self._backend.load_scan(remote_scan.scan_id)
                 if local_scan is None or _scan_is_newer(remote_scan, local_scan):
                     self._backend.save_scan(remote_scan)
-
 
             # Re-elect after merge so all nodes converge on the same leader
             # (lowest online node_id).  Accepting the remote leader_id

@@ -1,14 +1,12 @@
-
 from __future__ import annotations
 
-import contextlib
 import json
 import logging
 import threading
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any
 
 logger = logging.getLogger("picosentry.audit")
 
@@ -45,7 +43,6 @@ DEFAULT_RETENTION_DAYS = 90
 
 @dataclass
 class AuditEvent:
-
     action: str
     target: str = ""
     actor: str = "system"
@@ -77,7 +74,6 @@ class AuditEvent:
 
 
 class AuditSink:
-
     def __init__(
         self,
         path: Path | None = None,
@@ -88,7 +84,6 @@ class AuditSink:
         self.max_size_bytes = max_size_bytes
         self.retention_days = retention_days
         self._lock = threading.Lock()
-        self._file_handle: TextIO | None = None
 
     def write(self, event: AuditEvent) -> None:
         with self._lock:
@@ -99,24 +94,13 @@ class AuditSink:
             line = event.to_json() + "\n"
 
             try:
-
-                if self._file_handle is None or self._file_handle.closed:
-                    self._file_handle = open(self.path, "a", encoding="utf-8")  # noqa: SIM115
-                self._file_handle.write(line)
-                self._file_handle.flush()
-            except OSError as e:
-                logger.error("Failed to write audit event: %s", e)
-                self._close_handle()
-
-    def _close_handle(self) -> None:
-        if self._file_handle and not self._file_handle.closed:
-            with contextlib.suppress(OSError):
-                self._file_handle.close()
-        self._file_handle = None
+                with self.path.open("a", encoding="utf-8") as f:
+                    f.write(line)
+                    f.flush()
+            except OSError:
+                logger.exception("Failed to write audit event")
 
     def _rotate_if_needed(self) -> None:
-
-        self._close_handle()
         if not self.path.exists():
             return
 
@@ -128,7 +112,6 @@ class AuditSink:
         if size < self.max_size_bytes:
             return
 
-
         rot_num = 1
         while self.path.with_suffix(f".jsonl.{rot_num}").exists():
             rot_num += 1
@@ -137,8 +120,8 @@ class AuditSink:
         try:
             self.path.rename(rotated)
             logger.info("Rotated audit log to %s", rotated)
-        except OSError as e:
-            logger.error("Failed to rotate audit log: %s", e)
+        except OSError:
+            logger.exception("Failed to rotate audit log")
 
     def _cleanup_old_files(self) -> None:
         if self.retention_days <= 0:
@@ -164,8 +147,8 @@ class AuditSink:
         except OSError:
             return events
 
-        for line in lines:
-            line = line.strip()
+        for raw_line in lines:
+            line = raw_line.strip()
             if not line:
                 continue
             try:
@@ -247,6 +230,6 @@ def audit(
             logger.critical("Failed to emit audit event (fail-closed): %s", e)
             raise
 
-        logger.error("Failed to emit audit event: %s", e)
+        logger.exception("Failed to emit audit event")
 
     return event

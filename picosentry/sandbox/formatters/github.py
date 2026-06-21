@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import os
@@ -7,8 +6,11 @@ from pathlib import Path
 from picosentry.sandbox import __version__
 from picosentry.sandbox.formatters.sarif import format_sarif
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
 
 
 _DOME_LABELS = {
@@ -38,7 +40,6 @@ def _l3_github(result: SandboxResult, sarif_path: str) -> str:
     lines = []
     lines.append("## 🛡️ PicoDome — L3 Sandbox Results\n")
 
-
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "ALLOW" else "🚫"
     lines.append(f"**Verdict: {icon} {verdict}**\n")
@@ -55,8 +56,10 @@ def _l3_github(result: SandboxResult, sarif_path: str) -> str:
         lines.append("### Events\n")
         lines.append("| Rule | Verdict | Operation | Detail |")
         lines.append("|------|---------|-----------|--------|")
-        for event in result.events[:50]:
-            lines.append(f"| {event.rule_id} | {event.verdict.value} | {event.operation} | {event.detail[:80]} |")
+        lines.extend(
+            f"| {event.rule_id} | {event.verdict.value} | {event.operation} | {event.detail[:80]} |"
+            for event in result.events[:50]
+        )
         remaining = len(result.events) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more event(s)\n")
@@ -70,7 +73,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
     lines = []
     lines.append("## 🛡️ PicoDome — L4 Behavioral Analysis\n")
 
-
     verdict = result.overall_verdict.value
     icon = "✅" if verdict == "CLEAN" else ("⚠️" if verdict == "SUSPICIOUS" else "🚫")
 
@@ -78,7 +80,6 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
         lines.append(f"**{icon} {verdict}** — All clear. Dome intact. 🛡️\n")
     else:
         lines.append(f"**{icon} {verdict}** — {len(result.findings)} finding(s)\n")
-
 
         lines.append("| Severity | Count | Label |")
         lines.append("|----------|-------|-------|")
@@ -89,16 +90,16 @@ def _l4_github(result: AnalysisResult, sarif_path: str) -> str:
                 lines.append(f"| {sev.value} | {count} | {label} |")
         lines.append("")
 
-
         lines.append("### Findings\n")
         lines.append("| Rule | Severity | Message | Location |")
         lines.append("|------|----------|---------|----------|")
-        for f in result.findings[:50]:
-            lines.append(f"| {f.rule_id} | {f.severity.value} | {f.message[:80]} | {f.location or '—'} |")
+        lines.extend(
+            f"| {f.rule_id} | {f.severity.value} | {f.message[:80]} | {f.location or '—'} |"
+            for f in result.findings[:50]
+        )
         remaining = len(result.findings) - 50
         if remaining > 0:
             lines.append(f"\n> ... and {remaining} more finding(s)\n")
-
 
     lines.append("\n---\n")
     lines.append("| Field | Value |")
@@ -117,7 +118,7 @@ def _append_github_summary(summary: str) -> None:
     gh_summary = os.environ.get("GITHUB_STEP_SUMMARY")
     if gh_summary:
         try:
-            with open(gh_summary, "a", encoding="utf-8") as f:
+            with Path(gh_summary).open("a", encoding="utf-8") as f:
                 f.write(summary + "\n")
         except OSError:
             pass  # Non-fatal — summary still goes to stdout

@@ -55,7 +55,7 @@ rate_limit_window = 120
         assert config.port == 7777
         assert config.rate_limit == 50
         assert config.rate_limit_window == 120
-        os.unlink(f.name)
+        Path(f.name).unlink()
 
     def test_env_overrides_toml(self) -> None:
         """Environment variables override TOML file values."""
@@ -77,7 +77,7 @@ port = 7777
                 assert config.port == 7777
             finally:
                 del os.environ["PICOWATCH_THRESHOLD_BLOCK"]
-                os.unlink(f.name)
+                Path(f.name).unlink()
 
     def test_toml_with_otel_endpoint(self) -> None:
         """TOML config can set OTel endpoint."""
@@ -95,7 +95,7 @@ admin_port = 9092
         assert config.otel_endpoint == "localhost:4317"
         assert config.api_key == "secret-key-123"
         assert config.admin_port == 9092
-        os.unlink(f.name)
+        Path(f.name).unlink()
 
     def test_missing_config_file_uses_defaults(self) -> None:
         """Non-existent config file path falls back to defaults."""
@@ -116,7 +116,7 @@ port = 8888
 
         assert config.threshold_block == 0.85
         assert config.port == 8888
-        os.unlink(f.name)
+        Path(f.name).unlink()
 
     def test_invalid_toml_is_ignored(self) -> None:
         """Invalid TOML content is ignored, defaults used."""
@@ -127,7 +127,7 @@ port = 8888
 
         # Falls back to defaults
         assert config.threshold_block == 0.7
-        os.unlink(f.name)
+        Path(f.name).unlink()
 
 
 class TestConfigPermissions:

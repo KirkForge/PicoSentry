@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import base64
@@ -8,42 +7,31 @@ import unicodedata
 
 
 class Normalizer:
-
-
     _ZWNJ = "\u200c"  # zero-width non-joiner
     _ZWJ = "\u200d"  # zero-width joiner
     _ZWSP = "\u200b"  # zero-width space
     _ZERO_WIDTH = frozenset({_ZWNJ, _ZWJ, _ZWSP, "\ufeff", "\u200e", "\u200f"})
 
-
     _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
 
     _C_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-
 
     _LINE_COMMENT = re.compile(
         r"(?<![\'\"/:])//(?!/).*$",
         re.MULTILINE,
     )
 
-
     _BASE64 = re.compile(r"[A-Za-z0-9+/]{20,}={0,2}")
-
 
     _HEX = re.compile(r"(?:0x)?[0-9a-fA-F]{20,}")
 
-
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
-
 
     _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s+(\w)){2,}(?=\s|$|[,.;!?])")
 
-
     _SEPARATOR_PUNCT = re.compile(r"(?<=\w)[.\-_/](?=\w)")
 
-
     _LLM_TOKEN_MARKER = re.compile(r"<\|[^|]+\|>")
-
 
     _IP_ADDRESS = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
 
@@ -56,16 +44,10 @@ class Normalizer:
         result = self.collapse_separator_punctuation(result)
         result = self.normalize_whitespace(result)
         result = self.strip_comments(result)
-        result = self.deobfuscate_markdown(result)
-        return result
+        return self.deobfuscate_markdown(result)
 
     def decode_and_rescan(self, text: str) -> list[str]:
-        decoded_texts: list[str] = []
-
-
-        for decoded in self.decode_base64(text):
-            decoded_texts.append(decoded)
-
+        decoded_texts = list(self.decode_base64(text))
 
         rot13_pattern = re.compile(
             r"vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz cezcg",
@@ -75,7 +57,6 @@ class Normalizer:
             rot13 = self.decode_rot13(text)
             if rot13 != text:
                 decoded_texts.append(rot13)
-
 
         if self._URL_ENC.search(text):
             url_decoded = self.decode_url(text)
@@ -102,7 +83,6 @@ class Normalizer:
         result_parts = []
         for segment in segments:
             if re.match(r"^\s{2,}$", segment):
-
                 result_parts.append(" ")
             else:
 
@@ -124,12 +104,10 @@ class Normalizer:
 
     def collapse_separator_punctuation(self, text: str) -> str:
 
-
         placeholders: dict[str, str] = {}
         for idx, match in enumerate(self._LLM_TOKEN_MARKER.finditer(text)):
             placeholder = f"\x00LLMTOKEN{idx}\x00"
             placeholders[placeholder] = match.group()
-
 
         for idx, match in enumerate(self._IP_ADDRESS.finditer(text)):
             placeholder = f"\x00IPADDR{idx}\x00"
@@ -143,12 +121,9 @@ class Normalizer:
         for placeholder, original in placeholders.items():
             result = result.replace(original, placeholder)
 
-
         result = self._SEPARATOR_PUNCT.sub(" ", result)
 
-
         result = self.collapse_spaced_text(result)
-
 
         for placeholder, original in placeholders.items():
             result = result.replace(placeholder, original)
@@ -177,10 +152,8 @@ class Normalizer:
     def strip_comments(self, text: str) -> str:
         result = self._HTML_COMMENT.sub("", text)
         result = self._C_COMMENT.sub("", result)
-        result = self._LINE_COMMENT.sub("", result)
-        return result
+        return self._LINE_COMMENT.sub("", result)
 
     def deobfuscate_markdown(self, text: str) -> str:
 
-        result = "".join(ch for ch in text if ch not in self._ZERO_WIDTH)
-        return result
+        return "".join(ch for ch in text if ch not in self._ZERO_WIDTH)

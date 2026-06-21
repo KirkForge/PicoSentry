@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -23,10 +24,8 @@ logger = logging.getLogger("picodome.l3.seccomp_trace")
 
 
 class SeccompTraceBackend(SandboxBackend):
-
     def __init__(self) -> None:
         self._syscall_cache: dict[str, int] = {}
-
 
         self._x86_64_nr_to_name: dict[int, str] = dict(_X86_64_SYSCALLS)
 
@@ -56,7 +55,6 @@ class SeccompTraceBackend(SandboxBackend):
             SCMP_ACT_KILL_PROCESS,
         )
 
-
         try:
             ctx_allow = lib.seccomp_init(SCMP_ACT_ALLOW)
             if not ctx_allow:
@@ -65,7 +63,6 @@ class SeccompTraceBackend(SandboxBackend):
         except Exception:
             return False
 
-
         try:
             ctx_kill = lib.seccomp_init(SCMP_ACT_KILL_PROCESS)
             if not ctx_kill:
@@ -73,7 +70,6 @@ class SeccompTraceBackend(SandboxBackend):
             lib.seccomp_release(ctx_kill)
         except Exception:
             return False
-
 
         return process_manager.probe_log_emits(lib)
 
@@ -104,7 +100,6 @@ class SeccompTraceBackend(SandboxBackend):
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
 
-
             child_env = os.environ.copy()
             if env:
                 child_env.update(env)
@@ -114,7 +109,6 @@ class SeccompTraceBackend(SandboxBackend):
                 pid = os.fork()
 
             if pid == 0:
-
                 os.close(out_r)
                 os.close(err_r)
                 os.dup2(out_w, 1)
@@ -122,15 +116,12 @@ class SeccompTraceBackend(SandboxBackend):
                 os.close(out_w)
                 os.close(err_w)
                 if cwd:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.chdir(cwd)
-                    except OSError:
-                        pass
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)
                 if ret != 0:
                     os._exit(127)
-
 
                 try:
                     os.execve(cmd_path, command, child_env)
@@ -141,7 +132,6 @@ class SeccompTraceBackend(SandboxBackend):
                 os._exit(1)
 
             else:
-
                 os.close(out_w)
                 os.close(err_w)
                 lib.seccomp_release(ctx)
@@ -165,12 +155,11 @@ class SeccompTraceBackend(SandboxBackend):
                         )
                     )
 
-
                 if exit_code == -31:
                     denied_categories = []
                     if blocked:
                         denied_categories.append(f"blocked={', '.join(sorted(blocked)[:10])}")
-                    if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+                    if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
                         denied_categories.append("default_action=DENY")
                     suggestions = []
                     if "clone" in blocked or "clone3" in blocked or "fork" in blocked:
@@ -204,15 +193,11 @@ class SeccompTraceBackend(SandboxBackend):
                         )
                     )
 
-
                 if log_text:
-                    trace_events = event_parser.parse_seccomp_log(
-                        log_text, policy, start_ms, self._x86_64_nr_to_name
-                    )
+                    trace_events = event_parser.parse_seccomp_log(log_text, policy, start_ms, self._x86_64_nr_to_name)
                     events.extend(trace_events)
                     logger.info(
-                        "seccomp-trace: %d events captured, 0 paths/addresses "
-                        "(v2.0.8 SCMP_ACT_LOG limitation)",
+                        "seccomp-trace: %d events captured, 0 paths/addresses (v2.0.8 SCMP_ACT_LOG limitation)",
                         len(trace_events),
                     )
                 else:
@@ -223,9 +208,7 @@ class SeccompTraceBackend(SandboxBackend):
                         pid,
                     )
 
-
                 events.extend(self._posthoc_analysis(stdout, stderr))
-
 
                 events.append(
                     SandboxEvent(
@@ -270,17 +253,13 @@ class SeccompTraceBackend(SandboxBackend):
             stderr=stderr,
         )
 
-
     def _posthoc_analysis(self, stdout: str, stderr: str) -> list[SandboxEvent]:
         from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 
         sb = SubprocessBackend()
         return sb._check_suspicious_patterns(stdout, stderr)
 
-
-    def _build_filter(
-        self, lib: ctypes.CDLL, policy: Policy
-    ) -> tuple[ctypes.c_void_p | None, set[str]]:
+    def _build_filter(self, lib: ctypes.CDLL, policy: Policy) -> tuple[ctypes.c_void_p | None, set[str]]:
         return filter_builder.build_filter(lib, policy, self._syscall_cache)
 
     def _classify_syscall(self, name: str) -> tuple[str, str]:
@@ -295,36 +274,12 @@ class SeccompTraceBackend(SandboxBackend):
     ) -> list[SandboxEvent]:
         if x86_64_nr_to_name is None:
             x86_64_nr_to_name = self._x86_64_nr_to_name
-        return event_parser.parse_seccomp_log(
-            log_text, policy, start_ms, x86_64_nr_to_name
-        )
+        return event_parser.parse_seccomp_log(log_text, policy, start_ms, x86_64_nr_to_name)
 
     def _wait_with_timeout(
         self, pid: int, out_fd: int, err_fd: int, timeout: float, log_path: str
     ) -> tuple[bytes, bytes, int, str]:
         return process_manager.wait_with_timeout(pid, out_fd, err_fd, timeout, log_path)
-
-    def _read_proc_seccomp(self, log_path: str) -> str:
-        return process_manager.read_proc_seccomp(log_path)
-
-    def _probe_log_emits(self, lib: ctypes.CDLL) -> bool:
-        return process_manager.probe_log_emits(lib)
-
-    def _setup_lib(self, lib: ctypes.CDLL) -> None:
-        filter_builder.setup(lib)
-
-    def _resolve(self, lib: ctypes.CDLL, name: str) -> int:
-        return filter_builder.resolve(lib, name, self._syscall_cache)
-
-    def _target_to_syscalls(self, target) -> set[str]:
-        from picosentry.sandbox.l3.backends._seccomp_common import target_to_syscalls
-
-        return target_to_syscalls(target)
-
-    def _compute_verdict(
-        self, events: list[SandboxEvent], exit_code: int
-    ) -> Verdict:
-        return event_parser.compute_verdict(events, exit_code)
 
     def _fallback_run(
         self,
@@ -349,10 +304,7 @@ class SeccompTraceBackend(SandboxBackend):
                         rule_id="L3-SANDBOX-DEGRADE",
                         verdict=Verdict.KILL,
                         operation="sandbox_degradation_blocked",
-                        detail=(
-                            f"Sandbox backend failed: {reason}. "
-                            f"Fail-closed policy prevents unconfined execution."
-                        ),
+                        detail=(f"Sandbox backend failed: {reason}. Fail-closed policy prevents unconfined execution."),
                     ),
                 ],
                 policy_name=policy.name,

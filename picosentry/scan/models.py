@@ -1,10 +1,5 @@
-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass  # FindingProtocol is runtime-checkable; import directly when needed
 
 import hashlib
 import json
@@ -32,7 +27,6 @@ __all__ = [
 
 @dataclass
 class ScanStats:
-
     packages_scanned: int = 0
     files_scanned: int = 0
     duration_ms: int = 0
@@ -56,7 +50,6 @@ class ScanStats:
 
 @dataclass(frozen=True)
 class Finding:  # rationale: immutable scan finding, frozen for determinism guarantee
-
     rule_id: str
     severity: Severity
     confidence: Confidence
@@ -95,7 +88,6 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
 
 @dataclass
 class BaselineResult:
-
     original_count: int = 0
     suppressed_count: int = 0
     remaining: list[Finding] = field(default_factory=list)
@@ -107,7 +99,6 @@ class BaselineResult:
 
 def load_baseline(path: Path) -> set:
     text = path.read_text(encoding="utf-8")
-
 
     try:
         data = json.loads(text)
@@ -125,10 +116,9 @@ def load_baseline(path: Path) -> set:
     except json.JSONDecodeError:
         pass
 
-
     fingerprints = set()
-    for line in text.splitlines():
-        line = line.strip()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split(":", 3)
@@ -157,7 +147,6 @@ def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineRe
         else:
             normalized.add((fp[0], fp[1], fp[2], fp[3]))
 
-
     rule_only = {fp[0] for fp in normalized if not fp[2]}
     rule_ecosystem_pkg = {(fp[0], fp[1], fp[2]) for fp in normalized if fp[2] and not fp[3]}
     exact = {fp for fp in normalized if fp[3]}
@@ -182,7 +171,6 @@ def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineRe
 
 @dataclass
 class RuleExecution:
-
     rule_id: str
     status: str = "success"  # "success", "failed", "skipped"
     duration_ms: int = 0
@@ -206,7 +194,6 @@ class RuleExecution:
 
 @dataclass
 class ScanResult:  # rationale: top-level scan result, deterministic by construction
-
     target: str = ""
     engine_version: str = ""  # Set by ScanEngine from __version__
     corpus_version: str = ""  # Set by ScanEngine from corpus hash
@@ -251,7 +238,6 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             "findings": [f.to_dict() for f in sorted_findings],
         }
 
-
         if not deterministic_output:
             d["stats"] = self.stats.to_dict()
         else:
@@ -284,7 +270,6 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
                 audit["scanner_version"] = self.scanner_version
             if audit:
                 d["audit"] = audit
-
 
         return dict(sorted(d.items()))
 

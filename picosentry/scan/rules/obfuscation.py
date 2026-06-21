@@ -1,10 +1,10 @@
-
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
+from .pattern_scanner import PatternScanner, TokenPattern
 
 __all__ = ["detect_obfuscation"]
 
@@ -49,6 +49,13 @@ SKIP_DIRS = frozenset(
 )
 
 
+_REFERENCES = [
+    "https://github.com/nodesource/node-js-sec-best-practices",
+]
+
+
+# Backward-compatible tuple constants.  These are kept because tests and external
+# callers import them directly and expect index 1 to be the compiled regex.
 EVAL_PATTERN: tuple = (
     "L2-OBFS-001",
     re.compile(r"\b(?:eval|Function)\s*\(", re.IGNORECASE),
@@ -85,6 +92,8 @@ UNICODE_ESCAPE_PATTERN: tuple = (
     "Decode the unicode escape sequence and use readable literals.",
 )
 
+
+# Public tuple list preserved for compatibility.
 PATTERNS: list[tuple] = [
     EVAL_PATTERN,
     HEX_STRING_PATTERN,
@@ -93,68 +102,131 @@ PATTERNS: list[tuple] = [
 ]
 
 
-def _scan_file(file_path: Path) -> list[Finding]:
-    findings: list[Finding] = []
+# Internal token-filter scanner.  Patterns that contain regex alternatives are
+# split into deterministic sub-patterns so each one has a reliable set of
+# required literal tokens.  This lets us skip the expensive regex on files that
+# cannot possibly match.
+_OBFS_SCANNER = PatternScanner(
+    [
+        # L2-OBFS-001 split by dynamic-code function.
+        TokenPattern(
+            rule_id="L2-OBFS-001",
+            pattern=re.compile(r"\beval\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Dynamic code execution via {func}",
+            remediation="Remove {func} calls. Use static imports or JSON.parse for data.",
+            required_tokens=frozenset({"eval"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        TokenPattern(
+            rule_id="L2-OBFS-001",
+            pattern=re.compile(r"\bFunction\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Dynamic code execution via {func}",
+            remediation="Remove {func} calls. Use static imports or JSON.parse for data.",
+            required_tokens=frozenset({"function"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        # L2-OBFS-002 hex escapes.
+        TokenPattern(
+            rule_id="L2-OBFS-002",
+            pattern=HEX_STRING_PATTERN[1],
+            severity=Severity.HIGH,
+            message="Hex-encoded string detected",
+            remediation="Decode the hex string and replace with readable literal.",
+            required_tokens=frozenset({r"\x"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        # L2-OBFS-003 split into four deterministic source/function combinations.
+        TokenPattern(
+            rule_id="L2-OBFS-003",
+            pattern=re.compile(r"\batob\s*\([^)]*\)[\s\S]*?\beval\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Base64 decode followed by eval/Function execution",
+            remediation="Never decode base64 and eval the result. Replace with static config.",
+            required_tokens=frozenset({"atob", "eval"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        TokenPattern(
+            rule_id="L2-OBFS-003",
+            pattern=re.compile(r"\batob\s*\([^)]*\)[\s\S]*?\bFunction\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Base64 decode followed by eval/Function execution",
+            remediation="Never decode base64 and eval the result. Replace with static config.",
+            required_tokens=frozenset({"atob", "function"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        TokenPattern(
+            rule_id="L2-OBFS-003",
+            pattern=re.compile(r"\bBuffer\.from\s*\([^)]*\)[\s\S]*?\beval\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Base64 decode followed by eval/Function execution",
+            remediation="Never decode base64 and eval the result. Replace with static config.",
+            required_tokens=frozenset({"buffer.from", "eval"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        TokenPattern(
+            rule_id="L2-OBFS-003",
+            pattern=re.compile(r"\bBuffer\.from\s*\([^)]*\)[\s\S]*?\bFunction\s*\(", re.IGNORECASE),
+            severity=Severity.CRITICAL,
+            message="Base64 decode followed by eval/Function execution",
+            remediation="Never decode base64 and eval the result. Replace with static config.",
+            required_tokens=frozenset({"buffer.from", "function"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+        # L2-OBFS-004 unicode escapes.
+        TokenPattern(
+            rule_id="L2-OBFS-004",
+            pattern=UNICODE_ESCAPE_PATTERN[1],
+            severity=Severity.HIGH,
+            message="Unicode-escaped string detected",
+            remediation="Decode the unicode escape sequence and use readable literals.",
+            required_tokens=frozenset({r"\u"}),
+            confidence=Confidence.HIGH,
+            references=_REFERENCES,
+        ),
+    ]
+)
 
-    if file_path.suffix in SKIP_EXTENSIONS:
-        return findings
 
-    try:
-        size = file_path.stat().st_size
-    except OSError:
-        return findings
-
-    if size > MAX_FILE_BYTES:
-        return findings
-
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return findings
-
-
+def _package_label(file_path: Path) -> str:
     parts = file_path.parts
-    pkg_label = "unknown"
     if "node_modules" in parts:
         idx = parts.index("node_modules")
         if idx + 1 < len(parts):
             scoped = parts[idx + 1].startswith("@")
-            pkg_label = f"{parts[idx + 1]}/{parts[idx + 2]}" if scoped and idx + 2 < len(parts) else parts[idx + 1]
-
-    for rule_id, pattern, severity, msg_tmpl, remediation in PATTERNS:
-        for match in pattern.finditer(content):
-            line_num = content[: match.start()].count("\n") + 1
-            matched_text = match.group(0)[:120]
-
-            findings.append(
-                Finding(
-                    rule_id=rule_id,
-                    severity=severity,
-                    confidence=Confidence.HIGH,
-                    package=pkg_label,
-                    file=str(file_path),
-                    line=line_num,
-                    message=msg_tmpl.format(func=matched_text.split("(")[0]) if "{func}" in msg_tmpl else msg_tmpl,
-                    evidence=matched_text,
-                    remediation=remediation,
-                    references=[
-                        "https://github.com/nodesource/node-js-sec-best-practices",
-                    ],
-                )
+            return (
+                f"{parts[idx + 1]}/{parts[idx + 2]}"
+                if scoped and idx + 2 < len(parts)
+                else parts[idx + 1]
             )
+    return "unknown"
 
-    return findings
+
+def _scan_file(file_path: Path) -> list[Finding]:
+    return _OBFS_SCANNER.scan_file(
+        file_path,
+        _package_label(file_path),
+        max_bytes=MAX_FILE_BYTES,
+        skip_extensions=SKIP_EXTENSIONS,
+        skip_dirs=SKIP_DIRS,
+    )
 
 
-def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_obfuscation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     if target.is_dir():
         for ext in JS_EXTENSIONS:
             for f in target.glob(f"*{ext}"):
                 findings.extend(_scan_file(f))
-
 
         nm = target / "node_modules"
         if nm.is_dir():
@@ -162,9 +234,7 @@ def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
                 if not child.is_dir() or child.name.startswith("."):
                     continue
 
-
                 if child.name.startswith("@"):
-
                     for scoped_child in sorted(child.iterdir()):
                         if not scoped_child.is_dir():
                             continue
@@ -183,7 +253,6 @@ def detect_obfuscation(target: Path, corpus_dir: Path) -> list[Finding]:
                             findings.extend(_scan_file(f))
                             file_count += 1
                 else:
-
                     file_count = 0
                     for f in child.rglob("*"):
                         if f.is_symlink():

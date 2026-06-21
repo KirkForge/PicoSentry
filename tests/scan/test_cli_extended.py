@@ -21,7 +21,6 @@ from picosentry.scan.config import PicoSentryConfig, load_config
 from picosentry.scan.models import ScanResult
 
 
-
 class TestDaemonCommand:
     """Test daemon subcommand via main()."""
 

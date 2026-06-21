@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -12,7 +11,6 @@ logger = logging.getLogger("picodome.tenant")
 
 @dataclass(frozen=True)
 class TenantId:
-
     value: str
 
     def __post_init__(self) -> None:
@@ -49,7 +47,6 @@ DEFAULT_TENANT = TenantId("default")
 
 @dataclass(frozen=True)
 class TenantContext:
-
     tenant_id: TenantId
     display_name: str = ""
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -60,7 +57,6 @@ class TenantContext:
 
 
 class TenantRegistry:
-
     def __init__(self) -> None:
         self._tenants: dict[str, TenantContext] = {}
         self._token_map: dict[str, TenantId] = {}  # token_hash -> tenant
@@ -102,12 +98,10 @@ class TenantRegistry:
             except ValueError:
                 logger.warning("Invalid X-Tenant header: '%s'", header_tenant)
 
-
         with self._lock:
             mapped = self._token_map.get(token_hash)
             if mapped is not None:
                 return mapped
-
 
         return DEFAULT_TENANT
 
@@ -147,11 +141,10 @@ def reset_tenant_registry() -> None:
 def load_tenants_from_env() -> TenantRegistry:
     registry = setup_tenant_registry()
 
-
     tenants_str = os.environ.get("PICODOME_TENANTS", "")
     if tenants_str:
-        for entry in tenants_str.split(";"):
-            entry = entry.strip()
+        for raw_entry in tenants_str.split(";"):
+            entry = raw_entry.strip()
             if not entry:
                 continue
             parts = entry.split(":", 1)
@@ -164,11 +157,10 @@ def load_tenants_from_env() -> TenantRegistry:
                 )
             )
 
-
     token_map_str = os.environ.get("PICODOME_TENANT_TOKEN_MAP", "")
     if token_map_str:
-        for entry in token_map_str.split(","):
-            entry = entry.strip()
+        for raw_entry in token_map_str.split(","):
+            entry = raw_entry.strip()
             if not entry:
                 continue
             parts = entry.split(":", 1)

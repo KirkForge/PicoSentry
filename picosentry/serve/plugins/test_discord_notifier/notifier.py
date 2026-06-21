@@ -7,6 +7,7 @@ logger = logging.getLogger("picoshogun.Plugin.DiscordNotifier")
 
 try:
     import requests
+
     HAS_REQUESTS = True
 except ImportError:
     HAS_REQUESTS = False
@@ -14,11 +15,11 @@ except ImportError:
 
 def _get_webhook_url() -> str | None:
     import os
+
     return os.environ.get("DISCORD_WEBHOOK_URL") or None
 
 
 class DiscordNotifier(PluginInterface):
-
     def initialize(self, config: dict[str, Any]) -> bool:
         self.webhook_url = config.get("webhook_url") or _get_webhook_url()
         if not self.webhook_url:
@@ -73,23 +74,25 @@ class DiscordNotifier(PluginInterface):
                 if key not in ("severity", "message") and len(str(value)) < 1000:
                     fields.append({"name": key, "value": str(value)[:1000], "inline": True})
 
-        payload = {
-            "embeds": [{
-                "title": "🛡️ PicoShogun Alert",
-                "description": message[:2000],
-                "color": colors.get(severity, 3447003),
-                "fields": fields,
-            }]
+        payload: dict[str, Any] = {
+            "embeds": [
+                {
+                    "title": "🛡️ PicoShogun Alert",
+                    "description": message[:2000],
+                    "color": colors.get(severity, 3447003),
+                    "fields": fields,
+                }
+            ]
         }
 
         try:
             resp = requests.post(
                 self.webhook_url,
-                json=payload,  # type: ignore[arg-type]
+                json=payload,
                 timeout=5,
                 headers={"Content-Type": "application/json"},
             )
             resp.raise_for_status()
             logger.debug("[DiscordNotifier] Delivered %s alert", severity)
-        except Exception as exc:
-            logger.error("[DiscordNotifier] Delivery failed: %s", exc)
+        except Exception:
+            logger.exception("[DiscordNotifier] Delivery failed")

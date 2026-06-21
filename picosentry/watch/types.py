@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -7,7 +6,6 @@ from typing import Any
 
 
 class Verdict(str, Enum):
-
     PASS = "pass"
     WARN = "warn"
     BLOCK = "block"
@@ -15,7 +13,6 @@ class Verdict(str, Enum):
 
 @dataclass(frozen=True)
 class PromptScanResult:  # rationale: L5 prompt scan result, frozen for determinism
-
     blocked: bool
     score: float
     rules_matched: list[str]
@@ -43,7 +40,6 @@ class PromptScanResult:  # rationale: L5 prompt scan result, frozen for determin
 
 @dataclass(frozen=True)
 class ValidationResult:  # rationale: L6 output validation result, frozen for determinism
-
     valid: bool
     score: float
     violations: list[str]
@@ -69,7 +65,6 @@ class ValidationResult:  # rationale: L6 output validation result, frozen for de
 
 @dataclass(frozen=True)
 class Rule:
-
     id: str
     category: str
     weight: float
@@ -87,7 +82,6 @@ class Rule:
 
 @dataclass(frozen=True)
 class HealthStatus:
-
     healthy: bool
     version: str
     rules_loaded: int

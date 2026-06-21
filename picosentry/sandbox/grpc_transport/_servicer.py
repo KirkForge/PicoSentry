@@ -1,6 +1,6 @@
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -13,7 +13,6 @@ logger = logging.getLogger("picodome.grpc_transport.servicer")
 
 
 class PicoDomeServicer:
-
     def __init__(self, scan_engine, start_time: float, scan_count_ref: Any) -> None:
         self._scan_engine = scan_engine
         self._start_time = start_time
@@ -23,12 +22,10 @@ class PicoDomeServicer:
         self._audit_log("SCAN_START", detail=f"command={list(request.command)}")
 
         try:
-
             command = list(request.command) if hasattr(request, "command") else []
             policy_name = request.policy if hasattr(request, "policy") else ""
             timeout = request.timeout if hasattr(request, "timeout") and request.timeout else 30.0
             cwd = request.cwd if hasattr(request, "cwd") and request.cwd else None
-
 
             policy = None
             if policy_name:
@@ -41,7 +38,6 @@ class PicoDomeServicer:
                 except Exception:
                     logger.debug("Policy '%s' not found, using default", policy_name)
 
-
             sandbox_result = self._scan_engine.scan(
                 command=command,
                 policy=policy,
@@ -50,12 +46,10 @@ class PicoDomeServicer:
                 deterministic=False,
             )
 
-
             analysis_result = self._scan_engine.analyze(
                 sandbox_result,
                 deterministic=False,
             )
-
 
             result = {
                 "job_id": f"grpc-{uuid.uuid4().hex}",
@@ -66,7 +60,6 @@ class PicoDomeServicer:
                 "findings_count": len(analysis_result.findings),
             }
 
-
             if hasattr(self._scan_count_ref, "_scan_count"):
                 self._scan_count_ref._scan_count += 1
 
@@ -74,7 +67,6 @@ class PicoDomeServicer:
                 "SCAN_COMPLETE",
                 detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}",
             )
-
 
             try:
                 from picosentry.sandbox.grpc_transport.proto import picodome_pb2 as pb2
@@ -89,7 +81,6 @@ class PicoDomeServicer:
                     findings_count=len(analysis_result.findings),
                 )
             except ImportError:
-
                 return _DictProxy(
                     {
                         "result_json": json.dumps(result, sort_keys=True, default=str),
@@ -103,9 +94,8 @@ class PicoDomeServicer:
                 )
 
         except Exception as e:
-            logger.exception("Scan RPC failed: %s", e)
+            logger.exception("Scan RPC failed")
             self._audit_log("SCAN_ERROR", detail=str(e))
-
 
             error_result = {
                 "result_json": json.dumps({"error": str(e)}),
@@ -130,7 +120,6 @@ class PicoDomeServicer:
                     findings_count=error_result["findings_count"],
                 )
             except ImportError:
-
                 return _DictProxy(error_result)
 
     def Health(self, request, context):
@@ -214,10 +203,8 @@ class PicoDomeServicer:
 
             et = None
             if event_type:
-                try:
+                with contextlib.suppress(ValueError):
                     et = AuditEventType(event_type)
-                except ValueError:
-                    pass
 
             events = audit.query(
                 event_type=et,
@@ -268,7 +255,6 @@ class PicoDomeServicer:
 
 
 class _DictProxy:
-
     def __init__(self, data: dict) -> None:
         self._data = data
 

@@ -1,17 +1,17 @@
-
 from __future__ import annotations
 
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.daemon.store import PersistentScanJobStore
 from picosentry.sandbox.tenant import DEFAULT_TENANT, TenantId
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.daemon.store import PersistentScanJobStore
 
 logger = logging.getLogger("picodome.tenant.store")
 
 
 class TenantAwareScanJobStore:
-
     def __init__(
         self,
         store: PersistentScanJobStore,

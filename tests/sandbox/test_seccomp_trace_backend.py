@@ -217,8 +217,8 @@ class TestSeccompTraceBackendEventShapes:
         # Code 0x7fff0000 = ALLOW, not LOG
         log_text = (
             "type=1326 audit(1700000000.123:45): "
-            "auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm=\"python3\" "
-            "exe=\"/usr/bin/python3\" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code=0x7fff0000"
+            'auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm="python3" '
+            'exe="/usr/bin/python3" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code=0x7fff0000'
         )
         events = backend._parse_seccomp_log(log_text, default_policy(), 0.0)
         assert events == []
@@ -228,8 +228,8 @@ class TestSeccompTraceBackendEventShapes:
         backend = SeccompTraceBackend()
         log_text = (
             "type=1326 audit(1700000000.123:45): "
-            "auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm=\"python3\" "
-            "exe=\"/usr/bin/python3\" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f "
+            'auid=4294967295 uid=0 gid=0 ses=4294967295 pid=1234 comm="python3" '
+            'exe="/usr/bin/python3" sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f '
             f"code={_LOG_ACTION_CODE}"
         )
         events = backend._parse_seccomp_log(log_text, default_policy(), 0.0)
@@ -245,17 +245,17 @@ class TestSeccompTraceBackendEventShapes:
         backend = SeccompTraceBackend()
         line_open = (
             "type=1326 audit(1700000000.123:45): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=2 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         line_read = (
             "type=1326 audit(1700000000.456:46): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=0 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         line_connect = (
             "type=1326 audit(1700000000.789:47): auid=4294967295 uid=0 gid=0 "
-            "ses=4294967295 pid=1234 comm=\"python3\" exe=\"/usr/bin/python3\" "
+            'ses=4294967295 pid=1234 comm="python3" exe="/usr/bin/python3" '
             f"sig=0 arch=c000003e syscall=42 compat=0 ip=0x7f code={_LOG_ACTION_CODE}"
         )
         events = backend._parse_seccomp_log(
@@ -283,9 +283,7 @@ class TestSeccompTraceBackendEventShapes:
         (verified on Linux 5.x/6.x /proc/<pid>/seccomp).
         """
         # Match
-        m = _AUDIT_LINE_RE.search(
-            f"audit(1.0:1): arch=c000003e syscall=2 code={_LOG_ACTION_CODE}"
-        )
+        m = _AUDIT_LINE_RE.search(f"audit(1.0:1): arch=c000003e syscall=2 code={_LOG_ACTION_CODE}")
         assert m is not None
         assert m.group("nr") == "2"
         assert m.group("arch") == "c000003e"
@@ -354,9 +352,7 @@ class TestSeccompTraceBackendRun:
         result = backend.run(["echo", "hello"], permissive)
         assert result.exit_code == 0
         operations = [e.operation for e in result.events]
-        assert "process_exit" in operations, (
-            f"lifecycle event must always be emitted; got {operations!r}"
-        )
+        assert "process_exit" in operations, f"lifecycle event must always be emitted; got {operations!r}"
         # LOOSE floor, not STRICT: the orchestrator's v2.0.8 SCMP_ACT_LOG
         # fallback may yield exactly the lifecycle event in this
         # environment. A strict ">5" floor would over-constrain the
@@ -395,10 +391,7 @@ class TestSeccompTraceBackendRun:
         # Either a seccomp_violation event (KILL via BPF) or a process_timeout
         # (child took too long after being KILLed) — both acceptable
         operations = [e.operation for e in result.events]
-        assert (
-            "seccomp_violation" in operations
-            or "process_timeout" in operations
-        )
+        assert "seccomp_violation" in operations or "process_timeout" in operations
 
 
 # ─── TestSeccompTraceBackendDispatch ───────────────────────────────────
@@ -435,26 +428,36 @@ class TestSeccompTraceBackendDispatch:
 
     def test_auto_detect_does_not_pick_seccomp_trace(self) -> None:
         """Auto-detect never returns seccomp-trace — it's explicit-only in v2.0.8."""
-        with patch.object(SeccompTraceBackend, "is_available", return_value=True):
-            with patch("picosentry.sandbox.l3.backends.seccomp_backend.SeccompBackend.is_available", return_value=False):
-                with patch("picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.is_available", return_value=True):
-                    with patch(
-                        "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.run",
-                        return_value=MagicMock(),
-                    ):
-                        backend = _detect_backend(allow_degraded=True)
-                        assert backend.name != "seccomp-trace"
+        with (
+            patch.object(SeccompTraceBackend, "is_available", return_value=True),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_backend.SeccompBackend.is_available",
+                return_value=False,
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.is_available",
+                return_value=True,
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.subprocess_backend.SubprocessBackend.run",
+                return_value=MagicMock(),
+            ),
+        ):
+            backend = _detect_backend(allow_degraded=True)
+            assert backend.name != "seccomp-trace"
 
     def test_get_backend_reads_env_var(self) -> None:
         """PICODOME_SANDBOX_BACKEND=seccomp-trace routes to SeccompTraceBackend."""
-        with patch.object(SeccompTraceBackend, "is_available", return_value=True):
-            with patch.dict(os.environ, {"PICODOME_SANDBOX_BACKEND": "seccomp-trace"}):
+        with (
+            patch.object(SeccompTraceBackend, "is_available", return_value=True),
+            patch.dict(os.environ, {"PICODOME_SANDBOX_BACKEND": "seccomp-trace"}),
+        ):
+            reset_backend()
+            try:
+                backend = get_backend()
+                assert backend.name == "seccomp-trace"
+            finally:
                 reset_backend()
-                try:
-                    backend = get_backend()
-                    assert backend.name == "seccomp-trace"
-                finally:
-                    reset_backend()
 
 
 # ─── TestSeccompTraceBackendProfilerRoundtrip ──────────────────────────
@@ -579,33 +582,36 @@ class TestSeccompTraceBackendForkOrdering:
         def fake_wait_with_timeout(self, pid, out_r, err_r, timeout, log_path):
             return (b"hi\n", b"", 0, "")
 
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.fork",
-            side_effect=fake_fork,
-        ), patch.object(
-            os.environ, "copy", side_effect=fake_environ_copy
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.pipe",
-            return_value=(0, 1),
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace_backend.ctypes.CDLL",
-            return_value=lib,
-        ), patch.object(
-            SeccompTraceBackend, "_wait_with_timeout", fake_wait_with_timeout
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.read",
-            return_value=b"hi\n",
-        ), patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.close",
-            return_value=None,
+        with (
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.fork",
+                side_effect=fake_fork,
+            ),
+            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.pipe",
+                return_value=(0, 1),
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_trace_backend.ctypes.CDLL",
+                return_value=lib,
+            ),
+            patch.object(SeccompTraceBackend, "_wait_with_timeout", fake_wait_with_timeout),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.read",
+                return_value=b"hi\n",
+            ),
+            patch(
+                "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.close",
+                return_value=None,
+            ),
         ):
             backend.run(["/bin/echo", "hi"], policy=policy, timeout=5.0)
 
         assert "environ_copy" in call_order
         assert "fork" in call_order
         assert call_order.index("environ_copy") < call_order.index("fork"), (
-            f"trace backend: env-dict construction must run in parent "
-            f"before fork; got call_order={call_order!r}"
+            f"trace backend: env-dict construction must run in parent before fork; got call_order={call_order!r}"
         )
 
 
@@ -636,14 +642,13 @@ class TestSeccompTraceBackendRuleAddReturn:
         # Patch where the call site is: filter_builder (post v2.1.0
         # refactor). The shim's add_rule_safely attribute is a re-export,
         # not the call site, so patching the shim wouldn't intercept.
-        with patch(
-            "picosentry.sandbox.l3.backends.seccomp_trace.filter_builder.add_rule_safely"
-        ) as mock_add:
+        with patch("picosentry.sandbox.l3.backends.seccomp_trace.filter_builder.add_rule_safely") as mock_add:
             _ctx, _blocked = backend._build_filter(lib, policy)
 
         assert mock_add.called, "SeccompTraceBackend._build_filter must use add_rule_safely"
         # At least the FS_READ_SYSCALLS syscalls + the SAFE_SYSCALLS syscalls.
         from picosentry.sandbox.l3.backends._seccomp_common import FS_READ_SYSCALLS
+
         assert mock_add.call_count >= len(FS_READ_SYSCALLS)
 
     def test_trace_backend_safe_syscalls_is_shared_set(self) -> None:
@@ -657,6 +662,7 @@ class TestSeccompTraceBackendRuleAddReturn:
             NETWORK_SYSCALLS,
             SAFE_SYSCALLS,
         )
+
         assert not hasattr(seccomp_trace_backend, "_SAFE_SYSCALLS")
         assert seccomp_trace_backend.SAFE_SYSCALLS is SAFE_SYSCALLS
         assert seccomp_trace_backend.FS_WRITE_SYSCALLS is FS_WRITE_SYSCALLS

@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -46,7 +45,6 @@ end
 
 
 class RedisTokenBucketLimiter:
-
     def __init__(
         self,
         config: RateLimitConfig | None = None,
@@ -148,7 +146,6 @@ class RedisTokenBucketLimiter:
             if actor:
                 client.delete(f"picodome:ratelimit:{actor}")
             else:
-
                 for key in client.scan_iter("picodome:ratelimit:*"):
                     client.delete(key)
         except Exception:

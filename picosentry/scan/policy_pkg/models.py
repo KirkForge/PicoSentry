@@ -42,26 +42,21 @@ VALID_LICENSES = frozenset(
 
 def _parse_npm_label(label: str) -> tuple[str, str]:
     if label.startswith("@"):
-
-
         last_at = label.rfind("@")
         if last_at == 0:
-
             return (label, "")
         name = label[:last_at]
         version = label[last_at + 1 :]
         return (name, version)
-    else:
 
-        parts = label.split("@", 1)
-        if len(parts) == 2:
-            return (parts[0], parts[1])
-        return (label, "")
+    parts = label.split("@", 1)
+    if len(parts) == 2:
+        return (parts[0], parts[1])
+    return (label, "")
 
 
 @dataclass
 class Waiver:
-
     id: str
     rule_id: str
     package: str  # package name or "name@version"
@@ -83,7 +78,7 @@ class Waiver:
 
         pkg_name, _ = _parse_npm_label(package)
         w_pkg_name, _ = _parse_npm_label(self.package)
-        if w_pkg_name == "*" or w_pkg_name == pkg_name:
+        if w_pkg_name in ("*", pkg_name):
             return True
 
         return self.package == package
@@ -114,7 +109,6 @@ class Waiver:
 
 @dataclass
 class PolicyViolation:
-
     violation_type: str  # "severity", "license", "deny_package", "requirement"
     severity: str = "ERROR"
     message: str = ""
@@ -131,7 +125,6 @@ class PolicyViolation:
 
 @dataclass
 class PolicyResult:
-
     passed: bool = True
     violations: list[PolicyViolation] = field(default_factory=list)
     waived_findings: int = 0

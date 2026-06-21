@@ -6,7 +6,6 @@ from starlette.responses import JSONResponse
 
 
 class DocsRestrictionMiddleware(BaseHTTPMiddleware):
-
     DOCS_PATHS: ClassVar[set[str]] = {"/docs", "/docs/", "/redoc", "/redoc/"}
 
     def __init__(self, app, enabled: bool = False):

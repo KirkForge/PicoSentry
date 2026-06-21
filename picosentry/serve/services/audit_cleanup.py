@@ -7,23 +7,19 @@ logger = logging.getLogger("picoshogun.AuditRetention")
 
 
 DEFAULT_RETENTION: dict[str, int] = {
-    "critical": 365,   # 1 year for critical events
-    "high": 180,       # 6 months for high
-    "medium": 90,      # 90 days for medium
-    "low": 30,         # 30 days for low
-    "default": 90,     # 90 days for everything else
+    "critical": 365,  # 1 year for critical events
+    "high": 180,  # 6 months for high
+    "medium": 90,  # 90 days for medium
+    "low": 30,  # 30 days for low
+    "default": 90,  # 90 days for everything else
 }
 
 
 def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False) -> dict:
     if retention_days is not None:
-
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         if dry_run:
-            row = db.execute_one(
-                "SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?",
-                (cutoff.isoformat(),)
-            )
+            row = db.execute_one("SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
             return {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
 
         db.execute("DELETE FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
@@ -32,15 +28,11 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False) -
         logger.info("Purged %d audit log entries older than %d days", total, retention_days)
         return {"deleted": total, "cutoff": cutoff.isoformat()}
 
-
     results = {}
     for severity, days in DEFAULT_RETENTION.items():
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         if dry_run:
-            row = db.execute_one(
-                "SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?",
-                (cutoff.isoformat(),)
-            )
+            row = db.execute_one("SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
             results[severity] = {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
         else:
             db.execute("DELETE FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
@@ -57,10 +49,7 @@ def get_audit_stats() -> dict:
     oldest = db.execute_one("SELECT MIN(created_at) as oldest FROM audit_log")
     newest = db.execute_one("SELECT MAX(created_at) as newest FROM audit_log")
 
-
-    actions = db.execute(
-        "SELECT action, COUNT(*) as count FROM audit_log GROUP BY action ORDER BY count DESC LIMIT 10"
-    )
+    actions = db.execute("SELECT action, COUNT(*) as count FROM audit_log GROUP BY action ORDER BY count DESC LIMIT 10")
 
     return {
         "total_entries": total["c"] if total else 0,

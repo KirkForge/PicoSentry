@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -17,7 +16,6 @@ DEP_FIELDS = (
 
 
 PROTOCOL_PATTERNS: list[tuple[str, str, Severity, str]] = [
-
     (
         "git+ssh://",
         "git+ssh:// dependency — bypasses registry integrity, uses SSH",
@@ -63,7 +61,7 @@ PROTOCOL_PATTERNS: list[tuple[str, str, Severity, str]] = [
 ]
 
 
-def _extract_protocol_deps(pkg_data: dict, pkg_name: str, pkg_json_path: str = "package.json") -> list[Finding]:
+def _extract_protocol_deps(pkg_data: dict, pkg_json_path: str = "package.json") -> list[Finding]:
     findings: list[Finding] = []
 
     for field in DEP_FIELDS:
@@ -99,20 +97,16 @@ def _extract_protocol_deps(pkg_data: dict, pkg_name: str, pkg_json_path: str = "
     return findings
 
 
-def detect_sideloading(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_sideloading(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         data = load_package_json(root_pkg)
         if data:
-            pkg_name = data.get("name", root_pkg.parent.name)
-            findings.extend(_extract_protocol_deps(data, pkg_name, str(root_pkg)))
-
+            findings.extend(_extract_protocol_deps(data, str(root_pkg)))
 
     for pkg_json, pkg_data in iter_node_modules(target):
-        pkg_name = pkg_data.get("name", "")
-        findings.extend(_extract_protocol_deps(pkg_data, pkg_name, str(pkg_json)))
+        findings.extend(_extract_protocol_deps(pkg_data, str(pkg_json)))
 
     return findings

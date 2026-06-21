@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, DriftResult
@@ -12,63 +11,46 @@ def compare_profile_to_baseline(
     drift_count = 0
     total_checks = 5
 
-
     network_drift = False
-    if baseline.expected_network_calls >= 0:
-        if len(profile.network_calls) > baseline.expected_network_calls:
-            network_drift = True
-            drift_count += 1
-            drift_flags.append(
-                f"Network: {len(profile.network_calls)} calls (expected ≤{baseline.expected_network_calls})"
-            )
-
+    if baseline.expected_network_calls >= 0 and len(profile.network_calls) > baseline.expected_network_calls:
+        network_drift = True
+        drift_count += 1
+        drift_flags.append(f"Network: {len(profile.network_calls)} calls (expected ≤{baseline.expected_network_calls})")
 
     dns_drift = False
-    if baseline.expected_dns_queries >= 0:
-        if len(profile.dns_queries) > baseline.expected_dns_queries:
-            dns_drift = True
-            drift_count += 1
-            drift_flags.append(f"DNS: {len(profile.dns_queries)} queries (expected ≤{baseline.expected_dns_queries})")
-
+    if baseline.expected_dns_queries >= 0 and len(profile.dns_queries) > baseline.expected_dns_queries:
+        dns_drift = True
+        drift_count += 1
+        drift_flags.append(f"DNS: {len(profile.dns_queries)} queries (expected ≤{baseline.expected_dns_queries})")
 
     fs_drift = False
-    if baseline.expected_fs_ops >= 0:
-        if len(profile.fs_ops) > baseline.expected_fs_ops:
-            fs_drift = True
-            drift_count += 1
-            drift_flags.append(f"FS: {len(profile.fs_ops)} operations (expected ≤{baseline.expected_fs_ops})")
-
+    if baseline.expected_fs_ops >= 0 and len(profile.fs_ops) > baseline.expected_fs_ops:
+        fs_drift = True
+        drift_count += 1
+        drift_flags.append(f"FS: {len(profile.fs_ops)} operations (expected ≤{baseline.expected_fs_ops})")
 
     spawn_drift = False
-    if baseline.expected_spawns >= 0:
-        if len(profile.spawns) > baseline.expected_spawns:
-            spawn_drift = True
-            drift_count += 1
-            drift_flags.append(f"Spawns: {len(profile.spawns)} processes (expected ≤{baseline.expected_spawns})")
-
+    if baseline.expected_spawns >= 0 and len(profile.spawns) > baseline.expected_spawns:
+        spawn_drift = True
+        drift_count += 1
+        drift_flags.append(f"Spawns: {len(profile.spawns)} processes (expected ≤{baseline.expected_spawns})")
 
     timing_drift = False
     low, high = baseline.expected_runtime_ms_range
-    if low > 0 or high > 0:
-        if profile.total_runtime_ms < low or profile.total_runtime_ms > high:
-            timing_drift = True
-            drift_count += 1
-            drift_flags.append(f"Timing: {profile.total_runtime_ms}ms (expected {low}-{high}ms)")
-
+    if (low > 0 or high > 0) and (profile.total_runtime_ms < low or profile.total_runtime_ms > high):
+        timing_drift = True
+        drift_count += 1
+        drift_flags.append(f"Timing: {profile.total_runtime_ms}ms (expected {low}-{high}ms)")
 
     if baseline.allowed_domains and "*" not in baseline.allowed_domains:
         for call in profile.network_calls:
-
-
-            if not call.address.replace(".", "").replace(":", "").isdigit():
-
-                if call.address not in baseline.allowed_domains:
-                    if not network_drift:
-                        network_drift = True
-                        drift_count += 1
-                    drift_flags.append(f"Unexpected domain: {call.address}")
-                    break
-
+            address_stripped = call.address.replace(".", "").replace(":", "")
+            if not address_stripped.isdigit() and call.address not in baseline.allowed_domains:
+                if not network_drift:
+                    network_drift = True
+                    drift_count += 1
+                drift_flags.append(f"Unexpected domain: {call.address}")
+                break
 
     if baseline.allowed_paths and "**" not in baseline.allowed_paths:
         for op in profile.fs_ops:
@@ -102,8 +84,7 @@ def find_best_baseline(
     best: tuple[Baseline, DriftResult] | None = None
     best_score = 1.0
 
-    for _name, baseline in baselines.items():
-
+    for baseline in baselines.values():
         if baseline.package not in ("*", profile.package, profile.entrypoint):
             continue
 

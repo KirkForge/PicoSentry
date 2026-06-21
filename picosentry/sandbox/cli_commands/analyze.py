@@ -38,9 +38,8 @@ def cmd(args: argparse.Namespace) -> int:
         print("Error: --input file required and must exist", file=sys.stderr)
         return 1
 
-    with open(args.input) as f:
+    with args.input.open() as f:
         data = json.load(f)
-
 
     from picosentry.sandbox.l3.models import SandboxEvent, Verdict
 
@@ -74,7 +73,6 @@ def cmd(args: argparse.Namespace) -> int:
     deterministic = args.deterministic_output
     result = engine.analyze(profile, rules=args.rules, deterministic=deterministic)
 
-
     if deterministic:
         guard = DeterministicGuard()
         violations = guard.check(result)
@@ -85,7 +83,6 @@ def cmd(args: argparse.Namespace) -> int:
         finding_violations = validate_findings_deterministic(result.findings)
         for v in finding_violations:
             print(f"DETERMINISM VIOLATION (findings): {v}", file=sys.stderr)
-
 
     if not args.quiet:
         _output(result, args)

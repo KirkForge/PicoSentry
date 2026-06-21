@@ -55,22 +55,21 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 def cmd(args: argparse.Namespace) -> int:
 
-    if args.command and args.command[0] == '--':
+    if args.command and args.command[0] == "--":
         args.command = args.command[1:]
     if not args.command:
         print("Error: no command specified", file=sys.stderr)
         return 1
 
-
     if getattr(args, "allow_runtime", None) and not args.policy:
         from picosentry.sandbox.l3.policy import load_policy as _lp
+
         policy = _lp(name=args.allow_runtime)
     elif args.policy:
         policy = load_policy(args.policy)
     else:
         policy = None
     deterministic = args.deterministic_output
-
 
     from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
 
@@ -98,14 +97,12 @@ def cmd(args: argparse.Namespace) -> int:
         deterministic=deterministic,
     )
 
-
     if deterministic:
         guard = DeterministicGuard()
         violations = guard.check(result)
         if violations:
             for v in violations:
                 print(f"DETERMINISM VIOLATION: {v}", file=sys.stderr)
-
 
     if hasattr(args, "verify_determinism") and args.verify_determinism:
         is_match, hash_a, hash_b = verify_determinism(
@@ -122,10 +119,8 @@ def cmd(args: argparse.Namespace) -> int:
         if not is_match:
             return 4
 
-
     if not args.quiet:
         _output(result, args)
-
 
     return _compute_exit_code_sandbox(result, args)
 

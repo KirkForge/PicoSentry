@@ -131,9 +131,8 @@ class MockLuaScript:
             tokens -= consume
             self._redis.hset(key, mapping={"tokens": tokens, "last_refill": last_refill})
             return 1
-        else:
-            self._redis.hset(key, mapping={"tokens": tokens, "last_refill": last_refill})
-            return 0
+        self._redis.hset(key, mapping={"tokens": tokens, "last_refill": last_refill})
+        return 0
 
 
 class TestRedisLimiterWithMock:

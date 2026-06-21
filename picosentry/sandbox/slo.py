@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -11,7 +10,6 @@ logger = logging.getLogger("picodome.slo")
 
 @dataclass(frozen=True)
 class SLODefinition:
-
     name: str
     description: str
     target: float  # e.g., 0.999 for 99.9%
@@ -30,7 +28,6 @@ class SLODefinition:
 
 @dataclass(frozen=True)
 class SLOMeasurement:
-
     name: str
     measured_value: float
     target_value: float
@@ -119,7 +116,6 @@ MAX_LATENCY_SAMPLES = 10000  # Cap memory usage for SLO latency tracking
 
 
 class SLOTracker:
-
     def __init__(self) -> None:
         self._latency_samples: list[float] = []
         self._total_scans: int = 0
@@ -162,7 +158,6 @@ class SLOTracker:
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         measurements: list[SLOMeasurement] = []
 
-
         if self._health_checks > 0:
             avail = self._health_ok / self._health_checks
             measurements.append(
@@ -175,7 +170,6 @@ class SLOTracker:
                     detail=f"{self._health_ok}/{self._health_checks} healthy",
                 )
             )
-
 
         if self._latency_samples:
             sorted_lat = sorted(self._latency_samples)
@@ -211,7 +205,6 @@ class SLOTracker:
                 )
             )
 
-
         elapsed_min = (time.monotonic() - self._start_time) / 60.0
         if elapsed_min >= 1.0:
             throughput = self._total_scans / elapsed_min
@@ -225,7 +218,6 @@ class SLOTracker:
                 )
             )
 
-
         if self._total_scans > 0:
             error_rate = self._failed_scans / self._total_scans
             measurements.append(
@@ -238,7 +230,6 @@ class SLOTracker:
                     detail=f"{self._failed_scans}/{self._total_scans} failed",
                 )
             )
-
 
         if self._determinism_checks > 0:
             det_rate = self._determinism_ok / self._determinism_checks

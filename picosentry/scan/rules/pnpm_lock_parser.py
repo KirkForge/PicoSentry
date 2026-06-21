@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import re
@@ -14,7 +13,6 @@ except ImportError:
 
 @dataclass(frozen=True)
 class PnpmPackage:
-
     name: str
     version: str
     resolution: str = ""
@@ -25,7 +23,6 @@ class PnpmPackage:
 
 @dataclass
 class PnpmLockfile:
-
     lockfile_version: str = ""
     importers: dict[str, dict[str, str]] = field(default_factory=dict)
     packages: dict[str, PnpmPackage] = field(default_factory=dict)
@@ -49,9 +46,7 @@ def _parse_with_yaml(content: str) -> PnpmLockfile:
     if not isinstance(data, dict):
         return lockfile
 
-
     lockfile.lockfile_version = str(data.get("lockfileVersion", ""))
-
 
     importers = data.get("importers", {})
     if isinstance(importers, dict):
@@ -67,7 +62,6 @@ def _parse_with_yaml(content: str) -> PnpmLockfile:
                             elif isinstance(version_info, dict):
                                 deps[name] = version_info.get("version", str(version_info))
                 lockfile.importers[importer_path] = deps
-
 
     packages = data.get("packages", {})
     if isinstance(packages, dict):
@@ -87,7 +81,6 @@ def _parse_with_yaml(content: str) -> PnpmLockfile:
 
             integrity = pkg_data.get("resolution", {})
             integrity = integrity.get("integrity", "") if isinstance(integrity, dict) else ""
-
 
             pkg_deps: list[str] = []
             for dep_type in ("dependencies", "optionalDependencies"):
@@ -111,18 +104,14 @@ def _parse_pnpm_pkg_key(key: str) -> tuple[str, str, bool]:
 
     key = key.lstrip("/")
 
-
     is_aliased = "(" in key
     key = key.split("(")[0]
 
-
     if key.startswith("@"):
-
         at_idx = key.find("@", 1)
         if at_idx > 0:
             return key[:at_idx], key[at_idx + 1 :], is_aliased
         return key, "", is_aliased
-
 
     at_idx = key.find("@")
     if at_idx > 0:
@@ -134,11 +123,9 @@ def _parse_pnpm_pkg_key(key: str) -> tuple[str, str, bool]:
 def _parse_with_regex(content: str) -> PnpmLockfile:
     lockfile = PnpmLockfile()
 
-
     version_match = re.search(r"lockfileVersion:\s*['\"]?([\d.]+)", content)
     if version_match:
         lockfile.lockfile_version = version_match.group(1)
-
 
     for line in content.splitlines():
         stripped = line.strip()
@@ -153,18 +140,15 @@ def _parse_with_regex(content: str) -> PnpmLockfile:
                 version=version,
             )
 
-
     in_importers = False
     for line in content.splitlines():
         if line.strip() == "importers:":
             in_importers = True
             continue
         if in_importers:
-            if line.startswith("  ") or line.startswith("\t"):
-
+            if line.startswith(("  ", "\t")):
                 pass
             else:
-
                 m = re.match(r"^\s+['\"]?([^'\":]+)['\"]?:", line)
                 if m:
                     m.group(1)
@@ -186,15 +170,10 @@ def get_pnpm_package(lockfile: PnpmLockfile, name: str, version: str | None = No
 
 
 def find_missing_integrity(lockfile: PnpmLockfile) -> list[tuple[str, str]]:
-    missing = []
-    for pkg in lockfile.packages.values():
-        if not pkg.integrity and not pkg.resolution:
-            missing.append((pkg.name, pkg.version))
-    return missing
+    return [(pkg.name, pkg.version) for pkg in lockfile.packages.values() if not pkg.integrity and not pkg.resolution]
 
 
 def find_weak_integrity(lockfile: PnpmLockfile) -> list[tuple[str, str, str]]:
-
 
     truly_weak = ("sha1-", "md5-")
     weak = []

@@ -11,7 +11,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     subparsers.add_parser(NAME, help="Print version and exit")
 
 
-def cmd(args: argparse.Namespace) -> int:
+def cmd(_args: argparse.Namespace) -> int:
     print(f"picodome {__version__}")
     return 0
 

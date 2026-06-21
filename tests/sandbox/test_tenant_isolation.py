@@ -106,8 +106,7 @@ class TestDefaultTenantIsolation:
     @pytest.fixture
     def stores(self, tmp_path):
         backing = PersistentScanJobStore(store_dir=tmp_path)
-        tenant_store = TenantAwareScanJobStore(store=backing)
-        return tenant_store
+        return TenantAwareScanJobStore(store=backing)
 
     def test_default_tenant_cannot_access_named(self, stores):
         store = stores
@@ -136,8 +135,7 @@ class TestMultipleConcurrentTenants:
     @pytest.fixture
     def stores(self, tmp_path):
         backing = PersistentScanJobStore(store_dir=tmp_path)
-        tenant_store = TenantAwareScanJobStore(store=backing)
-        return tenant_store
+        return TenantAwareScanJobStore(store=backing)
 
     def test_five_tenants_isolated(self, stores):
         store = stores

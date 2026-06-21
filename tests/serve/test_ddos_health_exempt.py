@@ -14,7 +14,7 @@ contract for the bypass.
 
 from __future__ import annotations
 
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 from starlette.applications import Starlette
 from starlette.requests import Request
@@ -25,11 +25,19 @@ from starlette.testclient import TestClient
 from picosentry.serve.middleware.ddos_shield import DDoSShieldMiddleware
 
 
-def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShieldMiddleware]:
+def _build_app(
+    extra_routes: Iterable[Route] = (),
+    *,
+    _now: Callable[[], float] | None = None,
+) -> tuple[TestClient, DDoSShieldMiddleware]:
     """Build a tiny Starlette app with the DDoS shield mounted and a
     catch-all GET route that echoes the path back.  Returns both the
     client and the constructed middleware so tests can read
-    ``_global_limit`` etc. without guessing at the values."""
+    ``_global_limit`` etc. without guessing at the values.
+
+    ``_now`` is injected into the middleware to make tests independent of
+    wall-clock timing; production uses ``time.monotonic`` by default.
+    """
 
     async def catch_all(request: Request) -> JSONResponse:
         return JSONResponse({"path": request.url.path})
@@ -39,14 +47,12 @@ def _build_app(extra_routes: Iterable[Route] = ()) -> tuple[TestClient, DDoSShie
 
     # Build the middleware manually so we can hold a reference to it.
     # Starlette's add_middleware wraps it in a closure we can't easily
-    # reach; the underlying class is what we want anyway.
-    shield = DDoSShieldMiddleware(app, enabled=True)
-    app.add_middleware(DDoSShieldMiddleware, enabled=True)
-    return TestClient(app), shield
-
-
-def _build_client(extra_routes: Iterable[Route] = ()) -> TestClient:
-    return _build_app(extra_routes)[0]
+    # reach; the underlying class is what we want anyway.  Use the
+    # middleware instance itself as the ASGI app so the test client talks
+    # to exactly one shield instance.
+    kwargs = {"_now": _now} if _now is not None else {}
+    shield = DDoSShieldMiddleware(app, enabled=True, **kwargs)
+    return TestClient(shield), shield
 
 
 def test_health_paths_bypass_global_bucket() -> None:
@@ -57,9 +63,7 @@ def test_health_paths_bypass_global_bucket() -> None:
     client, shield = _build_app()
     for _ in range(shield._global_limit + 50):
         resp = client.get("/health/live")
-        assert resp.status_code == 200, (
-            f"/health/live returned {resp.status_code}; the exemption failed"
-        )
+        assert resp.status_code == 200, f"/health/live returned {resp.status_code}; the exemption failed"
 
 
 def test_health_liveness_exact_match() -> None:
@@ -83,30 +87,49 @@ def test_health_subpaths_are_exempt() -> None:
     client, _ = _build_app()
     for path in ("/health/ready", "/health/live", "/health/history"):
         resp = client.get(path)
-        assert resp.status_code == 200, (
-            f"{path} should be exempt; got {resp.status_code}"
-        )
+        assert resp.status_code == 200, f"{path} should be exempt; got {resp.status_code}"
 
 
 def test_non_health_paths_still_rate_limited() -> None:
     """The bypass must NOT leak to user traffic.  Hammering an
-    arbitrary path past the global limit must return 429."""
-    client, shield = _build_app()
+    arbitrary path past the global limit must return 429.
+
+    A fixed clock that advances a small delta each request keeps the
+    10-second window open for the whole run, so the result is
+    independent of wall-clock timing and test-machine speed."""
+    now = 0.0
+
+    def fake_now() -> float:
+        nonlocal now
+        now += 0.001
+        return now
+
+    client, shield = _build_app(_now=fake_now)
     last_status = None
     for _ in range(shield._global_limit + 50):
         resp = client.get("/api/v1/something")
         last_status = resp.status_code
     assert last_status == 429, (
-        f"non-health path should be rate-limited past the global limit; "
-        f"final status was {last_status}"
+        f"non-health path should be rate-limited past the global limit; final status was {last_status}"
     )
 
 
 def test_lookalike_paths_are_not_exempt() -> None:
     """``/health-evil`` and ``/healthy`` are NOT health probes — they
     look health-flavoured but aren't on the bypass list.  The exemption
-    is a closed set, not a prefix match."""
-    client, shield = _build_app()
+    is a closed set, not a prefix match.
+
+    Use the injected clock so the 10-second window stays open for the
+    whole run; otherwise a fast test machine drains old entries before
+    the global limit is reached."""
+    now = 0.0
+
+    def fake_now() -> float:
+        nonlocal now
+        now += 0.001
+        return now
+
+    client, shield = _build_app(_now=fake_now)
     saw_429 = False
     for _ in range(shield._global_limit + 50):
         resp = client.get("/health-evil")

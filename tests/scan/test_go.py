@@ -33,14 +33,17 @@ class TestGoDetection:
 
     def test_detects_go_mod(self):
         from picosentry.scan.rules.go_utils import detect_go_project
+
         assert detect_go_project(_go_clean())
 
     def test_detects_go_mod_malicious(self):
         from picosentry.scan.rules.go_utils import detect_go_project
+
         assert detect_go_project(_go_malicious())
 
     def test_no_indicator_returns_false(self, tmp_path):
         from picosentry.scan.rules.go_utils import detect_go_project
+
         assert not detect_go_project(tmp_path)
 
 
@@ -61,8 +64,7 @@ class TestGoEcosystemFiltering:
     def test_go_project_skips_npm_rules(self, tmp_path):
         """A Go project should not show npm findings (no node_modules)."""
         (tmp_path / "go.mod").write_text(
-            "module example.com/test\n\ngo 1.21\n\n"
-            "require (\n\tcompany-internal-lib v0.1.0\n)\n"
+            "module example.com/test\n\ngo 1.21\n\nrequire (\n\tcompany-internal-lib v0.1.0\n)\n"
         )
         engine = create_default_engine()
         result = engine.scan(str(tmp_path))
@@ -89,8 +91,9 @@ class TestGoTyposquat:
     def test_detects_typosquat_in_go_mod(self):
         """go.mod with 'jin' (typo for 'gin') should trigger typosquat."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_go_typosquat
+
         target = _go_malicious()
-        findings = detect_go_typosquat(target, Path(""))
+        findings = detect_go_typosquat(target, Path())
         typos = [f for f in findings if f.rule_id == "L2-GO-TYPO-001"]
         assert len(typos) >= 1, f"Expected typosquat finding, got: {[f.package for f in findings]}"
         assert typos[0].ecosystem == "go"
@@ -98,8 +101,9 @@ class TestGoTyposquat:
     def test_clean_project_no_typosquats(self):
         """Clean project should have no typosquat findings."""
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_go_typosquat
+
         target = _go_clean()
-        findings = detect_go_typosquat(target, Path(""))
+        findings = detect_go_typosquat(target, Path())
         assert len(findings) == 0, f"Clean project should have no typos: {findings}"
 
 
@@ -112,8 +116,9 @@ class TestGoDependencyConfusion:
     def test_detects_internal_dep_without_private_config(self):
         """internal-secrets without GOPRIVATE should be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
+
         target = _go_malicious()
-        findings = detect_go_dep_confusion(target, Path(""))
+        findings = detect_go_dep_confusion(target)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) >= 1, f"Expected dep confusion finding, got: {[f.package for f in findings]}"
         assert internal[0].rule_id == "L2-GO-DEPC-001"
@@ -121,18 +126,18 @@ class TestGoDependencyConfusion:
     def test_clean_project_no_confusion(self):
         """Clean project with only public GitHub deps should have no confusion findings."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
+
         target = _go_clean()
-        findings = detect_go_dep_confusion(target, Path(""))
+        findings = detect_go_dep_confusion(target)
         assert len(findings) == 0, f"Clean project should have no dep confusion: {findings}"
 
     def test_go_env_private_skips_flags(self, tmp_path):
         """When GOPRIVATE is configured, internal deps are safe."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_go_dep_confusion
-        (tmp_path / "go.mod").write_text(
-            "module test\n\ngo 1.21\n\nrequire (\n\tinternal-secrets v0.1.0\n)\n"
-        )
+
+        (tmp_path / "go.mod").write_text("module test\n\ngo 1.21\n\nrequire (\n\tinternal-secrets v0.1.0\n)\n")
         (tmp_path / "go.env").write_text("GOPRIVATE=internal-secrets\n")
-        findings = detect_go_dep_confusion(tmp_path, Path(""))
+        findings = detect_go_dep_confusion(tmp_path)
         internal = [f for f in findings if "internal" in f.package]
         assert len(internal) == 0, f"GOPRIVATE should suppress dep confusion: {internal}"
 
@@ -145,12 +150,14 @@ class TestGoModParsing:
 
     def test_parse_module_name(self):
         from picosentry.scan.rules.go_utils import parse_go_mod
+
         data = parse_go_mod(_go_clean())
         assert data is not None
         assert "github.com/example/my-awesome-module" in data.get("module", "")
 
     def test_parse_direct_deps(self):
         from picosentry.scan.rules.go_utils import parse_go_mod
+
         data = parse_go_mod(_go_clean())
         assert data is not None
         deps = {mod for mod, _ver in data.get("require", [])}
@@ -159,6 +166,7 @@ class TestGoModParsing:
 
     def test_no_go_mod_returns_none(self, tmp_path):
         from picosentry.scan.rules.go_utils import parse_go_mod
+
         assert parse_go_mod(tmp_path) is None
 
 
@@ -167,6 +175,7 @@ class TestGoSumParsing:
 
     def test_parse_go_sum(self):
         from picosentry.scan.rules.go_utils import parse_go_sum
+
         entries = parse_go_sum(_go_clean())
         assert len(entries) >= 1
         mods = {e[0] for e in entries}
@@ -174,6 +183,7 @@ class TestGoSumParsing:
 
     def test_no_go_sum_returns_empty(self, tmp_path):
         from picosentry.scan.rules.go_utils import parse_go_sum
+
         assert parse_go_sum(tmp_path) == []
 
 
@@ -182,12 +192,14 @@ class TestGoUtils:
 
     def test_get_module_short_name(self):
         from picosentry.scan.rules.go_utils import get_module_short_name
+
         assert get_module_short_name("github.com/gin-gonic/gin") == "gin"
         assert get_module_short_name("golang.org/x/crypto") == "crypto"
         assert get_module_short_name("k8s.io/client-go") == "client-go"
 
     def test_get_go_dep_names(self):
         from picosentry.scan.rules.go_utils import get_go_dep_names
+
         data = {
             "module": "test",
             "require": [
@@ -201,16 +213,19 @@ class TestGoUtils:
 
     def test_detect_goproxy_private(self):
         from picosentry.scan.rules.go_utils import detect_goproxy_private
+
         target = _go_clean()
         assert not detect_goproxy_private(target)  # Clean project has no private config
 
     def test_detect_goproxy_private_with_env(self, tmp_path):
         from picosentry.scan.rules.go_utils import detect_goproxy_private
+
         (tmp_path / "go.env").write_text("GOPRIVATE=internal-secrets\n")
         assert detect_goproxy_private(tmp_path)
 
     def test_detect_goproxy_private_with_replace(self, tmp_path):
         from picosentry.scan.rules.go_utils import detect_goproxy_private
+
         (tmp_path / "go.mod").write_text(
             "module test\n\ngo 1.21\n\nrequire (\n\tinternal-pkg v0.1.0\n)\n\n"
             "replace internal-pkg => ./local/internal-pkg\n"

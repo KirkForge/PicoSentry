@@ -27,13 +27,13 @@ _advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
 
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
     import time
+
     cache_key = (advisory_db_path or "", str(corpus_dir))
     if cache_key in _advisory_db_cache:
         db, load_time = _advisory_db_cache[cache_key]
         if time.time() - load_time > 86400:
             logger.warning("Advisory DB is stale (loaded > 24h ago). Run 'picosentry advisories fetch' to refresh.")
         return db
-
 
     if advisory_db_path:
         path = Path(advisory_db_path)
@@ -45,7 +45,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
 
-
     candidate = corpus_dir / "advisories"
     if candidate.is_dir():
         db = AdvisoryDB(candidate)
@@ -53,7 +52,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
             logger.info("Loaded advisory DB from corpus: %d advisories", db.advisory_count)
             _advisory_db_cache[cache_key] = (db, time.time())
             return db
-
 
     default_dir = default_advisory_dir()
     if default_dir.is_dir():
@@ -68,7 +66,6 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
 
 @dataclass(frozen=True)
 class AdvisoryConfig:
-
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
@@ -163,15 +160,17 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
         deps = project_section.get("dependencies", [])
         if isinstance(deps, list):
             for dep in deps:
-
                 if isinstance(dep, str) and dep:
                     name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
                     if name and (name, "unknown") not in seen:
                         seen.add((name, "unknown"))
                         packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))
 
-
-    for lock_parser, lock_file in [(parse_poetry_lock, "poetry.lock"), (parse_requirements_txt, "requirements.txt"), (parse_uv_lock, "uv.lock")]:
+    for lock_parser, lock_file in [
+        (parse_poetry_lock, "poetry.lock"),
+        (parse_requirements_txt, "requirements.txt"),
+        (parse_uv_lock, "uv.lock"),
+    ]:
         lock_path = target / lock_file
         if lock_path.exists():
             try:
@@ -230,7 +229,6 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
 
     gemfile_data = parse_gemfile(target)
     if gemfile_data:
-
         for entry in gemfile_data.get("dependencies", []):
             if not isinstance(entry, tuple) or len(entry) < 2:
                 continue
@@ -279,7 +277,10 @@ def _check_packages(
                     file=str(source_path),
                     message=f"{adv.id}: {adv.summary}",
                     evidence=f"advisory={adv.id}, severity={adv.severity}, fixed={adv.fixed_version or 'N/A'}",
-                    remediation=f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} See {adv.references[0] if adv.references else 'advisory database'} for details.",
+                    remediation=(
+                        f"Vulnerability in {pkg_name}@{pkg_version}.{fixed_hint} "
+                        f"See {adv.references[0] if adv.references else 'advisory database'} for details."
+                    ),
                     references=adv.references[:5] if adv.references else [],
                     ecosystem=config.ecosystem,
                 )
@@ -289,13 +290,48 @@ def _check_packages(
 
 
 _ECOSYSTEMS: list[AdvisoryConfig] = [
-    AdvisoryConfig(ecosystem="npm", rule_id="L2-ADV-001", detect_project=lambda p: (p / "package.json").exists(), collect_packages=_collect_npm_packages),
-    AdvisoryConfig(ecosystem="go", rule_id="L2-GO-ADV-001", detect_project=detect_go_project, collect_packages=_collect_go_packages),
-    AdvisoryConfig(ecosystem="cargo", rule_id="L2-CARGO-ADV-001", detect_project=detect_cargo_project, collect_packages=_collect_cargo_packages),
-    AdvisoryConfig(ecosystem="pypi", rule_id="L2-PYPI-ADV-001", detect_project=detect_pypi_project, collect_packages=_collect_pypi_packages),
-    AdvisoryConfig(ecosystem="maven", rule_id="L2-MAVEN-ADV-001", detect_project=detect_maven_project, collect_packages=_collect_maven_packages),
-    AdvisoryConfig(ecosystem="nuget", rule_id="L2-NUGET-ADV-001", detect_project=detect_nuget_project, collect_packages=_collect_nuget_packages),
-    AdvisoryConfig(ecosystem="rubygems", rule_id="L2-RUBYGEMS-ADV-001", detect_project=detect_rubygems_project, collect_packages=_collect_rubygems_packages),
+    AdvisoryConfig(
+        ecosystem="npm",
+        rule_id="L2-ADV-001",
+        detect_project=lambda p: (p / "package.json").exists(),
+        collect_packages=_collect_npm_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="go",
+        rule_id="L2-GO-ADV-001",
+        detect_project=detect_go_project,
+        collect_packages=_collect_go_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="cargo",
+        rule_id="L2-CARGO-ADV-001",
+        detect_project=detect_cargo_project,
+        collect_packages=_collect_cargo_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="pypi",
+        rule_id="L2-PYPI-ADV-001",
+        detect_project=detect_pypi_project,
+        collect_packages=_collect_pypi_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="maven",
+        rule_id="L2-MAVEN-ADV-001",
+        detect_project=detect_maven_project,
+        collect_packages=_collect_maven_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="nuget",
+        rule_id="L2-NUGET-ADV-001",
+        detect_project=detect_nuget_project,
+        collect_packages=_collect_nuget_packages,
+    ),
+    AdvisoryConfig(
+        ecosystem="rubygems",
+        rule_id="L2-RUBYGEMS-ADV-001",
+        detect_project=detect_rubygems_project,
+        collect_packages=_collect_rubygems_packages,
+    ),
 ]
 
 

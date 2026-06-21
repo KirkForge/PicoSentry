@@ -21,13 +21,28 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         help="Output path (default: .picosentry-policy.yml)",
     )
     fetch.add_argument("--no-verify", action="store_true", help="Skip digest verification")
-    fetch.add_argument("--verify-crypto", action="store_true", help="Verify cryptographic signature on policy bundle")
-    fetch.add_argument("--public-key", type=str, default="", help="Path to minisign public key (for minisign verification)")
+    fetch.add_argument(
+        "--verify-crypto",
+        action="store_true",
+        help="Verify cryptographic signature on policy bundle",
+    )
+    fetch.add_argument(
+        "--public-key",
+        type=str,
+        default="",
+        help="Path to minisign public key (for minisign verification)",
+    )
     fetch.add_argument("--offline", action="store_true", help="Use offline Sigstore verification")
 
     push = sub.add_parser("push", help="Push policy bundle to central server")
     push.add_argument("url", type=str, help="Upload endpoint URL")
-    push.add_argument("--file", "-f", type=str, default=".picosentry-policy-bundle.json", help="Policy bundle file to push")
+    push.add_argument(
+        "--file",
+        "-f",
+        type=str,
+        default=".picosentry-policy-bundle.json",
+        help="Policy bundle file to push",
+    )
     push.add_argument("--api-key", type=str, default="", help="API key for authentication")
 
     sub.add_parser("init", help="Generate .picosentry-org.yml template for central management")
@@ -53,7 +68,7 @@ def cmd(args: argparse.Namespace) -> int:
         print("Edit this file to configure central policy and advisory URLs for your organization.")
         return 0
 
-    elif args.policy_action == "fetch":
+    if args.policy_action == "fetch":
         from picosentry.scan.management import fetch_policy
 
         output = Path(args.output)
@@ -73,7 +88,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
         return 0
 
-    elif args.policy_action == "push":
+    if args.policy_action == "push":
         from picosentry.scan.management import push_policy
 
         policy_path = Path(args.file)

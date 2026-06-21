@@ -58,7 +58,7 @@ def cmd(args: argparse.Namespace) -> int:
         if not metrics:
             print(f"No metrics found for rule {rule_id}")
             return 1
-        for _, m in metrics.items():
+        for m in metrics.values():
             print(f"Rule:       {m.rule_id}")
             print(f"Family:     {m.rule_family}")
             print(f"Precision:  {m.precision:.4f}")
@@ -83,7 +83,6 @@ def cmd(args: argparse.Namespace) -> int:
                 f"{m.rule_id:<18} {m.precision:>10.4f} {m.recall:>10.4f} {m.f1:>10.4f} {'Yes' if m.noisy else 'No':>6}"
             )
         return 0
-
 
     quality = bench.overall_quality()
     print("\nPicoSentry Detection Quality Benchmark")

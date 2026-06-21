@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import logging
@@ -19,7 +18,6 @@ DEPRECATED_VERSIONS: dict[str, str] = {}  # currently none
 
 @dataclass(frozen=True)
 class APIVersion:
-
     major: int
     minor: int = 0
     prefix: str = "v"
@@ -27,8 +25,7 @@ class APIVersion:
     @classmethod
     def parse(cls, version_str: str) -> APIVersion:
         version_str = version_str.strip().lower()
-        if version_str.startswith("v"):
-            version_str = version_str[1:]
+        version_str = version_str.removeprefix("v")
         parts = version_str.split(".")
         major = int(parts[0]) if parts else 1
         minor = int(parts[1]) if len(parts) > 1 else 0
@@ -46,7 +43,6 @@ class APIVersion:
 
 @dataclass(frozen=True)
 class DeprecationNotice:
-
     version: str
     sunset_date: str  # when the version will be removed
     replacement: str  # the newer version or endpoint to use
@@ -65,7 +61,6 @@ class DeprecationNotice:
 
 
 class APIVersionNegotiator:
-
     def negotiate(
         self,
         path: str = "",
@@ -77,15 +72,12 @@ class APIVersionNegotiator:
         if version:
             return self._resolve(version)
 
-
         version = self._extract_from_accept(accept_header)
         if version:
             return self._resolve(version)
 
-
         if version_header:
             return self._resolve(version_header.strip().lower())
-
 
         return self._resolve(CURRENT_API_VERSION)
 
@@ -99,8 +91,8 @@ class APIVersionNegotiator:
 
     def _extract_from_accept(self, accept: str) -> str | None:
         if "vnd.picodome" in accept:
-            for part in accept.split(","):
-                part = part.strip()
+            for raw_part in accept.split(","):
+                part = raw_part.strip()
                 if "vnd.picodome." in part:
                     start = part.index("vnd.picodome.") + len("vnd.picodome.")
                     end = part.index("+", start) if "+" in part[start:] else len(part)
@@ -130,5 +122,5 @@ class APIVersionNegotiator:
         return {
             "current": CURRENT_API_VERSION,
             "supported": SUPPORTED_VERSIONS,
-            "deprecated": {k: v for k, v in DEPRECATED_VERSIONS.items()},
+            "deprecated": dict(DEPRECATED_VERSIONS.items()),
         }

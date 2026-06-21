@@ -60,7 +60,6 @@ _INTERNAL_ALL_PATTERNS = _INTERNAL_PREFIX_PATTERNS + _INTERNAL_EXTRA_PATTERNS
 
 @dataclass(frozen=True)
 class DepConfusionConfig:
-
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
@@ -69,7 +68,6 @@ class DepConfusionConfig:
     known_safe_names: set[str] = field(default_factory=set)
     check_single_segment: bool = False
     doc_url: str = "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
-
 
     def __hash__(self):
         return hash(self.ecosystem)
@@ -84,32 +82,77 @@ def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
     for pattern in config.internal_patterns:
         if re.search(pattern, name, re.IGNORECASE):
             return True
-    if config.check_single_segment:
-
-        if "." not in name and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name):
-            return True
-    return False
+    return config.check_single_segment and "." not in name and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name) is not None
 
 
-_MAVEN_PUBLIC_GROUP_PREFIXES: frozenset[str] = frozenset({
-    "org.springframework", "com.fasterxml", "org.apache", "com.google",
-    "org.slf4j", "org.junit", "org.mockito", "org.hibernate",
-    "io.netty", "io.reactivex", "io.micrometer", "io.grpc",
-    "io.vertx", "io.quarkus", "io.dropwizard", "io.jsonwebtoken",
-    "com.fasterxml.jackson", "com.squareup", "com.github",
-    "net.bytebuddy", "net.sf", "org.jboss", "org.eclipse",
-    "org.projectlombok", "org.checkerframework", "org.jetbrains",
-    "com.zaxxer", "org.yaml", "org.codehaus", "org.gradle",
-    "org.apache.maven", "org.apache.logging", "org.apache.commons",
-    "org.apache.httpcomponents", "org.jacoco", "com.thoughtworks",
-    "tech.units", "javax", "jakarta",
-})
+_MAVEN_PUBLIC_GROUP_PREFIXES: frozenset[str] = frozenset(
+    {
+        "org.springframework",
+        "com.fasterxml",
+        "org.apache",
+        "com.google",
+        "org.slf4j",
+        "org.junit",
+        "org.mockito",
+        "org.hibernate",
+        "io.netty",
+        "io.reactivex",
+        "io.micrometer",
+        "io.grpc",
+        "io.vertx",
+        "io.quarkus",
+        "io.dropwizard",
+        "io.jsonwebtoken",
+        "com.fasterxml.jackson",
+        "com.squareup",
+        "com.github",
+        "net.bytebuddy",
+        "net.sf",
+        "org.jboss",
+        "org.eclipse",
+        "org.projectlombok",
+        "org.checkerframework",
+        "org.jetbrains",
+        "com.zaxxer",
+        "org.yaml",
+        "org.codehaus",
+        "org.gradle",
+        "org.apache.maven",
+        "org.apache.logging",
+        "org.apache.commons",
+        "org.apache.httpcomponents",
+        "org.jacoco",
+        "com.thoughtworks",
+        "tech.units",
+        "javax",
+        "jakarta",
+    }
+)
 
-_MAVEN_KNOWN_SAFE_ARTIFACTS: frozenset[str] = frozenset({
-    "api", "core", "common", "util", "utils", "server", "client",
-    "annotations", "parent", "boot", "starter", "data", "jpa",
-    "security", "web", "model", "dto", "service", "dao", "impl",
-})
+_MAVEN_KNOWN_SAFE_ARTIFACTS: frozenset[str] = frozenset(
+    {
+        "api",
+        "core",
+        "common",
+        "util",
+        "utils",
+        "server",
+        "client",
+        "annotations",
+        "parent",
+        "boot",
+        "starter",
+        "data",
+        "jpa",
+        "security",
+        "web",
+        "model",
+        "dto",
+        "service",
+        "dao",
+        "impl",
+    }
+)
 
 
 def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
@@ -174,12 +217,10 @@ def _collect_maven_deps(target: Path) -> list[tuple[str, str, str]]:
     deps: list[tuple[str, str, str]] = []
     pom_data = parse_pom_xml(target)
     if pom_data:
-        for dep in pom_data.get("dependencies", []):
-            deps.append((dep[0], dep[1], dep[2]))
+        deps.extend((dep[0], dep[1], dep[2]) for dep in pom_data.get("dependencies", []))
     gradle_data = parse_gradle_build(target)
     if gradle_data:
-        for dep in gradle_data.get("dependencies", []):
-            deps.append((dep[0], dep[1], dep[2]))
+        deps.extend((dep[0], dep[1], dep[2]) for dep in gradle_data.get("dependencies", []))
     return deps
 
 
@@ -219,20 +260,22 @@ def _pypi_has_private_index(target: Path) -> bool:
             except OSError:
                 continue
 
-
     pypirc = target / ".pypirc"
     if pypirc.is_file():
         try:
             import configparser
+
             config = configparser.ConfigParser()
             config.read_string(pypirc.read_text(encoding="utf-8"))
             for section in config.sections():
-                if section != "distutils" and config.has_option(section, "repository"):
-                    if "pypi.org" not in config.get(section, "repository"):
-                        return True
+                if (
+                    section != "distutils"
+                    and config.has_option(section, "repository")
+                    and "pypi.org" not in config.get(section, "repository")
+                ):
+                    return True
         except Exception:
             pass
-
 
     project_data = load_pyproject_toml(target)
     if project_data:
@@ -247,10 +290,6 @@ def _pypi_has_private_index(target: Path) -> bool:
 
 _NPMRC_REGISTRY_PATTERN = "registry="
 _NPM_INTERNAL_SCOPES = frozenset({"@internal/", "@private/"})
-
-
-def _get_npm_pinned_deps(target: Path) -> set[str]:
-    return set()
 
 
 def _get_go_pinned_deps(target: Path) -> set[str]:
@@ -280,9 +319,8 @@ def _get_maven_finding_file(target: Path, has_pom: bool) -> Path:
     return target / "build.gradle"
 
 
-def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_all_dep_confusion(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     pkg_path = target / "package.json"
     if pkg_path.is_file():
@@ -320,7 +358,6 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                             )
                         )
 
-
                 if has_private:
                     for dep_name in sorted(all_deps):
                         if dep_name.startswith("@"):
@@ -346,10 +383,11 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                                             f"Add '{scope}:registry=<your-private-registry>' "
                                             "to .npmrc to ensure correct resolution."
                                         ),
-                                        references=["https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"],
+                                        references=[
+                                            "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
+                                        ],
                                     )
                                 )
-
 
     if detect_go_project(target):
         go_deps = _collect_go_deps(target)
@@ -363,7 +401,6 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                 if _looks_internal_base(dep_path, go_config) and not has_private:
                     findings.append(_make_finding(go_config, dep_path, dep_path, target, "go.mod"))
 
-
     if detect_cargo_project(target):
         cargo_deps = _collect_cargo_deps(target)
         if cargo_deps:
@@ -376,7 +413,6 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                 if _looks_internal_base(crate_name, cargo_config) and not has_private:
                     findings.append(_make_finding(cargo_config, crate_name, crate_name, target, "Cargo.toml"))
 
-
     if detect_pypi_project(target):
         pypi_deps = _collect_pypi_deps(target)
         if pypi_deps:
@@ -387,13 +423,12 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                     manifest_file = "pyproject.toml" if (target / "pyproject.toml").exists() else str(target)
                     findings.append(_make_finding(pypi_config, dep_name, dep_name, target, manifest_file))
 
-
     maven_detected = detect_maven_project(target)
     if maven_detected:
         maven_deps = _collect_maven_deps(target)
         if maven_deps:
             has_private = detect_private_maven_repository(target)
-            for group_id, artifact_id, version in sorted(maven_deps):
+            for group_id, artifact_id, _version in sorted(maven_deps):
                 if not group_id or not artifact_id:
                     continue
                 if _looks_internal_maven(group_id, artifact_id) and not has_private:
@@ -425,18 +460,16 @@ def detect_all_dep_confusion(target: Path, corpus_dir: Path) -> list[Finding]:
                         )
                     )
 
-
     if detect_nuget_project(target):
         nuget_deps = _collect_nuget_deps_fn(target)
         if nuget_deps:
             has_private = detect_private_nuget_source(target)
             nuget_config = _NUGET_CONFIG
-            for pkg_id, version, source in nuget_deps:
+            for pkg_id, _version, source in nuget_deps:
                 if not pkg_id:
                     continue
                 if _looks_internal_base(pkg_id, nuget_config) and not has_private:
                     findings.append(_make_finding(nuget_config, pkg_id, pkg_id, target, source or "nuget.config"))
-
 
     if detect_rubygems_project(target):
         gem_deps = _collect_rubygems_deps(target)
@@ -459,11 +492,27 @@ _GO_CONFIG = DepConfusionConfig(
     detect_project=detect_go_project,
     internal_patterns=_INTERNAL_PREFIX_PATTERNS,
     known_public_prefixes={
-        "github.com", "golang.org", "google.golang.org", "cloud.google.com",
-        "go.uber.org", "k8s.io", "gopkg.in", "pkg.go.dev", "bitbucket.org",
-        "gitlab.com", "go.opentelemetry.io", "go.etcd.io", "go.mongodb.org",
-        "go.elastic.co", "go.redis.io", "go.opencensus.io", "gocloud.dev",
-        "sigs.k8s.io", "knative.dev", "istio.io", "go.chromium.org",
+        "github.com",
+        "golang.org",
+        "google.golang.org",
+        "cloud.google.com",
+        "go.uber.org",
+        "k8s.io",
+        "gopkg.in",
+        "pkg.go.dev",
+        "bitbucket.org",
+        "gitlab.com",
+        "go.opentelemetry.io",
+        "go.etcd.io",
+        "go.mongodb.org",
+        "go.elastic.co",
+        "go.redis.io",
+        "go.opencensus.io",
+        "gocloud.dev",
+        "sigs.k8s.io",
+        "knative.dev",
+        "istio.io",
+        "go.chromium.org",
         "go.starlark.net",
     },
     check_single_segment=True,
@@ -489,29 +538,98 @@ _NUGET_CONFIG = DepConfusionConfig(
     rule_id="L2-NUGET-DEPC-001",
     detect_project=detect_nuget_project,
     internal_patterns=[
-        r"^Internal\.", r"^Private\.", r"^My\.", r"^Company\.",
-        r"^Acme\.", r"^Org\.", r"^Corp\.", r"-internal$", r"-private$", r"-local$",
+        r"^Internal\.",
+        r"^Private\.",
+        r"^My\.",
+        r"^Company\.",
+        r"^Acme\.",
+        r"^Org\.",
+        r"^Corp\.",
+        r"-internal$",
+        r"-private$",
+        r"-local$",
     ],
     known_public_prefixes={
-        "Microsoft.", "System.", "Newtonsoft.", "Serilog.", "AutoMapper.",
-        "FluentValidation.", "EntityFramework.", "NUnit.", "xunit.",
-        "Moq.", "Castle.Core", "log4net.", "NLog.", "StackExchange.",
-        "Dapper.", "Hangfire.", "Swashbuckle.", "AWSSDK.", "Google.",
-        "Amazon.", "Azure.", "RestSharp.", "Refit.", "Polly.",
-        "MediatR.", "FluentAssertions.", "Shouldly.", "BenchmarkDotNet.",
-        "coverlet.", "SonarAnalyzer.", "StyleCop.", "Roslynator.",
-        "MongoDB.", "Elastic.", "CsvHelper.", "ClosedXML.", "EPPlus.",
-        "SixLabors.", "SkiaSharp.", "MailKit.", "MimeKit.", "Quartz.",
-        "MassTransit.", "RabbitMQ.", "Confluent.", "Npgsql.",
+        "Microsoft.",
+        "System.",
+        "Newtonsoft.",
+        "Serilog.",
+        "AutoMapper.",
+        "FluentValidation.",
+        "EntityFramework.",
+        "NUnit.",
+        "xunit.",
+        "Moq.",
+        "Castle.Core",
+        "log4net.",
+        "NLog.",
+        "StackExchange.",
+        "Dapper.",
+        "Hangfire.",
+        "Swashbuckle.",
+        "AWSSDK.",
+        "Google.",
+        "Amazon.",
+        "Azure.",
+        "RestSharp.",
+        "Refit.",
+        "Polly.",
+        "MediatR.",
+        "FluentAssertions.",
+        "Shouldly.",
+        "BenchmarkDotNet.",
+        "coverlet.",
+        "SonarAnalyzer.",
+        "StyleCop.",
+        "Roslynator.",
+        "MongoDB.",
+        "Elastic.",
+        "CsvHelper.",
+        "ClosedXML.",
+        "EPPlus.",
+        "SixLabors.",
+        "SkiaSharp.",
+        "MailKit.",
+        "MimeKit.",
+        "Quartz.",
+        "MassTransit.",
+        "RabbitMQ.",
+        "Confluent.",
+        "Npgsql.",
         "MySql.",
     },
     known_safe_names={
-        "NETCore.App", "AspNetCore.App", "Runtime", "Collections",
-        "Linq", "Threading.Tasks", "Text.Json", "IO", "Net.Http",
-        "ComponentModel", "Data", "Xml", "Reflection", "Diagnostics",
-        "xunit", "Serilog", "NLog", "Moq", "Polly", "Dapper", "Refit",
-        "MediatR", "Hangfire", "Quartz", "RestSharp", "AutoMapper",
-        "NSubstitute", "Bogus", "Shouldly", "CsvHelper", "MailKit",
+        "NETCore.App",
+        "AspNetCore.App",
+        "Runtime",
+        "Collections",
+        "Linq",
+        "Threading.Tasks",
+        "Text.Json",
+        "IO",
+        "Net.Http",
+        "ComponentModel",
+        "Data",
+        "Xml",
+        "Reflection",
+        "Diagnostics",
+        "xunit",
+        "Serilog",
+        "NLog",
+        "Moq",
+        "Polly",
+        "Dapper",
+        "Refit",
+        "MediatR",
+        "Hangfire",
+        "Quartz",
+        "RestSharp",
+        "AutoMapper",
+        "NSubstitute",
+        "Bogus",
+        "Shouldly",
+        "CsvHelper",
+        "MailKit",
     },
     check_single_segment=True,
 )
@@ -522,15 +640,34 @@ _RUBYGEMS_CONFIG = DepConfusionConfig(
     detect_project=detect_rubygems_project,
     internal_patterns=_INTERNAL_ALL_PATTERNS,
     known_safe_names={
-        "rails", "rack", "rake", "bundler", "json",
-        "minitest", "test-unit", "psych", "io-console",
-        "bigdecimal", "csv", "date", "stringio", "strscan",
-        "base64", "digest", "securerandom",
+        "rails",
+        "rack",
+        "rake",
+        "bundler",
+        "json",
+        "minitest",
+        "test-unit",
+        "psych",
+        "io-console",
+        "bigdecimal",
+        "csv",
+        "date",
+        "stringio",
+        "strscan",
+        "base64",
+        "digest",
+        "securerandom",
     },
 )
 
 
-def _make_finding(config: DepConfusionConfig, package_ref: str, dep_name: str, target: Path, manifest_file: str) -> Finding:
+def _make_finding(
+    config: DepConfusionConfig,
+    package_ref: str,
+    dep_name: str,
+    target: Path,
+    manifest_file: str,
+) -> Finding:
     return Finding(
         rule_id=config.rule_id,
         severity=Severity.CRITICAL,
@@ -552,11 +689,12 @@ def _make_finding(config: DepConfusionConfig, package_ref: str, dep_name: str, t
 
 def _get_npm_internal_scopes() -> frozenset[str]:
     import os
+
     scopes = set(_NPM_INTERNAL_SCOPES)
     env = os.environ.get("PICOSENTRY_INTERNAL_SCOPES", "")
     if env:
-        for s in env.split(","):
-            s = s.strip()
+        for raw_scope in env.split(","):
+            s = raw_scope.strip()
             if s and s.startswith("@") and s.endswith("/"):
                 scopes.add(s)
     return frozenset(scopes)

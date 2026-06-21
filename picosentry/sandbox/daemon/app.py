@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from typing import Any
 
 from picosentry.sandbox.daemon.daemon import PicoDomeDaemon
 
@@ -15,6 +16,7 @@ def create_app(
     store_backend: str | None = None,
     tokens: str | None = None,
     background: bool = False,
+    cluster_config: dict[str, Any] | None = None,
 ) -> PicoDomeDaemon:
     if tokens:
         os.environ["PICODOME_API_TOKENS"] = tokens
@@ -25,6 +27,7 @@ def create_app(
         metrics_port=metrics_port,
         job_store_dir=job_store_dir,
         store_backend=store_backend,
+        cluster_config=cluster_config,
     )
 
     if background:

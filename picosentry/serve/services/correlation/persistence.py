@@ -15,14 +15,12 @@ logger = logging.getLogger("picosentry.correlation")
 def _db():
     """Late-bound db singleton so tests can monkeypatch the manager."""
     from picosentry.serve.database.manager import db
+
     return db
 
 
 def _dedup_key(event: CorrelatedEvent) -> str:
-    return sha256(
-        f"{event.artifact_id}|{event.layer}|{event.rule_id}"
-        f"|{event.timestamp}".encode()
-    ).hexdigest()[:16]
+    return sha256(f"{event.artifact_id}|{event.layer}|{event.rule_id}|{event.timestamp}".encode()).hexdigest()[:16]
 
 
 def _count_events(db_manager) -> int:
@@ -57,26 +55,34 @@ def _persist_events_impl(engine) -> int:
     sql = _events_insert_sql()
     count = 0
     with engine._lock:
-        for artifact_id, events in list(engine._events.items()):
+        for _artifact_id, events in list(engine._events.items()):
             for event in events:
                 dedup_key = _dedup_key(event)
 
                 try:
                     db = _db()
                     before = _count_events(db)
-                    db.execute_insert(sql, (
-                        dedup_key, event.artifact_id, event.layer,
-                        event.rule_id, event.severity.value,
-                        event.confidence.value, event.target,
-                        event.title, event.detail, event.timestamp,
-                        event.run_id,
-                    ))
+                    db.execute_insert(
+                        sql,
+                        (
+                            dedup_key,
+                            event.artifact_id,
+                            event.layer,
+                            event.rule_id,
+                            event.severity.value,
+                            event.confidence.value,
+                            event.target,
+                            event.title,
+                            event.detail,
+                            event.timestamp,
+                            event.run_id,
+                        ),
+                    )
                     after = _count_events(db)
                     if after > before:
                         count += 1
                 except Exception as e:
-                    logger.debug("Persist skip for %s/%s: %s",
-                                 event.artifact_id, event.rule_id, e)
+                    logger.debug("Persist skip for %s/%s: %s", event.artifact_id, event.rule_id, e)
 
     if count:
         logger.info("Persisted %d correlation event(s) to DB", count)
@@ -115,7 +121,6 @@ def _load_events_impl(engine) -> int:
             events.append(event)
             count += 1
 
-
         engine._chains.clear()
         logger.info("Loaded %d correlation event(s) from DB", count)
     except Exception as e:
@@ -137,7 +142,8 @@ def _persist_chains_cache_impl(engine) -> int:
             phase_count = len(chain.phases)
             try:
                 if db.backend == "postgres":
-                    db.execute(f"""
+                    db.execute(
+                        f"""
                         INSERT INTO correlation_chains
                         (artifact_id, chain_score, severity, confidence,
                          narrative, event_count, phase_count)
@@ -150,40 +156,59 @@ def _persist_chains_cache_impl(engine) -> int:
                             event_count = EXCLUDED.event_count,
                             phase_count = EXCLUDED.phase_count,
                             updated_at = CURRENT_TIMESTAMP
-                    """, (
-                        artifact_id, chain.chain_score,
-                        chain.severity.value, chain.confidence.value,
-                        chain.narrative, event_count, phase_count,
-                    ))
+                    """,
+                        (
+                            artifact_id,
+                            chain.chain_score,
+                            chain.severity.value,
+                            chain.confidence.value,
+                            chain.narrative,
+                            event_count,
+                            phase_count,
+                        ),
+                    )
                 else:
                     existing = db.execute_one(
                         "SELECT 1 FROM correlation_chains WHERE artifact_id = ?",
                         (artifact_id,),
                     )
                     if existing:
-                        db.execute(f"""
+                        db.execute(
+                            f"""
                             UPDATE correlation_chains
                             SET chain_score = {ph}, severity = {ph}, confidence = {ph},
                                 narrative = {ph}, event_count = {ph}, phase_count = {ph},
                                 updated_at = CURRENT_TIMESTAMP
                             WHERE artifact_id = {ph}
-                        """, (
-                            chain.chain_score, chain.severity.value,
-                            chain.confidence.value, chain.narrative,
-                            event_count, phase_count,
-                            artifact_id,
-                        ))
+                        """,
+                            (
+                                chain.chain_score,
+                                chain.severity.value,
+                                chain.confidence.value,
+                                chain.narrative,
+                                event_count,
+                                phase_count,
+                                artifact_id,
+                            ),
+                        )
                     else:
-                        db.execute_insert(f"""
+                        db.execute_insert(
+                            f"""
                             INSERT INTO correlation_chains
                             (artifact_id, chain_score, severity, confidence,
                              narrative, event_count, phase_count)
                             VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-                        """, (
-                            artifact_id, chain.chain_score,
-                            chain.severity.value, chain.confidence.value,
-                            chain.narrative, event_count, phase_count,
-                        ))
+                        """,
+                            (
+                                artifact_id,
+                                chain.chain_score,
+                                chain.severity.value,
+                                chain.confidence.value,
+                                chain.narrative,
+                                event_count,
+                                phase_count,
+                            ),
+                        )
                 count += 1
             except Exception as e:
                 logger.debug("Chain persist skip for %s: %s", artifact_id, e)

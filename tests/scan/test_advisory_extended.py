@@ -773,6 +773,7 @@ class TestSemverRegex(unittest.TestCase):
     def test_standard_version(self):
         m = _SEMVER_RE.search("1.2.3")
         self.assertEqual(m.group(0), "1.2.3")
+
     def test_prefixed_version(self):
         m = _SEMVER_RE.search("v1.2.3")
         self.assertIsNotNone(m)

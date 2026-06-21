@@ -29,7 +29,7 @@ def cmd(args: argparse.Namespace) -> int:
             latest = max(v.version for v in versions) if versions else 0
             print(f"  {name} (v{latest}, {len(versions)} versions)")
         return 0
-    elif args.action == "show":
+    if args.action == "show":
         if not args.name:
             print("--name is required for 'show'", file=sys.stderr)
             return 1
@@ -39,14 +39,14 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
         print(json.dumps(pv.to_dict(), sort_keys=True, indent=2))
         return 0
-    elif args.action == "diff":
+    if args.action == "diff":
         if not args.name or args.version_a is None or args.version_b is None:
             print("--name, --version-a, and --version-b are required for 'diff'", file=sys.stderr)
             return 1
         diff = store.diff(args.name, args.version_a, args.version_b)
         print(json.dumps(diff, sort_keys=True, indent=2))
         return 0
-    elif args.action == "rollback":
+    if args.action == "rollback":
         if not args.name or args.version is None:
             print("--name and --version are required for 'rollback'", file=sys.stderr)
             return 1
@@ -56,7 +56,7 @@ def cmd(args: argparse.Namespace) -> int:
             return 1
         print(f"Rolled back '{args.name}' to v{args.version} → new v{pv.version}")
         return 0
-    elif args.action == "verify":
+    if args.action == "verify":
         if not args.name:
             print("--name is required for 'verify'", file=sys.stderr)
             return 1
@@ -66,9 +66,8 @@ def cmd(args: argparse.Namespace) -> int:
             for v in violations:
                 print(f"  - {v}")
             return 1
-        else:
-            print(f"✓ Policy '{args.name}' integrity verified")
-            return 0
+        print(f"✓ Policy '{args.name}' integrity verified")
+        return 0
     return 1
 
 

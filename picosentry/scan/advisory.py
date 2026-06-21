@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -16,7 +15,6 @@ _PRE_RELEASE_RE = re.compile(r"^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$")
 
 @dataclass
 class Advisory:
-
     id: str = ""  # CVE-2024-xxxx, GHSA-xxxx-xxxx, etc.
     package_name: str = ""  # npm package name
     summary: str = ""
@@ -51,7 +49,6 @@ class Advisory:
         if not summary and details:
             summary = details[:200]
 
-
         pkg_name = ""
         affected_versions: list[str] = []
         affected_ranges: list[tuple[str, str, bool]] = []
@@ -73,13 +70,10 @@ class Advisory:
                         last_affected = event["last_affected"]
                 if introduced:
                     if fixed:
-
                         affected_ranges.append((introduced, fixed, False))
                     elif last_affected:
-
                         affected_ranges.append((introduced, last_affected, True))
                     else:
-
                         affected_ranges.append((introduced, "", False))
             for ver in affected.get("versions", []):
                 if ver not in affected_versions:
@@ -88,14 +82,12 @@ class Advisory:
         if not pkg_name:
             return None
 
-
         severity = "MEDIUM"
         db_specific = data.get("database_specific", {})
         if isinstance(db_specific, dict):
             sev = db_specific.get("severity", "").upper()
             if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
                 severity = sev
-
 
         fixed_version = ""
         for affected in data.get("affected", []):
@@ -137,7 +129,6 @@ class Advisory:
 
 
 class AdvisoryDB:
-
     def __init__(self, db_dir: Path | None = None) -> None:
         self._advisories: dict[str, list[Advisory]] = {}  # pkg_name → advisories
         self._loaded = False
@@ -148,6 +139,7 @@ class AdvisoryDB:
 
     def load(self, db_dir: Path) -> int:
         import time
+
         count = 0
         for json_file in sorted(db_dir.rglob("*.json")):
             if json_file.is_symlink():
@@ -157,7 +149,6 @@ class AdvisoryDB:
             except (json.JSONDecodeError, OSError):
                 logger.debug("Failed to read advisory file: %s", json_file)
                 continue
-
 
             entries = data if isinstance(data, list) else [data]
 
@@ -178,18 +169,12 @@ class AdvisoryDB:
         if not advisories:
             return []
 
-        results: list[Advisory] = []
-        for adv in advisories:
-            if self._version_affected(pkg_version, adv):
-                results.append(adv)
-
-        return results
+        return [adv for adv in advisories if self._version_affected(pkg_version, adv)]
 
     def _version_affected(self, version: str, adv: Advisory) -> bool:
         v_tuple = self._parse_version(version)
         if v_tuple is None:
             return False  # Can't parse, assume not affected (conservative)
-
 
         for introduced, upper, upper_inclusive in adv.affected_ranges:
             iv = self._parse_version(introduced)
@@ -203,17 +188,14 @@ class AdvisoryDB:
                     if upper_inclusive:
                         if v_tuple > uv:
                             continue
-                    else:
-                        if v_tuple >= uv:
-                            continue
+                    elif v_tuple >= uv:
+                        continue
             return True
-
 
         if not adv.affected_ranges:
             fv_tuple = self._parse_version(adv.fixed_version)
             if fv_tuple and v_tuple < fv_tuple:
                 return True
-
 
         return any(self._version_in_range(v_tuple, av) for av in adv.affected_versions)
 
@@ -227,7 +209,6 @@ class AdvisoryDB:
 
             if "+" in pre:
                 pre = pre[: pre.index("+")]
-
 
             if pre:
                 parts: list[int | str] = []
@@ -276,6 +257,7 @@ class AdvisoryDB:
     @property
     def is_stale(self) -> bool:
         import time
+
         if self._loaded_at is None:
             return True
         return (time.monotonic() - self._loaded_at) > 86400  # 24 hours

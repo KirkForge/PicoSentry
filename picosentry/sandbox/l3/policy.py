@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -11,7 +10,6 @@ logger = logging.getLogger("picodome.l3.policy")
 
 
 DEFAULT_RULES: list = [
-
     {
         "rule_id": "L3-FILE-R-001",
         "target": "file_read",
@@ -19,7 +17,6 @@ DEFAULT_RULES: list = [
         "paths": ["/usr/lib/**", "/lib/**", "/usr/share/**", "/etc/ld.so.cache", "/etc/localtime", "/proc/self/**"],
         "description": "Read system libraries and locale info",
     },
-
     {
         "rule_id": "L3-FILE-R-002",
         "target": "file_read",
@@ -27,7 +24,6 @@ DEFAULT_RULES: list = [
         "paths": ["/usr/lib/python3*/**", "**/site-packages/**"],
         "description": "Read Python packages",
     },
-
     {
         "rule_id": "L3-FILE-R-003",
         "target": "file_read",
@@ -35,7 +31,6 @@ DEFAULT_RULES: list = [
         "paths": ["./**", "/tmp/**"],
         "description": "Read project and temp files only",
     },
-
     {
         "rule_id": "L3-FILE-R-004",
         "target": "file_read",
@@ -56,7 +51,6 @@ DEFAULT_RULES: list = [
         ],
         "description": "Read project configuration files",
     },
-
     {
         "rule_id": "L3-FILE-W-001",
         "target": "file_write",
@@ -64,18 +58,14 @@ DEFAULT_RULES: list = [
         "paths": ["/tmp/**", "/dev/null", "/dev/stdout", "/dev/stderr"],
         "description": "Write to temp and stdio only",
     },
-
     {
         "rule_id": "L3-NET-OUT-001",
         "target": "network_out",
         "action": "deny",
         "description": "Block all outbound network",
     },
-
     {"rule_id": "L3-DNS-001", "target": "dns_query", "action": "allow", "description": "Allow DNS resolution"},
-
     {"rule_id": "L3-PROC-001", "target": "process_spawn", "action": "deny", "description": "Block process spawning"},
-
     {
         "rule_id": "L3-NET-BIND-001",
         "target": "network_bind",
@@ -149,7 +139,12 @@ NODE_RULES: list = [
         "action": "allow",
         "description": "Allow process spawning (node, npm)",
     },
-    {"rule_id": "L3-NODE-BIND-001", "target": "network_bind", "action": "allow", "description": "Allow network binding (npm needs NETLINK bind for DNS)"},
+    {
+        "rule_id": "L3-NODE-BIND-001",
+        "target": "network_bind",
+        "action": "allow",
+        "description": "Allow network binding (npm needs NETLINK bind for DNS)",
+    },
     {
         "rule_id": "L3-NODE-EXEC-001",
         "target": "file_exec",
@@ -216,7 +211,12 @@ PYTHON_RULES: list = [
         "action": "allow",
         "description": "Allow process spawning (python, pip)",
     },
-    {"rule_id": "L3-PY-BIND-001", "target": "network_bind", "action": "allow", "description": "Allow network binding (pip needs NETLINK bind for DNS)"},
+    {
+        "rule_id": "L3-PY-BIND-001",
+        "target": "network_bind",
+        "action": "allow",
+        "description": "Allow network binding (pip needs NETLINK bind for DNS)",
+    },
     {
         "rule_id": "L3-PY-EXEC-001",
         "target": "file_exec",
@@ -236,20 +236,18 @@ NAMED_POLICIES: dict[str, list[dict]] = {
 
 
 def _rules_from_list(rules_data: list) -> list[PolicyRule]:
-    rules = []
-    for r in rules_data:
-        rules.append(
-            PolicyRule(
-                rule_id=r["rule_id"],
-                target=RuleTarget(r["target"]),
-                action=SyscallAction(r["action"]),
-                paths=r.get("paths", []),
-                addresses=r.get("addresses", []),
-                syscalls=r.get("syscalls", []),
-                description=r.get("description", ""),
-            )
+    return [
+        PolicyRule(
+            rule_id=r["rule_id"],
+            target=RuleTarget(r["target"]),
+            action=SyscallAction(r["action"]),
+            paths=r.get("paths", []),
+            addresses=r.get("addresses", []),
+            syscalls=r.get("syscalls", []),
+            description=r.get("description", ""),
         )
-    return rules
+        for r in rules_data
+    ]
 
 
 def load_policy(
@@ -263,7 +261,6 @@ def load_policy(
     if name is not None and ("/" in name or "\\" in name or ".." in name):
         raise ValueError(f"Invalid policy name: {name!r}")
 
-
     if name is not None and name in NAMED_POLICIES:
         logger.info("Loading named policy: %s", name)
         rules_data = NAMED_POLICIES[name]
@@ -274,7 +271,6 @@ def load_policy(
             default_action=default_action,
             rules=_rules_from_list(rules_data),
         )
-
 
     if path is not None:
         if verify_signature:
@@ -287,7 +283,7 @@ def load_policy(
                 raise ValueError(f"Policy signature verification failed for {path}: {result.error}")
             data = json.loads(content)
         else:
-            with open(path) as f:
+            with path.open() as f:
                 data = json.load(f)
         return _policy_from_dict(data)
 
@@ -333,7 +329,7 @@ def python_policy() -> Policy:
 def export_policy(policy: Policy, path: Path) -> None:
     data = policy.to_dict()
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
+    with path.open("w", encoding="utf-8") as f:
         json.dump(data, f, indent=2, sort_keys=True)
     logger.info("Exported policy '%s' to %s", policy.name, path)
 
@@ -342,11 +338,10 @@ def import_policy(path: Path) -> Policy:
     if not path.exists():
         raise FileNotFoundError(f"Policy file not found: {path}")
 
-    with open(path, encoding="utf-8") as f:
+    with path.open(encoding="utf-8") as f:
         data = json.load(f)
 
     policy = _policy_from_dict(data)
-
 
     errors = validate_policy(policy)
     if errors:
@@ -361,10 +356,8 @@ def import_policy(path: Path) -> Policy:
 def validate_policy(policy: Policy) -> list[str]:
     errors: list[str] = []
 
-
     if not policy.rules:
         errors.append("Policy has no rules")
-
 
     seen_ids: set[str] = set()
     for rule in policy.rules:
@@ -372,25 +365,27 @@ def validate_policy(policy: Policy) -> list[str]:
             errors.append(f"Duplicate rule ID: {rule.rule_id}")
         seen_ids.add(rule.rule_id)
 
-
     valid_targets = {t.value for t in RuleTarget}
-    for rule in policy.rules:
-        if rule.target.value not in valid_targets:
-            errors.append(f"Invalid target '{rule.target.value}' in rule {rule.rule_id}")
-
+    errors.extend(
+        f"Invalid target '{rule.target.value}' in rule {rule.rule_id}"
+        for rule in policy.rules
+        if rule.target.value not in valid_targets
+    )
 
     valid_actions = {a.value for a in SyscallAction}
+    errors.extend(
+        f"Invalid action '{rule.action.value}' in rule {rule.rule_id}"
+        for rule in policy.rules
+        if rule.action.value not in valid_actions
+    )
+
     for rule in policy.rules:
-        if rule.action.value not in valid_actions:
-            errors.append(f"Invalid action '{rule.action.value}' in rule {rule.rule_id}")
-
-
-    for rule in policy.rules:
-        if rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC):
-            if not rule.paths and rule.action == SyscallAction.ALLOW:
-
-                pass
-
+        if (
+            rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE, RuleTarget.FILE_EXEC)
+            and not rule.paths
+            and rule.action == SyscallAction.ALLOW
+        ):
+            pass
 
     if policy.default_action.value not in valid_actions:
         errors.append(f"Invalid default_action: {policy.default_action.value}")
@@ -399,19 +394,18 @@ def validate_policy(policy: Policy) -> list[str]:
 
 
 def _policy_from_dict(data: dict) -> Policy:
-    rules = []
-    for r in data.get("rules", []):
-        rules.append(
-            PolicyRule(
-                rule_id=r["rule_id"],
-                target=RuleTarget(r["target"]),
-                action=SyscallAction(r["action"]),
-                paths=r.get("paths", []),
-                addresses=r.get("addresses", []),
-                syscalls=r.get("syscalls", []),
-                description=r.get("description", ""),
-            )
+    rules = [
+        PolicyRule(
+            rule_id=r["rule_id"],
+            target=RuleTarget(r["target"]),
+            action=SyscallAction(r["action"]),
+            paths=r.get("paths", []),
+            addresses=r.get("addresses", []),
+            syscalls=r.get("syscalls", []),
+            description=r.get("description", ""),
         )
+        for r in data.get("rules", [])
+    ]
     return Policy(
         name=data.get("name", "custom"),
         version=data.get("version", "1.0"),

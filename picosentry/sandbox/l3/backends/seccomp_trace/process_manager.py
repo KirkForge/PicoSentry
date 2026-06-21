@@ -1,11 +1,13 @@
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
 import signal
 import time
 import warnings
+from pathlib import Path
 
 from picosentry.sandbox.l3.backends._seccomp_common import SCMP_ACT_LOG
 
@@ -57,10 +59,8 @@ def wait_with_timeout(
             break
 
     for fd in [out_fd, err_fd]:
-        try:
+        with contextlib.suppress(OSError):
             os.set_blocking(fd, False)
-        except OSError:
-            pass
         try:
             while True:
                 data = os.read(fd, 65536)
@@ -87,10 +87,10 @@ def wait_with_timeout(
 
 
 def read_proc_seccomp(log_path: str) -> str:
-    if not log_path or not os.path.exists(log_path):
+    if not log_path or not Path(log_path).exists():
         return ""
     try:
-        with open(log_path, encoding="utf-8", errors="replace") as f:
+        with Path(log_path).open(encoding="utf-8", errors="replace") as f:
             return f.read()
     except OSError as e:
         logger.debug("seccomp-trace: cannot read %s: %s", log_path, e)
@@ -109,7 +109,6 @@ def probe_log_emits(lib: ctypes.CDLL) -> bool:
         pid = os.fork()
 
     if pid == 0:
-
         ctx = lib.seccomp_init(SCMP_ACT_LOG)
         if not ctx:
             os._exit(127)
@@ -121,7 +120,6 @@ def probe_log_emits(lib: ctypes.CDLL) -> bool:
             os.execve("/bin/true", ["/bin/true"], {})
         except OSError:
             os._exit(127)
-
 
     try:
         _, status = os.waitpid(pid, 0)

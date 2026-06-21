@@ -15,3 +15,15 @@ def _skip_watch_secure_assert(monkeypatch: pytest.MonkeyPatch) -> None:
     ``tests/watch/test_config.py``.
     """
     monkeypatch.setenv("PICOWATCH_SKIP_SECURE_ASSERT", "1")
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_watch_otel() -> None:
+    """Shut down any OpenTelemetry provider created by PicoWatch tests.
+
+    Stops background OTLP export threads so the pytest process exits cleanly.
+    """
+    yield
+    from picosentry.watch.telemetry.otel import shutdown_tracing
+
+    shutdown_tracing()

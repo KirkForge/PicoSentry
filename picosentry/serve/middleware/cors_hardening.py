@@ -10,7 +10,6 @@ logger = logging.getLogger("picoshogun.CORS")
 
 
 class CORSHardeningMiddleware(BaseHTTPMiddleware):
-
     def __init__(self, app, block_wildcard_in_production: bool = False):
         super().__init__(app)
         self.block_wildcard_in_production = block_wildcard_in_production

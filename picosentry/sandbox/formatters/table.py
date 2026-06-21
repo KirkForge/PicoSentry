@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from picosentry.sandbox.l3.models import SandboxResult, Verdict
@@ -89,7 +88,6 @@ def _l4_table(result: AnalysisResult) -> str:
         lines.append(
             f"║ {'Duration:':<16} {result.stats.duration_ms}ms{'':<{width - 20 - len(str(result.stats.duration_ms))}} ║"
         )
-
 
     if result.stats.findings_by_severity:
         lines.append("╠" + "═" * (width - 2) + "╣")

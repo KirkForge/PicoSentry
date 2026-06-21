@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -18,7 +17,6 @@ SUPPORTED_ALGORITHMS = frozenset({"hmac-sha256"})
 
 @dataclass(frozen=True)
 class PolicySignature:
-
     algorithm: str
     signature: str
     timestamp: str
@@ -27,7 +25,6 @@ class PolicySignature:
 
 @dataclass
 class VerifyResult:
-
     valid: bool
     algorithm: str = ""
     key_id: str = ""
@@ -42,19 +39,17 @@ def load_key() -> bytes | None:
         try:
             return bytes.fromhex(hex_key)
         except ValueError:
-            logger.error("PICODOME_POLICY_KEY is not valid hex")
+            logger.exception("PICODOME_POLICY_KEY is not valid hex")
             return None
-
 
     key_file = os.environ.get("PICODOME_POLICY_KEY_FILE")
     if key_file:
         try:
             content = Path(key_file).read_text().strip()
             return bytes.fromhex(content)
-        except (OSError, ValueError) as exc:
-            logger.error("Failed to read policy key file '%s': %s", key_file, exc)
+        except (OSError, ValueError):
+            logger.exception("Failed to read policy key file '%s'", key_file)
             return None
-
 
     if os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes"):
         logger.error(
@@ -112,7 +107,6 @@ def parse_signature(content: str) -> PolicySignature | None:
     if marker_idx is None:
         return None
 
-
     algo = ""
     sig = ""
     timestamp = ""
@@ -154,7 +148,6 @@ def strip_signature(content: str) -> str:
     if marker_idx is None:
         return content
 
-
     policy_lines = lines[:marker_idx]
 
     while policy_lines and not policy_lines[-1].strip():
@@ -183,12 +176,9 @@ def verify_policy(content: str, key: bytes, key_id: str = "default") -> VerifyRe
             error=f"key_id mismatch: expected '{key_id}', got '{parsed.key_id}'",
         )
 
-
     policy_content = strip_signature(content)
 
-
     expected_sig = hmac.new(key, policy_content.encode("utf-8"), hashlib.sha256).hexdigest()
-
 
     if hmac.compare_digest(expected_sig, parsed.signature):
         return VerifyResult(
@@ -197,13 +187,12 @@ def verify_policy(content: str, key: bytes, key_id: str = "default") -> VerifyRe
             key_id=parsed.key_id,
             timestamp=parsed.timestamp,
         )
-    else:
-        return VerifyResult(
-            valid=False,
-            algorithm=parsed.algorithm,
-            key_id=parsed.key_id,
-            error="signature mismatch — policy may have been tampered with",
-        )
+    return VerifyResult(
+        valid=False,
+        algorithm=parsed.algorithm,
+        key_id=parsed.key_id,
+        error="signature mismatch — policy may have been tampered with",
+    )
 
 
 def verify_policy_file(path: Path, key: bytes, key_id: str = "default") -> VerifyResult:
@@ -223,12 +212,10 @@ def load_policy_with_verification(
     except OSError as exc:
         return "", VerifyResult(valid=False, error=f"cannot read file: {exc}")
 
-
     effective_key = key or _load_key()
 
     parsed = parse_signature(content)
     if parsed is None:
-
         if effective_key is not None:
             logger.warning(
                 "Policy %s is unsigned but verification key is configured — rejecting unsigned policy",
@@ -237,7 +224,6 @@ def load_policy_with_verification(
             return "", VerifyResult(valid=False, error="policy is unsigned but key is configured")
         logger.debug("Policy %s is unsigned (no verification key)", path)
         return content, None
-
 
     if effective_key is None:
         logger.warning(
@@ -303,7 +289,6 @@ def verify_policy_companion(path: Path, key: bytes, key_id: str = "default") -> 
             error=f"key_id mismatch: expected '{key_id}', got '{stored_key_id}'",
         )
 
-
     try:
         content = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -318,13 +303,12 @@ def verify_policy_companion(path: Path, key: bytes, key_id: str = "default") -> 
             key_id=stored_key_id,
             timestamp=timestamp,
         )
-    else:
-        return VerifyResult(
-            valid=False,
-            algorithm=algo,
-            key_id=stored_key_id,
-            error="signature mismatch — policy may have been tampered with",
-        )
+    return VerifyResult(
+        valid=False,
+        algorithm=algo,
+        key_id=stored_key_id,
+        error="signature mismatch — policy may have been tampered with",
+    )
 
 
 def load_policy_with_companion_verification(
@@ -337,22 +321,18 @@ def load_policy_with_companion_verification(
     has_sig = sig_path.is_file()
 
     if not has_sig and effective_key is None:
-
         logger.debug("Policy %s has no signature and no verification key", path)
         content = path.read_text(encoding="utf-8")
         return content, None
 
     if not has_sig and effective_key is not None:
-
         logger.warning("Policy %s is unsigned but verification key is configured — rejecting", path)
         return "", VerifyResult(valid=False, error="policy is unsigned but key is configured")
 
     if has_sig and effective_key is None:
-
         logger.warning("Policy %s is signed but no verification key configured — loading without verification", path)
         content = path.read_text(encoding="utf-8")
         return content, VerifyResult(valid=False, error="no verification key configured for signed policy")
-
 
     assert effective_key is not None
     result = verify_policy_companion(path, effective_key, key_id=key_id)

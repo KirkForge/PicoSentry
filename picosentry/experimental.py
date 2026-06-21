@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -24,7 +23,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry scan`",
         status="Stable",
-        notes="Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 178 fixtures",
+        notes="Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures",
     ),
     ComponentStatus(
         name="`picosentry sandbox`",
@@ -49,7 +48,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry admission`",
         status="Beta",
-        notes="K8s admission webhook; pod security validation + optional image scanning",
+        notes=(
+            "K8s admission webhook; pod security validation + optional image scanning; "
+            "live-tested against a kind cluster"
+        ),
     ),
     ComponentStatus(
         name="`picosentry corpus`",
@@ -59,7 +61,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Cross-layer correlation",
         status="Beta",
-        notes="Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested",
+        notes=(
+            "Links findings across scan + sandbox + watch layers; "
+            "persistence, dedup, and per-minute backpressure tested"
+        ),
     ),
     ComponentStatus(
         name="Plugin system",
@@ -74,22 +79,25 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Cluster mode",
         status="Beta",
-        notes="Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test",
+        notes=(
+            "Gossip over HTTP(S) with shared cluster token + optional mTLS; "
+            "monotonic versioning; 3-node integration test"
+        ),
     ),
     ComponentStatus(
         name="Detection benchmarks",
         status="Stable",
-        notes="178 fixtures (145 pos / 33 neg), 53 rules, 100% CI floor (small corpus — see honest limitations)",
+        notes="188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations)",
     ),
     ComponentStatus(
         name="Docker image",
         status="Stable",
-        notes="`kirkforge/picodome:v2.0.13` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
+        notes="`kirkforge/picodome:v2.0.15` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
     ),
     ComponentStatus(
         name="PyPI package",
         status="Stable",
-        notes="`pip install picosentry` — v2.0.13 published",
+        notes="`pip install picosentry` — v2.0.15 published",
     ),
 )
 
@@ -100,10 +108,7 @@ def render_status_table() -> str:
         "| Component | Status | Notes |",
         "|-----------|--------|-------|",
     ]
-    for component in COMPONENT_STATUS:
-        lines.append(
-            f"| {component.name} | **{component.status}** | {component.notes} |"
-        )
+    lines.extend(f"| {component.name} | **{component.status}** | {component.notes} |" for component in COMPONENT_STATUS)
     return "\n".join(lines)
 
 

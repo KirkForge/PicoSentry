@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import json
@@ -46,7 +45,6 @@ def iter_node_modules(target: Path):
             if not child.is_dir() or child.name.startswith("."):
                 continue
 
-
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):
                     if not scoped_child.is_dir():
@@ -57,7 +55,6 @@ def iter_node_modules(target: Path):
                         if pkg:
                             yield scoped_pkg, pkg
                         else:
-
                             synth_name = f"{child.name}/{scoped_child.name}"
                             yield scoped_pkg, {"name": synth_name, "version": "0.0.0"}
 
@@ -66,13 +63,11 @@ def iter_node_modules(target: Path):
                         yield from _walk_nm(nested_nm, visited)
                 continue
 
-
             pkg_json = child / "package.json"
             if pkg_json.is_file():
                 pkg = load_package_json(pkg_json)
                 if pkg:
                     yield pkg_json, pkg
-
 
             nested_nm = child / "node_modules"
             if nested_nm.is_dir():

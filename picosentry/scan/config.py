@@ -1,8 +1,6 @@
-
 from __future__ import annotations
 
 import logging
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -59,7 +57,6 @@ _UNSET = object()
 
 
 class PicoSentryConfig:
-
     def __init__(self) -> None:
         self.format: str = "table"
         self.output: str | None = None
@@ -124,8 +121,10 @@ class PicoSentryConfig:
             deny_packages=self.deny_packages,
             waivers=self._build_waivers(),
         )
+
     def _build_waivers(self) -> list:
         from picosentry.scan.policy import Waiver
+
         return [Waiver(**w) for w in self.waivers] if self.waivers else []
 
     def assert_secure(self) -> None:
@@ -133,7 +132,8 @@ class PicoSentryConfig:
 
         if _os.environ.get("PICOSENTRY_SKIP_SECURE_ASSERT") == "1":
             logger.warning(
-                "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. "
+                "This bypasses startup security checks."
             )
             return
 
@@ -178,7 +178,6 @@ class PicoSentryConfig:
 
         if not hasattr(args, "format"):
             return merged
-
 
         if getattr(args, "format", None) is not None:
             merged.format = args.format
@@ -226,27 +225,28 @@ class PicoSentryConfig:
         from picosentry.scan.models import Finding, Severity
 
         overridden = []
-        for f in findings:
-            if f.rule_id in self.severity_overrides:
-                new_sev = self.severity_overrides[f.rule_id]
+        for finding in findings:
+            f = finding
+            if finding.rule_id in self.severity_overrides:
+                new_sev = self.severity_overrides[finding.rule_id]
                 try:
                     sev_enum = Severity(new_sev.upper())
                     f = Finding(
-                        rule_id=f.rule_id,
+                        rule_id=finding.rule_id,
                         severity=sev_enum,
-                        confidence=f.confidence,
-                        package=f.package,
-                        file=f.file,
-                        message=f.message,
-                        evidence=f.evidence,
-                        remediation=f.remediation,
-                        references=f.references,
-                        line=f.line,
+                        confidence=finding.confidence,
+                        package=finding.package,
+                        file=finding.file,
+                        message=finding.message,
+                        evidence=finding.evidence,
+                        remediation=finding.remediation,
+                        references=finding.references,
+                        line=finding.line,
                     )
                 except ValueError:
                     logger.warning(
                         "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
-                        f.rule_id,
+                        finding.rule_id,
                         new_sev,
                     )
             overridden.append(f)
@@ -274,73 +274,21 @@ def _validate_config_keys(data: dict, config_path: Path) -> None:
         )
 
 
-_ENV_TO_ATTR = {
-    "PICOSENTRY_FORMAT": "format",
-    "PICOSENTRY_OUTPUT": "output",
-    "PICOSENTRY_RULES": "rules",
-    "PICOSENTRY_CORPUS": "corpus",
-    "PICOSENTRY_NO_COLOR": "no_color",
-    "PICOSENTRY_TOKEN_BUDGET": "token_budget",
-    "PICOSENTRY_EXIT_CODE": "exit_code",
-    "PICOSENTRY_SEVERITY_THRESHOLD": "severity_threshold",
-    "PICOSENTRY_FAIL_ON": "fail_on",
-    "PICOSENTRY_QUIET": "quiet",
-    "PICOSENTRY_SUMMARY": "summary",
-    "PICOSENTRY_BASELINE": "baseline",
-    "PICOSENTRY_POLICY": "policy_file",
-    "PICOSENTRY_CACHE_MAX_ENTRIES": "cache_max_entries",
-    "PICOSENTRY_CACHE_MAX_SIZE_MB": "cache_max_size_mb",
-    "PICOSENTRY_CACHE_TTL_SECONDS": "cache_ttl_seconds",
-    "PICOSENTRY_CACHE_DIR": "cache_dir",
-    "PICOSENTRY_UPDATES_ENABLED": "updates_enabled",
-    "PICOSENTRY_UPDATES_REQUIRE_INTEGRITY": "updates_require_integrity",
-    "PICOSENTRY_CORPUS_REQUIRE_SIGNATURE": "corpus_require_signature",
-    "PICOSENTRY_ADVISORY_DB": "advisory_db",
-    "PICOSENTRY_FORCE_JSON": "force_json",
-    "PICOSENTRY_INCREMENTAL": "incremental",
-    "PICOSENTRY_JOBS": "jobs",
-
-}
-
-
-def apply_env_overrides(config: PicoSentryConfig) -> PicoSentryConfig:
-    for env_name, attr_name in _ENV_TO_ATTR.items():
-        env_val = os.environ.get(env_name)
-        if env_val is None or env_val == "":
-            continue
-
-
-        lower = env_val.lower()
-        if lower in ("true", "1", "yes"):
-            setattr(config, attr_name, True)
-        elif lower in ("false", "0", "no"):
-            setattr(config, attr_name, False)
-        else:
-
-            try:
-                val = float(env_val)
-                if val == int(val) and "." not in env_val:
-                    setattr(config, attr_name, int(val))
-                else:
-                    setattr(config, attr_name, val)
-            except ValueError:
-                setattr(config, attr_name, env_val)
-
-    return config
-
-
 class _CorpusSignatureCheck:
-
     def __init__(self, config: PicoSentryConfig) -> None:
         self._config = config
 
     def check(self) -> SecurityViolation | None:
         import os as _os
+
         env = _os.environ.get("PICOSENTRY_ENV", "development")
         if env in ("production", "staging") and not self._config.corpus_require_signature:
             return SecurityViolation(
                 check="corpus_signature",
-                message="Corpus signature verification disabled in production — set PICOSENTRY_CORPUS_REQUIRE_SIGNATURE=true",
+                message=(
+                    "Corpus signature verification disabled in production — "
+                    "set PICOSENTRY_CORPUS_REQUIRE_SIGNATURE=true"
+                ),
                 severity="WARN",
             )
         return None
@@ -360,7 +308,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except ImportError:
-
         try:
             import json
 
@@ -376,9 +323,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-
     _validate_config_keys(data, config_path)
-
 
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(
@@ -436,7 +381,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
     if "summary" in data:
         config.summary = bool(data["summary"])
     if "baseline" in data:
-
         baseline_path = data["baseline"]
         if not Path(baseline_path).is_absolute():
             baseline_path = str(config_path.parent / baseline_path)
@@ -445,7 +389,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         config.baseline_update = bool(data["baseline_update"])
     if "log_format" in data:
         config.log_format = data["log_format"]
-
 
     if "severity_overrides" in data:
         try:
@@ -463,14 +406,12 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         else:
             config.ignore_packages = [str(p) for p in data["ignore_packages"]]
 
-
     policy_path = None
     if data.get("policy"):
         policy_path = Path(data["policy"])
         if not policy_path.is_absolute():
             policy_path = config_path.parent / policy_path
     else:
-
         auto_policy = config_path.parent / ".picosentry-policy.yml"
         if auto_policy.is_file():
             policy_path = auto_policy
@@ -489,10 +430,8 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         except Exception:
             logger.warning("Failed to load policy file %s", policy_path)
 
-
     if "daemon" in data and isinstance(data["daemon"], dict):
         config.daemon = data["daemon"]
-
 
     if "cache" in data and isinstance(data["cache"], dict):
         cache_data = data["cache"]
@@ -502,7 +441,6 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
             config.cache_max_size_mb = float(cache_data["max_size_mb"])
         if "ttl_seconds" in cache_data:
             config.cache_ttl_seconds = int(cache_data["ttl_seconds"])
-
 
     if "updates" in data and isinstance(data["updates"], dict):
         updates_data = data["updates"]

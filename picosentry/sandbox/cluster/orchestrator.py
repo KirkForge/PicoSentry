@@ -1,12 +1,12 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import threading
 import time
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.cluster.backends.base import StateBackend
 from picosentry.sandbox.cluster.models import (
     DEFAULT_CLUSTER_PORT,
     DEFAULT_HEARTBEAT_INTERVAL,
@@ -18,19 +18,20 @@ from picosentry.sandbox.cluster.models import (
 )
 from picosentry.sandbox.cluster.state import ClusterState
 
+if TYPE_CHECKING:
+    from picosentry.sandbox.cluster.backends.base import StateBackend
+
 logger = logging.getLogger("picodome.cluster")
 
 
 def _parse_iso_timestamp(ts: str) -> float | None:
     try:
-
         ts = ts.replace("Z", "+00:00")
         from datetime import datetime
 
         dt = datetime.fromisoformat(ts)
         return dt.timestamp()
     except (ValueError, TypeError):
-
         try:
             import calendar
 
@@ -41,7 +42,6 @@ def _parse_iso_timestamp(ts: str) -> float | None:
 
 
 class ClusterManager:
-
     def __init__(
         self,
         address: str = "127.0.0.1",
@@ -97,7 +97,6 @@ class ClusterManager:
     def port(self) -> int:
         return self._port
 
-
     def start(self) -> None:
         self._stop_event.clear()
         if self._running:
@@ -105,7 +104,6 @@ class ClusterManager:
             return
 
         self._running = True
-
 
         self_node = ClusterNode(
             node_id=self._node_id,
@@ -117,10 +115,8 @@ class ClusterManager:
         )
         self._state.add_node(self_node)
 
-
         if len(self._state.list_nodes(status=NodeStatus.ONLINE)) == 1:
             self._state.elect_leader()
-
 
         self._heartbeat_thread = threading.Thread(
             target=self._heartbeat_loop,
@@ -129,7 +125,6 @@ class ClusterManager:
         )
         self._heartbeat_thread.start()
 
-
         self._health_check_thread = threading.Thread(
             target=self._health_check_loop,
             daemon=True,
@@ -137,14 +132,12 @@ class ClusterManager:
         )
         self._health_check_thread.start()
 
-
         self._gossip_thread = threading.Thread(
             target=self._gossip_loop,
             daemon=True,
             name="picodome-cluster-gossip",
         )
         self._gossip_thread.start()
-
 
         try:
             audit = get_audit_logger()
@@ -165,33 +158,26 @@ class ClusterManager:
         self._running = False
         self._stop_event.set()
 
-
         node = self._state.get_node(self._node_id)
         if node:
             node.status = NodeStatus.DRAINING
             self._state.update_node(node)
 
-
         time.sleep(0.1)
-
 
         if node:
             node.status = NodeStatus.OFFLINE
             self._state.update_node(node)
 
-
         for thread in (self._heartbeat_thread, self._health_check_thread, self._gossip_thread):
             if thread is not None and thread.is_alive():
                 thread.join(timeout=5.0)
 
-
         self._state.remove_node(self._node_id)
-
 
         leader_id = self._state.get_leader_id()
         if leader_id == self._node_id or leader_id is None:
             self._state.elect_leader()
-
 
         try:
             audit = get_audit_logger()
@@ -205,14 +191,11 @@ class ClusterManager:
 
         logger.info("Cluster node %s stopped", self._node_id)
 
-
     def assign_scan(self, scan_request: ScanRequest) -> ClusterNode | None:
 
         self._state.add_scan(scan_request)
 
-
         node = self._state.assign_scan(scan_request.scan_id)
-
 
         if node:
             try:
@@ -229,13 +212,11 @@ class ClusterManager:
 
         return node
 
-
     def sync_state(self) -> dict[str, Any]:
         return self._state.get_state_snapshot()
 
     def merge_peer_state(self, snapshot: dict[str, Any]) -> None:
         self._state.merge_state(snapshot)
-
 
     def handle_heartbeat(self, node_id: str, status: str = "online", load: int = 0) -> ClusterNode | None:
         node = self._state.get_node(node_id)
@@ -255,33 +236,27 @@ class ClusterManager:
         logger.debug("Heartbeat from %s: status=%s load=%d", node_id, status, load)
         return node
 
-
     def handle_node_failure(self, node_id: str) -> list[str]:
         node = self._state.get_node(node_id)
         if node is None:
             logger.warning("Node failure for unknown node: %s", node_id)
             return []
 
-
         node.status = NodeStatus.OFFLINE
         self._state.update_node(node)
-
 
         failed_scans = self._state.get_scans_for_node(node_id)
         redistributed = []
 
         for scan in failed_scans:
-
             self._state.fail_scan(scan.scan_id)
             redistributed.append(scan.scan_id)
-
 
             new_node = self._state.assign_scan(scan.scan_id)
             if new_node:
                 logger.info("Scan %s redistributed from %s to %s", scan.scan_id, node_id, new_node.node_id)
             else:
                 logger.warning("No available node for scan %s (was on failed node %s)", scan.scan_id, node_id)
-
 
         try:
             audit = get_audit_logger()
@@ -297,7 +272,6 @@ class ClusterManager:
 
         logger.info("Node %s failed: %d scans redistributed", node_id, len(redistributed))
         return redistributed
-
 
     def get_status(self) -> dict[str, Any]:
         nodes = self._state.list_nodes()
@@ -324,7 +298,6 @@ class ClusterManager:
             "nodes": [n.to_dict() for n in nodes],
         }
 
-
     def _heartbeat_loop(self) -> None:
         while self._running:
             try:
@@ -332,8 +305,8 @@ class ClusterManager:
                 if node:
                     node.last_heartbeat = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     self._state.update_node(node)
-            except Exception as e:
-                logger.error("Heartbeat update failed: %s", e)
+            except Exception:
+                logger.exception("Heartbeat update failed")
 
             self._stop_event.wait(timeout=self._heartbeat_interval)
 
@@ -341,8 +314,8 @@ class ClusterManager:
         while self._running:
             try:
                 self._check_node_health()
-            except Exception as e:
-                logger.error("Health check failed: %s", e)
+            except Exception:
+                logger.exception("Health check failed")
 
             self._stop_event.wait(timeout=self._heartbeat_timeout)
 
@@ -389,17 +362,14 @@ class ClusterManager:
 
         while self._running:
             try:
-                peers = [
-                    n for n in self._state.list_nodes(status=NodeStatus.ONLINE)
-                    if n.node_id != self._node_id
-                ]
+                peers = [n for n in self._state.list_nodes(status=NodeStatus.ONLINE) if n.node_id != self._node_id]
                 for peer in peers:
                     try:
                         self._fetch_and_merge_peer(peer)
                     except Exception as e:
                         logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
-            except Exception as e:
-                logger.error("Gossip loop error: %s", e)
+            except Exception:
+                logger.exception("Gossip loop error")
 
             self._stop_event.wait(timeout=gossip_interval)
 
@@ -425,10 +395,8 @@ class ClusterManager:
         kwargs: dict[str, Any] = {"timeout": 5.0}
         if scheme == "https":
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_CLIENT)
-            try:
+            with contextlib.suppress(AttributeError):
                 ctx.minimum_version = ssl.TLSVersion.TLSv1_2
-            except AttributeError:
-                pass
             if self._tls_ca_path:
                 ctx.load_verify_locations(cafile=self._tls_ca_path)
             else:

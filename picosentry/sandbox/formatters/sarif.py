@@ -1,11 +1,13 @@
-
 from __future__ import annotations
 
 import json
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
 
 
 def format_sarif(result: SandboxResult | AnalysisResult) -> str:
@@ -15,30 +17,28 @@ def format_sarif(result: SandboxResult | AnalysisResult) -> str:
 
 
 def _l3_sarif(result: SandboxResult) -> str:
-    results: list[dict] = []
-    for event in result.events:
-        results.append(
-            {
-                "level": _severity_to_sarif(event.verdict.value),
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": event.path or "unknown"},
-                            "region": {"startLine": 1},
-                        }
+    results = [
+        {
+            "level": _severity_to_sarif(event.verdict.value),
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": event.path or "unknown"},
+                        "region": {"startLine": 1},
                     }
-                ]
-                if event.path
-                else [],
-                "message": {"text": event.detail},
-                "properties": {
-                    "operation": event.operation,
-                    "address": event.address,
-                },
-                "ruleId": event.rule_id,
-            }
-        )
-
+                }
+            ]
+            if event.path
+            else [],
+            "message": {"text": event.detail},
+            "properties": {
+                "operation": event.operation,
+                "address": event.address,
+            },
+            "ruleId": event.rule_id,
+        }
+        for event in result.events
+    ]
 
     seen_rules: dict[str, dict] = {}
     for e in result.events:
@@ -79,23 +79,22 @@ def _l3_sarif(result: SandboxResult) -> str:
 
 
 def _l4_sarif(result: AnalysisResult) -> str:
-    results: list[dict] = []
-    for finding in result.findings:
-        results.append(
-            {
-                "level": _severity_to_sarif(finding.severity.value),
-                "locations": [
-                    {
-                        "physicalLocation": {
-                            "artifactLocation": {"uri": finding.location or "unknown"},
-                        }
+    results = [
+        {
+            "level": _severity_to_sarif(finding.severity.value),
+            "locations": [
+                {
+                    "physicalLocation": {
+                        "artifactLocation": {"uri": finding.location or "unknown"},
                     }
-                ],
-                "message": {"text": finding.message},
-                "properties": finding.evidence,
-                "ruleId": finding.rule_id,
-            }
-        )
+                }
+            ],
+            "message": {"text": finding.message},
+            "properties": finding.evidence,
+            "ruleId": finding.rule_id,
+        }
+        for finding in result.findings
+    ]
 
     sarif = {
         "$schema": "https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json",

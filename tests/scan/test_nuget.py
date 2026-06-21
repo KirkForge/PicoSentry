@@ -34,28 +34,34 @@ class TestNuGetDetection:
 
     def test_detects_csproj(self):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         assert detect_nuget_project(_nuget_clean())
 
     def test_detects_csproj_malicious(self):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         assert detect_nuget_project(_nuget_malicious())
 
     def test_no_indicator_returns_false(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         assert not detect_nuget_project(tmp_path)
 
     def test_packages_config_detection(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         (tmp_path / "packages.config").write_text("<packages></packages>")
         assert detect_nuget_project(tmp_path)
 
     def test_nuget_config_detection(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         (tmp_path / "nuget.config").write_text("<configuration></configuration>")
         assert detect_nuget_project(tmp_path)
 
     def test_not_a_directory_returns_false(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import detect_nuget_project
+
         f = tmp_path / "not_a_dir"
         f.write_text("")
         assert not detect_nuget_project(f)
@@ -96,6 +102,7 @@ class TestNuGetTyposquat:
 
     def test_detects_typosquat_in_malicious(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
+
         findings = detect_nuget_typosquat(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-NUGET-TYPO-001"]
         assert len(typo_findings) >= 1
@@ -104,6 +111,7 @@ class TestNuGetTyposquat:
 
     def test_clean_project_has_no_typosquats(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
+
         findings = detect_nuget_typosquat(_nuget_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         typo_findings = [f for f in findings if f.rule_id == "L2-NUGET-TYPO-001"]
         assert len(typo_findings) == 0
@@ -117,20 +125,23 @@ class TestNuGetDependencyConfusion:
 
     def test_detects_dep_confusion_in_malicious(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+
+        findings = detect_nuget_dep_confusion(_nuget_malicious())
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) >= 1
         assert any("Company.Internal.Lib" in f.package for f in depc_findings)
 
     def test_clean_project_has_no_dep_confusion(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_clean(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+
+        findings = detect_nuget_dep_confusion(_nuget_clean())
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) == 0
 
     def test_private_source_suppresses_finding(self, tmp_path):
         """If a private NuGet source is configured, internal-looking packages should not be flagged."""
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
+
         csproj_path = tmp_path / "test.csproj"
         csproj_path.write_text("""<Project Sdk="Microsoft.NET.Sdk">
   <ItemGroup>
@@ -144,7 +155,7 @@ class TestNuGetDependencyConfusion:
     <add key="internal" value="https://pkgs.internal.example.com/nuget/v3/index.json" />
   </packageSources>
 </configuration>""")
-        findings = detect_nuget_dep_confusion(tmp_path, FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+        findings = detect_nuget_dep_confusion(tmp_path)
         depc_findings = [f for f in findings if f.rule_id == "L2-NUGET-DEPC-001"]
         assert len(depc_findings) == 0
 
@@ -157,6 +168,7 @@ class TestNuGetParsing:
 
     def test_parse_csproj_package_references(self):
         from picosentry.scan.rules.nuget_utils import parse_csproj_file
+
         data = parse_csproj_file(_nuget_clean())
         assert data is not None
         refs = data.get("package_references", [])
@@ -168,18 +180,21 @@ class TestNuGetParsing:
 
     def test_parse_csproj_project_name(self):
         from picosentry.scan.rules.nuget_utils import parse_csproj_file
+
         data = parse_csproj_file(_nuget_clean())
         assert data is not None
         assert data["project_name"] == "MyApp"
 
     def test_parse_csproj_target_framework(self):
         from picosentry.scan.rules.nuget_utils import parse_csproj_file
+
         data = parse_csproj_file(_nuget_clean())
         assert data is not None
         assert data["target_framework"] == "net8.0"
 
     def test_parse_csproj_no_file_returns_none(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import parse_csproj_file
+
         assert parse_csproj_file(tmp_path) is None
 
 
@@ -191,6 +206,7 @@ class TestNuGetLockfileParser:
 
     def test_parse_csproj_for_lock(self):
         from picosentry.scan.rules.nuget_lock_parser import parse_csproj_for_lock
+
         entries = parse_csproj_for_lock(_nuget_clean() / "test.csproj")
         assert len(entries) == 3
         entry_ids = {e[0] for e in entries}
@@ -198,16 +214,19 @@ class TestNuGetLockfileParser:
 
     def test_parse_nuget_lock_from_json(self):
         from picosentry.scan.rules.nuget_lock_parser import parse_nuget_lock_for_lock
+
         entries = parse_nuget_lock_for_lock(_nuget_clean() / "packages.lock.json")
         assert len(entries) == 3
 
     def test_parse_nuget_lockfile_auto_detect(self):
         from picosentry.scan.rules.nuget_lock_parser import parse_nuget_lockfile
+
         entries = parse_nuget_lockfile(_nuget_clean() / "test.csproj")
         assert len(entries) == 3
 
     def test_parse_nuget_lockfile_packages_config(self, tmp_path):
         from picosentry.scan.rules.nuget_lock_parser import parse_nuget_lockfile
+
         pc_path = tmp_path / "packages.config"
         pc_path.write_text("""<?xml version="1.0" encoding="utf-8"?>
 <packages>
@@ -219,6 +238,7 @@ class TestNuGetLockfileParser:
 
     def test_parse_nuget_lockfile_no_file_returns_empty(self, tmp_path):
         from picosentry.scan.rules.nuget_lock_parser import parse_nuget_lockfile
+
         assert parse_nuget_lockfile(tmp_path / "nonexistent.txt") == []
 
 
@@ -230,6 +250,7 @@ class TestNuGetUtils:
 
     def test_get_nuget_dep_names_from_csproj(self):
         from picosentry.scan.rules.nuget_utils import get_nuget_dep_names, parse_csproj_file
+
         data = parse_csproj_file(_nuget_clean())
         assert data is not None
         names = get_nuget_dep_names(data)
@@ -238,10 +259,12 @@ class TestNuGetUtils:
 
     def test_detect_private_nuget_source_clean(self):
         from picosentry.scan.rules.nuget_utils import detect_private_nuget_source
+
         assert not detect_private_nuget_source(_nuget_clean())
 
     def test_detect_private_nuget_source_with_config(self, tmp_path):
         from picosentry.scan.rules.nuget_utils import detect_private_nuget_source
+
         nuget_path = tmp_path / "nuget.config"
         nuget_path.write_text("""<?xml version="1.0" encoding="utf-8"?>
 <configuration>
@@ -253,6 +276,7 @@ class TestNuGetUtils:
 
     def test_collect_nuget_deps(self):
         from picosentry.scan.rules.nuget_utils import collect_nuget_deps
+
         deps = collect_nuget_deps(_nuget_clean())
         dep_ids = {d[0] for d in deps}
         assert "Newtonsoft.Json" in dep_ids
@@ -282,13 +306,15 @@ class TestNuGetIntegration:
 
     def test_findings_have_nuget_ecosystem(self):
         from picosentry.scan.rules.typosquat import detect_all_typosquat as detect_nuget_typosquat
+
         findings = detect_nuget_typosquat(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
         for f in findings:
             assert f.ecosystem == "nuget"
 
     def test_dep_confusion_findings_are_critical(self):
         from picosentry.scan.rules.dep_confusion import detect_all_dep_confusion as detect_nuget_dep_confusion
-        findings = detect_nuget_dep_confusion(_nuget_malicious(), FIXTURES.parent.parent / "picosentry" / "scan" / "corpus")
+
+        findings = detect_nuget_dep_confusion(_nuget_malicious())
         for f in findings:
             assert f.severity == Severity.CRITICAL
             assert f.ecosystem == "nuget"

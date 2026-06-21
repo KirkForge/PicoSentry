@@ -1,9 +1,10 @@
-
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import logging
+import os
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,18 +17,12 @@ _HAS_SIGSTORE: bool | None = None
 def _check_sigstore() -> bool:
     global _HAS_SIGSTORE
     if _HAS_SIGSTORE is None:
-        try:
-            import sigstore  # noqa: F401
-
+        if importlib.util.find_spec("sigstore") is not None:
             _HAS_SIGSTORE = True
-        except ImportError:
+        else:
             _HAS_SIGSTORE = False
             logger.debug("sigstore package not available — cryptographic signing disabled")
     return _HAS_SIGSTORE
-
-
-def has_sigstore() -> bool:
-    return _check_sigstore()
 
 
 _HAS_MINISIGN: bool | None = None
@@ -36,8 +31,8 @@ _HAS_MINISIGN: bool | None = None
 def _check_minisign() -> bool:
     global _HAS_MINISIGN
     if _HAS_MINISIGN is None:
-
         import shutil
+
         if shutil.which("minisign"):
             _HAS_MINISIGN = True
             return _HAS_MINISIGN
@@ -48,25 +43,16 @@ def _check_minisign() -> bool:
                 ["minisign", "-V"],
                 capture_output=True,
                 timeout=5,
+                check=False,
             )
 
             _HAS_MINISIGN = result.returncode is not None
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            try:
-                import minisign  # noqa: F401
-
-                _HAS_MINISIGN = True
-            except ImportError:
-                _HAS_MINISIGN = False
+            _HAS_MINISIGN = importlib.util.find_spec("minisign") is not None
     return _HAS_MINISIGN
 
 
-def has_minisign() -> bool:
-    return _check_minisign()
-
-
 class SignatureBundle:
-
     def __init__(
         self,
         signer_identity: str = "",
@@ -127,39 +113,35 @@ def sign_content_sigstore(content: bytes) -> SignatureBundle:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore signing. Install with: pip install sigstore")
 
-    import sigstore
-    from sigstore.oidc import Issuer, detect_credential
+    from sigstore.models import ClientTrustConfig
+    from sigstore.oidc import IdentityToken, Issuer
+    from sigstore.sign import SigningContext
 
     digest = content_digest(content)
 
+    trust_config = ClientTrustConfig.production()
+    signing_ctx = SigningContext.from_trust_config(trust_config)
 
-    try:
-        token = detect_credential()
-        issuer = Issuer.production()  # sigstore.dev (public good instance)
-    except Exception:
+    identity_token_str = os.environ.get("SIGSTORE_IDENTITY_TOKEN")
+    if identity_token_str:
+        token = IdentityToken(identity_token_str)
+        identity = token.identity
+    else:
+        oidc_issuer = os.environ.get("SIGSTORE_OIDC_ISSUER") or trust_config.signing_config.get_oidc_url()
+        issuer = Issuer(oidc_issuer)
+        token = issuer.identity_token()
+        identity = token.identity
 
-
-        token = detect_credential()
-        issuer = Issuer.production()
-
-    identity = token.identity() if hasattr(token, "identity") else "unknown"
-
-
-    signing_result = sigstore.sign(
-        content,
-        identity_token=token,
-        issuer=issuer,
-    )
+    with signing_ctx.signer(token) as signer:
+        bundle = signer.sign_artifact(content)
 
     logger.info("Signed content with Sigstore (identity=%s, digest=%s...)", identity, digest[:12])
 
     return SignatureBundle(
         signer_identity=identity,
         provider="sigstore",
-        raw_signature=signing_result.bundle._to_b64()
-        if hasattr(signing_result.bundle, "_to_b64")
-        else str(signing_result.bundle),
-        certificate=getattr(signing_result, "certificate", ""),
+        raw_signature=bundle.to_json(),
+        certificate="",
         digest=digest,
     )
 
@@ -176,7 +158,6 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
 
     digest = content_digest(content)
 
-
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tf:
         tf.write(content)
         tmp_path = tf.name
@@ -191,27 +172,17 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
 
         if result.returncode != 0:
             raise RuntimeError(f"minisign signing failed: {result.stderr}")
 
-
         sig_path = Path(str(tmp_path) + ".minisig")
         signature_b64 = base64.b64encode(sig_path.read_bytes()).decode()
         sig_path.unlink(missing_ok=True)
 
-
-        try:
-            subprocess.run(
-                ["minisign", "-G", "-p", "-"],  # won't work for this
-                capture_output=True,
-                text=True,
-                timeout=5,
-            )
-            signer = "minisign-key"
-        except Exception:
-            signer = "minisign-key"
+        signer = "minisign-key"
 
         logger.info("Signed content with minisign (key=%s, digest=%s...)", secret_key, digest[:12])
 
@@ -241,46 +212,34 @@ def sign_content(content: bytes, method: str = "sigstore", secret_key: str = "",
 
 
 def verify_content_sigstore(
-    content: bytes, signature_bundle_json: str, certificate: str = "", offline: bool = False
+    content: bytes, signature_bundle_json: str, expected_identity: str = "", offline: bool = False
 ) -> bool:
     if not _check_sigstore():
         raise ImportError("sigstore package is required for Sigstore verification. Install with: pip install sigstore")
 
-    import base64
-
-    import sigstore
-    from sigstore.verify import VerificationMaterials, Verifier
-    from sigstore.verify.policy import VerificationSuccess
+    from sigstore.errors import VerificationError
+    from sigstore.models import Bundle
+    from sigstore.verify import Verifier
+    from sigstore.verify.policy import Identity, UnsafeNoOp
 
     try:
+        bundle = Bundle.from_json(signature_bundle_json)
+    except Exception:
+        logger.exception("Failed to parse Sigstore bundle")
+        return False
 
-        bundle_bytes = base64.b64decode(signature_bundle_json)
+    verifier = Verifier.production(offline=offline)
+    policy = Identity(identity=expected_identity) if expected_identity else UnsafeNoOp()
 
-
-        materials = VerificationMaterials.from_bundle(
-            input_=content,
-            bundle=bundle_bytes,
-            offline=offline,
-        )
-
-        verifier = Verifier.production()
-        result = verifier.verify(materials)
-
-        if isinstance(result, VerificationSuccess):
-            logger.info(
-                "Sigstore verification succeeded (offline=%s)",
-                offline,
-            )
-            return True
-        else:
-            logger.warning("Sigstore verification failed: %s", result)
-            return False
-
-    except sigstore.errors.VerificationError as e:
-        logger.error("Sigstore verification error: %s", e)
-        raise
-    except Exception as e:
-        logger.error("Sigstore verification failed: %s", e)
+    try:
+        verifier.verify_artifact(content, bundle, policy)
+        logger.info("Sigstore verification succeeded (offline=%s)", offline)
+        return True
+    except VerificationError as e:
+        logger.warning("Sigstore verification failed: %s", e)
+        return False
+    except Exception:
+        logger.exception("Sigstore verification failed")
         return False
 
 
@@ -291,7 +250,6 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
     import base64
     import subprocess
     import tempfile
-
 
     with tempfile.NamedTemporaryFile(delete=False, suffix=".bin") as tf:
         tf.write(content)
@@ -311,14 +269,14 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
             capture_output=True,
             text=True,
             timeout=30,
+            check=False,
         )
 
         if result.returncode == 0:
             logger.info("minisign verification succeeded")
             return True
-        else:
-            logger.warning("minisign verification failed: %s", result.stderr.strip())
-            return False
+        logger.warning("minisign verification failed: %s", result.stderr.strip())
+        return False
 
     finally:
         Path(content_path).unlink(missing_ok=True)
@@ -336,17 +294,16 @@ def verify_content(
         return verify_content_sigstore(
             content,
             signature_bundle.raw_signature,
-            signature_bundle.certificate,
+            expected_identity=signature_bundle.signer_identity,
             offline=offline,
         )
-    elif signature_bundle.provider == "minisign":
+    if signature_bundle.provider == "minisign":
         return verify_content_minisign(
             content,
             signature_bundle.raw_signature,
             public_key,
         )
-    else:
-        raise ValueError(f"Unknown signature provider: {signature_bundle.provider}")
+    raise ValueError(f"Unknown signature provider: {signature_bundle.provider}")
 
 
 def sign_json_bundle(

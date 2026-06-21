@@ -1,5 +1,4 @@
-
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
 
@@ -22,7 +21,6 @@ HONEYPOT_PATHS = [
 
 def detect_honeypot_touches(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
     findings: list[Finding] = []
     import fnmatch
@@ -40,7 +38,6 @@ def detect_honeypot_touches(
                     )
                 )
                 break
-
 
     priv_esc_binaries = {"sudo", "su", "pkexec", "doas", "chown", "chmod"}
     for spawn in profile.spawns:

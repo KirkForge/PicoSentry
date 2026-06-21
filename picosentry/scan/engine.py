@@ -1,12 +1,14 @@
-
 from __future__ import annotations
 
 import hashlib
+import inspect
+import json
 import logging
 import os
 import threading
 import time
 from collections.abc import Callable, Sequence
+from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -32,9 +34,7 @@ def _get_rule_executor() -> ThreadPoolExecutor:
     if _rule_executor is None:
         with _rule_executor_lock:
             if _rule_executor is None:
-                _rule_executor = ThreadPoolExecutor(
-                    max_workers=_RULE_POOL_SIZE, thread_name_prefix="picosentry-rule"
-                )
+                _rule_executor = ThreadPoolExecutor(max_workers=_RULE_POOL_SIZE, thread_name_prefix="picosentry-rule")
     return _rule_executor
 
 
@@ -44,6 +44,7 @@ def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any
     try:
         from picosentry.scan.policy import Policy
         from picosentry.scan.policy_lifecycle import InheritedPolicy, PolicyStack
+
         stack = PolicyStack()
         if policy_path and Path(policy_path).exists():
             policy = Policy.from_file(Path(policy_path))
@@ -53,9 +54,10 @@ def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any
             stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
         if stack.layers():
             return stack.effective_policy()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Could not resolve effective policy: %s", exc)
     return None
+
 
 logger = logging.getLogger("picosentry.engine")
 
@@ -95,11 +97,10 @@ def _get_version() -> str:
 _VERSION = _get_version()
 
 
-DetectorRule = Callable[[Path, Path], list[Finding]]
+DetectorRule = Callable[..., list[Finding]]
 
 
 class ScanEngine:
-
     def __init__(
         self,
         corpus_dir: Path | None = None,
@@ -108,9 +109,7 @@ class ScanEngine:
         self._rules: dict[str, DetectorRule] = {}
         self._corpus_dir = self._resolve_corpus_dir(corpus_dir)
         self._corpus_version = self._compute_corpus_version()
-        self._advisory_db_path = (
-            str(advisory_db_path) if advisory_db_path is not None else None
-        )
+        self._advisory_db_path = str(advisory_db_path) if advisory_db_path is not None else None
 
     @staticmethod
     def _resolve_corpus_dir(explicit: Path | None) -> Path:
@@ -118,7 +117,15 @@ class ScanEngine:
             return explicit
         user_dir = user_corpus_dir()
 
-        for eco_file in ("npm_top_packages.json", "pypi_top_packages.json", "go_top_packages.json", "cargo_top_packages.json", "maven_top_packages.json", "rubygems_top_packages.json", "nuget_top_packages.json"):
+        for eco_file in (
+            "npm_top_packages.json",
+            "pypi_top_packages.json",
+            "go_top_packages.json",
+            "cargo_top_packages.json",
+            "maven_top_packages.json",
+            "rubygems_top_packages.json",
+            "nuget_top_packages.json",
+        ):
             if (user_dir / eco_file).is_file():
                 logger.info("Using user corpus: %s", user_dir)
                 return user_dir
@@ -138,7 +145,42 @@ class ScanEngine:
                 h.update(f.read_bytes())
             except OSError:
                 continue
+
+        # Include the corpus manifest so version changes when update metadata changes.
+        self._warn_if_corpus_stale()
         return h.hexdigest()[:12]
+
+    def _warn_if_corpus_stale(self) -> None:
+        manifest_path = self._corpus_dir / "corpus.json"
+        if not manifest_path.is_file():
+            return
+        try:
+            data = json.loads(manifest_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            return
+
+        ecosystems = data.get("ecosystems", {})
+        if not isinstance(ecosystems, dict):
+            return
+
+        now = datetime.now(timezone.utc)
+        for ecosystem, entry in ecosystems.items():
+            fetched_at = entry.get("fetched_at")
+            if not isinstance(fetched_at, str):
+                continue
+            try:
+                fetched = datetime.fromisoformat(fetched_at)
+                if fetched.tzinfo is None:
+                    fetched = fetched.replace(tzinfo=timezone.utc)
+            except ValueError:
+                continue
+            if now - fetched > timedelta(days=30):
+                logger.warning(
+                    "Corpus '%s' was last fetched on %s. Run 'picosentry update --ecosystem %s' to refresh it.",
+                    ecosystem,
+                    fetched.date().isoformat(),
+                    ecosystem,
+                )
 
     def register(self, rule_id: str, rule: DetectorRule) -> ScanEngine:
         self._rules[rule_id] = rule
@@ -159,66 +201,41 @@ class ScanEngine:
     ) -> ScanResult:
         target_path = Path(target).resolve()
 
-
         if advisory_db_path is not None:
             advisory_db_path = str(advisory_db_path)
         if not target_path.exists():
             logger.error("Scan target does not exist: %s", target_path)
             return ScanResult(target=str(target_path))
 
-
-        _effective_rule_timeout = (
-            DEFAULT_RULE_TIMEOUT_SECONDS if rule_timeout is None else float(rule_timeout)
-        )
-
+        _effective_rule_timeout = DEFAULT_RULE_TIMEOUT_SECONDS if rule_timeout is None else float(rule_timeout)
 
         _detected_npm = (target_path / "package.json").is_file() or (target_path / "node_modules").is_dir()
-        _detected_pypi = (target_path / "pyproject.toml").is_file() or \
-            (target_path / "setup.py").is_file() or \
-            (target_path / "requirements.txt").is_file() or \
-            (target_path / ".venv").is_dir()
+        _detected_pypi = (
+            (target_path / "pyproject.toml").is_file()
+            or (target_path / "setup.py").is_file()
+            or (target_path / "requirements.txt").is_file()
+            or (target_path / ".venv").is_dir()
+        )
         _detected_go = (target_path / "go.mod").is_file()
         _detected_cargo = (target_path / "Cargo.toml").is_file()
-        _detected_maven = (target_path / "pom.xml").is_file() or \
-            (target_path / "build.gradle").is_file()
-        _detected_rubygems = (target_path / "Gemfile").is_file() or \
-            (target_path / "Gemfile.lock").is_file()
-        _detected_nuget = bool(list(target_path.glob("*.csproj"))) or \
-            (target_path / "packages.config").is_file()
+        _detected_maven = (target_path / "pom.xml").is_file() or (target_path / "build.gradle").is_file()
+        _detected_rubygems = (target_path / "Gemfile").is_file() or (target_path / "Gemfile.lock").is_file()
+        _detected_nuget = bool(list(target_path.glob("*.csproj"))) or (target_path / "packages.config").is_file()
 
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
 
-
         if not _detected_pypi:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-PYPI-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PYPI-")}
         if not _detected_go:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-GO-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-GO-")}
         if not _detected_cargo:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-CARGO-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-CARGO-")}
         if not _detected_maven:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-MAVEN-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MAVEN-")}
         if not _detected_rubygems:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-RUBYGEMS-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-RUBYGEMS-")}
         if not _detected_nuget:
-            selected_rules = {
-                k: v for k, v in selected_rules.items()
-                if not k.startswith("L2-NUGET-")
-            }
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-NUGET-")}
 
         if not selected_rules:
             logger.warning("No detector rules selected for scan")
@@ -240,7 +257,6 @@ class ScanEngine:
         packages_scanned = 0
         rule_timings: dict[str, int] = {}
 
-
         nm_path = target_path / "node_modules"
         if nm_path.is_dir():
             packages_scanned = 0
@@ -248,26 +264,21 @@ class ScanEngine:
                 if not d.is_dir() or d.name.startswith("."):
                     continue
                 if d.name.startswith("@"):
-
                     packages_scanned += sum(1 for s in d.iterdir() if s.is_dir())
                 else:
                     packages_scanned += 1
-
 
         if not packages_scanned:
             for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
                 if sp_path.is_dir():
                     packages_scanned = sum(
-                        1 for d in sp_path.iterdir()
-                        if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
+                        1 for d in sp_path.iterdir() if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
                     )
-
 
         fn_to_rule_ids: dict[int, list[str]] = {}
         for rule_id in selected_rules:
             fn_id = id(selected_rules[rule_id])
             fn_to_rule_ids.setdefault(fn_id, []).append(rule_id)
-
 
         from concurrent.futures import TimeoutError as FuturesTimeoutError
 
@@ -275,12 +286,11 @@ class ScanEngine:
 
         def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
             if fn.__name__ == "detect_all_advisory_vulnerabilities":
-
-
-                return fn(
-                    target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path
-                )
-            return fn(target_path, self._corpus_dir)
+                return fn(target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path)
+            param_count = len(inspect.signature(fn).parameters)
+            if param_count >= 2:
+                return fn(target_path, self._corpus_dir)
+            return fn(target_path)
 
         for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
             rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
@@ -295,7 +305,8 @@ class ScanEngine:
                     elapsed = int(_now_ms() - rule_start)
                     logger.warning(
                         "Rule %s exceeded %ss timebox — skipping",
-                        primary_rule_id, _effective_rule_timeout,
+                        primary_rule_id,
+                        _effective_rule_timeout,
                     )
                     for rid in rule_ids_for_fn:
                         rule_timings[rid] = elapsed
@@ -323,7 +334,7 @@ class ScanEngine:
                         )
                     )
             except Exception as exc:
-                logger.error("Rule %s raised an exception: %s", primary_rule_id, exc)
+                logger.exception("Rule %s raised an exception", primary_rule_id)
                 logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
                 elapsed = int(_now_ms() - rule_start)
                 for rid in rule_ids_for_fn:
@@ -338,22 +349,18 @@ class ScanEngine:
                         )
                     )
 
-
         if rules is not None:
             selected_set = set(selected_rules.keys())
             all_findings = [f for f in all_findings if f.rule_id in selected_set]
-
 
         target_prefix = str(target_path)
         if not target_prefix.endswith("/") and not target_prefix.endswith("\\"):
             target_prefix += "/"
         for f in all_findings:
             if f.file.startswith(target_prefix):
-
                 object.__setattr__(f, "file", f.file[len(target_prefix) :])
 
         duration = _now_ms() - start_ms
-
 
         _SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
         _RELEVANT_EXTENSIONS = frozenset(
@@ -423,7 +430,6 @@ class ScanEngine:
         else:
             files_scanned = 1
 
-
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}
         for f in all_findings:
@@ -459,7 +465,6 @@ class ScanEngine:
             int(duration),
         )
 
-
         try:
             from .metrics import increment, observe, set_gauge
 
@@ -481,11 +486,11 @@ class ScanEngine:
 def create_default_engine(
     corpus_dir: Path | None = None,
     advisory_db_path: str | None = None,
-    ecosystems: list[str] | None = None,
 ) -> ScanEngine:
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
+    from .rules.dangerous_build_hooks import detect_dangerous_build_hooks
     from .rules.dep_confusion import detect_all_dep_confusion
     from .rules.engine import detect_engine_issues
     from .rules.fork_drift import detect_fork_drift
@@ -511,7 +516,6 @@ def create_default_engine(
     engine.register("L2-TYPO-001", detect_all_typosquat)
     engine.register("L2-ADV-001", detect_all_advisory_vulnerabilities)
 
-
     engine.register("L2-POST-001", detect_post_install_scripts)
     engine.register("L2-OBFS-001", detect_obfuscation)
     engine.register("L2-OBFS-002", detect_obfuscation)  # sub-rule: hex obfuscation
@@ -523,6 +527,7 @@ def create_default_engine(
     engine.register("L2-CRED-001", detect_credential_reading)
     engine.register("L2-LOCK-001", detect_lockfile_drift)
     engine.register("L2-BUND-001", detect_bundled_shadows)
+    engine.register("L2-BUILD-001", detect_dangerous_build_hooks)
     engine.register("L2-PROV-001", detect_provenance_issues)
     engine.register("L2-MAINT-001", detect_maintainer_changes)
     engine.register("L2-PNPM-001", detect_pnpm_config)
@@ -533,7 +538,6 @@ def create_default_engine(
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
 
-
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-002", detect_pypi_obfuscation)
@@ -542,7 +546,6 @@ def create_default_engine(
     engine.register("L2-PYPI-OBFS-005", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-006", detect_pypi_obfuscation)
     engine.register("L2-PYPI-OBFS-007", detect_pypi_obfuscation)
-
 
     from .campaigns import iter_campaigns
 

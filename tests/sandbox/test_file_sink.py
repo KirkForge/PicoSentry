@@ -12,8 +12,8 @@ Covers:
 
 from __future__ import annotations
 
+import contextlib
 import json
-import os
 
 from picosentry.sandbox.audit import AuditEventType
 from picosentry.sandbox.audit.logger import AuditEvent
@@ -120,7 +120,7 @@ class TestFileSinkRotation:
 
         # Count total events across current + rotated files
         total = 0
-        with open(tmp_path / "audit_sink.jsonl") as f:
+        with (tmp_path / "audit_sink.jsonl").open() as f:
             for line in f:
                 if line.strip():
                     total += 1
@@ -168,18 +168,16 @@ class TestFileSinkFailure:
         # Create a read-only directory to trigger write failure
         read_only_dir = tmp_path / "readonly"
         read_only_dir.mkdir()
-        os.chmod(read_only_dir, 0o444)
+        read_only_dir.chmod(0o444)
 
         sink = FileSink(output_dir=read_only_dir)
         # start() will fail to create the dir, but that's ok —
         # send() should handle the failure gracefully
-        try:
+        with contextlib.suppress(Exception):
             sink.send(_make_event())
-        except Exception:
-            pass  # The sink might raise on dir creation
 
         # Stats should show failure
         # (may or may not have failed depending on OS — just ensure no crash)
 
         # Restore permissions for cleanup
-        os.chmod(read_only_dir, 0o755)
+        read_only_dir.chmod(0o755)

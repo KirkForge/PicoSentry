@@ -45,7 +45,9 @@ async def create_scan(
         # to know.
         logger.warning(
             "Scan target outside workspace: user=%s target=%s workspace=%s",
-            user.get("username"), target, workspace_root,
+            user.get("username"),
+            target,
+            workspace_root,
         )
         raise HTTPException(
             status_code=403,
@@ -74,10 +76,7 @@ async def list_scan_rules(user: dict = Depends(require_role("viewer"))):
     from picosentry.scan.rules import RULE_INFO
 
     return {
-        "rules": [
-            {"id": rule_id, "description": info.get("description", "")}
-            for rule_id, info in RULE_INFO.items()
-        ]
+        "rules": [{"id": rule_id, "description": info.get("description", "")} for rule_id, info in RULE_INFO.items()]
     }
 
 
@@ -95,7 +94,9 @@ async def run_sandbox(
         run_id=result.run_id,
         timestamp=result.timestamp,
         command=result.command,
-        overall_verdict=result.overall_verdict.value if hasattr(result.overall_verdict, "value") else str(result.overall_verdict),
+        overall_verdict=(
+            result.overall_verdict.value if hasattr(result.overall_verdict, "value") else str(result.overall_verdict)
+        ),
         exit_code=result.exit_code,
         duration_ms=result.duration_ms,
         events=[e.to_dict() for e in result.events],

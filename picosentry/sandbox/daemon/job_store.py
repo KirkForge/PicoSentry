@@ -5,7 +5,6 @@ from typing import Any
 
 
 class ScanJobStore:
-
     def __init__(self, max_jobs: int = 1000) -> None:
         self._jobs: dict[str, dict[str, Any]] = {}
         self._max_jobs = max_jobs

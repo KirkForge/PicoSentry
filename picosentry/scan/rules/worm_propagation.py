@@ -1,10 +1,11 @@
-
 from __future__ import annotations
 
 import re
+from dataclasses import replace
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
+from .pattern_scanner import PatternScanner, TokenPattern
 from .utils import load_package_json
 
 __all__ = ["detect_worm_propagation"]
@@ -41,212 +42,344 @@ SKIP_DIRS = frozenset(
     }
 )
 
+
 SKIP_EXTENSIONS = frozenset(
     {
-        ".png", ".jpg", ".jpeg", ".gif", ".svg", ".ico",
-        ".woff", ".woff2", ".ttf", ".eot", ".map", ".lock",
+        ".png",
+        ".jpg",
+        ".jpeg",
+        ".gif",
+        ".svg",
+        ".ico",
+        ".woff",
+        ".woff2",
+        ".ttf",
+        ".eot",
+        ".map",
+        ".lock",
     }
 )
 
 
-WORM_NPM_PUBLISH = re.compile(
-    r"\bnpm\s+(?:whoami|publish|token\s+list)\b",
-    re.IGNORECASE,
-)
-
-
-REMOTE_PIPE_SHELL = re.compile(
-    r"""(?:curl|wget|fetch)\s+.*[|\s]*(?:bash|sh|node)\b""",
-    re.IGNORECASE,
-)
-
-
-NODE_EVAL_ONELINER = re.compile(
-    r"""\bnode\s+-e\s+['"]""",
-)
-
-
-BUN_PAYLOAD = re.compile(
-    r"\b(?:setup_bun|bun_environment)\.js\b",
-)
-
-
-GITHUB_REPO_CREATION = re.compile(
-    r"\bmakeRepo\b.*\bShai-Hulud\b|\bShai-Hulud\b",
-    re.IGNORECASE,
-)
-
-
-GIT_CONFIG_MANIPULATION = re.compile(
-    r"""\bgit\s+config\s+--unset\s+core\.bare\b""",
-)
-
-
-WORKFLOW_INJECTION = re.compile(
-    r"""\brm\s+-rf\s+.*\.github/workflows\b""",
-)
-
-
-DESTRUCTIVE_FALLBACK = re.compile(
-    r"""\brm\s+-rf\s+[~$]""",
-)
-
-
-SELF_MODIFY_PACKAGE = re.compile(
-    r"""writeFileSync\s*\(.*package\.json""",
-)
-
-
-GLOB_SCAN_NODE_MODULES = re.compile(
-    r"""glob.*node_modules.*package\.json""",
-)
-
-
-BUN_RUN_EXEC = re.compile(
-    r"""\bbun\s+(?:run|x|exec)\b""",
-    re.IGNORECASE,
-)
-
-
-SILENT_FAIL_AFTER_EXEC = re.compile(
-    r"""(?:&&|\|\||;)\s*exit\s+\d""",
-)
+_REFERENCES = [
+    "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
+    "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
+]
 
 
 GIT_URL_DEP = re.compile(
-    r"""(?:^github:|^git\+|^git://|^https?://[^\s]+\.git|^[\w.-]+/[\w.-]+#)""",
+    r"(?:^github:|^git\+|^git://|^https?://[^\s]+\.git|^[\w.-]+/[\w.-]+#)",
     re.IGNORECASE,
 )
 
 
-CAMPAIGN_IDENTIFIERS = re.compile(
-    r"""MUT-8694|mut-8964|s1ngularity.*Nx|Shai-Hulud|Sha1-Hulud|firedalazer""",
-    re.IGNORECASE,
-)
+def _build_worm_patterns(confidence: Confidence) -> list[TokenPattern]:
+    """Return token-filtered worm/self-propagation patterns.
+
+    Patterns that contain regex alternatives are split into deterministic
+    sub-patterns so each one has a reliable set of required literal tokens.
+    The same pattern list is reused for install scripts (HIGH confidence) and
+    package source files (MEDIUM confidence).
+    """
+    patterns: list[TokenPattern] = []
+
+    # npm publish / whoami / token list in install scripts.
+    for cmd, token in (
+        ("whoami", "whoami"),
+        ("publish", "publish"),
+        ("token list", "token list"),
+    ):
+        patterns.append(
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(rf"\bnpm\s+{re.escape(cmd)}\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="npm publish/whoami in install script — worm self-propagation",
+                remediation=(
+                    "Remove npm publish/whoami from install scripts. "
+                    "Legitimate packages never publish during install."
+                ),
+                required_tokens=frozenset({"npm", token}),
+                confidence=confidence,
+                references=_REFERENCES,
+            )
+        )
+
+    # Remote payload piped to shell / node.
+    for downloader in ("curl", "wget", "fetch"):
+        for shell in ("bash", "sh", "node"):
+            patterns.append(
+                TokenPattern(
+                    rule_id="L2-WORM-001",
+                    pattern=re.compile(
+                        rf"\b{downloader}\s+.*[|\s]*{shell}\b",
+                        re.IGNORECASE,
+                    ),
+                    severity=Severity.CRITICAL,
+                    message="Remote payload piped to shell — download-and-execute pattern",
+                    remediation="Remove curl|bash or wget|sh patterns. Use pinned dependencies instead.",
+                    required_tokens=frozenset({downloader, shell}),
+                    confidence=confidence,
+                    references=_REFERENCES,
+                )
+            )
+
+    patterns.extend(
+        [
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bnode\s+-e\s+['\"]", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="node -e inline execution — obfuscated payload pattern",
+                remediation="Remove node -e one-liners from install scripts. They are a common attack vector.",
+                required_tokens=frozenset({"node -e"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bsetup_bun\.js\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Shai-Hulud 2.0 Bun payload file detected",
+                remediation="This is a known Shai-Hulud 2.0 payload. Remove immediately and audit all credentials.",
+                required_tokens=frozenset({"setup_bun.js"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bbun_environment\.js\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Shai-Hulud 2.0 Bun payload file detected",
+                remediation="This is a known Shai-Hulud 2.0 payload. Remove immediately and audit all credentials.",
+                required_tokens=frozenset({"bun_environment.js"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bmakeRepo\b.*\bShai-Hulud\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Shai-Hulud GitHub repo creation pattern detected",
+                remediation="This pattern creates attacker-controlled GitHub repos for credential exfiltration.",
+                required_tokens=frozenset({"makerepo", "shai-hulud"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bShai-Hulud\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Shai-Hulud GitHub repo creation pattern detected",
+                remediation="This pattern creates attacker-controlled GitHub repos for credential exfiltration.",
+                required_tokens=frozenset({"shai-hulud"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bgit\s+config\s+--unset\s+core\.bare\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Git config manipulation — repository hijacking pattern",
+                remediation="git config --unset core.bare is used by Shai-Hulud to hijack repositories.",
+                required_tokens=frozenset({"git config", "core.bare"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\brm\s+-rf\s+.*\.github/workflows\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="GitHub workflow deletion — CI/CD hijacking pattern",
+                remediation="Deleting .github/workflows is a Shai-Hulud attack pattern to inject malicious CI.",
+                required_tokens=frozenset({"rm -rf", ".github/workflows"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\brm\s+-rf\s+~", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Destructive fallback — home directory wipe pattern",
+                remediation=(
+                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. "
+                    "Remove this immediately."
+                ),
+                required_tokens=frozenset({"rm -rf", "~"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\brm\s+-rf\s+\$", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Destructive fallback — home directory wipe pattern",
+                remediation=(
+                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. "
+                    "Remove this immediately."
+                ),
+                required_tokens=frozenset({"rm -rf", "$"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"writeFileSync\s*\(.*package\.json", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Self-modifying package.json — worm rewrites its own manifest",
+                remediation="writeFileSync to package.json is a Shai-Hulud self-propagation pattern.",
+                required_tokens=frozenset({"writefilesync", "package.json"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"glob.*node_modules.*package\.json", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Node_modules scanning — worm target discovery pattern",
+                remediation="Scanning node_modules for package.json files is a Shai-Hulud propagation pattern.",
+                required_tokens=frozenset({"glob", "node_modules"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bbun\s+run\b", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Bun runtime execution in install/lifecycle script — Mini Shai-Hulud evasion pattern",
+                remediation=(
+                    "Bun is used to evade Node-based monitoring (no --require hook) "
+                    "and run Bun-only payloads. Legitimate packages almost never invoke `bun run` "
+                    "from an install/prepare script. Audit the target script."
+                ),
+                required_tokens=frozenset({"bun run"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bbun\s+x\b", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Bun runtime execution in install/lifecycle script — Mini Shai-Hulud evasion pattern",
+                remediation=(
+                    "Bun is used to evade Node-based monitoring (no --require hook) "
+                    "and run Bun-only payloads. Legitimate packages almost never invoke `bun x` "
+                    "from an install/prepare script. Audit the target script."
+                ),
+                required_tokens=frozenset({"bun x"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bbun\s+exec\b", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Bun runtime execution in install/lifecycle script — Mini Shai-Hulud evasion pattern",
+                remediation=(
+                    "Bun is used to evade Node-based monitoring (no --require hook) "
+                    "and run Bun-only payloads. Legitimate packages almost never invoke `bun exec` "
+                    "from an install/prepare script. Audit the target script."
+                ),
+                required_tokens=frozenset({"bun exec"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+        ]
+    )
+
+    # Forced exit after payload run.
+    for sep in ("&&", "||", ";"):
+        patterns.append(
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(rf"{re.escape(sep)}\s*exit\s+\d", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Forced exit after script execution — hides payload run from install output",
+                remediation=(
+                    "`&& exit 1` / `|| exit 0` after a command makes npm treat a dependency as failed "
+                    "so the install looks benign after the payload already ran. "
+                    "Inspect what executed before the exit."
+                ),
+                required_tokens=frozenset({sep, "exit"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            )
+        )
+
+    # Known campaign identifiers.
+    for identifier, token in (
+        ("MUT-8694", "mut-8694"),
+        ("mut-8964", "mut-8964"),
+        ("s1ngularity.*Nx", "s1ngularity"),
+        ("Shai-Hulud", "shai-hulud"),
+        ("Sha1-Hulud", "sha1-hulud"),
+        ("firedalazer", "firedalazer"),
+    ):
+        patterns.append(
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(rf"\b{identifier}\b", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="Known attack campaign identifier detected",
+                remediation=(
+                    "This matches known Shai-Hulud campaign identifiers "
+                    "(MUT-8694, s1ngularity/Nx, firedalazer)."
+                ),
+                required_tokens=frozenset({token}),
+                confidence=confidence,
+                references=_REFERENCES,
+            )
+        )
+
+    patterns.extend(
+        [
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"toJSON\s*\(\s*secrets\s*\)", re.IGNORECASE),
+                severity=Severity.CRITICAL,
+                message="CI secrets dump — toJSON(secrets) exfiltration pattern",
+                remediation="Dumping toJSON(secrets) exposes every CI secret to a workflow step. "
+                "This is the Mini Shai-Hulud workflow-injection exfiltration stage. Remove and rotate all CI secrets.",
+                required_tokens=frozenset({"tojson", "secrets"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bBun\.gunzipSync\b", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Bun-only runtime API in package source — Mini Shai-Hulud payload trait",
+                remediation=(
+                    "Payloads use Bun-only APIs (Bun.gunzipSync) so they cannot run under Node, "
+                    "evading Node-based monitoring. Legitimate dependencies rarely require Bun at runtime. "
+                    "Review the source."
+                ),
+                required_tokens=frozenset({"bun.gunzipsync"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+            TokenPattern(
+                rule_id="L2-WORM-001",
+                pattern=re.compile(r"\bBun\.inflateSync\b", re.IGNORECASE),
+                severity=Severity.HIGH,
+                message="Bun-only runtime API in package source — Mini Shai-Hulud payload trait",
+                remediation=(
+                    "Payloads use Bun-only APIs (Bun.inflateSync) so they cannot run under Node, "
+                    "evading Node-based monitoring. Legitimate dependencies rarely require Bun at runtime. "
+                    "Review the source."
+                ),
+                required_tokens=frozenset({"bun.inflatesync"}),
+                confidence=confidence,
+                references=_REFERENCES,
+            ),
+        ]
+    )
+
+    return patterns
 
 
-CI_SECRETS_EXFIL = re.compile(
-    r"""toJSON\s*\(\s*secrets\s*\)""",
-    re.IGNORECASE,
-)
-
-
-BUN_ONLY_API = re.compile(
-    r"""\bBun\.(?:gunzipSync|inflateSync)\b""",
-)
-
-
-SELF_PROPAGATION_PATTERNS: list[tuple[str, re.Pattern, Severity, str, str]] = [
-    (
-        "npm_publish",
-        WORM_NPM_PUBLISH,
-        Severity.CRITICAL,
-        "npm publish/whoami in install script — worm self-propagation",
-        "Remove npm publish/whoami from install scripts. Legitimate packages never publish during install.",
-    ),
-    (
-        "remote_pipe_shell",
-        REMOTE_PIPE_SHELL,
-        Severity.CRITICAL,
-        "Remote payload piped to shell — download-and-execute pattern",
-        "Remove curl|bash or wget|sh patterns. Use pinned dependencies instead.",
-    ),
-    (
-        "node_eval_oneliner",
-        NODE_EVAL_ONELINER,
-        Severity.HIGH,
-        "node -e inline execution — obfuscated payload pattern",
-        "Remove node -e one-liners from install scripts. They are a common attack vector.",
-    ),
-    (
-        "bun_payload",
-        BUN_PAYLOAD,
-        Severity.CRITICAL,
-        "Shai-Hulud 2.0 Bun payload file detected",
-        "This is a known Shai-Hulud 2.0 payload. Remove immediately and audit all credentials.",
-    ),
-    (
-        "github_repo_creation",
-        GITHUB_REPO_CREATION,
-        Severity.CRITICAL,
-        "Shai-Hulud GitHub repo creation pattern detected",
-        "This pattern creates attacker-controlled GitHub repos for credential exfiltration.",
-    ),
-    (
-        "git_config_manipulation",
-        GIT_CONFIG_MANIPULATION,
-        Severity.CRITICAL,
-        "Git config manipulation — repository hijacking pattern",
-        "git config --unset core.bare is used by Shai-Hulud to hijack repositories.",
-    ),
-    (
-        "workflow_injection",
-        WORKFLOW_INJECTION,
-        Severity.CRITICAL,
-        "GitHub workflow deletion — CI/CD hijacking pattern",
-        "Deleting .github/workflows is a Shai-Hulud attack pattern to inject malicious CI.",
-    ),
-    (
-        "destructive_fallback",
-        DESTRUCTIVE_FALLBACK,
-        Severity.CRITICAL,
-        "Destructive fallback — home directory wipe pattern",
-        "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. Remove this immediately.",
-    ),
-    (
-        "self_modify_package",
-        SELF_MODIFY_PACKAGE,
-        Severity.CRITICAL,
-        "Self-modifying package.json — worm rewrites its own manifest",
-        "writeFileSync to package.json is a Shai-Hulud self-propagation pattern.",
-    ),
-    (
-        "glob_scan_nm",
-        GLOB_SCAN_NODE_MODULES,
-        Severity.HIGH,
-        "Node_modules scanning — worm target discovery pattern",
-        "Scanning node_modules for package.json files is a Shai-Hulud propagation pattern.",
-    ),
-    (
-        "bun_run_exec",
-        BUN_RUN_EXEC,
-        Severity.HIGH,
-        "Bun runtime execution in install/lifecycle script — Mini Shai-Hulud evasion pattern",
-        "Bun is used to evade Node-based monitoring (no --require hook) and run Bun-only payloads. "
-        "Legitimate packages almost never invoke `bun run` from an install/prepare script. Audit the target script.",
-    ),
-    (
-        "silent_fail_after_exec",
-        SILENT_FAIL_AFTER_EXEC,
-        Severity.HIGH,
-        "Forced exit after script execution — hides payload run from install output",
-        "`&& exit 1` / `|| exit 0` after a command makes npm treat a (often optional) dependency as failed "
-        "so the install looks benign after the payload already ran. Inspect what executed before the exit.",
-    ),
-    (
-        "campaign_identifier",
-        CAMPAIGN_IDENTIFIERS,
-        Severity.CRITICAL,
-        "Known attack campaign identifier detected",
-        "This matches known Shai-Hulud campaign identifiers (MUT-8694, s1ngularity/Nx, firedalazer).",
-    ),
-    (
-        "ci_secrets_exfil",
-        CI_SECRETS_EXFIL,
-        Severity.CRITICAL,
-        "CI secrets dump — toJSON(secrets) exfiltration pattern",
-        "Dumping toJSON(secrets) exposes every CI secret to a workflow step. "
-        "This is the Mini Shai-Hulud workflow-injection exfiltration stage. Remove and rotate all CI secrets.",
-    ),
-    (
-        "bun_only_api",
-        BUN_ONLY_API,
-        Severity.HIGH,
-        "Bun-only runtime API in package source — Mini Shai-Hulud payload trait",
-        "Payloads use Bun-only APIs (Bun.gunzipSync) so they cannot run under Node, evading Node-based "
-        "monitoring. Legitimate dependencies rarely require Bun at runtime. Review the source.",
-    ),
-]
+_SCRIPT_SCANNER = PatternScanner(_build_worm_patterns(Confidence.HIGH))
+_SOURCE_SCANNER = PatternScanner(_build_worm_patterns(Confidence.MEDIUM))
 
 
 def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
@@ -258,7 +391,6 @@ def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
     pkg_name = pkg.get("name", pkg_json.parent.name)
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
-
 
     has_lifecycle_script = any(k in scripts for k in INSTALL_SCRIPT_KEYS)
     for dep_field in ("dependencies", "optionalDependencies", "devDependencies", "peerDependencies"):
@@ -300,71 +432,26 @@ def _scan_scripts_for_worm(pkg: dict, pkg_json: Path) -> list[Finding]:
             continue
         script_value = str(scripts[script_key])
 
-        for _name, pattern, severity, message, remediation in SELF_PROPAGATION_PATTERNS:
-            for match in pattern.finditer(script_value):
-                matched_text = match.group(0)[:120]
-                findings.append(
-                    Finding(
-                        rule_id="L2-WORM-001",
-                        severity=severity,
-                        confidence=Confidence.HIGH,
-                        package=pkg_label,
-                        file=str(pkg_json),
-                        message=message,
-                        evidence=f"scripts.{script_key}: {matched_text}",
-                        remediation=remediation,
-                        references=[
-                            "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
-                            "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
-                        ],
-                    )
+        for finding in _SCRIPT_SCANNER.scan_text(script_value, pkg_label, str(pkg_json)):
+            findings.append(
+                replace(
+                    finding,
+                    evidence=f"scripts.{script_key}: {finding.evidence}",
+                    line=None,
                 )
+            )
 
     return findings
 
 
 def _scan_source_for_worm(file_path: Path, pkg_label: str) -> list[Finding]:
-    findings: list[Finding] = []
-
-    if file_path.suffix in SKIP_EXTENSIONS:
-        return findings
-
-    try:
-        size = file_path.stat().st_size
-    except OSError:
-        return findings
-
-    if size > MAX_FILE_BYTES:
-        return findings
-
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
-        return findings
-
-    for _name, pattern, severity, message, remediation in SELF_PROPAGATION_PATTERNS:
-        for match in pattern.finditer(content):
-            line_num = content[: match.start()].count("\n") + 1
-            matched_text = match.group(0)[:120]
-            findings.append(
-                Finding(
-                    rule_id="L2-WORM-001",
-                    severity=severity,
-                    confidence=Confidence.MEDIUM,
-                    package=pkg_label,
-                    file=str(file_path),
-                    line=line_num,
-                    message=message,
-                    evidence=matched_text,
-                    remediation=remediation,
-                    references=[
-                        "https://blog.phylum.io/shai-hulud-the-npm-worm-is-still-crawling/",
-                        "https://safedep.io/mini-shai-hulud-strikes-again-314-npm-packages-compromised/",
-                    ],
-                )
-            )
-
-    return findings
+    return _SOURCE_SCANNER.scan_file(
+        file_path,
+        pkg_label,
+        max_bytes=MAX_FILE_BYTES,
+        skip_extensions=SKIP_EXTENSIONS,
+        skip_dirs=SKIP_DIRS,
+    )
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:
@@ -381,9 +468,8 @@ def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]
             file_count += 1
 
 
-def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_worm_propagation(target: Path) -> list[Finding]:
     findings: list[Finding] = []
-
 
     root_pkg = target / "package.json"
     if root_pkg.is_file():
@@ -391,7 +477,6 @@ def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
         if pkg:
             findings.extend(_scan_scripts_for_worm(pkg, root_pkg))
             _scan_package_sources(target, pkg.get("name", "root"), findings)
-
 
     nm = target / "node_modules"
     if nm.is_dir():
@@ -406,7 +491,6 @@ def detect_worm_propagation(target: Path, corpus_dir: Path) -> list[Finding]:
                     pkg_label = f"{pkg.get('name', child.name)}@{pkg.get('version', 'unknown')}"
                     findings.extend(_scan_scripts_for_worm(pkg, pkg_json))
                     _scan_package_sources(child, pkg_label, findings)
-
 
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):

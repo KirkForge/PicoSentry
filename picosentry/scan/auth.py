@@ -1,4 +1,3 @@
-
 from __future__ import annotations
 
 import hashlib
@@ -21,7 +20,6 @@ _BUCKET_STALE_SECONDS = 300  # 5 minutes
 
 
 class Scope:
-
     READ = "read"  # View scan results, metrics, health
     WRITE = "write"  # Trigger scans, update corpus/policy
     ADMIN = "admin"  # Manage configuration, users, secrets
@@ -51,7 +49,6 @@ class Scope:
             FLEET_WRITE,
         }
     )
-
 
     _IMPLIES: ClassVar[dict[str, set[str]]] = {
         ADMIN: {
@@ -95,43 +92,35 @@ class Scope:
         if path in public_paths:
             return list(Scope.ALL_SCOPES)  # Any valid identity
 
-
         if path.startswith("/metrics"):
             return [Scope.READ, Scope.WRITE, Scope.ADMIN]
-
 
         if path.startswith("/scan"):
             if method == "POST":
                 return [Scope.SCAN, Scope.WRITE, Scope.ADMIN]
             return [Scope.READ, Scope.WRITE, Scope.ADMIN]
 
-
         if path.startswith("/policy"):
             if method in ("POST", "PUT", "DELETE"):
                 return [Scope.POLICY_WRITE, Scope.ADMIN]
             return [Scope.POLICY_READ, Scope.READ, Scope.ADMIN]
-
 
         if path.startswith("/corpus"):
             if method in ("POST", "PUT", "DELETE"):
                 return [Scope.CORPUS_WRITE, Scope.ADMIN]
             return [Scope.CORPUS_READ, Scope.READ, Scope.ADMIN]
 
-
         if path.startswith("/fleet"):
             if method in ("POST", "PUT", "DELETE"):
                 return [Scope.FLEET_WRITE, Scope.ADMIN]
             return [Scope.FLEET_READ, Scope.READ, Scope.ADMIN]
-
 
         if path.startswith("/tenant"):
             if method in ("POST", "PUT", "DELETE"):
                 return [Scope.TENANT_WRITE, Scope.ADMIN]
             return [Scope.TENANT_READ, Scope.READ, Scope.ADMIN]
 
-
         if path.startswith("/dashboard"):
-
             if path == "/dashboard":
                 return [Scope.READ, Scope.WRITE, Scope.ADMIN]
 
@@ -143,13 +132,11 @@ class Scope:
 
             return [Scope.READ, Scope.WRITE, Scope.ADMIN]
 
-
         return [Scope.READ, Scope.WRITE, Scope.ADMIN]
 
 
 @dataclass
 class AuthConfig:
-
     mode: str = "off"
     token: str = ""
     oidc_issuer: str = ""
@@ -194,7 +181,6 @@ class AuthConfig:
             [p.strip() for p in trusted_proxies_str.split(",") if p.strip()] if trusted_proxies_str else []
         )
 
-
         scopes: dict[str, list[str]] = {}
         for key, value in os.environ.items():
             if key.startswith("PICOSENTRY_SCOPES_"):
@@ -220,7 +206,6 @@ class AuthConfig:
 
 @dataclass
 class AuthResult:
-
     ok: bool = False
     identity: str = ""
     scopes: list[str] = field(default_factory=list)
@@ -267,7 +252,6 @@ def check_token_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
 
     if not _constant_time_compare(provided, config.token):
         return AuthResult.denied("Invalid token.")
-
 
     identity = f"token:{hashlib.sha256(provided.encode()).hexdigest()[:12]}"
     identity_scopes = (
@@ -318,7 +302,6 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
 
                 jwk_set = PyJWKSet.from_dict(jwks_json)
 
-
                 signing_key = None
                 unverified_header = jwt.get_unverified_header(token)
                 kid = unverified_header.get("kid")
@@ -336,15 +319,13 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
 
                 decode_kwargs["key"] = signing_key
             except Exception as e:
-
                 if isinstance(e, (InsecureURLError, ResponseTooLargeError)):
-                    logger.error("JWKS URL rejected: %s", e)
+                    logger.exception("JWKS URL rejected")
                 else:
-                    logger.error("Failed to fetch JWKS from %s: %s", config.oidc_jwks_url, e)
+                    logger.exception("Failed to fetch JWKS from %s", config.oidc_jwks_url)
                 return AuthResult.denied(f"JWKS fetch failed: {e}")
 
         if "key" not in decode_kwargs:
-
             logger.error("No JWKS URL configured and no signing key available. Cannot verify OIDC token.")
             return AuthResult.denied(
                 "Cannot verify token: no signing key available. "
@@ -354,10 +335,8 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
         decoded = jwt.decode(token, **decode_kwargs)
         subject = decoded.get("sub", "unknown")
 
-
         subject_in_config = subject in config.scopes
         identity_scopes = config.scopes.get(subject, config.default_scopes)
-
 
         if not subject_in_config:
             jwt_scopes = decoded.get("picosentry_scopes", decoded.get("scope", ""))
@@ -370,13 +349,11 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
         return AuthResult.success(identity=subject, token_type="oidc", scopes=identity_scopes)
 
     except ImportError:
-
-        logger.error(
+        logger.exception(
             "PyJWT not installed. Cannot verify OIDC token signature. Install PyJWT for production: pip install PyJWT"
         )
         return AuthResult.denied("OIDC token verification requires PyJWT. Install with: pip install PyJWT")
     except Exception as e:
-
         error_msg = str(e)
         error_type = type(e).__name__
         if "Signature" in error_msg or "InvalidSignatureError" in error_type:
@@ -387,7 +364,6 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
 
 def check_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
     if config.mode == "off":
-
         logger.warning("Auth is disabled (PICOSENTRY_AUTH=off). Granting read-only scopes.")
         return AuthResult.success(identity="anonymous", token_type="none", scopes=[Scope.READ])
 
@@ -395,9 +371,7 @@ def check_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
         return check_token_auth(headers, config)
 
     if config.mode == "oidc":
-        result = check_oidc_auth(headers, config)
-
-        return result
+        return check_oidc_auth(headers, config)
 
     return AuthResult.denied(f"Unknown auth mode: {config.mode}")
 
@@ -420,7 +394,6 @@ def check_authorization(auth_result: AuthResult, path: str, method: str = "GET")
 
 
 class RateLimiter:
-
     def __init__(self, rps: float = 0, burst: int = 0, max_buckets: int = _MAX_RATE_LIMIT_BUCKETS) -> None:
         self.rps = rps
         self.burst = burst
@@ -439,7 +412,6 @@ class RateLimiter:
         for key in stale_keys:
             del self._buckets[key]
 
-
         while len(self._buckets) > self.max_buckets:
             self._buckets.popitem(last=False)
 
@@ -454,7 +426,6 @@ class RateLimiter:
                 elapsed = now - last_time
                 tokens = min(self.burst, tokens + elapsed * self.rps)
             else:
-
                 self._evict_stale()
                 tokens = float(self.burst)
 

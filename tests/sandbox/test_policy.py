@@ -112,7 +112,7 @@ class TestPolicyImportExport:
         loaded = load_policy(path)
         assert loaded.name == original.name
         assert len(loaded.rules) == len(original.rules)
-        for orig, load in zip(original.rules, loaded.rules):
+        for orig, load in zip(original.rules, loaded.rules, strict=True):
             assert orig.rule_id == load.rule_id
             assert orig.target == load.target
             assert orig.action == load.action

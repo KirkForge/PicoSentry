@@ -3,7 +3,7 @@ name: picodome
 description: PicoDome — deterministic runtime sandbox and behavioral analysis for supply-chain security
 type: application
 version: 0.5.0
-appVersion: "2.0.14"
+appVersion: "2.0.15"
 home: https://github.com/KirkForge/PicoDome
 sources:
   - https://github.com/KirkForge/PicoDome

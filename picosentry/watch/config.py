@@ -427,9 +427,7 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 port=_env_or_file("port", "PICOWATCH_PORT", DEFAULT_PORT, int),
                 admin_port=_env_or_file("admin_port", "PICOWATCH_ADMIN_PORT", DEFAULT_ADMIN_PORT, int),
                 api_key=os.environ.get("PICOWATCH_API_KEY") or picowatch_conf.get("api_key"),
-                admin_auth_enabled=_env_or_file(
-                    "admin_auth_enabled", "PICOWATCH_ADMIN_AUTH_ENABLED", True, bool
-                ),
+                admin_auth_enabled=_env_or_file("admin_auth_enabled", "PICOWATCH_ADMIN_AUTH_ENABLED", True, bool),
                 enable_docs=_env_or_file("enable_docs", "PICOWATCH_ENABLE_DOCS", False, bool),
                 rate_limit=_env_or_file("rate_limit", "PICOWATCH_RATE_LIMIT", DEFAULT_RATE_LIMIT, int),
                 rate_limit_window=_env_or_file(

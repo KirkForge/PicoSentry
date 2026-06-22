@@ -263,7 +263,6 @@ class TestOutputGuard:
         assert "[API-KEY-REDACTED]" in result.redacted
 
 
-
 class TestOutputGuardSchemaLimits:
     """Runtime JSON schema size/depth limits."""
 

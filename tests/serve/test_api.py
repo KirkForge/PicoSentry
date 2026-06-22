@@ -26,7 +26,11 @@ def client():
 
 @pytest.fixture
 def auth_token(client):
-    """Get an auth token for authenticated requests."""
+    """Get an auth token for authenticated requests.
+
+    Ensures the test user exists and belongs to a default organization, because
+    tenant-isolated endpoints reject users with no org association.
+    """
     with contextlib.suppress(Exception):
         # RegisterRequest no longer accepts a client-supplied role; the
         # user is always created as a viewer.  An admin/operator fixture
@@ -41,32 +45,33 @@ def auth_token(client):
             },
         )
 
+    token = ""
     try:
         resp = client.post(
             "/auth/login",
             json={"username": "pytest_user", "password": "testpassword123"},
         )
         if resp.status_code == 200:
-            data = resp.json()
-            return data.get("access_token", "")
+            token = resp.json().get("access_token", "")
     except Exception:
         pass
 
-    # Fallback: create directly via AuthService
-    from picosentry.serve.api.server import auth_service
+    if not token:
+        # Fallback: create directly via AuthService
+        from picosentry.serve.api.server import auth_service
 
-    token = auth_service.authenticate("pytest_user", "testpassword123")
+        token = auth_service.authenticate("pytest_user", "testpassword123") or ""
+
     if not token:
         return ""
 
     # Ensure the test user has a default org for org-scoped endpoints.
+    from picosentry.serve.api.server import auth_service
     from picosentry.serve.services.orgs import Organization
 
     user_info = auth_service.validate_token(token)
-    if user_info:
-        orgs = Organization.list_orgs_for_user(user_info["id"])
-        if not orgs:
-            Organization.create(name="Pytest Org", slug="pytest-org", owner_user_id=user_info["id"])
+    if user_info and not Organization.list_orgs_for_user(user_info["id"]):
+        Organization.create(name="Pytest Org", slug="pytest-org", owner_user_id=user_info["id"])
 
     return token
 

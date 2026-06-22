@@ -2,6 +2,7 @@
 
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -22,6 +23,13 @@ os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
 # are short-lived, and /tmp is the directory the test_integration suite
 # was already passing.  Production must configure this explicitly.
 os.environ.setdefault("PICOSHOGUN_SCANS_WORKSPACE_ROOT", "/tmp")
+# SQLite tests must not share the default on-disk database.  When pytest-xdist
+# runs workers in parallel, concurrent access to the same ``picoshogun.db`` file
+# produces OperationalError (database is locked / table already exists).  Route
+# each worker to its own temp DB so in-process tests remain sequential and
+# cross-process collisions disappear.
+_worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+os.environ["PICOSHOGUN_DATABASE_PATH"] = str(Path(tempfile.gettempdir()) / f"picoshogun-test-{_worker}.db")
 
 
 def _find_and_clear_rate_limiter(app):

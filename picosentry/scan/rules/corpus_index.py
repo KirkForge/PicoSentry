@@ -9,6 +9,12 @@ from .typosquat_utils import _is_keyboard_adjacent, load_corpus_for_ecosystem
 
 logger = logging.getLogger("picosentry.corpus_index")
 
+# In-process cache for loaded corpus indexes.  The key includes the resolved
+# corpus path, ecosystem, built-in priority list, and the corpus file's mtime
+# and size so that updates on disk (e.g. ``picosentry update``) are picked up
+# without restarting the process.
+_index_cache: dict[tuple[str, str, tuple[str, ...], float | None, int | None], CorpusIndex] = {}
+
 
 class _TrieNode:
     __slots__ = ("children", "names")
@@ -228,6 +234,30 @@ def check_typosquat_against_index(
     ]
 
 
+def _cache_key(
+    corpus_dir: Path,
+    ecosystem: str,
+    builtin_list: list[str] | None,
+) -> tuple[str, str, tuple[str, ...], float | None, int | None]:
+    corpus_file = corpus_dir / f"{ecosystem}_top_packages.json"
+    if corpus_file.is_file():
+        stat = corpus_file.stat()
+        return (
+            str(corpus_file.resolve()),
+            ecosystem,
+            tuple(sorted(builtin_list or ())),
+            stat.st_mtime,
+            stat.st_size,
+        )
+    return (
+        str(corpus_dir.resolve()),
+        ecosystem,
+        tuple(sorted(builtin_list or ())),
+        None,
+        None,
+    )
+
+
 def load_indexed_corpus(
     corpus_dir: Path,
     ecosystem: str,
@@ -241,9 +271,21 @@ def load_indexed_corpus(
     The built-in list is treated as the curated priority set, so short-name
     queries are only matched against these well-known packages.  This keeps
     expanded corpuses from generating short-name false positives.
+
+    The result is cached per process based on the corpus file identity
+    (resolved path, mtime, size) and the built-in list, so repeated scans
+    avoid rebuilding the trie.
     """
+    key = _cache_key(corpus_dir, ecosystem, builtin_list)
+    cached = _index_cache.get(key)
+    if cached is not None:
+        return cached
+
     corpus_set = load_corpus_for_ecosystem(corpus_dir, ecosystem, builtin_list)
-    return CorpusIndex(corpus_set, priority_names=builtin_list)
+    index = CorpusIndex(corpus_set, priority_names=builtin_list)
+    _index_cache[key] = index
+    logger.debug("Loaded and cached %s corpus (%d names)", ecosystem, len(index))
+    return index
 
 
 def save_indexed_corpus(corpus_dir: Path, ecosystem: str, names: Iterable[str]) -> Path:

@@ -82,3 +82,25 @@ def test_index_scales_without_crashing():
     # The exact result is less important than the call completing quickly.
     matches = index.near_matches("pkg-00000x", max_distance=2.0)
     assert isinstance(matches, list)
+
+
+def test_load_indexed_corpus_caches_repeated_loads(tmp_path: Path):
+    """Repeated loads for the same corpus return the cached index."""
+    names = ["cached-a", "cached-b"]
+    save_indexed_corpus(tmp_path, "npm", names)
+
+    index1 = load_indexed_corpus(tmp_path, "npm")
+    index2 = load_indexed_corpus(tmp_path, "npm")
+    assert index1 is index2
+
+
+def test_load_indexed_corpus_invalidates_cache_when_file_changes(tmp_path: Path):
+    """Updating the corpus file on disk produces a fresh index."""
+    save_indexed_corpus(tmp_path, "npm", ["old-a"])
+    index1 = load_indexed_corpus(tmp_path, "npm")
+    assert "old-a" in index1
+
+    save_indexed_corpus(tmp_path, "npm", ["new-b"])
+    index2 = load_indexed_corpus(tmp_path, "npm")
+    assert "new-b" in index2
+    assert index1 is not index2

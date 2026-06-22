@@ -36,11 +36,7 @@ class PicoDomeDaemon:
         self._metrics_port = (
             metrics_port
             if metrics_port is not None
-            else (
-                int(os.environ["PICODOME_METRICS_PORT"])
-                if "PICODOME_METRICS_PORT" in os.environ
-                else None
-            )
+            else (int(os.environ["PICODOME_METRICS_PORT"]) if "PICODOME_METRICS_PORT" in os.environ else None)
         )
         self._server: HTTPServer | None = None
         self._metrics_server: HTTPServer | None = None

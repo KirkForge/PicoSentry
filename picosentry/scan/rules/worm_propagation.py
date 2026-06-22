@@ -96,8 +96,7 @@ def _build_worm_patterns(confidence: Confidence) -> list[TokenPattern]:
                 severity=Severity.CRITICAL,
                 message="npm publish/whoami in install script — worm self-propagation",
                 remediation=(
-                    "Remove npm publish/whoami from install scripts. "
-                    "Legitimate packages never publish during install."
+                    "Remove npm publish/whoami from install scripts. Legitimate packages never publish during install."
                 ),
                 required_tokens=frozenset({"npm", token}),
                 confidence=confidence,
@@ -202,8 +201,7 @@ def _build_worm_patterns(confidence: Confidence) -> list[TokenPattern]:
                 severity=Severity.CRITICAL,
                 message="Destructive fallback — home directory wipe pattern",
                 remediation=(
-                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. "
-                    "Remove this immediately."
+                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. Remove this immediately."
                 ),
                 required_tokens=frozenset({"rm -rf", "~"}),
                 confidence=confidence,
@@ -215,8 +213,7 @@ def _build_worm_patterns(confidence: Confidence) -> list[TokenPattern]:
                 severity=Severity.CRITICAL,
                 message="Destructive fallback — home directory wipe pattern",
                 remediation=(
-                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. "
-                    "Remove this immediately."
+                    "Shai-Hulud 2.0 wipes the home directory as a destructive fallback. Remove this immediately."
                 ),
                 required_tokens=frozenset({"rm -rf", "$"}),
                 confidence=confidence,
@@ -322,8 +319,7 @@ def _build_worm_patterns(confidence: Confidence) -> list[TokenPattern]:
                 severity=Severity.CRITICAL,
                 message="Known attack campaign identifier detected",
                 remediation=(
-                    "This matches known Shai-Hulud campaign identifiers "
-                    "(MUT-8694, s1ngularity/Nx, firedalazer)."
+                    "This matches known Shai-Hulud campaign identifiers (MUT-8694, s1ngularity/Nx, firedalazer)."
                 ),
                 required_tokens=frozenset({token}),
                 confidence=confidence,

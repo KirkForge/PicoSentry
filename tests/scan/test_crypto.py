@@ -185,9 +185,7 @@ class TestSignVerifyIntegration:
 class TestSigstoreSigning:
     """Mocked tests for the sigstore 4.x signing path."""
 
-    pytestmark = pytest.mark.skipif(
-        not _has_sigstore(), reason="sigstore extra not installed"
-    )
+    pytestmark = pytest.mark.skipif(not _has_sigstore(), reason="sigstore extra not installed")
 
     @patch("picosentry.scan.crypto._check_sigstore")
     @patch("sigstore.models.ClientTrustConfig")
@@ -265,9 +263,7 @@ class TestSigstoreSigning:
 class TestSigstoreVerification:
     """Mocked tests for the sigstore 4.x verification path."""
 
-    pytestmark = pytest.mark.skipif(
-        not _has_sigstore(), reason="sigstore extra not installed"
-    )
+    pytestmark = pytest.mark.skipif(not _has_sigstore(), reason="sigstore extra not installed")
 
     @patch("picosentry.scan.crypto._check_sigstore")
     @patch("sigstore.models.Bundle")

@@ -31,9 +31,7 @@ async def dashboard_summary(
         "FROM alerts WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
         (org["id"],),
     )
-    pending_alerts = db.execute_one(
-        "SELECT COUNT(*) as c FROM alerts WHERE sent = 0 AND org_id = ?", (org["id"],)
-    )
+    pending_alerts = db.execute_one("SELECT COUNT(*) as c FROM alerts WHERE sent = 0 AND org_id = ?", (org["id"],))
     health_overall = "healthy"
     if any(c["status"] == "critical" for c in health):
         health_overall = "critical"

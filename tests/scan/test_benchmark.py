@@ -249,8 +249,7 @@ def test_bench_token_filter_negative(benign_large_js):
 
     if elapsed_ms > TARGETS["token_filter_negative_ms"]:
         pytest.fail(
-            f"Token-filter negative path too slow: {elapsed_ms:.0f}ms > "
-            f"{TARGETS['token_filter_negative_ms']}ms target"
+            f"Token-filter negative path too slow: {elapsed_ms:.0f}ms > {TARGETS['token_filter_negative_ms']}ms target"
         )
     print(f"  token_filter_negative: {elapsed_ms:.0f}ms, {len(findings)} findings ✓")
 

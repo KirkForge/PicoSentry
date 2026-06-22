@@ -202,11 +202,7 @@ def _package_label(file_path: Path) -> str:
         idx = parts.index("node_modules")
         if idx + 1 < len(parts):
             scoped = parts[idx + 1].startswith("@")
-            return (
-                f"{parts[idx + 1]}/{parts[idx + 2]}"
-                if scoped and idx + 2 < len(parts)
-                else parts[idx + 1]
-            )
+            return f"{parts[idx + 1]}/{parts[idx + 2]}" if scoped and idx + 2 < len(parts) else parts[idx + 1]
     return "unknown"
 
 

@@ -1457,8 +1457,7 @@ class TestTenantDataIsolation:
             resp = client.get(endpoint, headers=_auth_headers(token_b))
             assert resp.status_code == 200, f"{endpoint} failed: {resp.text}"
             leaked = any(
-                item.get("source_project") == "proj-a" or item.get("project_id") == "proj-a"
-                for item in resp.json()
+                item.get("source_project") == "proj-a" or item.get("project_id") == "proj-a" for item in resp.json()
             )
             assert not leaked, f"{endpoint} leaked org A data"
 

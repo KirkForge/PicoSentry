@@ -24,7 +24,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 |-----------|--------|-------|
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
 | `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
-| `picosentry watch` | **Beta** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) + output validation (L6); not a semantic/LLM guarantee |
+| `picosentry watch` | **Beta** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; live-tested against a kind cluster |

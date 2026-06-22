@@ -653,7 +653,6 @@ class TestInputSizeLimits:
         assert "node count" in response.json()["detail"].lower()
 
 
-
 class TestDocsEndpoints:
     """FastAPI auto-generated docs endpoints are disabled by default."""
 

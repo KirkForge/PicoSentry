@@ -72,9 +72,7 @@ def _resolve_external_path(
     # as a containment boundary.
     resolved = candidate.resolve(strict=False)
     if not resolved.is_relative_to(workspace_root):
-        raise ValueError(
-            f"{description} must be inside the workspace root ({workspace_root}): {path_str}"
-        )
+        raise ValueError(f"{description} must be inside the workspace root ({workspace_root}): {path_str}")
 
     if must_exist and not resolved.exists():
         raise ValueError(f"{description} does not exist: {resolved}")

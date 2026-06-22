@@ -256,9 +256,7 @@ def _check_schema_size(schema: dict[str, Any], *, max_nodes: int, max_depth: int
 
     def _count(obj: Any, depth: int) -> int:
         if depth > max_depth:
-            raise SchemaTooLargeError(
-                f"JSON schema depth exceeds maximum ({max_depth}). Rejecting immediately."
-            )
+            raise SchemaTooLargeError(f"JSON schema depth exceeds maximum ({max_depth}). Rejecting immediately.")
         if isinstance(obj, dict):
             return 1 + sum(_count(v, depth + 1) for v in obj.values())
         if isinstance(obj, list):
@@ -267,6 +265,4 @@ def _check_schema_size(schema: dict[str, Any], *, max_nodes: int, max_depth: int
 
     nodes = _count(schema, 1)
     if nodes > max_nodes:
-        raise SchemaTooLargeError(
-            f"JSON schema exceeds maximum node count ({max_nodes}). Rejecting immediately."
-        )
+        raise SchemaTooLargeError(f"JSON schema exceeds maximum node count ({max_nodes}). Rejecting immediately.")

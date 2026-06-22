@@ -154,9 +154,12 @@ class TestUpdateOfflineAndAllowList:
         config.updates_enabled = True
         config.updates_allowed_sources = ["https://allowed.example.com/"]
 
-        with patch("picosentry.scan.cli_commands.update.load_config", return_value=config), patch(
-            "picosentry.scan.cli_commands.update._fetch_ecosystem",
-            return_value=(["express"], "https://github.com/example/raw.json", False),
+        with (
+            patch("picosentry.scan.cli_commands.update.load_config", return_value=config),
+            patch(
+                "picosentry.scan.cli_commands.update._fetch_ecosystem",
+                return_value=(["express"], "https://github.com/example/raw.json", False),
+            ),
         ):
             rc = update_cmd(args)
 
@@ -176,10 +179,14 @@ class TestUpdateOfflineAndAllowList:
         config.updates_enabled = True
         config.updates_allowed_sources = ["https://github.com/"]
 
-        with patch("picosentry.scan.cli_commands.update.load_config", return_value=config), patch(
-            "picosentry.scan.cli_commands.update._fetch_ecosystem",
-            return_value=(["express"], "https://github.com/example/raw.json", False),
-        ), patch("picosentry.scan.cli_commands.update._write_manifest"):
+        with (
+            patch("picosentry.scan.cli_commands.update.load_config", return_value=config),
+            patch(
+                "picosentry.scan.cli_commands.update._fetch_ecosystem",
+                return_value=(["express"], "https://github.com/example/raw.json", False),
+            ),
+            patch("picosentry.scan.cli_commands.update._write_manifest"),
+        ):
             rc = update_cmd(args)
 
         assert rc == 0

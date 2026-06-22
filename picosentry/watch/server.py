@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 from picosentry.watch import __version__
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.health import health_check
-from picosentry.watch.output_guard import OutputGuard
+from picosentry.watch.output_guard import OutputGuard, SchemaTooLargeError
 from picosentry.watch.prompt_guard import PromptGuard
 from picosentry.watch.ratelimit import RateLimiter
 from picosentry.watch.telemetry import TelemetrySink, init_tracing, trace_output_validation, trace_prompt_scan
@@ -51,6 +51,24 @@ def _get_client_ip(request: Request) -> str:
     return "unknown"
 
 
+async def _verify_api_key(
+    api_key: str,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
+) -> None:
+    if not api_key:
+        return  # No auth required
+
+    provided_key = ""
+    if x_api_key:
+        provided_key = x_api_key
+    elif authorization and authorization.lower().startswith("bearer "):
+        provided_key = authorization[7:].strip()
+
+    if not provided_key or not secrets.compare_digest(provided_key, api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
 def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None) -> FastAPI:
     config = config or PicoWatchConfig.from_env()
 
@@ -79,15 +97,32 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
     api_key = config.api_key or ""
 
+    docs_url = "/docs" if config.enable_docs else None
+    redoc_url = "/redoc" if config.enable_docs else None
+
     app = FastAPI(
         title="PicoWatch",
         version=__version__,
         description="LLM defender with telemetry — prompt injection detection, output validation, and observability",
+        docs_url=docs_url,
+        redoc_url=redoc_url,
     )
 
     @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if request.url.path.startswith("/v1/scan/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
+
+    @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next: Any) -> Any:
-        if request.method == "POST":
+        # Health checks are excluded; every other endpoint (including GET)
+        # is subject to the per-IP rate limit.
+        if request.url.path != "/v1/health":
             client_ip = _get_client_ip(request)
             if not limiter.is_allowed(client_ip):
                 return JSONResponse(
@@ -101,17 +136,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         x_api_key: str | None = Header(None, alias="X-API-Key"),
         authorization: str | None = Header(None),
     ) -> None:
-        if not api_key:
-            return  # No auth required
-
-        provided_key = ""
-        if x_api_key:
-            provided_key = x_api_key
-        elif authorization and authorization.lower().startswith("bearer "):
-            provided_key = authorization[7:].strip()
-
-        if not provided_key or not secrets.compare_digest(provided_key, api_key):
-            raise HTTPException(status_code=401, detail="Invalid or missing API key")
+        await _verify_api_key(api_key, x_api_key, authorization)
 
     @app.get("/v1/health")
     async def get_health() -> dict[str, Any]:
@@ -153,7 +178,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             for r in prompt_guard.rules
         ]
 
-    @app.get("/v1/rules/{rule_id}")
+    @app.get("/v1/rules/{rule_id}", dependencies=([Depends(verify_api_key)] if api_key else []))
     async def get_rule(rule_id: str) -> dict[str, Any]:
         for r in prompt_guard.rules:
             if r.id == rule_id:
@@ -213,10 +238,10 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         _auth: None = Depends(verify_api_key),
     ) -> dict[str, Any]:
 
-        if len(body.output) > config.max_prompt_size:
+        if len(body.output) > config.max_output_size:
             raise HTTPException(
                 status_code=413,
-                detail=f"Input exceeds maximum size ({config.max_prompt_size} bytes). Rejecting immediately.",
+                detail=f"Output exceeds maximum size ({config.max_output_size} bytes). Rejecting immediately.",
             )
 
         prompt_result = None
@@ -231,7 +256,10 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 duration_ms=pr.get("duration_ms", 0.0),
             )
 
-        result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
+        try:
+            result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
+        except SchemaTooLargeError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
 
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
@@ -274,10 +302,23 @@ def create_admin_app(
     if sink is None:
         sink = TelemetrySink()
 
+    admin_api_key = config.api_key or ""
+    admin_auth_required = bool(admin_api_key and config.admin_auth_enabled)
+
+    async def verify_admin_api_key(
+        x_api_key: str | None = Header(None, alias="X-API-Key"),
+        authorization: str | None = Header(None),
+    ) -> None:
+        await _verify_api_key(admin_api_key, x_api_key, authorization)
+
+    admin_deps = [Depends(verify_admin_api_key)] if admin_auth_required else []
+
     app = FastAPI(
         title="PicoWatch Admin",
         version=__version__,
         description="Read-only admin endpoints for health, metrics, and rules",
+        docs_url="/docs" if config.enable_docs else None,
+        redoc_url="/redoc" if config.enable_docs else None,
     )
 
     @app.get("/v1/health")
@@ -301,21 +342,21 @@ def create_admin_app(
             "load_errors": h.load_errors,
         }
 
-    @app.get("/metrics")
+    @app.get("/metrics", dependencies=admin_deps)
     async def admin_metrics() -> PlainTextResponse:
         return PlainTextResponse(
             content=sink.render_prometheus(),
             media_type="text/plain",
         )
 
-    @app.get("/v1/rules")
+    @app.get("/v1/rules", dependencies=admin_deps)
     async def admin_rules() -> list[dict[str, Any]]:
         return [
             {"id": r.id, "category": r.category, "weight": r.weight, "description": r.description}
             for r in prompt_guard.rules
         ]
 
-    @app.get("/v1/rules/{rule_id}")
+    @app.get("/v1/rules/{rule_id}", dependencies=admin_deps)
     async def admin_rule(rule_id: str) -> dict[str, Any]:
         for r in prompt_guard.rules:
             if r.id == rule_id:
@@ -351,7 +392,7 @@ def run_server(config: PicoWatchConfig | None = None, host: str = "127.0.0.1", p
     admin_thread = threading.Thread(
         target=uvicorn.run,
         args=(admin_app,),
-        kwargs={"host": host, "port": config.admin_port, "log_level": "warning"},
+        kwargs={"host": config.admin_host, "port": config.admin_port, "log_level": "warning"},
         daemon=True,
     )
     admin_thread.start()

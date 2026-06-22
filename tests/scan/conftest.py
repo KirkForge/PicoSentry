@@ -19,6 +19,7 @@ Or, for pytest-style fixtures (the ``scan_fixtures_dir`` fixture)::
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -126,3 +127,21 @@ def scan_fixtures_dir() -> Path:
     should switch to this fixture for a single source of truth.
     """
     return FIXTURES_DIR
+
+
+@pytest.fixture(autouse=True)
+def _broad_scan_workspace_root(monkeypatch) -> None:
+    """Broaden the scan workspace root during tests.
+
+    Production defaults restrict external paths (``--corpus``, ``--output``,
+    etc.) to the scan target's workspace. Many existing tests write outputs to
+    ``tmp_path`` while scanning fixtures under the repository, so we set the
+    root to the filesystem root for the test session. Dedicated path-restriction
+    tests override this explicitly.
+    """
+    # Allow tests to write outputs to the pytest temp directory while scanning
+    # fixtures that live under the repository. The production default restricts
+    # paths to the current working directory.
+    monkeypatch.setenv("PICOSENTRY_SCANS_WORKSPACE_ROOT", tempfile.gettempdir())
+    # Ensure the offline env is not left behind from another test.
+    monkeypatch.delenv("PICOSENTRY_OFFLINE", raising=False)

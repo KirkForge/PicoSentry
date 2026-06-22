@@ -5,6 +5,7 @@ import hashlib
 import json
 import logging
 import multiprocessing
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -28,6 +29,57 @@ NAME = "scan"
 
 
 logger = logging.getLogger(__name__)
+
+
+def _workspace_root() -> Path:
+    """Return the workspace root for validating external file paths.
+
+    Defaults to the current working directory so relative paths behave as users
+    expect. Override with PICOSENTRY_SCANS_WORKSPACE_ROOT for CI/monorepo
+    layouts where inputs and outputs live outside the project directory.
+    """
+    env_root = os.environ.get("PICOSENTRY_SCANS_WORKSPACE_ROOT")
+    if env_root:
+        return Path(env_root).resolve()
+    return Path.cwd()
+
+
+def _resolve_external_path(
+    path_str: str,
+    workspace_root: Path,
+    *,
+    must_exist: bool = False,
+    description: str = "path",
+) -> Path:
+    """Resolve a CLI path argument and reject traversal/symlink surprises.
+
+    Relative paths are resolved against ``workspace_root``. Absolute paths must
+    still lie inside the workspace root. Symlinks are rejected to avoid
+    ambiguous resolution.
+    """
+    if not isinstance(path_str, str) or not path_str:
+        raise ValueError(f"{description} must be a non-empty string")
+    if path_str.startswith(("http://", "https://")):
+        raise ValueError(f"{description} cannot be a remote URL: {path_str}")
+
+    candidate = Path(path_str)
+
+    if candidate.is_symlink():
+        raise ValueError(f"{description} cannot be a symlink: {path_str}")
+
+    # Relative paths resolve against the current working directory, matching the
+    # behavior of the underlying filesystem calls. The workspace root only acts
+    # as a containment boundary.
+    resolved = candidate.resolve(strict=False)
+    if not resolved.is_relative_to(workspace_root):
+        raise ValueError(
+            f"{description} must be inside the workspace root ({workspace_root}): {path_str}"
+        )
+
+    if must_exist and not resolved.exists():
+        raise ValueError(f"{description} does not exist: {resolved}")
+
+    return resolved
 
 
 class ScanTimeout(Exception):
@@ -234,6 +286,11 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Omit timestamps, timing, and audit metadata from output for byte-stable JSON.",
     )
+    scan_parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Run in offline mode (no network). Also enabled by PICOSENTRY_OFFLINE=1.",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:
@@ -261,6 +318,43 @@ def cmd(args: argparse.Namespace) -> int:
 
     file_config = load_config(target)
     config = file_config.merge_cli(args)
+
+    # Offline mode disables any network-backed behavior.
+    if getattr(args, "offline", False) or os.environ.get("PICOSENTRY_OFFLINE", "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }:
+        config.updates_enabled = False
+
+    workspace_root = _workspace_root()
+    try:
+        if config.corpus:
+            config.corpus = str(
+                _resolve_external_path(config.corpus, workspace_root, must_exist=True, description="--corpus")
+            )
+        if config.advisory_db:
+            config.advisory_db = str(
+                _resolve_external_path(config.advisory_db, workspace_root, must_exist=True, description="--advisory-db")
+            )
+        if config.baseline:
+            config.baseline = str(
+                _resolve_external_path(config.baseline, workspace_root, must_exist=True, description="--baseline")
+            )
+        if config.sarif_file:
+            config.sarif_file = str(
+                _resolve_external_path(config.sarif_file, workspace_root, description="--sarif-file")
+            )
+        if config.output:
+            config.output = str(_resolve_external_path(config.output, workspace_root, description="--output"))
+
+        policy_file = getattr(args, "policy", None) or getattr(config, "policy_file", None)
+        if policy_file:
+            policy_path = _resolve_external_path(policy_file, workspace_root, must_exist=True, description="--policy")
+            config.policy_file = str(policy_path)
+    except ValueError as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
 
     cached_result = None
     cache = None
@@ -423,7 +517,7 @@ def cmd(args: argparse.Namespace) -> int:
     elif config.format == "github":
         from picosentry.scan.formatters.github import format_github
 
-        output = format_github(result, sarif_path=config.sarif_file)
+        output = format_github(result, sarif_path=config.sarif_file or "sarif.json")
     else:
         output = format_table(result, color=not config.no_color)
 

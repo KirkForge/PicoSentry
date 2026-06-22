@@ -150,7 +150,7 @@ supported ecosystems).
 | Multi-ecosystem (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet) | yes | partial | yes | yes | partial |
 | Runtime sandbox enforcement (kernel-level) | beta | no | no | no | no |
 | Runtime syscall observation from kernel | no | no | no | no | no |
-| FOSS source available | yes (BUSL-1.1) | yes (Apache-2.0) | yes (Apache-2.0) | yes (Apache-2.0) | no |
+| Source-available license | yes (BUSL-1.1) | yes (Apache-2.0) | yes (Apache-2.0) | yes (Apache-2.0) | no |
 
 Where PicoSentry is weaker: pip-audit and osv-scanner have wider and more frequently
 refreshed CVE coverage via OSV. Trivy has broader container and IaC scanning. Socket

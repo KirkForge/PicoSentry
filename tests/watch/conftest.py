@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Generator
+
 import pytest
 
 
@@ -18,7 +20,7 @@ def _skip_watch_secure_assert(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.fixture(autouse=True)
-def _shutdown_watch_otel() -> None:
+def _shutdown_watch_otel() -> Generator[None, None, None]:
     """Shut down any OpenTelemetry provider created by PicoWatch tests.
 
     Stops background OTLP export threads so the pytest process exits cleanly.

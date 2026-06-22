@@ -17,6 +17,24 @@ deployment does not accidentally enable them.
 | `PICOSHOGUN_SKIP_SECURE_ASSERT` | **HIGH** | `picosentry serve` secure-boot checks |
 | `PICOWATCH_SKIP_SECURE_ASSERT` | **HIGH** | `picosentry watch` secure-boot checks |
 
+## Production hardening variables
+
+| Variable | Default | When to set |
+|----------|---------|-------------|
+| `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS` | unset | Set `1` in production so `picosentry serve` refuses to load unsigned plugins. |
+| `PICODOME_MAX_SCAN_TIMEOUT` | `300` | Upper bound (seconds) for `POST /api/v1/scan` `timeout`. |
+| `PICODOME_MAX_LIST_LIMIT` | `1000` | Upper bound for `GET /api/v1/scans?limit` and `/api/v1/audit?limit`. |
+| `PICODOME_WORKSPACE_ROOT` | `cwd` | Directory that `picosentry sandbox --policy` and `--cwd` must resolve inside. |
+
+## Health endpoint rate-limiting
+
+The PicoShogun API (`picosentry serve`) and the PicoDome daemon (`picosentry sandbox daemon`) both exempt their health/readiness probes from per-actor rate limits:
+
+- `/health`, `/health/live`, `/health/ready` (PicoShogun)
+- `/health`, `/ready` (PicoDome)
+
+Load-balancer probes must never be rate-limited, otherwise the rate limiter can cause the outage it is meant to protect against.
+
 ## Helm production install
 
 The `deploy/helm/picodome` chart runs an init container that refuses to start

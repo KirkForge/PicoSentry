@@ -212,13 +212,25 @@ class TestDualPortServing:
         assert response.status_code == 200
 
     def test_admin_has_metrics_endpoint(self, admin_client: TestClient) -> None:
-        """Admin app has GET /metrics."""
+        """Admin app GET /metrics is gated by API key when admin auth is enabled."""
         response = admin_client.get("/metrics")
+        assert response.status_code == 401
+
+        response = admin_client.get(
+            "/metrics",
+            headers={"X-API-Key": "integration-test-key-that-is-at-least-32-ch"},
+        )
         assert response.status_code == 200
 
     def test_admin_has_rules_endpoint(self, admin_client: TestClient) -> None:
-        """Admin app has GET /v1/rules."""
+        """Admin app GET /v1/rules is gated by API key when admin auth is enabled."""
         response = admin_client.get("/v1/rules")
+        assert response.status_code == 401
+
+        response = admin_client.get(
+            "/v1/rules",
+            headers={"X-API-Key": "integration-test-key-that-is-at-least-32-ch"},
+        )
         assert response.status_code == 200
 
     def test_admin_no_scan_endpoint(self, admin_client: TestClient) -> None:
@@ -309,18 +321,18 @@ class TestRateLimitingIntegration:
         assert response.status_code == 429
         assert "Retry-After" in response.headers
 
-    def test_rate_limit_does_not_affect_get(self) -> None:
-        """GET endpoints are not rate limited."""
+    def test_rate_limit_affects_get_except_health(self) -> None:
+        """GET endpoints are rate limited; only /v1/health is excluded."""
         config = _make_config(api_key=None, rate_limit=1, rate_limit_window=60)
         client = TestClient(create_app(config))
 
         # Exhaust rate limit on POST
         client.post("/v1/scan/prompt", json={"text": "fill"})
 
-        # GET endpoints should still work
+        # Health checks remain available; other GET endpoints are blocked.
         assert client.get("/v1/health").status_code == 200
-        assert client.get("/metrics").status_code == 200
-        assert client.get("/v1/rules").status_code == 200
+        assert client.get("/metrics").status_code == 429
+        assert client.get("/v1/rules").status_code == 429
 
 
 # ─── Determinism verification via HTTP ──────────────────────────────────

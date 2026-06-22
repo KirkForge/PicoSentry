@@ -178,8 +178,10 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
                     if name and version and (name, version) not in seen:
                         seen.add((name, version))
                         packages.append((name, version, f"{name}@{version}", lock_path))
-            except Exception:
-                continue
+            except OSError as exc:
+                logger.warning("Could not read lock file %s: %s", lock_path, exc)
+            except Exception as exc:
+                logger.warning("Skipping lock file %s due to parse error: %s", lock_path, exc)
 
     return packages
 

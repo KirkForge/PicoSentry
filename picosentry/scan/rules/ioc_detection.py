@@ -205,7 +205,12 @@ def detect_custom_iocs(target: Path) -> list[Finding]:
         logger.exception("Failed to load IoCs — IoC detection rule cannot run")
         return findings
     except Exception as e:
-        logger.critical("Unexpected error loading IoCs — this may indicate a corrupted corpus: %s", e)
+        logger.critical(
+            "Unexpected error loading IoCs (type=%s) — IoC detection rule cannot run. "
+            "This may indicate a corrupted corpus or a bug in the IoC loader: %s",
+            type(e).__name__,
+            e,
+        )
         return findings
 
     if not iocs:

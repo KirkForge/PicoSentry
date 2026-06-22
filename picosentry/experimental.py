@@ -33,7 +33,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry watch`",
         status="Beta",
-        notes="Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server",
+        notes=(
+            "Deterministic regex + lexical classifier pre-filter for prompt injection (L5) "
+            "and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server"
+        ),
     ),
     ComponentStatus(
         name="`picosentry serve`",

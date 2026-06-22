@@ -175,7 +175,7 @@ these numbers from a fresh clone.
 | L2-BUILD-001            |    5 |    5 |  5 |  0 |  0 | 100.00% | 100.00% |
 | L2-BUND-001             |    2 |    2 |  2 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-AXIOS-POISONING |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-CAMP-NODE-IPC-COMPROMISE|    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-CAMP-NODE-IPC-COMPROMISE |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-SHAI-HULUD      |    1 |    1 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-TRAPDOOR        |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CARGO-ADV-001        |    3 |    2 |  3 |  0 |  0 | 100.00% | 100.00% |
@@ -225,8 +225,7 @@ these numbers from a fresh clone.
 | L2-SIDELOAD-001         |    1 |    2 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-TYPO-001             |    4 |    4 |  4 |  0 |  0 | 100.00% | 100.00% |
 | L2-WORM-001             |    3 |    5 |  3 |  0 |  0 | 100.00% | 100.00% |
-| **Aggregate** | **170** | **169** | **170** | ** 0** | ** 0** | **100.00%** | **100.00%** |
-
+| **Aggregate              ** | ** 170** | ** 169** | **170** | ** 0** | ** 0** | **100.00%** | **100.00%** |
 <!-- END: rule-table -->
 
 > **Note on `n_neg`:** The six "n_neg=1" rows are the rules exercised by the

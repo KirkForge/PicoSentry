@@ -11,6 +11,8 @@ from picosentry._core.config import assert_secure as _core_assert_secure
 DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 DEFAULT_THRESHOLD_BLOCK = 0.7
 DEFAULT_THRESHOLD_WARN = 0.4
+DEFAULT_CLASSIFIER_ENABLED = True
+DEFAULT_CLASSIFIER_BLEND_FACTOR = 1.0
 DEFAULT_MAX_PROMPT_SIZE = 1_000_000  # 1MB
 DEFAULT_AUDIT_RETENTION_DAYS = 30
 DEFAULT_HOST = "127.0.0.1"
@@ -56,6 +58,8 @@ class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from Pi
     rules_dir: Path = field(default_factory=lambda: DEFAULT_RULES_DIR)
     threshold_block: float = DEFAULT_THRESHOLD_BLOCK
     threshold_warn: float = DEFAULT_THRESHOLD_WARN
+    classifier_enabled: bool = DEFAULT_CLASSIFIER_ENABLED
+    classifier_blend_factor: float = DEFAULT_CLASSIFIER_BLEND_FACTOR
     max_prompt_size: int = DEFAULT_MAX_PROMPT_SIZE
     corpus_version: str = DEFAULT_CORPUS_VERSION
 
@@ -114,6 +118,22 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     @threshold_warn.setter
     def threshold_warn(self, value: float) -> None:
         self.prompt_guard.threshold_warn = value
+
+    @property
+    def classifier_enabled(self) -> bool:
+        return self.prompt_guard.classifier_enabled
+
+    @classifier_enabled.setter
+    def classifier_enabled(self, value: bool) -> None:
+        self.prompt_guard.classifier_enabled = value
+
+    @property
+    def classifier_blend_factor(self) -> float:
+        return self.prompt_guard.classifier_blend_factor
+
+    @classifier_blend_factor.setter
+    def classifier_blend_factor(self, value: float) -> None:
+        self.prompt_guard.classifier_blend_factor = value
 
     @property
     def max_prompt_size(self) -> int:
@@ -269,12 +289,17 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         picowatch_conf: dict[str, Any] = file_config.get("picowatch", file_config)  # type: ignore[assignment]
 
         def _env_or_file(key: str, env_var: str, default: Any, cast: type = str) -> Any:
+            def _cast(value: Any) -> Any:
+                if cast is bool and isinstance(value, str):
+                    return value.strip().lower() not in {"0", "false", "no", "off", ""}
+                return cast(value)
+
             val = os.environ.get(env_var)
             if val is not None:
-                return cast(val)
+                return _cast(val)
             file_val = picowatch_conf.get(key)
             if file_val is not None:
-                return cast(file_val) if not isinstance(file_val, cast) else file_val
+                return _cast(file_val) if not isinstance(file_val, cast) else file_val
             return default
 
         rules_dir_str = os.environ.get("PICOWATCH_RULES_DIR") or picowatch_conf.get("rules_dir")
@@ -291,6 +316,18 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 ),
                 threshold_warn=_env_or_file(
                     "threshold_warn", "PICOWATCH_THRESHOLD_WARN", DEFAULT_THRESHOLD_WARN, float
+                ),
+                classifier_enabled=_env_or_file(
+                    "classifier_enabled",
+                    "PICOWATCH_CLASSIFIER_ENABLED",
+                    DEFAULT_CLASSIFIER_ENABLED,
+                    bool,
+                ),
+                classifier_blend_factor=_env_or_file(
+                    "classifier_blend_factor",
+                    "PICOWATCH_CLASSIFIER_BLEND_FACTOR",
+                    DEFAULT_CLASSIFIER_BLEND_FACTOR,
+                    float,
                 ),
                 max_prompt_size=_env_or_file(
                     "max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int

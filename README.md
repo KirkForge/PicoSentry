@@ -24,7 +24,7 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 |-----------|--------|-------|
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
 | `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
-| `picosentry watch` | **Beta** | Prompt-injection detection (L5) + output validation (L6); CLI + HTTP server |
+| `picosentry watch` | **Beta** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) + output validation (L6); not a semantic/LLM guarantee |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; live-tested against a kind cluster |
@@ -49,6 +49,11 @@ security review — don't expose it to untrusted networks.
 - **Records per-syscall traces from the kernel sandbox** (opt-in via
   `--backend=seccomp-trace` on `picosentry sandbox`; requires Linux + libseccomp +
   `CONFIG_SECCOMP_LOG=y`). Path/address arguments on events are not yet captured.
+- **`picosentry watch` is a fast pre-filter, not a semantic guarantee.** It uses
+  deterministic regex rules plus a lexical classifier to catch common prompt
+  injections and output-policy violations. Paraphrase, novel phrasing, encoding
+  tricks, or adversarial prompts can still slip through. For high-stakes LLM
+  deployments, pair it with a dedicated model-based guard as a second layer.
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
 - **Cluster mode is beta.** Gossip over HTTP(S) requires a shared cluster token

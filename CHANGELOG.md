@@ -2,6 +2,40 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.16] — 2026-06-21
+
+### Polish: surface-area narrowing, import guards, and scan-rule reliability
+
+Addresses external review feedback by tightening the public API boundary and
+making scan-rule failures visible rather than silent false negatives.
+
+- Move the 19 MB malware benchmark corpus from `picosentry/scan/corpus/malware/`
+  to `datasets/malware/` so it remains available for tests/benchmarks without
+  being imported as part of the runtime package.
+- Add an optional-dependency import guard to
+  `picosentry.watch.server` that raises `ImportError` with the install hint
+  `pip install 'picosentry[watch-server]'` when the `watch-server` extra is not
+  present.
+- Audit internal `except Exception: pass` sites in scan/detection paths and
+  replace broad swallows with specific exception types plus `logger.warning`,
+  `logger.exception`, or `logger.critical`. Affected paths:
+  - `pypi_lock_parser`: malformed `poetry.lock` / `uv.lock`
+  - `pypi_utils`: malformed `METADATA` / `pyproject.toml`
+  - `dep_confusion`: malformed `.pypirc`
+  - `advisory_check`: unreadable or unexpectedly broken lock files
+  - `ioc_detection`: unexpected IoC corpus load failures
+  - `cli_commands/scan`: cache read/write/deserialization failures
+- Cache `CorpusIndex` instances in `corpus_index.py` per process, keyed by the
+  resolved corpus file path, mtime, size, ecosystem, and built-in priority
+  list. Eliminates redundant trie rebuilds across repeated scans, which were
+  causing `test_malware_advisory_recall` and `test_validation_report_is_deterministic`
+  to hit the 120 s pytest timeout.
+
+**Version bump:** all `__version__` strings and deployment manifests bumped
+from 2.0.15 to 2.0.16.
+
+---
+
 ## [2.0.15] — 2026-06-21
 
 ### Staged token-filtered scanning + multi-ecosystem typosquat corpus

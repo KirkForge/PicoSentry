@@ -1,0 +1,15 @@
+{
+  "label": "positive",
+  "description": "PyPI project with base64.b64decode() on one line and exec() on the next. Multi-rule fixture: L2-PYPI-OBFS-001 (bare exec) + L2-PYPI-OBFS-002 (b64decode) + L2-PYPI-OBFS-007 (b64+exec within 200 chars, with b64decode on the earlier line). Strict mode + per-finding gates demonstrate the v2.1 schema extension on a multi-fire fixture.",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-OBFS-002",
+    "L2-PYPI-OBFS-007"
+  ],
+  "expected_findings": [
+    {"rule_id": "L2-PYPI-OBFS-001", "package": "unknown", "file_contains": "obfs.py", "line": 11},
+    {"rule_id": "L2-PYPI-OBFS-002", "package": "unknown", "file_contains": "obfs.py", "line": 10},
+    {"rule_id": "L2-PYPI-OBFS-007", "package": "unknown", "file_contains": "obfs.py", "line": 10}
+  ],
+  "strict": true
+}

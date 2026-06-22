@@ -1,0 +1,17 @@
+{
+  "name": "axios-cdn-user",
+  "version": "1.0.0",
+  "description": "Legitimate HTTP client consumer that fetches a UI bundle from a public CDN (do not use to test historical supply-chain compromises).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/axios-cdn-user/axios-cdn-user"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@axios-cdn-user.example.com"},
+    {"name": "fixture-reviewer", "email": "reviewer@axios-cdn-user.example.com"}
+  ]
+}

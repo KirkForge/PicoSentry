@@ -1,4 +1,5 @@
 """Tests for the PicoShogun Command Centre API endpoints."""
+
 import contextlib
 import os
 import sys
@@ -19,33 +20,60 @@ def client():
     from fastapi.testclient import TestClient
 
     from picosentry.serve.api.server import app
+
     return TestClient(app)
 
 
 @pytest.fixture
 def auth_token(client):
-    """Get an auth token for authenticated requests."""
-    with contextlib.suppress(Exception):
-        client.post("/auth/register", json={
-            "username": "pytest_user",
-            "password": "testpassword123",
-            "role": "admin"
-        })
+    """Get an auth token for authenticated requests.
 
+    Ensures the test user exists and belongs to a default organization, because
+    tenant-isolated endpoints reject users with no org association.
+    """
+    with contextlib.suppress(Exception):
+        # RegisterRequest no longer accepts a client-supplied role; the
+        # user is always created as a viewer.  An admin/operator fixture
+        # for tests that need one lives in
+        # ``tests/serve/test_admin_role_seed.py`` (provisioned via the
+        # service layer, not the registration endpoint).
+        client.post(
+            "/auth/register",
+            json={
+                "username": "pytest_user",
+                "password": "testpassword123",
+            },
+        )
+
+    token = ""
     try:
-        resp = client.post("/auth/login?username=pytest_user&password=testpassword123")
+        resp = client.post(
+            "/auth/login",
+            json={"username": "pytest_user", "password": "testpassword123"},
+        )
         if resp.status_code == 200:
-            data = resp.json()
-            return data.get("access_token", "")
+            token = resp.json().get("access_token", "")
     except Exception:
         pass
 
-    # Fallback: create directly via AuthService
+    if not token:
+        # Fallback: create directly via AuthService
+        from picosentry.serve.api.server import auth_service
+
+        token = auth_service.authenticate("pytest_user", "testpassword123") or ""
+
+    if not token:
+        return ""
+
+    # Ensure the test user has a default org for org-scoped endpoints.
     from picosentry.serve.api.server import auth_service
-    token = auth_service.authenticate("pytest_user", "testpassword123")
-    if token:
-        return token
-    return ""
+    from picosentry.serve.services.orgs import Organization
+
+    user_info = auth_service.validate_token(token)
+    if user_info and not Organization.list_orgs_for_user(user_info["id"]):
+        Organization.create(name="Pytest Org", slug="pytest-org", owner_user_id=user_info["id"])
+
+    return token
 
 
 def auth_headers(token):
@@ -112,26 +140,33 @@ class TestDashboardEndpoint:
 class TestMetricsEndpoint:
     """Test /metrics endpoint."""
 
-    def test_metrics_json_endpoint(self, client):
-        resp = client.get("/metrics/json")
+    def test_metrics_json_endpoint(self, client, auth_token):
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/json", headers=headers)
         if resp.status_code == 200:
             data = resp.json()
             assert "uptime_seconds" in data
 
-    def test_metrics_prometheus_endpoint(self, client):
-        resp = client.get("/metrics/prometheus")
+    def test_metrics_prometheus_endpoint(self, client, auth_token):
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/prometheus", headers=headers)
         if resp.status_code == 200:
             assert "picoshogun_" in resp.text or "uptime" in resp.text.lower()
 
-    def test_prometheus_no_double_prefix(self, client):
+    def test_prometheus_no_double_prefix(self, client, auth_token):
         """Ensure Prometheus metric names use picoshogun_ not picopicoshogun_."""
-        resp = client.get("/metrics/prometheus")
+        headers = auth_headers(auth_token)
+        resp = client.get("/metrics/prometheus", headers=headers)
         if resp.status_code == 200:
             # HELP and TYPE lines should use picoshogun_, not picopicoshogun_
             for line in resp.text.split("\n"):
-                if line.startswith("# HELP") or line.startswith("# TYPE"):
+                if line.startswith(("# HELP", "# TYPE")):
                     assert "picopicoshogun" not in line, f"Double prefix in: {line}"
             assert "picoshogun_" in resp.text
+
+    def test_prometheus_requires_auth(self, client):
+        resp = client.get("/metrics/prometheus")
+        assert resp.status_code in (401, 403)
 
 
 class TestDashboardSummary:
@@ -222,8 +257,10 @@ class TestAPIVersion:
 
     def test_api_info(self, client):
         from picosentry.serve.api.server import app
+
         assert app.title == "PicoShogun Command Centre API"
         from picosentry.serve.config.version import __version__
+
         assert app.version == __version__
 
 
@@ -237,53 +274,135 @@ class TestSecurityHeaders:
 
 
 class TestAuthEndpoints:
-    """Test registration and login endpoints."""
+    """Test registration and login endpoints.
+
+    Registration always creates a viewer.  ``RegisterRequest`` rejects
+    a client-supplied ``role`` field at the Pydantic layer
+    (``extra="forbid"``), and the handler hardcodes ``role="viewer"``
+    when calling ``auth_service.create_user``.  Tests in this class must
+    NOT send a ``role`` in the payload — that contract is verified by
+    ``test_register_rejects_client_supplied_role_*`` below.
+    """
 
     def test_register_new_user(self, client):
         import time
+
         username = f"test_user_{int(time.time() * 1000)}"
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-            "role": "viewer"
-        })
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "user_id" in data
         assert data["username"] == username
+        # The handler always reports the role that was actually inserted.
+        assert data["role"] == "viewer"
 
     def test_register_duplicate_user(self, client):
         import time
+
         username = f"test_dup_{int(time.time() * 1000)}"
-        client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-            "role": "viewer"
-        })
-        resp = client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-            "role": "viewer"
-        })
+        client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
         assert resp.status_code in (400, 409)
 
     def test_login_returns_token(self, client):
         import time
+
         username = f"test_login_{int(time.time() * 1000)}"
-        client.post("/auth/register", json={
-            "username": username,
-            "password": "testpassword123",
-            "role": "admin"
-        })
-        resp = client.post(f"/auth/login?username={username}&password=testpassword123")
+        client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
+        resp = client.post(
+            "/auth/login",
+            json={"username": username, "password": "testpassword123"},
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "access_token" in data
         assert data["token_type"] == "bearer"
 
     def test_login_invalid_credentials(self, client):
-        resp = client.post("/auth/login?username=nonexistent&password=wrong")
+        resp = client.post(
+            "/auth/login",
+            json={"username": "nonexistent", "password": "wrong"},
+        )
         assert resp.status_code == 401
+
+    # ── Registration-role regression suite (P0 fix) ─────────────────────
+    # Registration must NOT accept a client-supplied role.  The Pydantic
+    # model uses ``extra="forbid"`` and the handler hardcodes
+    # ``role="viewer"``; the tests below pin both halves of that contract
+    # so a future "we should support self-elected admin" change has to
+    # consciously remove the regression.
+
+    @pytest.mark.parametrize("client_role", ["admin", "operator", "viewer", "Owner", "ADMIN", ""])
+    def test_register_rejects_client_supplied_role(self, client, client_role):
+        """A client-supplied role field, any value, must be rejected with 422.
+
+        This is the loud-failure path: ``RegisterRequest`` has
+        ``extra="forbid"``, so Pydantic returns 422 before the handler
+        ever runs.  Without this layer, a future regression that re-adds
+        the field would silently start creating elevated accounts.
+        """
+        import time
+
+        username = f"rolecheck_{client_role}_{int(time.time() * 1000)}"
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+                "role": client_role,
+            },
+        )
+        assert resp.status_code == 422, (
+            f"client_supplied role={client_role!r} should be rejected, got {resp.status_code}: {resp.text}"
+        )
+
+    def test_register_creates_viewer_in_db(self, client):
+        """A successful registration inserts role='viewer' regardless of any
+        client attempt.  This guards the handler-layer half of the fix:
+        even if the Pydantic model is loosened, the handler must still
+        hardcode ``role='viewer'`` for the registration path.
+        """
+        import time
+        from picosentry.serve.database.manager import db
+
+        username = f"dbcheck_{int(time.time() * 1000)}"
+        resp = client.post(
+            "/auth/register",
+            json={
+                "username": username,
+                "password": "testpassword123",
+            },
+        )
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["role"] == "viewer"
+
+        row = db.execute_one("SELECT role FROM users WHERE username = ?", (username,))
+        assert row is not None
+        assert row["role"] == "viewer", f"DB row for {username!r} has role={row['role']!r}; expected 'viewer'"
 
 
 class TestSchedulerEndpoints:
@@ -298,20 +417,42 @@ class TestSchedulerEndpoints:
 
     def test_create_and_delete_job(self, client, auth_token):
         import time
-        headers = auth_headers(auth_token)
+
         if not auth_token:
             pytest.skip("No auth token available")
+
+        # Scheduler job creation requires the WRITE_SCHEDULER permission,
+        # which viewers do not have.  Create an operator user for this test.
+        from picosentry.serve.api.server import auth_service
+        from picosentry.serve.services.orgs import Organization
+
+        tag = int(time.time() * 1000)
+        username = f"scheduler_op_{tag}"
+        password = "testpassword123"
+        user_id = auth_service.create_user(username, password, role="operator")
+        assert user_id is not None
+        token = auth_service.authenticate(username, password)
+        assert token
+        headers = auth_headers(token)
+
         # Create org first (required by API)
-        client.post("/orgs", json={
-            "name": f"sched_org_{int(time.time()*1000)}",
-            "slug": f"schedorg{int(time.time()*1000)}"
-        }, headers=headers)
-        resp = client.post("/scheduler/jobs", json={
-            "name": f"test_job_{int(time.time()*1000)}",
-            "cron": "*/10 * * * *",
-            "command": "batch",
-            "params": {"category": "monitoring"}
-        }, headers=headers)
+        org_id = Organization.create(
+            name=f"sched_org_{tag}",
+            slug=f"schedorg{tag}",
+            owner_user_id=user_id,
+        )
+        assert org_id is not None
+
+        resp = client.post(
+            "/scheduler/jobs",
+            json={
+                "name": f"test_job_{tag}",
+                "cron": "*/10 * * * *",
+                "command": "batch",
+                "params": {"category": "monitoring"},
+            },
+            headers=headers,
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert "job_id" in data
@@ -354,11 +495,13 @@ class TestObservabilityModule:
 
     def test_import_observability(self):
         from picosentry.serve.services.observability import get_tracer, init_telemetry
+
         assert init_telemetry is not None
         assert get_tracer is not None
 
     def test_noop_tracer(self):
         from picosentry.serve.services.observability import NoOpTracer
+
         tracer = NoOpTracer()
         span = tracer.start_span("test")
         assert span is not None
@@ -367,29 +510,36 @@ class TestObservabilityModule:
 
     def test_noop_meter(self):
         from picosentry.serve.services.observability import NoOpMeter
+
         meter = NoOpMeter()
         counter = meter.create_counter("test_counter")
         counter.add(1)
 
     def test_init_telemetry_no_endpoint(self):
         from picosentry.serve.services.observability import init_telemetry
+
         result = init_telemetry(service_name="test")
         assert result is False
 
     def test_trace_span_decorator(self):
         from picosentry.serve.services.observability import trace_span
+
         @trace_span("test_operation", attributes={"key": "value"})
         def test_func():
             return 42
+
         result = test_func()
         assert result == 42
 
     def test_trace_async_span_decorator(self):
         from picosentry.serve.services.observability import trace_async_span
+
         @trace_async_span("test_async_operation")
         async def test_async_func():
             return 99
+
         import asyncio
+
         result = asyncio.run(test_async_func())
         assert result == 99
 
@@ -399,10 +549,12 @@ class TestDatabaseManager:
 
     def test_db_module_imports(self):
         from picosentry.serve.database.manager import db
+
         assert db is not None
 
     def test_settings_module_imports(self):
         from picosentry.serve.config.settings import settings
+
         assert settings.api.port == 8765
         assert settings.database.journal_mode == "WAL"
         assert settings.security.jwt_algorithm == "HS256"
@@ -415,6 +567,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_test_{int(time.time() * 1000)}"
         user_id = auth.create_user(username, "testpassword123", role="viewer")
@@ -424,6 +577,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_auth_{int(time.time() * 1000)}"
         auth.create_user(username, "testpassword123", role="admin")
@@ -435,6 +589,7 @@ class TestAuthService:
         import time
 
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         username = f"svc_round_{int(time.time() * 1000)}"
         auth.create_user(username, "testpassword123", role="admin")
@@ -445,6 +600,7 @@ class TestAuthService:
 
     def test_invalid_token_returns_none(self):
         from picosentry.serve.services.auth import AuthService
+
         auth = AuthService()
         result = auth.validate_token("invalid_token")
         assert result is None
@@ -455,6 +611,7 @@ class TestSchedulerService:
 
     def test_get_status_returns_list(self):
         from picosentry.serve.services.scheduler import scheduler
+
         status = scheduler.get_status()
         assert isinstance(status, list)
 
@@ -464,16 +621,19 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_localhost(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("http://127.0.0.1/hook")
         assert not is_safe
 
     def test_blocks_private_ip(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("http://10.0.0.1/hook")
         assert not is_safe
 
     def test_allows_public_url(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         # Use a resolvable public hostname
         is_safe, reason = _is_safe_webhook_url("https://httpbin.org/webhook")
         # SSRF check should pass for public, resolvable domains
@@ -482,6 +642,7 @@ class TestWebhookSSRFProtection:
 
     def test_blocks_file_scheme(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
+
         is_safe, _reason = _is_safe_webhook_url("file:///etc/passwd")
         assert not is_safe
 
@@ -491,6 +652,7 @@ class TestMetricsCollector:
 
     def test_counter(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         mc.counter("test_counter", 1, {"label": "value"})
         data = mc.to_dict()
@@ -498,6 +660,7 @@ class TestMetricsCollector:
 
     def test_prometheus_export(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         mc.counter("test_counter", 1)
         output = mc.to_prometheus()
@@ -507,5 +670,6 @@ class TestMetricsCollector:
 
     def test_uptime(self):
         from picosentry.serve.services.metrics import MetricsCollector
+
         mc = MetricsCollector()
         assert mc.uptime_seconds() > 0

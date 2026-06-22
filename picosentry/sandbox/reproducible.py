@@ -1,23 +1,3 @@
-"""
-Reproducible builds — SOURCE_DATE_EPOCH, pinned dep hashes, hermetic pip.
-
-PicoDome's core thesis is determinism. Builds MUST be bit-for-bit reproducible.
-This module provides:
-
-- ReproducibleBuild: configuration class for reproducible builds
-- get_source_date_epoch(): read SOURCE_DATE_EPOCH or fallback to build timestamp
-- pin_dependencies(): read requirements/pip lock and return pinned hashes
-- verify_reproducible_build(): verify a built wheel is reproducible
-- hermetic_build_config(): config for hermetic pip install (no network during build)
-- generate_build_manifest(): generate a build manifest JSON with all hashes
-
-Design principles:
-- SOURCE_DATE_EPOCH must be respected for all timestamp generation during build.
-- All dependency versions must be pinned with hashes (pip --require-hashes).
-- The build must work in air-gapped environments (all deps pre-downloaded).
-- Tests must work without network access.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -29,7 +9,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ─── Constants ────────────────────────────────────────────────────────────────
 
 _DEFAULT_SOURCE_DATE_EPOCH = 0  # 1970-01-01 00:00:00 UTC
 _HASH_ALGORITHMS = ("sha256", "sha384", "sha512")
@@ -44,29 +23,13 @@ _REQUIREMENTS_LINE_PATTERN = re.compile(
 )
 _WHEEL_HASH_CHUNK_SIZE = 65536  # 64KB chunks for hashing
 
-# ─── Exceptions ────────────────────────────────────────────────────────────────
-
 
 class ReproducibleBuildError(Exception):
     """Raised when a reproducible build check fails."""
 
 
-# ─── ReproducibleBuild class ──────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class ReproducibleBuild:
-    """Configuration for a reproducible build.
-
-    Encapsulates all settings needed to produce bit-for-bit identical builds:
-    - source_date_epoch: deterministic timestamp (epoch seconds)
-    - python_hash_seed: fixed hash seed for dict ordering (0 = off)
-    - pip_no_build_isolation: don't use pip's build isolation
-    - require_hashes: all deps must have hash verification
-    - no_deps: don't install dependencies automatically
-    - offline: don't access the network during build
-    """
-
     source_date_epoch: int = 0
     python_hash_seed: int = 0
     pip_no_build_isolation: bool = True
@@ -75,7 +38,6 @@ class ReproducibleBuild:
     offline: bool = True
 
     def to_dict(self) -> dict:
-        """Serialize to dict with sorted keys for deterministic JSON."""
         d = {
             "source_date_epoch": self.source_date_epoch,
             "python_hash_seed": self.python_hash_seed,
@@ -84,18 +46,15 @@ class ReproducibleBuild:
             "no_deps": self.no_deps,
             "offline": self.offline,
         }
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
     def env_vars(self) -> dict[str, str]:
-        """Return environment variables for the reproducible build."""
-        env = {
+        return {
             "SOURCE_DATE_EPOCH": str(self.source_date_epoch),
             "PYTHONHASHSEED": str(self.python_hash_seed),
         }
-        return env
 
     def pip_install_args(self) -> list[str]:
-        """Return pip install arguments for reproducible install."""
         args = []
         if self.require_hashes:
             args.append("--require-hashes")
@@ -108,26 +67,7 @@ class ReproducibleBuild:
         return args
 
 
-# ─── Core functions ────────────────────────────────────────────────────────────
-
-
 def get_source_date_epoch(fallback_timestamp: int | None = None) -> int:
-    """Read SOURCE_DATE_EPOCH env var or use fallback timestamp.
-
-    SOURCE_DATE_EPOCH is the standard environment variable for reproducible builds.
-    If set, it must be used for all timestamp generation during the build process.
-    If not set, use the fallback_timestamp if provided, otherwise 0 (epoch).
-
-    Args:
-        fallback_timestamp: Optional timestamp to use if SOURCE_DATE_EPOCH is not set.
-            If None, defaults to 0 (1970-01-01 00:00:00 UTC).
-
-    Returns:
-        Integer epoch seconds.
-
-    Raises:
-        ReproducibleBuildError: If SOURCE_DATE_EPOCH is set but not a valid integer.
-    """
     env_val = os.environ.get("SOURCE_DATE_EPOCH")
     if env_val is not None:
         try:
@@ -138,30 +78,12 @@ def get_source_date_epoch(fallback_timestamp: int | None = None) -> int:
             raise ReproducibleBuildError(f"SOURCE_DATE_EPOCH must be non-negative, got: {epoch}")
         return epoch
 
-    # No env var: use fallback or default
     if fallback_timestamp is not None:
         return fallback_timestamp
     return _DEFAULT_SOURCE_DATE_EPOCH
 
 
 def pin_dependencies(lockfile_path: str) -> dict:
-    """Read requirements/pip lock and return pinned hashes.
-
-    Parses a requirements.txt or pip-compatible lock file and extracts
-    package names, versions, and their hash pins.
-
-    Args:
-        lockfile_path: Path to requirements.txt or pip lock file.
-
-    Returns:
-        Dict with:
-        - "packages": list of dicts with "name", "version", "hashes" keys
-        - "total": count of pinned packages
-        - "lockfile": the input path
-
-    Raises:
-        ReproducibleBuildError: If lockfile doesn't exist or has no valid entries.
-    """
     path = Path(lockfile_path)
     if not path.is_file():
         raise ReproducibleBuildError(f"Lockfile not found: {lockfile_path}")
@@ -169,14 +91,12 @@ def pin_dependencies(lockfile_path: str) -> dict:
     content = path.read_text(encoding="utf-8")
     packages: list[dict] = []
 
-    for line in content.splitlines():
-        line = line.strip()
-        # Skip comments, empty lines, and options
-        if not line or line.startswith("#") or line.startswith("-"):
-            # But collect --hash lines attached to previous package
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith(("#", "-")):
             continue
 
-        # Parse package==version or package>=version with optional --hash specs
         match = re.match(r"^(?P<name>[a-zA-Z0-9_.-]+)(?P<op>==|>=|<=|~=|!=|>|<)(?P<version>[^;\s]+)", line)
         if not match:
             continue
@@ -185,15 +105,13 @@ def pin_dependencies(lockfile_path: str) -> dict:
         version = match.group("version")
         version_op = match.group("op")
 
-        # Extract all --hash=algo:hash pairs from the line
-        hashes: list[dict[str, str]] = []
-        for hmatch in re.finditer(r"--hash=(?P<algo>sha\d+):(?P<hash_val>[a-f0-9]+)", line):
-            hashes.append(
-                {
-                    "algorithm": hmatch.group("algo"),
-                    "hash": hmatch.group("hash_val"),
-                }
-            )
+        hashes = [
+            {
+                "algorithm": hmatch.group("algo"),
+                "hash": hmatch.group("hash_val"),
+            }
+            for hmatch in re.finditer(r"--hash=(?P<algo>sha\d+):(?P<hash_val>[a-f0-9]+)", line)
+        ]
 
         packages.append(
             {
@@ -215,28 +133,6 @@ def pin_dependencies(lockfile_path: str) -> dict:
 
 
 def verify_reproducible_build(wheel_path: str) -> dict:
-    """Verify a built wheel is reproducible.
-
-    Checks:
-    1. File exists and is a valid zip (wheel format)
-    2. No embedded timestamps in zip entries (all must be epoch 0)
-    3. No non-deterministic filenames (no __pycache__, .pyc with random names)
-    4. RECORD file has deterministic entries
-    5. Hash of the wheel file itself for reference comparison
-
-    Args:
-        wheel_path: Path to the .whl file to verify.
-
-    Returns:
-        Dict with:
-        - "reproducible": bool — whether the build is reproducible
-        - "checks": list of check results
-        - "wheel_hash": SHA-256 of the wheel file
-        - "violations": list of violations found (empty if reproducible)
-
-    Raises:
-        ReproducibleBuildError: If wheel file doesn't exist or isn't a valid wheel.
-    """
     path = Path(wheel_path)
     if not path.is_file():
         raise ReproducibleBuildError(f"Wheel file not found: {wheel_path}")
@@ -247,7 +143,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
     violations: list[str] = []
     checks: list[dict] = []
 
-    # Check 1: Valid zip file
     try:
         with zipfile.ZipFile(path, "r") as zf:
             namelist = zf.namelist()
@@ -268,20 +163,12 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             "violations": violations,
         }
 
-    # Check 2: No embedded timestamps in zip entries
     with zipfile.ZipFile(path, "r") as zf:
         timestamp_violations = []
         for info in zf.infolist():
-            # date_time is (year, month, day, hour, minute, second)
-            # Epoch 0 = 1980-01-01 00:00:00 in zip format (minimum DOS date)
-            # Or actual epoch 0 which maps to 1980-01-01 in DOS format
             dt = info.date_time
-            # For reproducible builds, we expect either:
-            # - 1980-01-01 00:00:00 (DOS epoch, zip minimum)
-            # - 1970-01-01 00:00:00 (Unix epoch, but zip stores 1980 minimum)
-            # A truly reproducible build sets all timestamps to epoch 0
-            # which in zip format appears as 1980-01-01 00:00:00
-            if dt != (1980, 1, 1, 0, 0, 0) and dt != (1970, 1, 1, 0, 0, 0):
+
+            if dt not in ((1980, 1, 1, 0, 0, 0), (1970, 1, 1, 0, 0, 0)):
                 timestamp_violations.append(
                     f"{info.filename}: {dt[0]:04d}-{dt[1]:02d}-{dt[2]:02d}T{dt[3]:02d}:{dt[4]:02d}:{dt[5]:02d}"
                 )
@@ -299,14 +186,7 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             }
         )
 
-        # Check 3: No non-deterministic files
-        nondeterministic = []
-        for name in namelist:
-            # __pycache__ dirs with .pyc files have hash-based names
-            if "__pycache__" in name and name.endswith(".pyc"):
-                nondeterministic.append(name)
-            # .dist-info/WHEEL should not contain non-reproducible entries
-            # RECORD is OK (it's deterministic by content)
+        nondeterministic = [name for name in namelist if "__pycache__" in name and name.endswith(".pyc")]
 
         if nondeterministic:
             passed = False
@@ -321,11 +201,10 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             }
         )
 
-        # Check 4: WHEEL metadata file should reference SOURCE_DATE_EPOCH
         wheel_meta = [n for n in namelist if n.endswith("/WHEEL")]
         if wheel_meta:
             content = zf.read(wheel_meta[0]).decode("utf-8")
-            # Check that there's no "Generated" or date line
+
             has_generated = "Generated" in content or "generated" in content
             if not has_generated:
                 passed = True
@@ -345,7 +224,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
             }
         )
 
-    # Check 5: Wheel file hash (for reference)
     wheel_hash = _file_sha256(path)
     checks.append(
         {
@@ -365,22 +243,6 @@ def verify_reproducible_build(wheel_path: str) -> dict:
 
 
 def hermetic_build_config() -> dict:
-    """Return config for hermetic pip install (no network during build).
-
-    A hermetic build ensures:
-    - No network access during build (--offline, --require-hashes)
-    - All dependencies pre-downloaded and hash-verified
-    - PYTHONHASHSEED fixed for deterministic dict ordering
-    - SOURCE_DATE_EPOCH fixed for deterministic timestamps
-    - No build isolation (--no-build-isolation)
-
-    Returns:
-        Dict with:
-        - "env": environment variables to set
-        - "pip_args": pip install arguments
-        - "build_args": python -m build arguments
-        - "config": ReproducibleBuild configuration dict
-    """
     epoch = get_source_date_epoch()
     config = ReproducibleBuild(
         source_date_epoch=epoch,
@@ -402,24 +264,6 @@ def hermetic_build_config() -> dict:
 
 
 def generate_build_manifest(output_dir: str) -> str:
-    """Generate a build manifest JSON with all hashes.
-
-    The manifest includes:
-    - source_date_epoch: the epoch used for the build
-    - python_hash_seed: fixed seed for dict ordering
-    - source_files: SHA-256 hashes of all Python source files
-    - config: hermetic build configuration
-    - timestamp: ISO 8601 timestamp of manifest generation (deterministic)
-
-    Args:
-        output_dir: Directory to scan for source files and write manifest.
-
-    Returns:
-        Path to the generated manifest JSON file.
-
-    Raises:
-        ReproducibleBuildError: If output_dir doesn't exist.
-    """
     out_path = Path(output_dir)
     if not out_path.is_dir():
         raise ReproducibleBuildError(f"Output directory not found: {output_dir}")
@@ -427,21 +271,17 @@ def generate_build_manifest(output_dir: str) -> str:
     epoch = get_source_date_epoch()
     source_files: dict[str, str] = {}
 
-    # Hash all Python source files
     for py_file in sorted(out_path.rglob("*.py")):
-        # Skip __pycache__ and .git directories
         if "__pycache__" in str(py_file) or ".git" in str(py_file):
             continue
         rel_path = str(py_file.relative_to(out_path))
         source_files[rel_path] = _file_sha256(py_file)
 
-    # Also hash config files
     for config_file in ["pyproject.toml", "setup.cfg", "setup.py", "MANIFEST.in"]:
         cf = out_path / config_file
         if cf.is_file():
             source_files[config_file] = _file_sha256(cf)
 
-    # Hash requirements files
     for req_file in out_path.glob("requirements*.txt"):
         rel = str(req_file.relative_to(out_path))
         source_files[rel] = _file_sha256(req_file)
@@ -465,13 +305,9 @@ def generate_build_manifest(output_dir: str) -> str:
     return str(manifest_path)
 
 
-# ─── Helper functions ──────────────────────────────────────────────────────────
-
-
 def _file_sha256(path: Path) -> str:
-    """Compute SHA-256 hash of a file."""
     h = hashlib.sha256()
-    with open(path, "rb") as f:
+    with path.open("rb") as f:
         while True:
             chunk = f.read(_WHEEL_HASH_CHUNK_SIZE)
             if not chunk:
@@ -481,6 +317,5 @@ def _file_sha256(path: Path) -> str:
 
 
 def _epoch_to_iso(epoch: int) -> str:
-    """Convert epoch seconds to ISO 8601 string (UTC)."""
     dt = datetime.fromtimestamp(epoch, tz=timezone.utc)
     return dt.strftime("%Y-%m-%dT%H:%M:%SZ")

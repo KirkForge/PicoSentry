@@ -1,12 +1,3 @@
-"""
-PicoDome configuration — .picodome.yml file loader.
-
-Config file is optional. CLI flags override config file values.
-Search order: target_dir/.picodome.yml → target_dir/.picodome.yaml
-
-Deterministic: config file is part of scan inputs. Same config = same output.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -19,13 +10,13 @@ from picosentry._core.config import assert_secure as _core_assert_secure
 
 logger = logging.getLogger("picodome.config")
 
-# Supported config file names (in order of precedence)
+
 CONFIG_NAMES = [".picodome.yml", ".picodome.yaml"]
 
-# Current config schema version
+
 CONFIG_VERSION = 1
 
-# Known config keys (whitelist). Unknown keys are rejected with a warning.
+
 KNOWN_KEYS = frozenset(
     {
         "version",
@@ -47,74 +38,44 @@ KNOWN_KEYS = frozenset(
     }
 )
 
-# Valid values for enum-like config fields
+
 VALID_SEVERITIES = frozenset({"critical", "high", "medium", "low", "info"})
 VALID_FORMATS = frozenset({"json", "sarif", "table", "ml-context", "github", "cyclonedx"})
 VALID_LOG_FORMATS = frozenset({"text", "json"})
 
 
 class PicoDomeConfig:
-    """
-    Configuration loaded from .picodome.yml or CLI flags.
-
-    Config file values are defaults; CLI flags override them.
-
-    Deterministic: same config file + same CLI flags = same effective config.
-    """
-
     def __init__(self) -> None:
-        # Output settings
+
         self.format: str = "table"
         self.no_color: bool = False
         self.exit_code: bool = False
         self.deterministic_output: bool = False
 
-        # Failure thresholds
         self.fail_on: str | None = None  # None means no threshold
 
-        # Baseline
         self.baseline: str | None = None
 
-        # Severity overrides (rule_id → severity)
         self.severity_overrides: dict[str, str] = {}
 
-        # Token budget for LLM context output
         self.token_budget: int = 4096
 
-        # Timeout in seconds for sandbox execution
         self.timeout: float = 30.0
 
-        # Policy file path
         self.policy: str | None = None
 
-        # Specific rules to run (None = all)
         self.rules: list[str] | None = None
 
-        # Logging
         self.log_format: str = "text"
 
-        # Storage backend: "sqlite" (default) or "json"
         self.store_backend: str = "sqlite"
         self.sqlite_path: str | None = None
 
-        # CORS origins (comma-separated, or "*" for all)
         self.cors_origins: str = ""
 
     def merge_from_cli(self, args: Any) -> PicoDomeConfig:
-        """Merge CLI args into this config. CLI flags override config file values.
-
-        Uses attribute presence detection to determine if a CLI flag was
-        explicitly set. Only overrides values where the user passed a flag.
-
-        Args:
-            args: argparse Namespace with CLI arguments.
-
-        Returns:
-            New PicoDomeConfig with merged values.
-        """
         merged = PicoDomeConfig()
 
-        # Copy config file values first
         merged.format = self.format
         merged.no_color = self.no_color
         merged.exit_code = self.exit_code
@@ -131,7 +92,6 @@ class PicoDomeConfig:
         merged.sqlite_path = self.sqlite_path
         merged.cors_origins = self.cors_origins
 
-        # Override with CLI args — only if explicitly set
         if not hasattr(args, "format"):
             return merged
 
@@ -162,43 +122,35 @@ class PicoDomeConfig:
         return merged
 
     def apply_severity_overrides(self, findings: list) -> list:
-        """Apply severity overrides from config. Returns a NEW list of Findings.
-
-        Does NOT mutate the original Findings (they are frozen).
-        Each override creates a new Finding with the overridden severity.
-        Unknown rule IDs are silently ignored.
-
-        Deterministic: same config + same findings = same result.
-        """
         if not self.severity_overrides:
             return findings
 
         from picosentry.sandbox.models import Finding, Severity
 
         overridden = []
-        for f in findings:
-            if f.rule_id in self.severity_overrides:
-                new_sev = self.severity_overrides[f.rule_id]
+        for finding in findings:
+            f = finding
+            if finding.rule_id in self.severity_overrides:
+                new_sev = self.severity_overrides[finding.rule_id]
                 try:
                     sev_enum = Severity(new_sev.upper())
                     f = Finding(
-                        rule_id=f.rule_id,
+                        rule_id=finding.rule_id,
                         severity=sev_enum,
-                        message=f.message,
-                        location=f.location,
-                        evidence=f.evidence,
+                        message=finding.message,
+                        location=finding.location,
+                        evidence=finding.evidence,
                     )
                 except ValueError:
                     logger.warning(
                         "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
-                        f.rule_id,
+                        finding.rule_id,
                         new_sev,
                     )
             overridden.append(f)
         return overridden
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialize config to dict for JSON output."""
         return {
             "format": self.format,
             "no_color": self.no_color,
@@ -215,12 +167,6 @@ class PicoDomeConfig:
         }
 
     def assert_secure(self) -> None:
-        """Enforce secure configuration in production.
-
-        Delegates to picosentry._core.config.assert_secure with PicoDome-specific
-        custom checks (mTLS cert presence in production).
-        Override with PICODOME_SKIP_SECURE_ASSERT=1 (NOT recommended).
-        """
         import os as _os
 
         if _os.environ.get("PICODOME_SKIP_SECURE_ASSERT") == "1":
@@ -241,13 +187,12 @@ class PicoDomeConfig:
 
 
 class _MtlsCertCheck:
-    """PicoDome-specific: mTLS cert must be present in production."""
-
     def __init__(self, config: PicoDomeConfig) -> None:
         self._config = config
 
     def check(self) -> SecurityViolation | None:
         import os as _os
+
         env = _os.environ.get("PICODOME_ENV", "development")
         if env in ("production", "staging"):
             mtls_cert = _os.environ.get("PICODOME_TLS_CERT", "")
@@ -255,17 +200,16 @@ class _MtlsCertCheck:
             if not mtls_cert and not mtls_dev:
                 return SecurityViolation(
                     check="mtls_cert",
-                    message="No mTLS certificate configured in production — set PICODOME_TLS_CERT or PICODOME_TLS_DEV=1 for dev certs",
+                    message=(
+                        "No mTLS certificate configured in production — "
+                        "set PICODOME_TLS_CERT or PICODOME_TLS_DEV=1 for dev certs"
+                    ),
                     severity="WARN",
                 )
         return None
 
 
 def _validate_config_keys(data: dict, config_path: Path) -> None:
-    """Validate config keys against known keys and warn about unknown keys.
-
-    Prevents silent config rot (e.g., typo in key name like 'severity_overides').
-    """
     unknown = sorted(set(data.keys()) - KNOWN_KEYS)
     for key in unknown:
         logger.warning(
@@ -275,11 +219,6 @@ def _validate_config_keys(data: dict, config_path: Path) -> None:
             ", ".join(sorted(KNOWN_KEYS)),
         )
 
-
-# ── Environment Variable Overrides ───────────────────────────────────
-
-# Map of PICODOME_* env vars to config attribute names.
-# Precedence: CLI args > env vars > config file > defaults
 
 _ENV_TO_ATTR = {
     "PICODOME_FORMAT": "format",
@@ -296,17 +235,17 @@ _ENV_TO_ATTR = {
 
 
 def apply_env_overrides(config: PicoDomeConfig) -> PicoDomeConfig:
-    """Apply PICODOME_* environment variable overrides to config.
 
-    Boolean values: "true", "1", "yes" → True; "false", "0", "no" → False.
-    Numeric values: parsed as float/int.
-    String values: used as-is.
-
-    Precedence: env vars override config file values.
-    CLI flags (applied after this) override env vars.
-    """
-    # Attributes that accept string values
-    _STRING_ATTRS = {"format", "fail_on", "baseline", "policy", "log_format", "store_backend", "sqlite_path", "cors_origins"}
+    _STRING_ATTRS = {
+        "format",
+        "fail_on",
+        "baseline",
+        "policy",
+        "log_format",
+        "store_backend",
+        "sqlite_path",
+        "cors_origins",
+    }
 
     for env_name, attr_name in _ENV_TO_ATTR.items():
         env_val = os.environ.get(env_name)
@@ -323,7 +262,7 @@ def apply_env_overrides(config: PicoDomeConfig) -> PicoDomeConfig:
         else:
             try:
                 val = float(env_val)
-                # Use int if no decimal part and attribute expects int
+
                 if attr_name == "token_budget":
                     setattr(config, attr_name, int(val))
                 else:
@@ -336,14 +275,6 @@ def apply_env_overrides(config: PicoDomeConfig) -> PicoDomeConfig:
 
 
 def load_config(target_dir: Path) -> PicoDomeConfig:
-    """Load configuration from target directory.
-
-    Searches for .picodome.yml or .picodome.yaml in the target directory.
-    Returns default config if no file found.
-    Unknown keys are warned about but do not cause a hard error.
-
-    Deterministic: same directory = same config (or default).
-    """
     config = PicoDomeConfig()
 
     config_path = _find_config(target_dir)
@@ -357,7 +288,6 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
 
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
     except ImportError:
-        # YAML not available — try JSON fallback
         try:
             import json
 
@@ -373,10 +303,8 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-    # Validate against known keys
     _validate_config_keys(data, config_path)
 
-    # Parse config fields
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(
             "Config version %s != expected %s, some fields may be ignored",
@@ -481,18 +409,10 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
     if "cors_origins" in data:
         config.cors_origins = str(data["cors_origins"])
 
-    # Apply environment variable overrides
-    config = apply_env_overrides(config)
-
-    return config
+    return apply_env_overrides(config)
 
 
 def _find_config(target_dir: Path) -> Path | None:
-    """Search for config file in target directory.
-
-    Returns first match in precedence order:
-    .picodome.yml → .picodome.yaml
-    """
     for name in CONFIG_NAMES:
         candidate = target_dir / name
         if candidate.is_file():

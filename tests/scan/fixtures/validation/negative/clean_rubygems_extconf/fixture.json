@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean RubyGem with a minimal extconf.rb that only creates a Makefile. L2-BUILD-001 must stay silent.",
+  "forbidden_rule_ids": ["L2-BUILD-001"]
+}

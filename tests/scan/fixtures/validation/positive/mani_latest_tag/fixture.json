@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "MANI-001 variant: dep with 'latest' tag (fires L2-MANI-001). 'latest' is the npm default but explicitly declared is a signal of unaudited dep management.",
+  "expected_rule_ids": ["L2-MANI-001"]
+}

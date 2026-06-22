@@ -11,9 +11,23 @@ daemon:
   host: "0.0.0.0"
   port: 8443
 
+# gRPC transport (`picosentry sandbox daemon --transport=grpc`).  Opt-in:
+# the default installation serves only the HTTP daemon.  When `enabled: true`
+# the pod is launched with `--transport=grpc --grpc-port=<port>` and the
+# Service exposes the gRPC port alongside the HTTP one.
+grpc:
+  enabled: false
+  port: 50051
+
 # Enterprise mode: requires enforcement backend, no dev bypass
 enterprise:
   enabled: true
+
+security:
+  # Run an init container before the main pod that refuses to start if any
+  # dev-bypass environment variables are set. Disable only for explicit
+  # development Helm installs — never in production.
+  blockDevBypasses: true
 
 # Policy signing configuration
 # Sign policies with HMAC-SHA256 and verify on load.

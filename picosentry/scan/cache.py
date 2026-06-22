@@ -1,35 +1,3 @@
-"""
-Content-addressable scan result cache for PicoSentry.
-
-Avoids re-scanning unchanged lockfiles by caching results keyed on
-(lockfile_hash, corpus_hash, rule_version). Speeds up CI pipelines
-where the same project is repeatedly scanned.
-
-Enterprise features:
-- Configurable TTL, max entries, and max size caps
-- Purge by age, target hash, or full wipe
-- Auto-eviction (LRU by cached_at) when caps exceeded
-- Audit events for all mutations
-
-Usage:
-    from picosentry.scan.cache import ScanCache
-
-    cache = ScanCache()
-    cached = cache.get("lockfile-hash", "corpus-hash", "rule-hash")
-    if cached:
-        return cached
-    result = engine.scan(target)
-    cache.put("lockfile-hash", "corpus-hash", "rule-hash", result)
-
-    # Enterprise: purge old entries
-    removed = cache.purge(age_days=7)
-    removed = cache.purge(corpus_hash="abc123")
-    count = cache.wipe()
-
-Design: local filesystem cache in ~/.cache/picosentry/.
-Zero network calls. TTL-based expiration (default 1 hour).
-"""
-
 from __future__ import annotations
 
 import contextlib
@@ -51,19 +19,10 @@ DEFAULT_MAX_SIZE_MB = 0  # 0 = unlimited
 
 
 def _cache_env(var: str, default: str = "") -> str:
-    """Read a PICOSENTRY_CACHE_ prefixed env var."""
     return os.environ.get(f"PICOSENTRY_{var}", default)
 
 
 def cache_from_env() -> ScanCache:
-    """Create a ScanCache configured from environment variables.
-
-    Env vars (all optional, fall back to class defaults):
-        PICOSENTRY_CACHE_DIR         — cache directory path
-        PICOSENTRY_CACHE_TTL_SECONDS — TTL in seconds (0 = unlimited)
-        PICOSENTRY_CACHE_MAX_ENTRIES  — max entries (0 = unlimited)
-        PICOSENTRY_CACHE_MAX_SIZE_MB  — max size in MB (0 = unlimited)
-    """
     cache_dir = _cache_env("CACHE_DIR")
     ttl = _cache_env("CACHE_TTL_SECONDS")
     max_entries = _cache_env("CACHE_MAX_ENTRIES")
@@ -90,12 +49,8 @@ def cache_from_env() -> ScanCache:
 
 
 def cache_from_config(config: Any = None) -> ScanCache:
-    """Create a ScanCache from a PicoSentryConfig, with env var overrides.
-
-    Priority: env vars > config file > class defaults.
-    """
     kwargs: dict = {}
-    # Config file values
+
     if config is not None:
         if getattr(config, "cache_dir", None):
             kwargs["cache_dir"] = Path(config.cache_dir)
@@ -105,7 +60,7 @@ def cache_from_config(config: Any = None) -> ScanCache:
             kwargs["max_entries"] = config.cache_max_entries
         if getattr(config, "cache_max_size_mb", 0) != 0:
             kwargs["max_size_mb"] = config.cache_max_size_mb
-    # Env var overrides take precedence
+
     env_dir = _cache_env("CACHE_DIR")
     if env_dir:
         kwargs["cache_dir"] = Path(env_dir)
@@ -125,14 +80,6 @@ def cache_from_config(config: Any = None) -> ScanCache:
 
 
 class ScanCache:
-    """Content-addressable cache for scan results.
-
-    Cache key = SHA-256(lockfile_hash + corpus_hash + rule_version).
-    Entries expire after TTL. Caps on entries and size can be configured.
-
-    Thread-safe per-key (writes are atomic via temp file rename).
-    """
-
     def __init__(
         self,
         cache_dir: Path | None = None,
@@ -148,16 +95,13 @@ class ScanCache:
 
     @staticmethod
     def from_env() -> ScanCache:
-        """Create a ScanCache from environment variables."""
         return cache_from_env()
 
     @staticmethod
     def from_config(config: Any = None) -> ScanCache:
-        """Create a ScanCache from PicoSentryConfig with env overrides."""
         return cache_from_config(config)
 
     def _cache_key(self, lockfile_hash: str, corpus_hash: str, rule_version: str) -> str:
-        """Generate a deterministic cache key."""
         raw = f"{lockfile_hash}:{corpus_hash}:{rule_version}"
         return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
@@ -165,17 +109,9 @@ class ScanCache:
         return self.cache_dir / f"{key}.json"
 
     def _hmac(self, data: str) -> str:
-        """Compute HMAC-SHA256 of cache entry data using per-process key."""
         return hmac.new(_CACHE_HMAC_KEY, data.encode(), hashlib.sha256).hexdigest()[:16]
 
     def _enforce_caps(self) -> int:
-        """Evict oldest entries when max_entries or max_size_mb caps are exceeded.
-
-        Uses LRU eviction (oldest cached_at first).
-
-        Returns:
-            Number of entries evicted.
-        """
         if self.max_entries <= 0 and self.max_size_mb <= 0:
             return 0
 
@@ -231,10 +167,6 @@ class ScanCache:
         return evicted
 
     def get(self, lockfile_hash: str, corpus_hash: str, rule_version: str) -> dict | None:
-        """Retrieve a cached scan result.
-
-        Returns None if no cache entry exists or it has expired.
-        """
         key = self._cache_key(lockfile_hash, corpus_hash, rule_version)
         path = self._cache_path(key)
 
@@ -254,7 +186,6 @@ class ScanCache:
             path.unlink(missing_ok=True)
             return None
 
-        # Verify HMAC integrity
         stored_hmac = entry.pop("_hmac", None)
         if stored_hmac:
             recomputed = self._hmac(json.dumps(entry, sort_keys=True))
@@ -263,7 +194,6 @@ class ScanCache:
                 path.unlink(missing_ok=True)
                 return None
 
-        # Check TTL
         cached_at = entry.get("cached_at", 0)
         if time.time() - cached_at > self.ttl:
             logger.debug("Cache expired: %s", key[:8])
@@ -278,10 +208,9 @@ class ScanCache:
         except ImportError:
             pass
 
-        return cast(dict[str, Any] | None, entry.get("result"))
+        return cast("dict[str, Any] | None", entry.get("result"))
 
     def put(self, lockfile_hash: str, corpus_hash: str, rule_version: str, result: dict) -> None:
-        """Store a scan result in the cache."""
         key = self._cache_key(lockfile_hash, corpus_hash, rule_version)
         path = self._cache_path(key)
 
@@ -295,23 +224,15 @@ class ScanCache:
         }
         entry["_hmac"] = self._hmac(json.dumps(entry, sort_keys=True))
 
-        # Atomic write: write to temp file, then rename
         tmp_path = path.with_suffix(".tmp")
         tmp_path.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp_path.replace(path)
 
         logger.debug("Cached scan result: %s", key[:8])
 
-        # Enforce caps after write
         self._enforce_caps()
 
     def invalidate(self, lockfile_hash: str = "", corpus_hash: str = "", rule_version: str = "") -> int:
-        """Invalidate cache entries matching the given criteria.
-
-        If all parameters are empty, invalidates the entire cache.
-
-        Returns number of entries removed.
-        """
         count = 0
         for path in self.cache_dir.glob("*.json"):
             try:
@@ -337,16 +258,6 @@ class ScanCache:
         return count
 
     def purge(self, age_days: int = 0, corpus_hash: str = "", lockfile_hash: str = "") -> int:
-        """Purge cache entries by age and/or content hash.
-
-        Args:
-            age_days: Remove entries older than this many days. 0 = no age filter.
-            corpus_hash: Remove entries matching this corpus hash. Empty = all.
-            lockfile_hash: Remove entries matching this lockfile hash. Empty = all.
-
-        Returns:
-            Number of entries purged.
-        """
         count = 0
         cutoff_time = time.time() - (age_days * 86400) if age_days > 0 else 0
 
@@ -358,13 +269,11 @@ class ScanCache:
                 count += 1
                 continue
 
-            # Check age filter
             if age_days > 0:
                 cached_at = entry.get("cached_at", 0)
                 if cached_at > cutoff_time:
                     continue  # Too young, skip
 
-            # Check hash filters
             if corpus_hash and entry.get("corpus_hash") != corpus_hash:
                 continue
             if lockfile_hash and entry.get("lockfile_hash") != lockfile_hash:
@@ -400,11 +309,6 @@ class ScanCache:
         return count
 
     def wipe(self) -> int:
-        """Wipe the entire cache.
-
-        Returns:
-            Number of entries removed.
-        """
         count = self.invalidate()
         logger.warning("Cache wiped: %d entries removed", count)
 
@@ -418,7 +322,6 @@ class ScanCache:
         return count
 
     def stats(self) -> dict:
-        """Return cache statistics."""
         entries = 0
         size_bytes = 0
         for path in self.cache_dir.glob("*.json"):
@@ -447,12 +350,6 @@ class ScanCache:
         }
 
 
-# HMAC key for cache integrity. Set PICOSENTRY_CACHE_HMAC_KEY for
-# persistent keys across process restarts. Falls back to per-process
-# random key with a warning (cache entries invalidated on restart).
-# When PICOSENTRY_QUIET=1 is set in the environment (e.g. when the scan
-# CLI was invoked with --quiet or --summary), the advisory is demoted to
-# DEBUG to avoid noise on first runs and CI logs.
 _cache_env_key = os.environ.get("PICOSENTRY_CACHE_HMAC_KEY", "")
 if _cache_env_key:
     if len(_cache_env_key) < 32:
@@ -463,6 +360,12 @@ if _cache_env_key:
 else:
     _CACHE_HMAC_KEY = os.urandom(32)
     if os.environ.get("PICOSENTRY_QUIET") == "1":
-        logger.debug("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+        logger.debug(
+            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
+            "Set it for persistent cache integrity.",
+        )
     else:
-        logger.warning("PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. Set it for persistent cache integrity.")
+        logger.warning(
+            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
+            "Set it for persistent cache integrity.",
+        )

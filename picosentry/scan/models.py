@@ -1,21 +1,5 @@
-"""
-Scanner data models — deterministic by construction.
-
-- Findings are frozen dataclasses (immutable)
-- No uuid4/random in output — scan_id is sha256(target + corpus_version + engine_version)
-- No timestamps in finding bodies — timestamp lives on ScanResult only
-- Sorted output: findings sorted by (rule_id, package, file, line)
-- to_dict() uses sorted keys, no random IDs
-
-Shared enums (Severity, Confidence) and ScanStats are imported from picosentry._core.models.
-"""
-
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass  # FindingProtocol is runtime-checkable; import directly when needed
 
 import hashlib
 import json
@@ -25,7 +9,7 @@ from typing import Any
 
 from picosentry._core.models import SEVERITY_ORDER, Confidence, FindingProtocol, Severity
 
-# Re-export for backward compatibility
+
 __all__ = [
     "SEVERITY_ORDER",
     "BaselineResult",
@@ -40,12 +24,9 @@ __all__ = [
     "load_baseline",
 ]
 
-# PicoSentry ScanStats — structurally compatible with picosentry._core.models.ScanStats.
-# Cannot inherit from frozen base, so standalone with same fields + rule_timings_ms.
+
 @dataclass
 class ScanStats:
-    """PicoSentry scan stats — extends _core ScanStats fields with rule_timings_ms."""
-
     packages_scanned: int = 0
     files_scanned: int = 0
     duration_ms: int = 0
@@ -69,12 +50,6 @@ class ScanStats:
 
 @dataclass(frozen=True)
 class Finding:  # rationale: immutable scan finding, frozen for determinism guarantee
-    """A single deterministic finding from a detector rule.
-
-    Immutable by design. Same input + same rule = same Finding.
-    No prose summaries — the consumer formats.
-    """
-
     rule_id: str
     severity: Severity
     confidence: Confidence
@@ -88,23 +63,12 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
     ecosystem: str = "npm"
 
     def fingerprint(self) -> tuple:
-        """Deterministic fingerprint for baseline matching.
-
-        Two findings match if they have the same fingerprint:
-        (rule_id, ecosystem, package, file). This is used for --baseline
-        to suppress known findings.
-
-        Includes ecosystem so same rule+package from different ecosystems
-        are treated as distinct findings.
-        """
         return (self.rule_id, self.ecosystem, self.package, self.file)
 
     def sort_key(self) -> tuple:
-        """Deterministic sort key for stable ordering."""
         return (self.rule_id, self.ecosystem, self.package, self.file, self.line or 0)
 
     def to_dict(self) -> dict[str, Any]:
-        """Deterministic dict — sorted keys, no random IDs, no timestamps."""
         d: dict[str, Any] = {
             "rule_id": self.rule_id,
             "severity": self.severity.value,
@@ -124,12 +88,6 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
 
 @dataclass
 class BaselineResult:
-    """Result of applying baseline filtering to a scan.
-
-    Tracks how many findings were suppressed and what remains.
-    Deterministic: same baseline + same findings = same result.
-    """
-
     original_count: int = 0
     suppressed_count: int = 0
     remaining: list[Finding] = field(default_factory=list)
@@ -140,23 +98,8 @@ class BaselineResult:
 
 
 def load_baseline(path: Path) -> set:
-    """Load a baseline file and return set of finding fingerprints.
-
-    A baseline is a previous scan JSON output. Findings matching
-    (rule_id, ecosystem, package, file) tuples from the baseline are "known"
-    and will be suppressed.
-
-    Supports both:
-    - Legacy 3-tuple (rule_id, package, file) — ecosystem defaults to "npm"
-    - Current 4-tuple (rule_id, ecosystem, package, file)
-
-    Also supports simple ignore format: one rule_id per line,
-    optionally with ecosystem:package pattern (ecosystem:rule_id:package).
-    Lines starting with # are comments. Blank lines are skipped.
-    """
     text = path.read_text(encoding="utf-8")
 
-    # Try JSON format first (previous scan output)
     try:
         data = json.loads(text)
         if "findings" in data:
@@ -173,15 +116,13 @@ def load_baseline(path: Path) -> set:
     except json.JSONDecodeError:
         pass
 
-    # Simple ignore format: one entry per line
-    # Format: RULE_ID or ecosystem:RULE_ID:package or RULE_ID:package:file
     fingerprints = set()
-    for line in text.splitlines():
-        line = line.strip()
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
         if not line or line.startswith("#"):
             continue
         parts = line.split(":", 3)
-        # Detect if first part is an ecosystem hint
+
         if parts[0] in {"npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"}:
             ecosystem = parts[0].strip()
             rule_id = parts[1].strip() if len(parts) > 1 else ""
@@ -198,22 +139,7 @@ def load_baseline(path: Path) -> set:
 
 
 def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineResult:
-    """Filter findings against a baseline, suppressing known findings.
 
-    Args:
-        result: Original scan result with all findings.
-        baseline_fingerprints: Set of fingerprints from baseline.
-            Supports both:
-            - 4-tuple (rule_id, ecosystem, package, file) — current format
-            - 3-tuple (rule_id, package, file) — legacy format, treated as
-              ecosystem="npm" for backward compatibility
-
-    Returns:
-        BaselineResult with suppressed/remaining counts and filtered findings.
-
-    O(n) — builds lookup sets once, then constant-time matching per finding.
-    """
-    # Normalize to 4-tuples: pad 3-tuples with "npm" ecosystem
     normalized: set[tuple[str, str, str, str]] = set()
     for fp in baseline_fingerprints:
         if len(fp) == 3:
@@ -221,7 +147,6 @@ def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineRe
         else:
             normalized.add((fp[0], fp[1], fp[2], fp[3]))
 
-    # Pre-build sets for partial matching: rule_id-only and (rule_id, ecosystem, package)
     rule_only = {fp[0] for fp in normalized if not fp[2]}
     rule_ecosystem_pkg = {(fp[0], fp[1], fp[2]) for fp in normalized if fp[2] and not fp[3]}
     exact = {fp for fp in normalized if fp[3]}
@@ -246,8 +171,6 @@ def apply_baseline(result: ScanResult, baseline_fingerprints: set) -> BaselineRe
 
 @dataclass
 class RuleExecution:
-    """Tracks execution status of a single rule during a scan."""
-
     rule_id: str
     status: str = "success"  # "success", "failed", "skipped"
     duration_ms: int = 0
@@ -271,19 +194,6 @@ class RuleExecution:
 
 @dataclass
 class ScanResult:  # rationale: top-level scan result, deterministic by construction
-    """Complete result of a deterministic scan.
-
-    Deterministic by construction:
-    - scan_id is sha256(target + corpus_version + engine_version)[:16]
-    - Findings are sorted by sort_key()
-    - No uuid4 or random state in output
-    - to_dict(deterministic_output=True) excludes timing and audit data
-
-    Note: ScanResult is intentionally NOT frozen because findings are
-    replaced in-place during override/baseline filtering. The Finding
-    objects themselves ARE frozen.
-    """
-
     target: str = ""
     engine_version: str = ""  # Set by ScanEngine from __version__
     corpus_version: str = ""  # Set by ScanEngine from corpus hash
@@ -298,7 +208,6 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
     rule_executions: list[RuleExecution] = field(default_factory=list)
 
     def recompute_stats(self) -> None:
-        """Recompute aggregate stats from current findings list."""
         by_sev: dict[str, int] = {}
         by_rule: dict[str, int] = {}
         for f in self.findings:
@@ -309,23 +218,16 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
         self.stats.findings_by_rule = dict(sorted(by_rule.items()))
 
     def apply_overrides(self, findings: list) -> ScanResult:
-        """Replace findings list with a new list and recompute stats.
-
-        Used after severity overrides, baseline filtering, or ignore filtering.
-        Returns self for chaining.
-        """
         self.findings = findings
         self.recompute_stats()
         return self
 
     @property
     def scan_id(self) -> str:
-        """Deterministic scan ID: sha256(target + corpus_version + engine_version)."""
         raw = f"{self.target}:{self.corpus_version}:{self.engine_version}"
         return hashlib.sha256(raw.encode()).hexdigest()[:16]
 
     def to_dict(self, deterministic_output: bool = False) -> dict[str, Any]:
-        """Deterministic dict for JSON serialization — sorted keys, no random IDs."""
         sorted_findings = sorted(self.findings, key=lambda f: f.sort_key())
 
         d: dict[str, Any] = {
@@ -336,7 +238,6 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             "findings": [f.to_dict() for f in sorted_findings],
         }
 
-        # Stats: include structure but omit timing in deterministic mode
         if not deterministic_output:
             d["stats"] = self.stats.to_dict()
         else:
@@ -354,7 +255,7 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             d["scan_completeness"] = "partial" if any_failed else "complete"
         if self.policy_result is not None and hasattr(self.policy_result, "to_dict"):
             d["policy"] = self.policy_result.to_dict()
-        # Audit trail — omitted entirely in deterministic mode
+
         if not deterministic_output:
             audit = {}
             if self.started_at:
@@ -370,15 +271,12 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             if audit:
                 d["audit"] = audit
 
-        # Final sort for deterministic key ordering
         return dict(sorted(d.items()))
 
     def to_json(self, indent: int = 2, deterministic_output: bool = False) -> str:
-        """Deterministic JSON — sorted keys, no random content."""
         return json.dumps(self.to_dict(deterministic_output=deterministic_output), sort_keys=True, indent=indent)
 
     def to_ml_context(self, token_budget: int = 4096) -> str:
-        """Compact structured output for LLM tool results."""
         sorted_findings = sorted(self.findings, key=lambda f: f.sort_key())
         lines = [
             f"scan_id={self.scan_id}",

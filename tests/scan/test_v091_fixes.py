@@ -210,7 +210,7 @@ class TestBaselineUpdateNoRescan:
             assert result.returncode in (0, 1)  # 1 = findings found
 
             # Read baseline
-            with open(baseline_path) as f:
+            with Path(baseline_path).open() as f:
                 baseline_data = json.load(f)
             assert "findings" in baseline_data
             assert len(baseline_data["findings"]) > 0
@@ -233,7 +233,7 @@ class TestBaselineUpdateNoRescan:
             )
 
             # The updated baseline should have the same findings (no duplicates, no missing)
-            with open(baseline_path) as f:
+            with Path(baseline_path).open() as f:
                 updated_data = json.load(f)
             assert len(updated_data["findings"]) >= len(baseline_data["findings"])
 

@@ -69,3 +69,7 @@ picosentry/serve/logs/
 
 # PicoDome runtime sandbox state
 .picodome/
+
+# LLM session scratch (per .claude memory: feedback-repo-doc-minimalism).
+# Local-only, never committed, never pushed.
+state.md

@@ -1,14 +1,6 @@
-"""
-Table formatter — human-readable terminal output with claw pinch branding.
-
-Deterministic: findings sorted by (rule_id, package, file, line).
-Machine formats (JSON, SARIF, ml-context) use standard severity labels.
-Table format uses PicoSentry branding: HARD PINCH / SOFT PINCH / NUDGE.
-"""
-
 from picosentry.scan.models import ScanResult, Severity
 
-# ANSI color codes
+
 _COLORS = {
     Severity.CRITICAL: "\033[91m",  # Red
     Severity.HIGH: "\033[93m",  # Yellow
@@ -19,7 +11,7 @@ _COLORS = {
 _RESET = "\033[0m"
 _BOLD = "\033[1m"
 
-# Claw pinch severity labels for human-facing output
+
 _PINCH_LABELS = {
     Severity.CRITICAL: "HARD PINCH",
     Severity.HIGH: "HARD PINCH",
@@ -30,24 +22,17 @@ _PINCH_LABELS = {
 
 
 def format_table(result: ScanResult, color: bool = True) -> str:
-    """
-    Format a ScanResult as a human-readable table with claw pinch branding.
-
-    Deterministic: findings sorted by (rule_id, package, file, line).
-    """
     B = _BOLD if color else ""
     R = _RESET if color else ""
 
     lines = []
 
-    # Header
     lines.append(f"{B}🦞 PicoSentry{R}")
     lines.append(f"Target: {result.target}")
     lines.append(f"Engine: v{result.engine_version} | Corpus: v{result.corpus_version}")
     lines.append(f"Scan ID: {result.scan_id}")
     lines.append("")
 
-    # Stats
     stats = result.stats
     lines.append(f"Packages scanned: {stats.packages_scanned}")
     lines.append(f"Files scanned:     {stats.files_scanned}")
@@ -61,7 +46,6 @@ def format_table(result: ScanResult, color: bool = True) -> str:
             lines.append(f"  {rule_id:<18s} {ms:>5d}ms  ({count} findings)")
     lines.append("")
 
-    # Severity summary with pinch labels
     if stats.findings_by_severity:
         lines.append(f"{B}Pinches by Severity:{R}")
         for sev in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO):
@@ -72,7 +56,6 @@ def format_table(result: ScanResult, color: bool = True) -> str:
                 lines.append(f"  {c}{pinch:<12s}: {count}{R}")
         lines.append("")
 
-    # Findings
     if not result.findings:
         lines.append(f"{B}No pinches. All clear. 🦞{R}")
     else:

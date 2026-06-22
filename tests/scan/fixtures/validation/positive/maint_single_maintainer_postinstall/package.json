@@ -1,0 +1,9 @@
+{
+  "name": "single-maintainer-pkg",
+  "version": "1.0.0",
+  "author": "Solo Author <solo@example.com>",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "node setup.js"
+  }
+}

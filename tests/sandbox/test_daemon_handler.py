@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import io
 import os
+from importlib import import_module
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -20,6 +21,17 @@ def reset_audit_singleton():
     original = audit_logger_mod._audit_logger
     yield
     audit_logger_mod._audit_logger = original
+
+
+@pytest.fixture(autouse=True)
+def reset_cluster_singleton():
+    """Reset the global cluster manager singleton before and after each test."""
+    from picosentry.sandbox.cluster import manager as cluster_manager_mod
+
+    original = cluster_manager_mod._cluster_manager
+    cluster_manager_mod._cluster_manager = None
+    yield
+    cluster_manager_mod._cluster_manager = original
 
 
 def _make_handler(tmp_path, token=None, rate_config=None):
@@ -280,9 +292,77 @@ class TestDaemonLifecycle:
         daemon = PicoDomeDaemon(metrics_port=9090)
         assert daemon._metrics_port == 9090
 
+    def test_init_cluster_config(self):
+        daemon = PicoDomeDaemon(cluster_config={"cluster_token": "secret", "backend": "memory"})
+        assert daemon._cluster_config["cluster_token"] == "secret"
+        assert daemon._cluster_config["backend"] == "memory"
+
     def test_stop_is_idempotent(self):
         daemon = PicoDomeDaemon()
         daemon._server = None
         daemon._metrics_server = None
+        daemon._cluster_manager = None
         daemon._sinks = []
         daemon.stop()  # should not raise
+
+    def test_cluster_manager_starts_with_token(self):
+        daemon = PicoDomeDaemon(
+            host="127.0.0.1",
+            port=0,
+            cluster_config={"cluster_token": "test-token", "backend": "memory"},
+        )
+        daemon.start(background=True)
+        try:
+            assert daemon._cluster_manager is not None
+            assert daemon._cluster_manager.is_running
+            assert daemon._cluster_manager.cluster_token == "test-token"
+        finally:
+            daemon.stop()
+
+    def test_cluster_manager_not_started_without_token(self):
+        daemon = PicoDomeDaemon(host="127.0.0.1", port=0)
+        daemon.start(background=True)
+        try:
+            assert daemon._cluster_manager is None
+        finally:
+            daemon.stop()
+
+    def test_cluster_manager_stops_with_daemon(self):
+        from picosentry.sandbox.cluster.manager import get_cluster_manager
+
+        daemon = PicoDomeDaemon(
+            host="127.0.0.1",
+            port=0,
+            cluster_config={"cluster_token": "stop-test", "backend": "memory"},
+        )
+        daemon.start(background=True)
+        manager = daemon._cluster_manager
+        try:
+            assert manager is not None
+            assert manager.is_running
+            # The daemon uses the global singleton so HTTP handlers see the same manager.
+            assert get_cluster_manager() is manager
+        finally:
+            daemon.stop()
+        assert not manager.is_running
+
+
+class TestDaemonBackendMap:
+    """Regression tests for the daemon scan backend resolver.
+
+    The handler once pointed the backend map at the old ``picodome`` namespace,
+    so explicit ``backend`` selections always failed. These tests ensure the
+    map stays in sync with the real backend classes in ``picosentry.sandbox``.
+    """
+
+    def test_daemon_backend_map_classes_are_importable(self):
+        from picosentry.sandbox.daemon.handler_routes_post import _DAEMON_BACKEND_MAP
+        from picosentry.sandbox.l3.backends.base import SandboxBackend
+
+        for backend_name, cls_path in _DAEMON_BACKEND_MAP.items():
+            module_path, cls_name = cls_path.rsplit(":", 1)
+            module = import_module(module_path)
+            backend_cls = getattr(module, cls_name)
+            assert issubclass(backend_cls, SandboxBackend), (
+                f"{backend_name} backend {cls_path} is not a SandboxBackend subclass"
+            )

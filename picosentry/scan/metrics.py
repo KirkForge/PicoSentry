@@ -1,21 +1,3 @@
-"""
-Observability metrics for PicoSentry.
-
-Provides lightweight counters and histograms for monitoring scan throughput,
-rule hit rates, and verdict distributions. Exportable as JSON for Prometheus
-or any metrics collector via `picosentry daemon` or CLI flag.
-
-Design: zero-dependency, in-process counters. No Prometheus client library needed.
-Export via `picosentry metrics` or HTTP endpoint in daemon mode.
-
-Usage:
-    from picosentry.scan.metrics import get_metrics, increment, observe
-
-    increment("scans.total")
-    observe("scans.duration_ms", 150)
-    print(get_metrics().to_json())
-"""
-
 from __future__ import annotations
 
 import json
@@ -31,8 +13,6 @@ logger = logging.getLogger("picosentry.metrics")
 
 @dataclass
 class MetricsRegistry:
-    """Thread-safe metrics registry with counters and histograms."""
-
     MAX_HISTOGRAM_OBSERVATIONS = 10000  # Cap per metric to bound memory
 
     counters: dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -43,7 +23,6 @@ class MetricsRegistry:
     _start_time: float = field(default_factory=time.monotonic)
 
     def increment(self, name: str, value: int = 1, labels: dict[str, str] | None = None) -> None:
-        """Increment a counter."""
         with self._lock:
             self.counters[name] += value
             if labels:
@@ -51,30 +30,21 @@ class MetricsRegistry:
                     self.counters[f"{name}.{k}.{v}"] += value
 
     def observe(self, name: str, value: int) -> None:
-        """Record a histogram observation.
-
-        Caps at MAX_HISTOGRAM_OBSERVATIONS per metric to bound memory.
-        When the cap is reached, the oldest half of observations are dropped.
-        """
         with self._lock:
             hist = self.histograms[name]
             hist.append(value)
             if len(hist) > self.MAX_HISTOGRAM_OBSERVATIONS:
-                # Drop oldest half to amortize the trimming cost
                 self.histograms[name] = hist[len(hist) // 2 :]
 
     def set_gauge(self, name: str, value: float) -> None:
-        """Set a gauge value."""
         with self._lock:
             self.gauges[name] = value
 
     def set_label(self, key: str, value: str) -> None:
-        """Set a metadata label."""
         with self._lock:
             self.labels[key] = value
 
     def snapshot(self) -> MetricsSnapshot:
-        """Take an atomic snapshot of all metrics."""
         with self._lock:
             return MetricsSnapshot(
                 counters=dict(self.counters),
@@ -88,8 +58,6 @@ class MetricsRegistry:
 
 @dataclass
 class MetricsSnapshot:
-    """Immutable snapshot of metrics at a point in time."""
-
     counters: dict[str, int]
     histograms: dict[str, list[int]]
     gauges: dict[str, float]
@@ -98,7 +66,6 @@ class MetricsSnapshot:
     timestamp: str
 
     def to_dict(self) -> dict:
-        """Convert to a dict suitable for JSON export."""
         histogram_stats = {}
         for name, values in self.histograms.items():
             if not values:
@@ -126,45 +93,39 @@ class MetricsSnapshot:
         }
 
     def to_json(self) -> str:
-        """Export as JSON string."""
         return json.dumps(self.to_dict(), indent=2, sort_keys=True)
 
     def to_prometheus(self) -> str:
-        """Export as Prometheus text format."""
         lines = []
 
-        # Help text
         lines.append("# HELP picosentry_info Metadata about the PicoSentry instance")
         lines.append("# TYPE picosentry_info gauge")
         for k, v in self.labels.items():
             lines.append(f'picosentry_info{{key="{k}"}} {v}')
 
-        # Counters
         for name, value in self.counters.items():
             safe_name = name.replace(".", "_").replace("-", "_")
             lines.append(f"# HELP picosentry_{safe_name} Counter for {name}")
             lines.append(f"# TYPE picosentry_{safe_name} counter")
             lines.append(f"picosentry_{safe_name} {value}")
 
-        # Histograms
         for name, stats in self.to_dict().get("histograms", {}).items():
             safe_name = name.replace(".", "_").replace("-", "_")
             lines.append(f"# HELP picosentry_{safe_name} Histogram for {name}")
             lines.append(f"# TYPE picosentry_{safe_name} summary")
-            for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg"):
-                lines.append(f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}')
+            lines.extend(
+                f'picosentry_{safe_name}{{quantile="{stat_key}"}} {stats[stat_key]}'
+                for stat_key in ("count", "sum", "min", "max", "p50", "p95", "p99", "avg")
+            )
 
         return "\n".join(lines) + "\n"
 
-
-# ── Global metrics registry ─────────────────────────────────────────────
 
 _global_registry: MetricsRegistry | None = None
 _global_lock = threading.Lock()
 
 
 def get_metrics() -> MetricsRegistry:
-    """Get or create the global metrics registry."""
     global _global_registry
     with _global_lock:
         if _global_registry is None:
@@ -177,28 +138,22 @@ def get_metrics() -> MetricsRegistry:
 
 
 def reset_metrics() -> None:
-    """Reset the global metrics registry (for testing)."""
     global _global_registry
     with _global_lock:
         _global_registry = None
 
 
 def increment(name: str, value: int = 1, labels: dict[str, str] | None = None) -> None:
-    """Increment a counter in the global registry."""
     get_metrics().increment(name, value, labels)
 
 
 def observe(name: str, value: int) -> None:
-    """Record a histogram observation."""
     get_metrics().observe(name, value)
 
 
 def set_gauge(name: str, value: float) -> None:
-    """Set a gauge value."""
     get_metrics().set_gauge(name, value)
 
-
-# ── Predefined metric names ─────────────────────────────────────────────
 
 METRIC_SCANS_TOTAL = "scans.total"
 METRIC_SCANS_BY_VERDICT = "scans.by_verdict"

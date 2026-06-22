@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PYPI OBFS bypass variant: ord() chain (fires L2-PYPI-OBFS-004). The regex matches both chr() and ord() chained with +.",
+  "expected_rule_ids": ["L2-PYPI-OBFS-004"]
+}

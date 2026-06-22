@@ -1,9 +1,3 @@
-"""L6 Output Guard — deterministic output validation.
-
-Schema check → Content policy → PII scan → Format guard → Verdict.
-Same output + same rules + same config = same verdict. Always.
-"""
-
 from __future__ import annotations
 
 import json
@@ -18,15 +12,11 @@ from picosentry.watch.prompt_guard.rules import RuleEngine
 from picosentry.watch.types import PromptScanResult, Rule, ValidationResult
 
 
+class SchemaTooLargeError(ValueError):
+    """Raised when a runtime JSON schema exceeds configured size/depth limits."""
+
+
 class OutputGuard:
-    """L6 Output Guard: deterministic output validation.
-
-    Usage:
-        guard = OutputGuard()
-        result = guard.validate('{"name": "John"}', schema=my_schema)
-        print(result.valid, result.score, result.violations)
-    """
-
     def __init__(
         self,
         rules_dir: Path | None = None,
@@ -42,20 +32,13 @@ class OutputGuard:
 
     @property
     def rules(self) -> list[Rule]:
-        """Loaded output policy rules, sorted by ID."""
         return self._engine.rules
 
     @property
     def corpus_hash(self) -> str:
-        """SHA-256 hash of all rule files."""
         return self._engine.corpus_hash
 
     def _load_schemas(self, schema_dir: Path) -> None:
-        """Load JSON schemas from schema_dir for use in validation.
-
-        Schema files must be named <name>.json and contain a valid
-        JSON Schema object. They are keyed by filename stem.
-        """
         for schema_file in sorted(schema_dir.glob("*.json")):
             try:
                 data = json.loads(schema_file.read_text(encoding="utf-8"))
@@ -63,6 +46,7 @@ class OutputGuard:
                     self._loaded_schemas[schema_file.stem] = data
             except (json.JSONDecodeError, OSError) as exc:
                 import logging
+
                 logging.getLogger("picowatch.output_guard").warning(
                     "Failed to load schema %s: %s", schema_file.name, exc
                 )
@@ -74,32 +58,23 @@ class OutputGuard:
         schema_name: str | None = None,
         prompt_result: PromptScanResult | None = None,
     ) -> ValidationResult:
-        """Validate an LLM output.
-
-        Args:
-            output: The LLM output text to validate.
-            schema: Optional JSON Schema for structural validation.
-            schema_name: Name of a pre-loaded schema (from schema_dir config).
-            prompt_result: Optional L5 scan result — flagged prompts
-                get stricter validation.
-
-        Returns:
-            ValidationResult with valid, score, violations, redacted, etc.
-        """
         start = time.perf_counter()
         violations: list[str] = []
         total_score = 0.0
         redacted = output
 
-        # Step 1: Schema validation (if schema provided or named)
         effective_schema = schema
         if effective_schema is None and schema_name and schema_name in self._loaded_schemas:
             effective_schema = self._loaded_schemas[schema_name]
         if effective_schema is not None:
+            _check_schema_size(
+                effective_schema,
+                max_nodes=self._config.max_json_schema_nodes,
+                max_depth=self._config.max_json_schema_depth,
+            )
             schema_violations = self._check_schema(output, effective_schema)
             violations.extend(schema_violations)
 
-        # Step 2: Content policy (output rules)
         normalized = self._normalizer.normalize(output)
         matches = self._engine.evaluate(normalized)
         if matches:
@@ -107,18 +82,14 @@ class OutputGuard:
                 violations.append(rule.id)
                 total_score = max(total_score, rule.weight)
 
-        # Step 3: PII detection and redaction
         redacted, pii_violations = self._detect_pii(output)
         for v in pii_violations:
             if v not in violations:
                 violations.append(v)
 
-        # Step 4: Feedback loop — if prompt was flagged, lower the threshold
         if prompt_result and prompt_result.score >= 0.4:
-            # Flagged prompt: any output violation is more serious
             total_score = min(1.0, total_score * 1.3)
 
-        # Deduplicate violations (rule engine and PII detector can overlap)
         seen: set[str] = set()
         unique_violations: list[str] = []
         for v in violations:
@@ -126,7 +97,6 @@ class OutputGuard:
                 seen.add(v)
                 unique_violations.append(v)
 
-        # Final score
         score = round(total_score, 6)
         valid = score < self._config.threshold_block and len(unique_violations) == 0
 
@@ -145,10 +115,6 @@ class OutputGuard:
         )
 
     def _check_schema(self, output: str, schema: dict[str, Any]) -> list[str]:
-        """Basic schema validation without jsonschema dependency.
-
-        For full Draft 2020-12 validation, install jsonschema.
-        """
         violations: list[str] = []
 
         try:
@@ -157,7 +123,6 @@ class OutputGuard:
             violations.append("out_fmt_invalid_json")
             return violations
 
-        # Basic type checking from schema
         schema_type = schema.get("type")
         if schema_type and (
             (schema_type == "object" and not isinstance(data, dict))
@@ -170,30 +135,16 @@ class OutputGuard:
         ):
             violations.append("out_fmt_type_mismatch")
 
-        # Required fields
         required = schema.get("required", [])
         if isinstance(data, dict) and required:
-            for field in required:
-                if field not in data:
-                    violations.append(f"out_fmt_missing_required_{field}")
+            violations.extend(f"out_fmt_missing_required_{field}" for field in required if field not in data)
 
         return violations
 
     def _detect_pii(self, text: str) -> tuple[str, list[str]]:
-        """Detect and redact PII and exfiltration patterns in text.
-
-        Covers all YAML rule patterns that require redaction:
-        - PII: SSN, credit card, email, phone, API key, IP, passport, JWT, crypto wallet, AWS ARN
-        - Exfiltration: env vars, internal URLs, DB URLs, SSH keys, OAuth tokens, Docker/K8s secrets
-
-        Returns (redacted_text, violation_ids).
-        """
         violations: list[str] = []
         redacted = text
 
-        # Order matters: more specific patterns first to avoid partial matches
-
-        # SSH/private key (highest severity exfiltration)
         ssh_key_pattern = re.compile(
             r"-----BEGIN\s+(?:RSA\s+)?(?:PRIVATE\s+)?KEY-----"
             r"[\s\S]*?"
@@ -203,19 +154,16 @@ class OutputGuard:
             violations.append("out_exfil_ssh_key")
             redacted = ssh_key_pattern.sub("[PRIVATE-KEY-REDACTED]", redacted)
 
-        # JWT token
         jwt_pattern = re.compile(r"eyJ[A-Za-z0-9_-]+\.eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+")
         if jwt_pattern.search(redacted):
             violations.append("out_pii_jwt")
             redacted = jwt_pattern.sub("[JWT-REDACTED]", redacted)
 
-        # Database connection string
         db_url_pattern = re.compile(r"(?:postgres|mysql|mongodb|redis|mssql)://[^\s]+")
         if db_url_pattern.search(redacted):
             violations.append("out_exfil_database_url")
             redacted = db_url_pattern.sub("[DB-URL-REDACTED]", redacted)
 
-        # OAuth/access tokens (Google, GitHub, GitLab, Slack)
         oauth_pattern = re.compile(
             r"(?:ya29[.\-_]|ghp_|gho_|github_pat_|glpat-|gitlab-[a-z]+-token|xox[bpas]-)[A-Za-z0-9_.\-]{20,}"
         )
@@ -223,13 +171,11 @@ class OutputGuard:
             violations.append("out_exfil_oauth_token")
             redacted = oauth_pattern.sub("[OAUTH-TOKEN-REDACTED]", redacted)
 
-        # AWS ARN
         arn_pattern = re.compile(r"arn:aws[a-z-]*:[a-z0-9-]+:[a-z0-9-]*:\d*:[^\s]+")
         if arn_pattern.search(redacted):
             violations.append("out_pii_aws_arn")
             redacted = arn_pattern.sub("[AWS-ARN-REDACTED]", redacted)
 
-        # API key patterns (AWS, OpenAI, GCP, GitHub)
         api_key_pattern = re.compile(
             r"(?:AKIA|AGPA|AIDA|AROA|AIPA|ANPA|ANVA|ASIA)[0-9A-Z]{16}"
             r"|(?:sk|pk|rk)_[a-zA-Z0-9]{20,}"
@@ -240,31 +186,26 @@ class OutputGuard:
             violations.append("out_pii_api_key")
             redacted = api_key_pattern.sub("[API-KEY-REDACTED]", redacted)
 
-        # Credit card number
         cc_pattern = re.compile(r"\b(?:\d{4}[\s-]?){3}\d{4}\b")
         if cc_pattern.search(redacted):
             violations.append("out_pii_credit_card")
             redacted = cc_pattern.sub("[CC-REDACTED]", redacted)
 
-        # SSN pattern
         ssn_pattern = re.compile(r"\b\d{3}-\d{2}-\d{4}\b")
         if ssn_pattern.search(redacted):
             violations.append("out_pii_ssn")
             redacted = ssn_pattern.sub("[SSN-REDACTED]", redacted)
 
-        # Passport/national ID (tightened: require 2+ letters or digit count 7-9 to reduce false positives)
         passport_pattern = re.compile(r"\b[A-Z]{2}\d{7,9}\b|\b[A-Z]\d{8,9}\b")
         if passport_pattern.search(redacted):
             violations.append("out_pii_passport")
             redacted = passport_pattern.sub("[PASSPORT-REDACTED]", redacted)
 
-        # Cryptocurrency wallet address (tightened: 0x prefix required for ETH, specific BTC patterns)
         crypto_pattern = re.compile(r"0x[0-9a-fA-F]{40}|[13][a-km-zA-HJ-NP-Z1-9]{25,34}|bc1[qQ][0-9a-zA-Z]{39,59}")
         if crypto_pattern.search(redacted):
             violations.append("out_pii_crypto_wallet")
             redacted = crypto_pattern.sub("[CRYPTO-WALLET-REDACTED]", redacted)
 
-        # Internal/private URL (must check before generic IP)
         internal_url_pattern = re.compile(
             r"(?:https?://)?(?:10\.\d{1,3}|172\.(?:1[6-9]|2[0-9]|3[01])|192\.168)\.\d{1,3}\.\d{1,3}"
             r"|localhost|127\.0\.0\.1|0\.0\.0\.0"
@@ -273,19 +214,16 @@ class OutputGuard:
             violations.append("out_exfil_internal_url")
             redacted = internal_url_pattern.sub("[INTERNAL-URL-REDACTED]", redacted)
 
-        # IP address (public or private — after internal URL check)
         ip_pattern = re.compile(r"\b(?:\d{1,3}\.){3}\d{1,3}\b")
         if ip_pattern.search(redacted):
             violations.append("out_pii_ip_address")
             redacted = ip_pattern.sub("[IP-REDACTED]", redacted)
 
-        # Docker/Kubernetes secret exfiltration (more specific — before env var)
         docker_secret_pattern = re.compile(r"(?:DOCKER_|KUBERNETES_|K8S_)[A-Z_]+\s*=\s*[^\s]+")
         if docker_secret_pattern.search(redacted):
             violations.append("out_exfil_docker_secret")
             redacted = docker_secret_pattern.sub("[K8S-SECRET-REDACTED]", redacted)
 
-        # Environment variable exfiltration (tightened: require sensitive-value indicators)
         env_var_pattern = re.compile(
             r"(?:AWS_(?:SECRET|ACCESS|KEY|SESSION)|GCP_(?:KEY|SECRET|TOKEN|CREDENTIALS)"
             r"|AZURE_(?:CLIENT_SECRET|SUBSCRIPTION|TENANT|KEY)|DATABASE_(?:URL|PASSWORD|URI)"
@@ -297,13 +235,11 @@ class OutputGuard:
             violations.append("out_exfil_env_var")
             redacted = env_var_pattern.sub("[ENV-VAR-REDACTED]", redacted)
 
-        # Email pattern
         email_pattern = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
         if email_pattern.search(redacted):
             violations.append("out_pii_email")
             redacted = email_pattern.sub("[EMAIL-REDACTED]", redacted)
 
-        # Phone pattern (US + international)
         phone_pattern = re.compile(
             r"\b(?:\+?1[-.\s]?)?\(?\d{3}\)?[-.\s]?\d{3}[-.\s]?\d{4}\b"
             r"|\b\+?(?:\d{1,3}[-.\s]?)?\(?\d{1,4}\)?[-.\s]?\d{3,4}[-.\s]?\d{3,4}\b"
@@ -313,3 +249,24 @@ class OutputGuard:
             redacted = phone_pattern.sub("[PHONE-REDACTED]", redacted)
 
         return redacted, violations
+
+
+def _check_schema_size(schema: dict[str, Any], *, max_nodes: int, max_depth: int) -> None:
+    """Reject pathological JSON schemas before they are evaluated."""
+
+    def _count(obj: Any, depth: int) -> int:
+        if depth > max_depth:
+            raise SchemaTooLargeError(
+                f"JSON schema depth exceeds maximum ({max_depth}). Rejecting immediately."
+            )
+        if isinstance(obj, dict):
+            return 1 + sum(_count(v, depth + 1) for v in obj.values())
+        if isinstance(obj, list):
+            return 1 + sum(_count(item, depth + 1) for item in obj)
+        return 1
+
+    nodes = _count(schema, 1)
+    if nodes > max_nodes:
+        raise SchemaTooLargeError(
+            f"JSON schema exceeds maximum node count ({max_nodes}). Rejecting immediately."
+        )

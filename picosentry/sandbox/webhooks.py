@@ -1,18 +1,3 @@
-"""Webhook/callback notifications for scan events.
-
-Enterprise deployments need to integrate PicoDome alerts into their
-incident response pipelines (PagerDuty, Slack, Opsgenie, generic HTTP).
-
-When a scan produces findings at or above a configurable severity
-threshold, PicoDome POSTs a JSON payload to registered webhook URLs.
-
-Design:
-- Fire-and-forget with retry (3 attempts, exponential backoff)
-- Configurable per-webhook severity threshold
-- HMAC-SHA256 signature for payload verification
-- Bounded async delivery (no unbounded goroutine/thread spawning)
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -40,8 +25,6 @@ class WebhookEvent(str, Enum):
 
 @dataclass(frozen=True)
 class WebhookConfig:
-    """Configuration for a single webhook endpoint."""
-
     url: str
     secret: str = ""  # HMAC signing secret
     events: list[str] = field(default_factory=lambda: ["scan_alert"])
@@ -64,8 +47,6 @@ class WebhookConfig:
 
 @dataclass(frozen=True)
 class WebhookPayload:
-    """JSON payload sent to webhook endpoints."""
-
     event: str
     timestamp: str
     data: dict[str, Any]
@@ -80,7 +61,6 @@ class WebhookPayload:
 
 
 def _sign_payload(payload_json: str, secret: str) -> str:
-    """Create HMAC-SHA256 signature for payload verification."""
     if not secret:
         return ""
     mac = hmac.new(secret.encode(), payload_json.encode(), hashlib.sha256)
@@ -88,26 +68,8 @@ def _sign_payload(payload_json: str, secret: str) -> str:
 
 
 class WebhookDispatcher:
-    """Dispatch webhook notifications for scan events.
-
-    Usage::
-
-        dispatcher = WebhookDispatcher()
-        dispatcher.add_webhook(WebhookConfig(
-            url="https://hooks.slack.com/services/...",
-            secret="my-signing-secret",
-            events=["scan_alert"],
-            min_severity="high",
-        ))
-        dispatcher.notify(
-            event=WebhookEvent.SCAN_ALERT,
-            data={"package": "evil-pkg", "findings": 3, "verdict": "MALICIOUS"},
-        )
-    """
-
     SEVERITY_ORDER: ClassVar[dict[str, int]] = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
-    # F13: Blocked URL patterns for SSRF protection
     BLOCKED_URL_PATTERNS = (
         "169.254.",  # cloud metadata (AWS/GCP/Azure)
         "100.64.",  # CGNAT / private
@@ -128,8 +90,7 @@ class WebhookDispatcher:
         self._active_threads: list[threading.Thread] = []
 
     def add_webhook(self, config: WebhookConfig) -> None:
-        """Register a webhook endpoint."""
-        # F13: Validate webhook URL against SSRF patterns
+
         if self._is_blocked_url(config.url):
             logger.error("Webhook URL blocked (SSRF protection): %s", config.url)
             return
@@ -138,7 +99,6 @@ class WebhookDispatcher:
 
     @classmethod
     def _is_blocked_url(cls, url: str) -> bool:
-        """F13: Check if a URL matches blocked SSRF patterns."""
         from urllib.parse import urlparse
 
         parsed = urlparse(url)
@@ -150,11 +110,9 @@ class WebhookDispatcher:
         return False
 
     def remove_webhook(self, url: str) -> None:
-        """Remove a webhook by URL."""
         self._webhooks = [w for w in self._webhooks if w.url != url]
 
     def list_webhooks(self) -> list[dict[str, Any]]:
-        """List all registered webhooks."""
         return [w.to_dict() for w in self._webhooks]
 
     def notify(
@@ -163,16 +121,6 @@ class WebhookDispatcher:
         data: dict[str, Any],
         severity: str | None = None,
     ) -> dict[str, Any]:
-        """Send notifications to matching webhooks.
-
-        Args:
-            event: The event type.
-            data: Event payload data.
-            severity: Severity level (for filtering by min_severity).
-
-        Returns:
-            Dict with delivery results per webhook.
-        """
         delivered = 0
         failed = 0
         skipped = 0
@@ -183,12 +131,10 @@ class WebhookDispatcher:
                 skipped += 1
                 continue
 
-            # Check event filter
             if event.value not in wh.events and "*" not in wh.events:
                 skipped += 1
                 continue
 
-            # Check severity filter
             if severity and wh.min_severity:
                 sev_level = self.SEVERITY_ORDER.get(severity.lower(), 99)
                 min_level = self.SEVERITY_ORDER.get(wh.min_severity.lower(), 99)
@@ -196,7 +142,6 @@ class WebhookDispatcher:
                     skipped += 1
                     continue
 
-            # Build and sign payload
             timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
             payload = WebhookPayload(
                 event=event.value,
@@ -206,7 +151,6 @@ class WebhookDispatcher:
             payload_json = payload.to_json()
             signature = _sign_payload(payload_json, wh.secret)
 
-            # Deliver with retries
             success = self._deliver(wh, payload_json, signature)
             if success:
                 delivered += 1
@@ -228,11 +172,6 @@ class WebhookDispatcher:
         data: dict[str, Any],
         severity: str | None = None,
     ) -> None:
-        """Fire-and-forget webhook notification (non-blocking).
-
-        Spawns a background thread for delivery. Use this instead of
-        ``notify()`` when you don't want to block the caller.
-        """
         threading.Thread(
             target=self._notify_sync,
             args=(event, data, severity),
@@ -240,7 +179,6 @@ class WebhookDispatcher:
         ).start()
 
     def _notify_sync(self, event: WebhookEvent, data: dict[str, Any], severity: str | None = None) -> None:
-        """Synchronous notification (runs in background thread)."""
         for wh in self._webhooks:
             if not wh.enabled:
                 continue
@@ -258,7 +196,6 @@ class WebhookDispatcher:
             self._deliver(wh, payload_json, signature)
 
     def _deliver(self, config: WebhookConfig, payload_json: str, signature: str) -> bool:
-        """Deliver a webhook payload with retries."""
         for attempt in range(config.max_retries):
             try:
                 req = urllib.request.Request(
@@ -294,7 +231,6 @@ class WebhookDispatcher:
 
     @classmethod
     def from_config(cls, config_data: dict[str, Any]) -> WebhookDispatcher:
-        """Create dispatcher from .picodome.yml webhooks section."""
         dispatcher = cls()
         for wh in config_data.get("webhooks", []):
             dispatcher.add_webhook(

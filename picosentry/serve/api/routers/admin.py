@@ -1,9 +1,8 @@
-"""Backup, log management, audit, and event history endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, Query
 
-from picosentry.serve.api.deps import get_current_user, require_role
+from picosentry.serve.api.deps import require_role
 from picosentry.serve.services.audit_cleanup import get_audit_stats, purge_audit_logs
 from picosentry.serve.services.backup import BackupManager
 from picosentry.serve.services.event_bus import event_bus
@@ -16,29 +15,25 @@ router = APIRouter()
 
 @router.post("/backup", tags=["Backup"])
 async def create_backup(user: dict = Depends(require_role("admin"))):
-    """Create a database backup (admin+ required)."""
     backup_mgr = BackupManager()
     result = backup_mgr.create_backup()
     return {"status": "backup_created", "path": result}
 
 
 @router.get("/backups", tags=["Backup"])
-async def list_backups(user: dict = Depends(get_current_user)):
-    """List available database backups."""
+async def list_backups(user: dict = Depends(require_role("admin"))):
     backup_mgr = BackupManager()
     backups = backup_mgr.list_backups()
     return {"backups": backups}
 
 
 @router.get("/logs/stats", tags=["Logs"])
-async def get_log_stats(user: dict = Depends(get_current_user)):
-    """Get log rotation statistics."""
+async def get_log_stats(user: dict = Depends(require_role("admin"))):
     return log_manager.get_stats()
 
 
 @router.post("/logs/rotate", tags=["Logs"])
-async def rotate_logs(user: dict = Depends(get_current_user)):
-    """Trigger log rotation."""
+async def rotate_logs(user: dict = Depends(require_role("admin"))):
     log_manager.rotate()
     return {"status": "rotated"}
 
@@ -49,15 +44,13 @@ async def get_logs(
     source: str | None = None,
     search: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_role("admin")),
 ):
-    """Query log entries with optional filtering."""
     return {"entries": log_manager.query(level=level, source=source, search=search, limit=limit)}
 
 
 @router.get("/audit/stats", tags=["Audit"])
-async def audit_stats(user: dict = Depends(get_current_user)):
-    """Get audit log statistics and retention policy."""
+async def audit_stats(user: dict = Depends(require_role("admin"))):
     return get_audit_stats()
 
 
@@ -67,11 +60,6 @@ async def purge_audit(
     dry_run: bool = False,
     user: dict = Depends(require_role("admin")),
 ):
-    """Purge audit logs older than retention period.
-
-    Admin-only. Default uses per-severity retention policy.
-    Set dry_run=true to preview what would be deleted.
-    """
     return purge_audit_logs(retention_days=retention_days, dry_run=dry_run)
 
 
@@ -79,9 +67,8 @@ async def purge_audit(
 async def get_event_history(
     event_type: str | None = None,
     limit: int = Query(100, ge=1, le=1000),
-    user: dict = Depends(get_current_user),
+    user: dict = Depends(require_role("admin")),
 ):
-    """Query event bus history."""
     events = event_bus.get_history(event_type, limit)
     return [
         {

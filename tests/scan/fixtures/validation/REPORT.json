@@ -1,636 +1,1383 @@
 {
-  "fixture_results": [
-    {
-      "details": [],
-      "fixture": "anonymous_npm_with_postinstall",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_cargo_acme",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_go_internal",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_maven_internal",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_npm_internal_scope",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_nuget_internal",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_pypi_internal",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "dep_confusion_rubygems_internal",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "fork_drift_personal_repo",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "ioc_event_stream_shadow",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "loose_engine_constraint_npm",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "loose_manifest_npm",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_cargo_serde_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_go_jwt_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_maven_log4j_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_bundled_dependencies",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_c2_shai_hulud",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_git_dep",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_lodash_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_obfuscated_js",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_npm_postinstall",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_nuget_newtonsoft_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_pnpm_dangerous",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_pypi",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_pypi_django_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_pypi_obfs_full",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "malicious_rubygems_rack_cve",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "missing_lockfile_npm",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "missing_repo_npm",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "shai_hulud_named_signature",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_cargo_reqwast",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_go_gogin",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_maven_junnit",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_npm_reactt",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_nuget_newtonsot",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_pypi_requestt",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "typosquat_rubygems_devvise",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "unlicensed_npm_package",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "worm_propagation_npm",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_cargo_lib",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_go_module",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_npm_app",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_npm_unique_package_name",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_npm_with_internal_scope_private_registry",
-      "outcome": "PASS"
-    },
-    {
-      "details": [],
-      "fixture": "clean_pypi_lib",
-      "outcome": "PASS"
-    }
-  ],
+  "total_fixtures": 188,
+  "total_positive": 150,
+  "total_negative": 38,
   "mean_precision": 1.0,
   "mean_recall": 1.0,
   "rule_metrics": [
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
+      "rule_id": "L2-BUILD-001",
+      "true_positives": 5,
       "false_positives": 0,
+      "false_negatives": 0,
       "precision": 1.0,
-      "recall": 1.0,
+      "recall": 1.0
+    },
+    {
       "rule_id": "L2-BUND-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
+      "rule_id": "L2-CAMP-AXIOS-POISONING",
+      "true_positives": 1,
       "false_positives": 0,
+      "false_negatives": 0,
       "precision": 1.0,
-      "recall": 1.0,
+      "recall": 1.0
+    },
+    {
+      "rule_id": "L2-CAMP-NODE-IPC-COMPROMISE",
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
+    },
+    {
       "rule_id": "L2-CAMP-SHAI-HULUD",
-      "true_positives": 1
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
+      "rule_id": "L2-CAMP-TRAPDOOR",
+      "true_positives": 1,
       "false_positives": 0,
+      "false_negatives": 0,
       "precision": 1.0,
-      "recall": 1.0,
+      "recall": 1.0
+    },
+    {
       "rule_id": "L2-CARGO-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-CARGO-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-CARGO-TYPO-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-CRED-001",
-      "true_positives": 1
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-ENGIN-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-FORK-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-GO-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-GO-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-GO-TYPO-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-IOC-001",
-      "true_positives": 1
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-LICENSE-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-LOCK-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MAINT-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MANI-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MANI-002",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MAVEN-ADV-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MAVEN-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-MAVEN-TYPO-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-NETEX-001",
-      "true_positives": 1
+      "true_positives": 5,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-NUGET-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-NUGET-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-NUGET-TYPO-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-OBFS-001",
-      "true_positives": 1
+      "true_positives": 5,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-OBFS-002",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-OBFS-003",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-OBFS-004",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PNPM-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-POST-001",
-      "true_positives": 1
+      "true_positives": 11,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PROV-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-DEPC-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-001",
-      "true_positives": 1
+      "true_positives": 5,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-002",
-      "true_positives": 1
+      "true_positives": 6,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-003",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-004",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-005",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-006",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-OBFS-007",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-POST-001",
-      "true_positives": 1
+      "true_positives": 2,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-PYPI-TYPO-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-RUBYGEMS-ADV-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-RUBYGEMS-DEPC-001",
-      "true_positives": 1
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-RUBYGEMS-TYPO-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-SIDELOAD-001",
-      "true_positives": 1
+      "true_positives": 1,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-TYPO-001",
-      "true_positives": 1
+      "true_positives": 4,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     },
     {
-      "false_negatives": 0,
-      "false_positives": 0,
-      "precision": 1.0,
-      "recall": 1.0,
       "rule_id": "L2-WORM-001",
-      "true_positives": 1
+      "true_positives": 3,
+      "false_positives": 0,
+      "false_negatives": 0,
+      "precision": 1.0,
+      "recall": 1.0
     }
   ],
-  "total_fixtures": 45,
-  "total_negative": 6,
-  "total_positive": 39
+  "fixture_results": [
+    {
+      "fixture": "anonymous_npm_with_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "bundled_alt_spelling",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "camp_axios_poisoning",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "camp_node_ipc_compromise",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "camp_trapdoor_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_cargo_serde_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_cargo_serde_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_go_jwt_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_go_jwt_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_maven_log4j_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_npm_lodash_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_npm_lodash_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_nuget_newtonsoft_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_nuget_newtonsoft_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_pypi_django_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_pypi_django_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_rubygems_rack_range_overlap",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "cve_rubygems_rack_transitive",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_cargo_acme",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_go_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_maven_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_npm_internal_scope",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_nuget_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_pypi_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "dep_confusion_rubygems_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_cargo_company_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_cargo_corp_utils",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_cargo_org_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_go_acme_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_go_corp_utils",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_go_org_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_maven_acme_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_maven_corp_utils",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_maven_org_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_npm_internal_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_npm_internal_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_npm_private_auth",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_nuget_acme_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_nuget_corp_internal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_nuget_org_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_pypi_company_billing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_pypi_corp_utils",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "depc_pypi_org_payments",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "fork_drift_personal_repo",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "fork_patched_named",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "ioc_event_stream_shadow",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "license_missing",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "license_see_license_in_license",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "lockfile_malformed",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "loose_engine_constraint_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "loose_manifest_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "maint_single_maintainer_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_cargo_build_rs",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_cargo_serde_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_go_generate",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_go_jwt_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_maven_exec_plugin",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_maven_log4j_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_bundled_dependencies",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_c2_shai_hulud",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_git_dep",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_install",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_lodash_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_obfuscated_js",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_preinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_npm_prepare",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_nuget_msbuild_target",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_nuget_newtonsoft_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_pnpm_dangerous",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_pypi",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_pypi_django_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_pypi_obfs_full",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_pypi_poetry_subprocess",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_rubygems_extconf",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "malicious_rubygems_rack_cve",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "mani_latest_tag",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "mani_optional_dep_lifecycle",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "missing_lockfile_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "missing_repo_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "netex_c2_shai_hulud_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "netex_env_exfil_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "netex_imds_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_command_injection_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_engin_typo",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_b64_atob_eval",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_b64_function",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_base64_exec",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_eval",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_eval_in_block",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_function_constructor",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_hex",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_hex_longer",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_hex_single_quotes",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_unicode",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_unicode_longer",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_obfs_unicode_single_quotes",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_proto_pollution_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_regex_dos_manifest",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "npm_ssrf_postinstall",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pnpm_overrides_github",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pnpm_proto_pollution_hook",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "prov_non_github_repo",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_b64_exec",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_b64_exec_close",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_b64decodestring",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_b64import_dec",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_base64_decode",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_chr_longer",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_eval",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_eval_compile",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_hex",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_hex_single",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_marshal",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_marshal_load",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_ord_chain",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_unhexlify_eval",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_unicode",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_zlib",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "pypi_obfs_zlib_double",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "shai_hulud_named_signature",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_cargo_actix_webb",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_cargo_cl4p",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_cargo_reqwast",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_cargo_serd3",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_go_cobraa",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_go_g0rm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_go_gim",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_go_gogin",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_maven_gs0n",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_maven_junnit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_npm_exprezz",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_npm_l0dash",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_npm_m0ment",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_npm_reactt",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_nuget_m0oq",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_nuget_newtonsof",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_nuget_newtonsot",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_nuget_nun1t",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_pypi_djang0",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_pypi_fl4sk",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_pypi_numpt",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_pypi_requestt",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_rubygems_d3vise",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_rubygems_devvise",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "typosquat_rubygems_rai1s",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "unlicensed_npm_package",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "worm_github_workflow_delete",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "worm_propagation_npm",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "worm_self_modify_package_json",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_cargo_build_rs",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_cargo_lib",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_cargo_trapdoor_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_cargo_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_go_generate",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_go_module",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_go_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_maven_exec_plugin",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_maven_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_app",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_axios_cdn",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_credential_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_internal_scope_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_ioc_clean",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_license_mit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_lockfile_consistent",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_manifest_clean",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_network_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_node_ipc_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_obfs_strings",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_pnpm_config_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_postinstall_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_shai_hulud_legit",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_trapdoor_lookalike",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_unique_package_name",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_npm_with_internal_scope_private_registry",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_nuget_msbuild_target",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_nuget_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_obfs_compile_no_exec",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pnpm_workspace_clean",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pypi_fixed_cve_version",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pypi_lib",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pypi_lib_obfs_full",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pypi_obfs",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_pypi_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_rubygems_extconf",
+      "outcome": "PASS",
+      "details": []
+    },
+    {
+      "fixture": "clean_rubygems_typosquat_unique",
+      "outcome": "PASS",
+      "details": []
+    }
+  ]
 }

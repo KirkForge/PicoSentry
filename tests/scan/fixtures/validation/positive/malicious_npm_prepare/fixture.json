@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package with prepare lifecycle script (fires L2-POST-001). The prepare hook fires on every `npm install` from a git source — a known vector for malicious git dependencies.",
+  "expected_rule_ids": ["L2-POST-001"]
+}

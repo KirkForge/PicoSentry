@@ -1,5 +1,3 @@
-"""PicoWatch CLI — prompt guard, output validation, and telemetry daemon."""
-
 from __future__ import annotations
 
 import argparse
@@ -15,7 +13,6 @@ from picosentry.watch.prompt_guard import PromptGuard
 
 
 def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
-    """Handle scan-prompt subcommand."""
     guard = PromptGuard(config=config)
 
     if args.text:
@@ -27,7 +24,6 @@ def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
             print(f"Error: File not found: {args.file}", file=sys.stderr)
             sys.exit(1)
     else:
-        # Read from stdin
         if sys.stdin.isatty():
             print("Error: Provide --text or --file, or pipe input to stdin", file=sys.stderr)
             sys.exit(1)
@@ -48,7 +44,6 @@ def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     print(json.dumps(output, indent=2))
 
     if args.verify_determinism:
-        # Run twice and compare
         result2 = guard.check(text)
         if result.score != result2.score or result.rules_matched != result2.rules_matched:
             print("DETERMINISM CHECK FAILED: results differ between runs", file=sys.stderr)
@@ -61,7 +56,6 @@ def _scan_prompt(args: argparse.Namespace, config: PicoWatchConfig) -> None:
 
 
 def _validate_output(args: argparse.Namespace, config: PicoWatchConfig) -> None:
-    """Handle validate-output subcommand."""
     guard = OutputGuard(config=config)
 
     try:
@@ -100,12 +94,10 @@ def _validate_output(args: argparse.Namespace, config: PicoWatchConfig) -> None:
 
 
 def _serve(args: argparse.Namespace, config: PicoWatchConfig) -> None:
-    """Handle serve subcommand — start FastAPI HTTP daemon."""
     from picosentry.watch.server import run_server
 
     print(f"PicoWatch {__version__} starting on {args.host}:{args.port}", file=sys.stderr)
 
-    # Show loaded rules count
     guard = PromptGuard(config=config)
     h = health_check(
         rules_loaded=len(guard.rules),
@@ -133,8 +125,7 @@ def _serve(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     run_server(config=config, host=args.host, port=args.port)
 
 
-def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
-    """List active rules."""
+def _rules(_args: argparse.Namespace, config: PicoWatchConfig) -> None:
     guard = PromptGuard(config=config)
     rules_list = [
         {"id": r.id, "category": r.category, "weight": r.weight, "description": r.description} for r in guard.rules
@@ -142,12 +133,7 @@ def _rules(args: argparse.Namespace, config: PicoWatchConfig) -> None:
     print(json.dumps(rules_list, indent=2))
 
 
-def _run_picoshogun_plugin(config: PicoWatchConfig) -> None:
-    """Run as PicoShogun plugin (ADR-005).
-
-    Loads PicoWatch as an in-process plugin in PicoShogun's firewall pipeline.
-    The plugin listens for events and provides L5/L6 filtering.
-    """
+def _run_picoshogun_plugin() -> None:
     from picosentry.watch.picoshogun import PicoWatchPlugin
 
     plugin = PicoWatchPlugin()
@@ -158,13 +144,11 @@ def _run_picoshogun_plugin(config: PicoWatchConfig) -> None:
     print(f"  Corpus hash: {h['corpus_hash']}", file=sys.stderr)
     print(f"  Corpus version: {h['corpus_version']}", file=sys.stderr)
     print("Ready for PicoShogun event bus integration.", file=sys.stderr)
-    # In production, PicoShogun would call plugin.on_event() directly.
-    # For standalone testing, we expose the plugin for import.
+
     print(json.dumps({"plugin": "picowatch", "status": "ready", **h}, indent=2))
 
 
 def main(argv: list[str] | None = None) -> None:
-    """PicoWatch CLI entry point."""
     parser = argparse.ArgumentParser(
         prog="picowatch",
         description="PicoWatch — LLM defender with telemetry",
@@ -175,25 +159,20 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--version", action="version", version=f"PicoWatch {__version__}")
     sub = parser.add_subparsers(dest="command")
 
-    # scan-prompt
     sp = sub.add_parser("scan-prompt", help="Scan a prompt for injection patterns")
     sp.add_argument("--text", "-t", help="Prompt text to scan")
     sp.add_argument("--file", "-f", help="File containing prompt text")
 
-    # validate-output
     vo = sub.add_parser("validate-output", help="Validate LLM output against a schema")
     vo.add_argument("--schema", "-s", required=True, help="JSON schema file")
     vo.add_argument("--output", "-o", required=True, help="LLM output file")
 
-    # serve
     se = sub.add_parser("serve", help="Start HTTP daemon (FastAPI + uvicorn)")
     se.add_argument("--host", default="127.0.0.1", help="Bind host")
     se.add_argument("--port", "-p", type=int, default=8766, help="Bind port")
 
-    # rules
     sub.add_parser("rules", help="List active defense rules")
 
-    # health
     sub.add_parser("health", help="Show health status")
 
     args = parser.parse_args(argv)
@@ -204,7 +183,7 @@ def main(argv: list[str] | None = None) -> None:
         sys.exit(1)
 
     if args.picoshogun_plugin:
-        _run_picoshogun_plugin(config)
+        _run_picoshogun_plugin()
     elif args.command == "scan-prompt":
         _scan_prompt(args, config)
     elif args.command == "validate-output":

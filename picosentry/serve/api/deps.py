@@ -1,4 +1,3 @@
-"""Shared FastAPI dependencies and security helpers."""
 import logging
 
 from fastapi import Depends, Header, HTTPException, status
@@ -26,11 +25,6 @@ async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(s
 
 
 def require_role(required: str):
-    """FastAPI dependency that enforces minimum role level.
-
-    Hierarchy: viewer < operator < admin
-    Usage: user: dict = Depends(require_role("operator"))
-    """
     role_levels = {"viewer": 0, "operator": 1, "admin": 2}
     min_level = role_levels.get(required, 0)
 
@@ -42,17 +36,11 @@ def require_role(required: str):
                 detail=f"Requires role: {required} (have: {user_role})",
             )
         return user
+
     return _check_role
 
 
 def require_permission(permission: Permission):
-    """FastAPI dependency that enforces a specific RBAC permission.
-
-    This is more granular than require_role — it checks explicit
-    role→permission mappings from the RBAC policy engine.
-
-    Usage: user: dict = Depends(require_permission(Permission.RUN_PROJECTS))
-    """
     async def _check_permission(user: dict = Depends(get_current_user)):
         if not has_permission(user, permission):
             role = user.get("role", "viewer")
@@ -61,6 +49,7 @@ def require_permission(permission: Permission):
                 detail=f"Requires permission: {permission.value} (role: {role})",
             )
         return user
+
     return _check_permission
 
 
@@ -68,11 +57,6 @@ async def get_current_org(
     api_key: str | None = Header(None, alias="X-Org-API-Key"),
     user: dict = Depends(get_current_user),
 ):
-    """Resolve org context from API key header or user's default org.
-
-    Security: If an API key is provided, it must belong to an org that the
-    authenticated user is a member of. Cross-tenant API keys are rejected.
-    """
     user_orgs = Organization.list_orgs_for_user(user["id"])
 
     if api_key and api_key.startswith("sk_"):
@@ -82,7 +66,8 @@ async def get_current_org(
             if org["id"] not in user_org_ids:
                 logger.warning(
                     "Cross-tenant org access rejected: user %s attempted org %s",
-                    user.get("username"), org.get("slug"),
+                    user.get("username"),
+                    org.get("slug"),
                 )
                 raise HTTPException(
                     status_code=403,

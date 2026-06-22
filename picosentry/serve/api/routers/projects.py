@@ -1,11 +1,10 @@
-"""Project, intelligence, alert, and report endpoints."""
 import logging
 from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from picosentry.serve.api.deps import get_current_user, require_role
+from picosentry.serve.api.deps import get_current_org, get_current_user, require_permission
 from picosentry.serve.api.models import (
     AlertResponse,
     BatchRunRequest,
@@ -15,12 +14,11 @@ from picosentry.serve.api.models import (
 )
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.orchestrator import orchestrator
+from picosentry.serve.services.rbac import Permission
 
 logger = logging.getLogger("picoshogun.projects")
 
 router = APIRouter()
-
-
 
 
 @router.get("/projects", response_model=list[ProjectStatus], tags=["Projects"])
@@ -29,7 +27,6 @@ async def list_projects(
     status: str | None = Query(None),
     user: dict = Depends(get_current_user),
 ):
-    """List all projects with optional category/status filtering."""
     projects = orchestrator.list_projects()
     if category:
         projects = [p for p in projects if p.get("category") == category]
@@ -43,7 +40,6 @@ async def get_project(
     project_id: str,
     user: dict = Depends(get_current_user),
 ):
-    """Get details for a specific project."""
     project = orchestrator.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
@@ -54,11 +50,11 @@ async def get_project(
 async def run_project(
     project_id: str,
     request: ProjectRunRequest | None = None,
-    user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.RUN_PROJECTS)),
 ):
-    """Trigger a project run (operator+ required)."""
     timeout = request.timeout if request else 300
-    result = orchestrator.run_project(project_id, timeout=timeout)
+    result = orchestrator.run_project(project_id, timeout=timeout, org_id=org["id"])
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -67,12 +63,12 @@ async def run_project(
 @router.post("/batch/run", tags=["Projects"])
 async def run_batch(
     request: BatchRunRequest,
-    user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.RUN_PROJECTS)),
 ):
-    """Run multiple projects in batch (operator+ required)."""
     results = {}
     for pid in request.project_ids:
-        result = orchestrator.run_project(pid, timeout=request.timeout or 300)
+        result = orchestrator.run_project(pid, timeout=request.timeout or 300, org_id=org["id"])
         results[pid] = result if "error" not in result else {"error": result["error"]}
     return results
 
@@ -83,7 +79,6 @@ async def export_project(
     format: str = Query("json", pattern="^(json|csv)$"),
     user: dict = Depends(get_current_user),
 ):
-    """Export project data as JSON or CSV."""
     project = orchestrator.get_project(project_id)
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
@@ -92,9 +87,11 @@ async def export_project(
         import io
 
         from fastapi.responses import PlainTextResponse
+
         output = io.StringIO()
         if project.get("findings"):
             import csv
+
             writer = csv.DictWriter(output, fieldnames=project["findings"][0].keys())
             writer.writeheader()
             writer.writerows(project["findings"])
@@ -109,11 +106,11 @@ async def list_intelligence(
     intel_type: str | None = Query(None),
     severity: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
 ):
-    """List intelligence entries with optional filtering."""
-    query = "SELECT * FROM intelligence WHERE 1=1"
-    params: list[Any] = []
+    query = "SELECT * FROM intelligence WHERE org_id = ?"
+    params: list[Any] = [org["id"]]
     if source_project:
         query += " AND source_project = ?"
         params.append(source_project)
@@ -131,19 +128,28 @@ async def list_intelligence(
 
 
 @router.get("/intelligence/correlations/{project_id}", tags=["Intelligence"])
-async def get_correlations(project_id: str, user: dict = Depends(get_current_user)):
-    """Get correlation data for a project's intelligence entries."""
+async def get_correlations(
+    project_id: str,
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
+):
     rows = db.execute(
-        "SELECT * FROM intelligence WHERE source_project = ? ORDER BY created_at DESC",
-        (project_id,),
+        "SELECT * FROM intelligence WHERE source_project = ? AND org_id = ? ORDER BY created_at DESC",
+        (project_id, org["id"]),
     )
     return {"project_id": project_id, "correlations": [dict(r) for r in rows] if rows else []}
 
 
 @router.get("/intelligence/threat-score", tags=["Intelligence"])
-async def get_threat_score(user: dict = Depends(get_current_user)):
-    """Aggregate threat score from intelligence."""
-    result = db.execute_one("SELECT AVG(confidence) as avg_score, COUNT(*) as total FROM intelligence WHERE severity IN ('critical', 'high')")
+async def get_threat_score(
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
+):
+    result = db.execute_one(
+        "SELECT AVG(confidence) as avg_score, COUNT(*) as total "
+        "FROM intelligence WHERE severity IN ('critical', 'high') AND org_id = ?",
+        (org["id"],),
+    )
     return {
         "threat_score": round(result["avg_score"], 3) if result and result["avg_score"] else 0.0,
         "total_threats": result["total"] if result else 0,
@@ -156,11 +162,11 @@ async def list_alerts(
     severity: str | None = Query(None),
     project_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_ALERTS)),
 ):
-    """List alerts with optional severity/project filtering."""
-    query = "SELECT * FROM alerts WHERE 1=1"
-    params: list[Any] = []
+    query = "SELECT * FROM alerts WHERE org_id = ?"
+    params: list[Any] = [org["id"]]
     if severity:
         query += " AND severity = ?"
         params.append(severity)
@@ -175,10 +181,15 @@ async def list_alerts(
 
 
 @router.post("/alerts/{alert_id}/acknowledge", tags=["Alerts"])
-async def acknowledge_alert(alert_id: int, user: dict = Depends(get_current_user)):
-    """Acknowledge (mark as read) an alert."""
-    # Check alert exists first
-    alert = db.execute_one("SELECT id FROM alerts WHERE id = ?", (alert_id,))
+async def acknowledge_alert(
+    alert_id: int,
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_ALERTS)),
+):
+    alert = db.execute_one(
+        "SELECT id FROM alerts WHERE id = ? AND org_id = ?",
+        (alert_id, org["id"]),
+    )
     if not alert:
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
     db.execute_insert("UPDATE alerts SET sent = 1 WHERE id = ?", (alert_id,))
@@ -186,8 +197,10 @@ async def acknowledge_alert(alert_id: int, user: dict = Depends(get_current_user
 
 
 @router.get("/reports/summary", tags=["Reports"])
-async def get_summary_report(user: dict = Depends(get_current_user)):
-    """Aggregated summary report across all projects."""
+async def get_summary_report(
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
+):
     projects = orchestrator.list_projects()
     total = len(projects)
     active = sum(1 for p in projects if p.get("status") == "active")
@@ -201,9 +214,12 @@ async def get_summary_report(user: dict = Depends(get_current_user)):
 
 
 @router.get("/reports/project/{project_id}", tags=["Reports"])
-async def get_project_report(project_id: str, user: dict = Depends(get_current_user)):
-    """Detailed report for a specific project."""
-    project = orchestrator.get_project(project_id)
-    if not project:
+async def get_project_report(
+    project_id: str,
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
+):
+    report = orchestrator.generate_project_report(project_id, org_id=org["id"])
+    if not report:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
-    return project
+    return report

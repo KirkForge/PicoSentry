@@ -1,15 +1,3 @@
-"""
-L2-LICENSE-001: License compliance and missing license detection.
-
-Flags packages with:
-- No license field (supply chain risk — legal unknown)
-- "UNLICENSED" license (proprietary, no redistribution rights)
-- Copyleft licenses (GPL, AGPL) in dependency chain (infectious for proprietary projects)
-- Custom/unknown license strings that don't match SPDX identifiers
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -18,7 +6,7 @@ from ..models import Confidence, Finding, Severity
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_license_issues"]
-# SPDX license identifiers that are copyleft (viral for proprietary code)
+
 COPYLEFT_LICENSES = frozenset(
     {
         "GPL-2.0",
@@ -51,7 +39,7 @@ COPYLEFT_LICENSES = frozenset(
     }
 )
 
-# Common permissive licenses (safe for most projects)
+
 PERMISSIVE_LICENSES = frozenset(
     {
         "MIT",
@@ -71,16 +59,11 @@ PERMISSIVE_LICENSES = frozenset(
     }
 )
 
-# Dual-license patterns
+
 DUAL_LICENSE_PREFIXES = ("(MIT OR Apache-2.0)", "(MIT AND Apache-2.0)")
 
 
 def _check_license_value(license_value: str) -> tuple:
-    """
-    Classify a license string.
-
-    Returns: (is_copyleft, is_permissive, is_unlicensed, is_unknown)
-    """
     if not license_value or not isinstance(license_value, str):
         return False, False, False, True
 
@@ -89,30 +72,24 @@ def _check_license_value(license_value: str) -> tuple:
     if lic.upper() == "UNLICENSED" or lic == "SEE LICENSE IN LICENSE":
         return False, False, True, False
 
-    # Check for copyleft
     for copyleft in COPYLEFT_LICENSES:
         if copyleft.lower() in lic.lower():
             return True, False, False, False
 
-    # Check for dual-license with copyleft
     if "GPL" in lic.upper() or "AGPL" in lic.upper():
         return True, False, False, False
 
-    # Check for permissive
     for permissive in PERMISSIVE_LICENSES:
         if permissive.lower() == lic.lower():
             return False, True, False, False
 
-    # Check common permissive patterns
     lic_lower = lic.lower()
     if any(p in lic_lower for p in ("mit", "bsd", "apache", "isc", "0bsd")):
         return False, True, False, False
 
-    # Dual license patterns
     if lic.startswith("(MIT OR Apache-2.0)"):
         return False, True, False, False
 
-    # If it contains "OR" it might be a dual license — assume permissive if MIT/Apache involved
     if " OR " in lic and ("MIT" in lic or "Apache" in lic):
         return False, True, False, False
 
@@ -120,7 +97,6 @@ def _check_license_value(license_value: str) -> tuple:
 
 
 def _scan_package_json(pkg_json: Path) -> list[Finding]:
-    """Scan a single package.json for license issues."""
     findings: list[Finding] = []
     data = load_package_json(pkg_json)
     if not data:
@@ -130,8 +106,6 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     pkg_version = data.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
 
-    # Check license field
-    # npm supports: "license": "MIT" or "license": {"type": "MIT", "url": "..."}
     license_field = data.get("license")
 
     if license_field is None:
@@ -228,20 +202,13 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     return findings
 
 
-def detect_license_issues(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect packages with missing, unlicensed, or copyleft licenses.
-
-    No network calls. Pure filesystem scan.
-    """
+def detect_license_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-    # Root package.json
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         findings.extend(_scan_package_json(root_pkg))
 
-    # node_modules packages
     for pkg_json, _pkg in iter_node_modules(target):
         findings.extend(_scan_package_json(pkg_json))
 

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Range-overlap CVE variant: log4j-core 2.10.0 (still in the affected range, fixed at 2.17.1) (fires L2-MAVEN-ADV-001). Tests version-range arithmetic at a non-boundary version.",
+  "expected_rule_ids": ["L2-MAVEN-ADV-001"]
+}

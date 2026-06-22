@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "Clean Maven project with a unique group/artifact (not in top-maven corpus) and a public-registry dep. Asserts the 3 L2-MAVEN-* rules stay silent.",
+  "forbidden_rule_ids": [
+    "L2-MAVEN-TYPO-001",
+    "L2-MAVEN-DEPC-001",
+    "L2-MAVEN-ADV-001"
+  ]
+}

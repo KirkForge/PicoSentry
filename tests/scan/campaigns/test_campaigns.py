@@ -60,8 +60,12 @@ def test_shai_hulud_iocs_has_required_fields() -> None:
     shai = next(c for c in iter_campaigns() if c.campaign_id == "shai-hulud-2025")
     data = shai.iocs()
     for field_name in (
-        "campaign_id", "schema_version", "severity",
-        "description", "ecosystem", "rule_id",
+        "campaign_id",
+        "schema_version",
+        "severity",
+        "description",
+        "ecosystem",
+        "rule_id",
     ):
         assert field_name in data, f"missing {field_name}"
     ind = data["indicators"]
@@ -123,9 +127,7 @@ def test_package_match_fires_exact_for_compromised_version(tmp_path: Path) -> No
     nm = tmp_path / "node_modules" / "shai-hulud"
     nm.mkdir(parents=True)
     pkg_json = nm / "package.json"
-    pkg_json.write_text(
-        json.dumps({"name": "shai-hulud", "version": "1.0.0"}), encoding="utf-8"
-    )
+    pkg_json.write_text(json.dumps({"name": "shai-hulud", "version": "1.0.0"}), encoding="utf-8")
 
     findings = shai.detect_packages(tmp_path)
     assert len(findings) == 1
@@ -140,15 +142,13 @@ def test_clean_directory_no_findings(tmp_path: Path) -> None:
     """A clean target directory produces zero findings across all four campaigns."""
     # Add a couple of files that look legit
     (tmp_path / "src").mkdir()
-    (tmp_path / "src" / "index.js").write_text(
-        'const express = require("express");\n', encoding="utf-8"
-    )
+    (tmp_path / "src" / "index.js").write_text('const express = require("express");\n', encoding="utf-8")
     (tmp_path / "package.json").write_text(
         json.dumps({"name": "clean-app", "version": "0.1.0", "dependencies": {}}),
         encoding="utf-8",
     )
     for c in iter_campaigns():
-        assert c.detect(tmp_path, Path("/tmp")) == [], f"{c.campaign_id} produced false positive"
+        assert c.detect(tmp_path) == [], f"{c.campaign_id} produced false positive"
 
 
 # ── Engine integration ────────────────────────────────────────────────────
@@ -168,9 +168,7 @@ def test_create_default_engine_registers_all_campaigns() -> None:
 def test_full_scan_against_malicious_fixture(tmp_path: Path) -> None:
     """End-to-end: a project containing a C2 domain + a named signature fires both rules."""
     pkg_json = tmp_path / "package.json"
-    pkg_json.write_text(
-        json.dumps({"name": "evil-app", "version": "0.1.0"}), encoding="utf-8"
-    )
+    pkg_json.write_text(json.dumps({"name": "evil-app", "version": "0.1.0"}), encoding="utf-8")
     # The postinstall script contains BOTH a C2 domain (L2-NETEX-001) AND a
     # named signature (L2-CAMP-SHAI-HULUD, via the literal "setup_bun.js").
     (tmp_path / "postinstall.js").write_text(
@@ -190,12 +188,8 @@ def test_full_scan_against_malicious_fixture(tmp_path: Path) -> None:
 
 def test_full_scan_finds_setup_bun_named_signature(tmp_path: Path) -> None:
     """Named signature 'setup_bun.js' inside a project file is caught."""
-    (tmp_path / "package.json").write_text(
-        json.dumps({"name": "app", "version": "0.1.0"}), encoding="utf-8"
-    )
-    (tmp_path / "install.js").write_text(
-        "const code = require('./setup_bun.js');\n", encoding="utf-8"
-    )
+    (tmp_path / "package.json").write_text(json.dumps({"name": "app", "version": "0.1.0"}), encoding="utf-8")
+    (tmp_path / "install.js").write_text("const code = require('./setup_bun.js');\n", encoding="utf-8")
     engine = create_default_engine()
     result = engine.scan(tmp_path, rules=["L2-CAMP-SHAI-HULUD"])
     assert any(f.rule_id == "L2-CAMP-SHAI-HULUD" for f in result.findings)

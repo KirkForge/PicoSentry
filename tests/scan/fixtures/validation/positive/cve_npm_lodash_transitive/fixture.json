@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Transitive CVE variant: vulnerable lodash 4.17.15 is reached only via wrapper-pkg's nested node_modules (fires L2-ADV-001). Exercises iter_node_modules recursion into wrapper-pkg/node_modules/lodash.",
+  "expected_rule_ids": ["L2-ADV-001"]
+}

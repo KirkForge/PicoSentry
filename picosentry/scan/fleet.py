@@ -1,28 +1,3 @@
-"""
-Fleet policy rollout for enterprise PicoSentry deployments.
-
-Provides policy distribution, rollout orchestration, and fleet health
-monitoring for teams managing PicoSentry across many repositories or
-CI pipelines.
-
-Fleet rollout supports:
-- Staged rollout: global -> canary -> production
-- Rollback: revert to previous policy bundle
-- Health check: verify fleet policy compliance
-- Audit trail: all fleet operations are logged
-
-Usage:
-    from picosentry.scan.fleet import FleetManager, RolloutPolicy
-
-    fleet = FleetManager(data_dir=Path("/var/lib/picosentry/fleet"))
-    fleet.create_rollout(
-        name="enforce-high-severity",
-        policy_path=Path("policy.json"),
-        stages=["canary", "production"],
-        canary_repos=["team-a/api-server"],
-    )
-"""
-
 from __future__ import annotations
 
 import json
@@ -39,12 +14,8 @@ logger = logging.getLogger("picosentry.fleet")
 
 FLEET_VERSION = "1.0"
 
-# ── Rollout stages ───────────────────────────────────────────────────────
-
 
 class RolloutStage:
-    """Standard fleet rollout stages."""
-
     CANARY = "canary"
     STAGING = "staging"
     PRODUCTION = "production"
@@ -63,18 +34,8 @@ class RolloutStage:
         return stage in RolloutStage.ORDER
 
 
-# ── Rollout policy ───────────────────────────────────────────────────────
-
-
 @dataclass
 class RolloutPolicy:
-    """A fleet rollout specification.
-
-    Describes how a policy should be rolled out across the fleet:
-    which repos get it first (canary), when to promote to the next
-    stage, and what to do on failure.
-    """
-
     name: str = ""
     policy_digest: str = ""
     policy_path: str = ""
@@ -117,13 +78,8 @@ class RolloutPolicy:
         )
 
 
-# ── Rollout status ──────────────────────────────────────────────────────
-
-
 @dataclass
 class RolloutStatus:
-    """Current status of a fleet rollout."""
-
     name: str = ""
     current_stage: str = ""
     started_at: str = ""
@@ -162,17 +118,8 @@ class RolloutStatus:
         )
 
 
-# ── Fleet target ─────────────────────────────────────────────────────────
-
-
 @dataclass
 class FleetTarget:
-    """A fleet target (repository, pipeline, or org unit).
-
-    Represents a deployment target in the fleet. Each target has its
-    own policy state, last scan result, and health status.
-    """
-
     id: str = ""  # e.g., "repo:org/project" or "pipeline:ci/deploy"
     name: str = ""
     stage: str = RolloutStage.PRODUCTION
@@ -208,16 +155,7 @@ class FleetTarget:
         )
 
 
-# ── Fleet manager ─────────────────────────────────────────────────────────
-
-
 class FleetManager:
-    """Fleet policy rollout manager.
-
-    Manages policy distribution across a fleet of PicoSentry deployments.
-    Supports staged rollout, canary testing, rollback, and compliance tracking.
-    """
-
     def __init__(self, data_dir: Path | None = None) -> None:
         self.data_dir = data_dir or Path.home() / ".local" / "share" / "picosentry" / "fleet"
         self.data_dir.mkdir(parents=True, exist_ok=True)
@@ -256,16 +194,12 @@ class FleetManager:
         }
         state_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
-    # ── Target management ─────────────────────────────────────────────
-
     def register_target(self, target: FleetTarget) -> None:
-        """Register a fleet target (repo, pipeline, or org unit)."""
         self._targets[target.id] = target
         self._save_state()
         audit("fleet.register_target", target=target.id, metadata={"stage": target.stage})
 
     def unregister_target(self, target_id: str) -> bool:
-        """Unregister a fleet target."""
         if target_id in self._targets:
             del self._targets[target_id]
             self._save_state()
@@ -275,20 +209,17 @@ class FleetManager:
         return False
 
     def list_targets(self, stage: str = "") -> list[FleetTarget]:
-        """List fleet targets, optionally filtered by stage."""
         targets = list(self._targets.values())
         if stage:
             targets = [t for t in targets if t.stage == stage]
         return sorted(targets, key=lambda t: t.id)
 
     def get_target(self, target_id: str) -> FleetTarget | None:
-        """Get a specific fleet target."""
         return self._targets.get(target_id)
 
     def update_target_status(
         self, target_id: str, verdict: str = "", compliant: bool = True, policy_digest: str = ""
     ) -> None:
-        """Update a target's scan result and compliance status."""
         target = self._targets.get(target_id)
         if not target:
             logger.warning("Unknown target: %s", target_id)
@@ -309,8 +240,6 @@ class FleetManager:
             metadata={"verdict": verdict, "compliant": compliant},
         )
 
-    # ── Rollout management ─────────────────────────────────────────────
-
     def create_rollout(
         self,
         name: str,
@@ -321,27 +250,12 @@ class FleetManager:
         failure_action: str = "rollback",
         created_by: str = "",
     ) -> RolloutStatus:
-        """Create a new fleet rollout.
-
-        Args:
-            name: Rollout name (must be unique).
-            policy_path: Path to the policy file.
-            policy: Policy object (alternative to policy_path).
-            stages: Stages to roll through (default: canary -> staging -> production).
-            canary_targets: Target IDs for canary stage.
-            failure_action: What to do on failure (rollback, pause, notify).
-            created_by: Identity creating the rollout.
-
-        Returns:
-            Initial rollout status.
-        """
         if name in self._rollouts:
             raise ValueError(f"Rollout '{name}' already exists")
 
         stages = stages or list(RolloutStage.ORDER)
         canary_targets = canary_targets or []
 
-        # Load or use policy
         policy_digest = ""
         if policy:
             policy_digest = f"sha256:{policy.digest}" if hasattr(policy, "digest") and policy.digest else ""
@@ -365,7 +279,6 @@ class FleetManager:
         )
         self._rollouts[name] = rollout
 
-        # Start at first stage
         initial_stage = stages[0] if stages else RolloutStage.CANARY
         status = RolloutStatus(
             name=name,
@@ -391,17 +304,6 @@ class FleetManager:
         return status
 
     def promote_rollout(self, name: str) -> RolloutStatus:
-        """Promote a rollout to the next stage.
-
-        Args:
-            name: Rollout name.
-
-        Returns:
-            Updated rollout status.
-
-        Raises:
-            ValueError: If rollout not found or already at last stage.
-        """
         if name not in self._rollouts:
             raise ValueError(f"Rollout '{name}' not found")
 
@@ -418,7 +320,6 @@ class FleetManager:
         if next_idx >= len(rollout.stages):
             raise ValueError(f"Rollout '{name}' is already at the last stage")
 
-        # Save previous policy for potential rollback
         old_stage = status.current_stage
         new_stage = rollout.stages[next_idx]
 
@@ -435,7 +336,6 @@ class FleetManager:
         return status
 
     def complete_rollout(self, name: str) -> RolloutStatus:
-        """Mark a rollout as completed (reached all targets)."""
         if name not in self._statuses:
             raise ValueError(f"Rollout '{name}' not found")
 
@@ -448,11 +348,6 @@ class FleetManager:
         return status
 
     def fail_rollout(self, name: str, reason: str = "") -> RolloutStatus:
-        """Mark a rollout as failed.
-
-        If the rollout's failure_action is 'rollback', automatically
-        reverts targets to their previous policy.
-        """
         if name not in self._rollouts:
             raise ValueError(f"Rollout '{name}' not found")
 
@@ -466,7 +361,7 @@ class FleetManager:
         self._save_state()
 
         if rollout.failure_action == "rollback":
-            self._rollback_targets(name)
+            self._rollback_targets()
 
         audit(
             "fleet.fail_rollout",
@@ -477,8 +372,7 @@ class FleetManager:
 
         return status
 
-    def _rollback_targets(self, name: str) -> None:
-        """Rollback targets to their previous policy after a failed rollout."""
+    def _rollback_targets(self) -> None:
         for target_id, prev_digest in self._previous_policies.items():
             target = self._targets.get(target_id)
             if target and prev_digest:
@@ -488,11 +382,9 @@ class FleetManager:
         self._save_state()
 
     def get_rollout_status(self, name: str) -> RolloutStatus | None:
-        """Get the current status of a rollout."""
         return self._statuses.get(name)
 
     def list_rollouts(self, active_only: bool = False) -> list[RolloutPolicy]:
-        """List rollouts, optionally filtering to active ones."""
         rollouts = list(self._rollouts.values())
         if active_only:
             rollouts = [
@@ -504,15 +396,7 @@ class FleetManager:
             ]
         return sorted(rollouts, key=lambda r: r.created_at, reverse=True)
 
-    # ── Fleet health ───────────────────────────────────────────────────
-
     def fleet_health(self) -> dict[str, Any]:
-        """Get overall fleet health summary.
-
-        Returns:
-            Dict with health metrics: total targets, compliant,
-            non-compliant, policy coverage, and rollout status.
-        """
         total = len(self._targets)
         compliant = sum(1 for t in self._targets.values() if t.compliant)
         with_policy = sum(1 for t in self._targets.values() if t.policy_digest)
@@ -521,7 +405,6 @@ class FleetManager:
         )
         failed_rollouts = sum(1 for s in self._statuses.values() if s.failed)
 
-        # Stage distribution
         stage_counts: dict[str, int] = {}
         for t in self._targets.values():
             stage_counts[t.stage] = stage_counts.get(t.stage, 0) + 1
@@ -539,24 +422,18 @@ class FleetManager:
         }
 
     def compliance_report(self) -> dict[str, Any]:
-        """Generate a detailed compliance report for all fleet targets.
-
-        Returns:
-            Dict with per-target compliance status and overall metrics.
-        """
-        targets_report = []
-        for target in self._targets.values():
-            targets_report.append(
-                {
-                    "id": target.id,
-                    "name": target.name,
-                    "stage": target.stage,
-                    "compliant": target.compliant,
-                    "policy_digest": target.policy_digest[:16] if target.policy_digest else "none",
-                    "last_scan_at": target.last_scan_at,
-                    "last_scan_verdict": target.last_scan_verdict,
-                }
-            )
+        targets_report = [
+            {
+                "id": target.id,
+                "name": target.name,
+                "stage": target.stage,
+                "compliant": target.compliant,
+                "policy_digest": target.policy_digest[:16] if target.policy_digest else "none",
+                "last_scan_at": target.last_scan_at,
+                "last_scan_verdict": target.last_scan_verdict,
+            }
+            for target in self._targets.values()
+        ]
 
         health = self.fleet_health()
         return {

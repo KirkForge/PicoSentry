@@ -1,14 +1,13 @@
 [build-system]
-requires = ["setuptools>=77.0.3", "wheel"]
+requires = ["setuptools>=68,<77", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.9"
+version = "2.0.15"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
-license = "BUSL-1.1"
-license-files = ["LICENSE*", "COMMERCIAL-LICENSE.md"]
+license = {text = "BUSL-1.1"}
 requires-python = ">=3.10"
 authors = [{name = "Henrik Kirk", email = "kirk@kirkforge.dev"}]
 maintainers = [{name = "KirkForge", email = "kirk@kirkforge.dev"}]
@@ -77,16 +76,25 @@ otel = [
 sigstore = [
     "sigstore>=3.0",
 ]
+# gRPC transport (PicoDome daemon).  The generated protobuf stubs are
+# committed (scripts/regen_proto.sh) so this extra only needs the
+# runtime grpcio package, not grpcio-tools.  Pin to >=1.81.1 because
+# the committed stubs check the runtime grpc version and raise at
+# import time if it is older than the grpcio-tools used to generate them.
+grpc = [
+    "grpcio>=1.81.1",
+]
 # Everything
 all = [
-    "picosentry[scan,watch-server,serve,otel,sigstore]",
+    "picosentry[scan,watch-server,serve,otel,sigstore,grpc]",
 ]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pytest-asyncio>=0.21",
     "pytest-timeout>=2.0",
-    "httpx>=0.24",
+    "pytest-xdist>=3.0",
+    "httpx>=0.24,<0.28",
     "ruff>=0.8",
     "mypy>=1.0",
     "build>=1.0",
@@ -118,6 +126,10 @@ include = ["picosentry*"]
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__/*", "*.py[cod]", "*.pyo", ".DS_Store"]
 
+# The real-world malware benchmark corpus lives in datasets/malware/ and is
+# intentionally **not** shipped in the wheel. It is build-time/benchmark-only
+# data (DataDog + OSV advisories) and is kept outside the importable package
+# to keep the installed artifact small and the surface area explicit.
 [tool.setuptools.package-data]
 picosentry = ["py.typed"]
 "picosentry.scan" = [
@@ -132,6 +144,7 @@ picosentry = ["py.typed"]
 ]
 "picosentry.watch.rules" = ["prompt_injection/*.yaml", "prompt_injection/*.yml", "output_policy/*.yaml", "output_policy/*.yml"]
 "picosentry.sandbox" = ["py.typed", "docs/rules/*.md"]
+"picosentry.sandbox.grpc_transport.proto" = ["*.py", "*.proto"]
 "picosentry.serve" = ["config/*.json"]
 "picosentry.serve.plugins" = ["*/plugin.json", "*/*.py"]
 "picosentry.serve.front" = ["*.html", "*.css", "*.js", "*.svg", "*.png", "assets/*"]
@@ -142,37 +155,95 @@ pythonpath = ["picosentry", "tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-ra", "--strict-markers", "--tb=short"]
+addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto"]
 norecursedirs = ["scripts", "plugins"]
-asyncio_mode = "strict"
-asyncio_default_fixture_loop_scope = "function"
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests that require network access",
 ]
+filterwarnings = [
+    # Starlette/httpx deprecation is a third-party decision (Pydantic's
+    # httpx2 fork). We pin httpx and silence the noisy warning rather than
+    # swapping the project's HTTP client for a fork.
+    "ignore:Using .httpx. with .starlette.testclient. is deprecated",
+    # Multiprocessing fork() in a multi-threaded process comes from the OTel
+    # batch span processor threads running during scan worker tests. The engine
+    # handles fork-safety defensively; this is not actionable in tests.
+    "ignore:This process .* is multi-threaded, use of fork\\(\\) may lead to deadlocks",
+]
+
+# pytest-asyncio settings — these belong in their own table, not
+# [tool.pytest.ini_options], where pytest-asyncio's plugin doesn't
+# read them. v2.0.9 had these misplaced, producing two
+# `Unknown config option` warnings on every test run.
+[tool.pytest_asyncio.ini_options]
+asyncio_mode = "strict"
+asyncio_default_fixture_loop_scope = "function"
 
 [tool.ruff]
 target-version = "py310"
 line-length = 120
+exclude = [
+    # Malicious and clean scanner fixtures must keep their original layout.
+    # Detectors assert on line numbers and whitespace-sensitive obfuscation
+    # patterns; re-formatting them silently breaks validation.
+    "tests/scan/fixtures/",
+]
 
 [tool.ruff.lint]
-select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF"]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RUF", "FURB", "PIE", "PLR5501", "Q000", "PLW1510", "B905", "PLR1714", "PLW2901", "B007", "SIM105", "Q003", "Q004", "TRY401", "RET501", "RET502", "RET503", "RSE", "LOG", "ISC", "ARG", "FA", "TCH"]
 ignore = [
-    "E501", "N806", "N818", "N802", "N812",
-    "A002", "B007", "B905",
-    "SIM105", "SIM102", "SIM108", "SIM117", "C416",
+    "N806", "N818", "N802", "N812",
+    "A002",
     "B008",
+    # TC003 (move standard-library imports into type-checking blocks) is more
+    # churn than value for CLI modules that already import argparse/pathlib at
+    # runtime for function signatures.
+    "TC003",
+    # I001 (isort "import block is un-sorted or un-formatted") is suppressed
+    # for the shipped codebase. The minifier (.tools/minify.py) strips
+    # module docstrings and most blank lines to reduce token cost, which
+    # leaves import blocks without the inter-group blank lines isort
+    # expects. The minified output is functionally equivalent; unminified
+    # source can still be edited by hand and any future minifier passes
+    # will produce the same import layout.
+    "I001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
 # Intentional / pre-existing typographic and stylistic choices:
 # - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
-# - E741 single-letter `l` for `layer` in correlation scoring
-# - RUF001/RUF002 en-dashes in docstrings ("0.0–1.0" range notation) and ℹ emoji icon
+# - RUF001 in security output formatters that intentionally use ℹ️ icons
 "examples/pypi-obfuscated-setup/setup.py" = ["E402"]
-"picosentry/scan/rules/typosquat_utils.py" = ["RUF002"]
-"picosentry/serve/services/correlation.py" = ["E741", "RUF001", "RUF002"]
+"picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC", "ARG002"]
+"picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]
+"tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py" = ["E402", "F401"]
+"tests/scan/fixtures/validation/positive/pypi_obfs_marshal_load/_evil.py" = ["SIM115"]
+"tests/scan/fixtures/**/*.py" = ["Q000"]
+# Fixture lockfiles contain long cryptographic hashes that cannot be wrapped
+# without breaking the YAML format.
+"tests/scan/test_pnpm_lock_parser.py" = ["E501"]
+# Tests spawn subprocesses and explicitly assert on return codes/text output;
+# requiring an explicit `check` argument on every call is noise without value.
+"tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005", "TC001", "TC002"]
+
+# ARG (unused-argument) noise is expected in these patterns:
+# - generated gRPC stubs and their implementations have fixed method signatures
+# - backend method overrides must keep base-class parameter names
+# - NoOp tracer/meter implementations intentionally ignore parameters
+# - plugin interface methods declare contract parameters not all callers use
+# - router endpoints receive injected auth dependencies that individual handlers
+#   may not need
+# - test helpers and mocks often accept parameters for API compatibility
+"picosentry/serve/api/routers/*.py" = ["ARG001"]
+"picosentry/sandbox/grpc_transport/_servicer.py" = ["ARG002"]
+"picosentry/sandbox/l3/backends/*.py" = ["ARG002"]
+"picosentry/sandbox/tracing.py" = ["ARG002"]
+"picosentry/serve/services/observability.py" = ["ARG002"]
+"picosentry/serve/services/plugin_manager.py" = ["ARG002"]
+"picosentry/serve/database/pools.py" = ["ARG002"]
+"picosentry/serve/plugins/test_plugin/test_handler.py" = ["ARG002"]
 
 [tool.ruff.format]
 quote-style = "double"
@@ -186,10 +257,20 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_unreachable = true
 ignore_missing_imports = true
-exclude = ["build/", "dist/", ".venv/"]
+exclude = [
+    "build/", "dist/", ".venv/",
+    # Malicious/obfuscated fixture files intentionally contain invalid Python
+    # to exercise detectors; don't let them pollute the type-check report.
+    "tests/scan/fixtures/validation/positive/*/_evil.py",
+    "tests/scan/fixtures/validation/positive/pypi_obfs_ord_chain/_evil.py",
+    "tests/scan/fixtures/validation/positive/pypi_obfs_b64decodestring/_evil.py",
+    "tests/scan/fixtures/validation/positive/malicious_pypi_obfs_full/setup.py",
+]
 
-# gRPC proto stubs are runtime-generated (grpcio-tools). The static
-# type-checker can't see them, so we silence the resulting attr-defined errors.
+# gRPC proto stubs are committed (see scripts/regen_proto.sh) so the
+# transport module is importable on a stock `pip install`.  The
+# static type-checker still can't see them reliably across all
+# grpcio versions, so we silence the resulting attr-defined errors.
 [[tool.mypy.overrides]]
 module = "picosentry.sandbox.grpc_transport.*"
 ignore_errors = true
@@ -200,3 +281,35 @@ ignore_errors = true
 [[tool.mypy.overrides]]
 module = "picosentry.scan.crypto"
 ignore_errors = true
+
+# OpenTelemetry is an optional extra; the installed package's partial type
+# stubs don't expose the `trace` attribute reliably across versions.  The file
+# gates all OTel usage behind an import check and a feature flag, so silencing
+# the type checker here is safe.
+[[tool.mypy.overrides]]
+module = "picosentry.sandbox.tracing"
+disable_error_code = ["attr-defined"]
+
+# The daemon HTTP handler is composed of multiple mixin classes
+# (PicoDomeResponseMixin, PicoDomeAuthMixin, PicoDomeGetRoutesMixin,
+# PicoDomePostRoutesMixin) that share state via the composite PicoDomeHandler
+# class in handler.py. Each mixin annotates `self: PicoDomeHandler` on its
+# methods so mypy can resolve cross-mixin attributes, but mypy's `misc`
+# override check fires because PicoDomeHandler is a *subtype* of each mixin
+# (not a supertype), and `self: PicoDomeHandler` reads as "this mixin method
+# has a self type that's wider than the mixin itself". Silencing `misc` here
+# lets the `attr-defined` checks — the ones that actually catch typos like
+# `self._send_josn(...)` — still fire.
+[[tool.mypy.overrides]]
+module = [
+    "picosentry.sandbox.daemon.handler_mixins",
+    "picosentry.sandbox.daemon.handler_routes_get",
+    "picosentry.sandbox.daemon.handler_routes_post",
+]
+disable_error_code = ["misc"]
+
+[dependency-groups]
+dev = [
+    "pytest-xdist>=3.8.0",
+]
+

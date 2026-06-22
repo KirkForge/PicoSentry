@@ -154,7 +154,7 @@ class TestPolicyBundleCryptoSigning:
             allow_licenses=["MIT", "Apache-2.0"],
         )
 
-        with patch("picosentry.scan.policy.sign_content") as mock_sign:
+        with patch("picosentry.scan.policy_pkg.bundle.sign_content") as mock_sign:
             mock_sig = SignatureBundle(
                 signer_identity="ci@github",
                 provider="sigstore",

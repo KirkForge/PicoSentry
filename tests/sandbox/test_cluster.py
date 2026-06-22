@@ -1018,3 +1018,365 @@ class TestClusterIntegration:
 
         # Cleanup
         mgr_mod._cluster_manager = None
+
+
+# ─── Multi-node gossip tests ─────────────────────────────────────────────────
+
+
+class TestGossipMerge:
+    """Tests for multi-node gossip via get_state_snapshot() / merge_state().
+
+    These exercise the gossip primitives that let cluster nodes exchange
+    state without a central coordinator.  Each node runs its own
+    ClusterState and periodically exchanges snapshots with peers.
+    """
+
+    def test_snapshot_round_trip(self, cluster_state, node_a, node_b):
+        """A snapshot from one node should be mergeable into another."""
+        cluster_state.add_node(node_a)
+        cluster_state.add_node(node_b)
+        cluster_state.elect_leader()
+
+        snap = cluster_state.get_state_snapshot()
+        assert "nodes" in snap
+        assert "scans" in snap
+        assert "leader_id" in snap
+        assert snap["leader_id"] == "node-a"  # lowest node_id wins
+
+        # Merge into a fresh state
+        state2 = ClusterState()
+        state2.merge_state(snap)
+        assert len(state2.list_nodes()) == 2
+        assert state2.get_leader_id() == "node-a"
+
+    def test_last_writer_wins_nodes(self):
+        """When two nodes report different heartbeats for the same node,
+        the fresher heartbeat wins (last-writer-wins)."""
+        state_a = ClusterState()
+        state_b = ClusterState()
+
+        # Node A reports node-x with an old heartbeat
+        old_node = ClusterNode(
+            node_id="node-x",
+            address="10.0.0.1",
+            last_heartbeat="2026-06-13T00:00:00Z",
+            load=0,
+        )
+        state_a.add_node(old_node)
+
+        # Node B reports the same node with a newer heartbeat + higher load
+        new_node = ClusterNode(
+            node_id="node-x",
+            address="10.0.0.1",
+            last_heartbeat="2026-06-13T12:00:00Z",
+            load=5,
+        )
+        state_b.add_node(new_node)
+
+        # Merge B's snapshot into A
+        snap_b = state_b.get_state_snapshot()
+        state_a.merge_state(snap_b)
+
+        merged = state_a.get_node("node-x")
+        assert merged is not None
+        assert merged.last_heartbeat == "2026-06-13T12:00:00Z"  # newer wins
+        assert merged.load == 5  # from the newer report
+
+    def test_scan_status_priority_merge(self):
+        """When two nodes report different statuses for the same scan,
+        the higher-priority status wins (completed > running > pending > failed)."""
+        state_a = ClusterState()
+        state_b = ClusterState()
+
+        scan = ScanRequest(scan_id="s1", command=["echo", "hi"], status="pending")
+        state_a.add_scan(scan)
+
+        # Node B completed the scan
+        scan_completed = ScanRequest(
+            scan_id="s1",
+            command=["echo", "hi"],
+            status="completed",
+            assigned_node="node-b",
+        )
+        state_b.add_scan(scan_completed)
+
+        # Merge B into A — completed should win over pending
+        snap_b = state_b.get_state_snapshot()
+        state_a.merge_state(snap_b)
+
+        merged_scans = [s for s in state_a._backend.load_all_scans() if s.scan_id == "s1"]
+        assert len(merged_scans) == 1
+        assert merged_scans[0].status == "completed"
+
+    def test_new_node_discovered_via_gossip(self):
+        """A node should learn about peers it hasn't directly seen
+        by merging another peer's snapshot."""
+        state_a = ClusterState()
+        state_b = ClusterState()
+
+        # Node A only knows about itself
+        n1 = ClusterNode(node_id="node-a", address="10.0.0.1")
+        state_a.add_node(n1)
+
+        # Node B knows about itself AND node-c
+        n2 = ClusterNode(node_id="node-b", address="10.0.0.2")
+        n3 = ClusterNode(node_id="node-c", address="10.0.0.3")
+        state_b.add_node(n2)
+        state_b.add_node(n3)
+
+        # A merges B's snapshot — should discover node-c
+        snap_b = state_b.get_state_snapshot()
+        state_a.merge_state(snap_b)
+
+        nodes = state_a.list_nodes()
+        assert len(nodes) == 3  # node-a, node-b, node-c
+        assert any(n.node_id == "node-c" for n in nodes)
+
+    def test_leader_election_consensus(self):
+        """After merging snapshots from multiple peers, all nodes
+        should agree on the same leader (lowest online node_id)."""
+        state_a = ClusterState()
+        state_b = ClusterState()
+        state_c = ClusterState()
+
+        # Each node knows a different subset
+        n1 = ClusterNode(node_id="node-a", address="10.0.0.1")
+        n2 = ClusterNode(node_id="node-b", address="10.0.0.2")
+        n3 = ClusterNode(node_id="node-c", address="10.0.0.3")
+
+        state_a.add_node(n1)
+        state_b.add_node(n1)
+        state_b.add_node(n2)
+        state_c.add_node(n2)
+        state_c.add_node(n3)
+
+        # All elect independently
+        state_a.elect_leader()
+        state_b.elect_leader()
+        state_c.elect_leader()
+
+        # After full mesh merge, all should agree on node-a (lowest id)
+        snap_a = state_a.get_state_snapshot()
+        snap_b = state_b.get_state_snapshot()
+        snap_c = state_c.get_state_snapshot()
+
+        state_a.merge_state(snap_b)
+        state_a.merge_state(snap_c)
+        state_b.merge_state(snap_a)
+        state_b.merge_state(snap_c)
+        state_c.merge_state(snap_a)
+        state_c.merge_state(snap_b)
+
+        assert state_a.get_leader_id() == "node-a"
+        assert state_b.get_leader_id() == "node-a"
+        assert state_c.get_leader_id() == "node-a"
+
+    def test_offline_node_removed_via_gossip(self):
+        """When a peer reports a node as OFFLINE with a newer heartbeat,
+        the receiving node should mark it OFFLINE (last-writer-wins)."""
+        state_a = ClusterState()
+        state_b = ClusterState()
+
+        # Both know about node-x as ONLINE
+        nx = ClusterNode(
+            node_id="node-x",
+            address="10.0.0.99",
+            status=NodeStatus.ONLINE,
+            last_heartbeat="2026-06-13T00:00:00Z",
+        )
+        state_a.add_node(nx)
+        state_b.add_node(nx)
+
+        # Node B detects node-x is down (newer heartbeat, OFFLINE)
+        nx_offline = ClusterNode(
+            node_id="node-x",
+            address="10.0.0.99",
+            status=NodeStatus.OFFLINE,
+            last_heartbeat="2026-06-13T12:00:00Z",
+        )
+        state_b.update_node(nx_offline)
+
+        # A merges B's snapshot — should mark node-x OFFLINE
+        snap_b = state_b.get_state_snapshot()
+        state_a.merge_state(snap_b)
+
+        merged = state_a.get_node("node-x")
+        assert merged is not None
+        assert merged.status == NodeStatus.OFFLINE
+
+    def test_gossip_with_sqlite_backend(self, tmp_path):
+        """Gossip merge should work identically with SQLite backend."""
+        db_a = tmp_path / "gossip_a.db"
+        db_b = tmp_path / "gossip_b.db"
+
+        state_a = ClusterState(backend=SQLiteStateBackend(db_path=db_a))
+        state_b = ClusterState(backend=SQLiteStateBackend(db_path=db_b))
+
+        n1 = ClusterNode(node_id="sqlite-g1", address="10.0.0.1", load=0)
+        n2 = ClusterNode(node_id="sqlite-g2", address="10.0.0.2", load=2)
+        state_a.add_node(n1)
+        state_b.add_node(n1)
+        state_b.add_node(n2)
+
+        s1 = ScanRequest(scan_id="gs1", command=["echo", "gossip"], status="completed")
+        state_b.add_scan(s1)
+
+        # A merges B's snapshot
+        snap_b = state_b.get_state_snapshot()
+        state_a.merge_state(snap_b)
+
+        assert len(state_a.list_nodes()) == 2
+        scans = state_a._backend.load_all_scans()
+        assert any(s.scan_id == "gs1" and s.status == "completed" for s in scans)
+
+
+# ─── Gossip loop tests ──────────────────────────────────────────────────────
+
+
+class TestGossipLoop:
+    """Tests for the periodic gossip loop that exchanges state via HTTP."""
+
+    def test_fetch_and_merge_adds_new_nodes(self, monkeypatch):
+        """_fetch_and_merge_peer should add a peer's nodes to local state."""
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
+        mgr._running = True
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="self-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
+
+        # Mock the HTTP response
+        peer_snapshot = {
+            "nodes": [
+                {
+                    "node_id": "peer-a",
+                    "address": "10.0.0.2",
+                    "port": 8443,
+                    "status": "online",
+                    "last_heartbeat": "2026-06-13T12:00:00Z",
+                    "load": 0,
+                },
+                {
+                    "node_id": "peer-b",
+                    "address": "10.0.0.3",
+                    "port": 8443,
+                    "status": "online",
+                    "last_heartbeat": "2026-06-13T12:00:00Z",
+                    "load": 2,
+                },
+            ],
+            "scans": [],
+            "leader_id": "peer-a",
+        }
+
+        def mock_urlopen(req, timeout=None):
+            class MockResponse:
+                def read(self):
+                    import json
+
+                    return json.dumps(peer_snapshot).encode()
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return MockResponse()
+
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            mock_urlopen,
+        )
+
+        peer = ClusterNode(node_id="peer-a", address="10.0.0.2", port=8443)
+        mgr._fetch_and_merge_peer(peer)
+
+        nodes = mgr.state.list_nodes()
+        assert len(nodes) == 3  # self + peer-a + peer-b
+        assert any(n.node_id == "peer-b" for n in nodes)
+        assert mgr.state.get_leader_id() == "peer-a"
+
+    def test_fetch_and_merge_skips_invalid_response(self, monkeypatch):
+        """Non-dict responses should be silently skipped."""
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
+        mgr._running = True
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="self-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
+
+        def mock_urlopen(req, timeout=None):
+            class MockResponse:
+                def read(self):
+                    return b'"not a dict"'
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return False
+
+            return MockResponse()
+
+        monkeypatch.setattr(
+            "urllib.request.urlopen",
+            mock_urlopen,
+        )
+
+        peer = ClusterNode(node_id="peer-x", address="10.0.0.99", port=8443)
+        mgr._fetch_and_merge_peer(peer)
+
+        # Should still only have self-node (invalid response skipped)
+        assert len(mgr.state.list_nodes()) == 1
+
+    def test_gossip_loop_stops_with_manager(self):
+        """The gossip thread should exit when the manager stops."""
+        from picosentry.sandbox.cluster.orchestrator import ClusterManager
+        from picosentry.sandbox.cluster.models import ClusterNode
+
+        mgr = ClusterManager(
+            address="127.0.0.1",
+            port=8443,
+            node_id="test-node",
+            heartbeat_interval=1,
+        )
+        mgr._state.add_node(
+            ClusterNode(
+                node_id="test-node",
+                address="127.0.0.1",
+                port=8443,
+            )
+        )
+
+        # Start just the gossip loop manually (don't want heartbeat/health threads)
+        import threading
+
+        mgr._running = True
+        mgr._gossip_thread = threading.Thread(
+            target=mgr._gossip_loop,
+            daemon=True,
+            name="test-gossip",
+        )
+        mgr._gossip_thread.start()
+
+        assert mgr._gossip_thread.is_alive()
+
+        # Stop should terminate the thread
+        mgr._running = False
+        mgr._stop_event.set()
+        mgr._gossip_thread.join(timeout=5.0)
+
+        assert not mgr._gossip_thread.is_alive()

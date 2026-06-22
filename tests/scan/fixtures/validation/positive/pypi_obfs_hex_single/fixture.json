@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PYPI OBFS bypass variant: single-quoted hex-escaped string (fires L2-PYPI-OBFS-003).",
+  "expected_rule_ids": ["L2-PYPI-OBFS-003"]
+}

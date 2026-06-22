@@ -1,9 +1,3 @@
-"""
-NuGet lockfile-parsing wrapper — dispatches by filename to the appropriate parser.
-
-Analogues of ``cargo_lock_parser.py`` but for the NuGet ecosystem.
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -12,16 +6,6 @@ from .nuget_utils import parse_csproj_file, parse_nuget_lock, parse_packages_con
 
 
 def parse_nuget_lockfile(path: Path) -> list[tuple[str, str, str]]:
-    """Auto-detect and parse a NuGet file by filename.
-
-    Dispatches based on file name/suffix:
-    - ``*.csproj`` → list of (package_id, version, "csproj")
-    - ``packages.config`` → list of (package_id, version, "packages.config")
-    - ``packages.lock.json`` → list of (package_id, version, "packages.lock.json")
-
-    Returns list of (dependency_name, version, source) tuples.
-    Returns empty list if the file is not recognized or can't be parsed.
-    """
     name = path.name
 
     if path.suffix == ".csproj":
@@ -35,7 +19,6 @@ def parse_nuget_lockfile(path: Path) -> list[tuple[str, str, str]]:
 
 
 def parse_csproj_for_lock(path: Path) -> list[tuple[str, str, str]]:
-    """Parse a .csproj file and return (package_id, version, source) tuples."""
     csproj_data = parse_csproj_file(path.parent)
     if csproj_data is None:
         return []
@@ -49,7 +32,6 @@ def parse_csproj_for_lock(path: Path) -> list[tuple[str, str, str]]:
 
 
 def parse_packages_config_for_lock(path: Path) -> list[tuple[str, str, str]]:
-    """Parse a packages.config and return (package_id, version, source) tuples."""
     packages = parse_packages_config(path.parent)
     if packages is None:
         return []
@@ -58,7 +40,6 @@ def parse_packages_config_for_lock(path: Path) -> list[tuple[str, str, str]]:
 
 
 def parse_nuget_lock_for_lock(path: Path) -> list[tuple[str, str, str]]:
-    """Parse a packages.lock.json and return (package_id, version, source) tuples."""
     lock_packages = parse_nuget_lock(path.parent)
     if lock_packages is None:
         return []

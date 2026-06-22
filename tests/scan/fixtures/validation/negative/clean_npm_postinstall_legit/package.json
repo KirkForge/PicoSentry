@@ -1,0 +1,14 @@
+{
+  "name": "clean-postinstall",
+  "version": "1.0.0",
+  "description": "Clean npm fixture for POST-001/CRED-001/MAINT-001 FP contract (no install scripts at all).",
+  "license": "MIT",
+  "author": "Test Author <test@example.com>",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/clean-postinstall.git"
+  }
+}

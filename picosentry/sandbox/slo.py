@@ -1,16 +1,3 @@
-"""Service Level Objectives (SLOs) for PicoDome daemon mode.
-
-Defines measurable SLOs for availability, latency, and throughput.
-Provides measurement, tracking, and reporting of SLO compliance.
-
-SLO definitions (enterprise defaults):
-- Availability: 99.9% (8.76 hours downtime/year)
-- Scan latency p50: <500ms, p95: <2s, p99: <5s
-- Throughput: >=10 scans/minute sustained
-- Error rate: <1% of scan requests
-- Determinism: 100% (same input = same output, always)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -23,8 +10,6 @@ logger = logging.getLogger("picodome.slo")
 
 @dataclass(frozen=True)
 class SLODefinition:
-    """A single SLO definition with target and threshold."""
-
     name: str
     description: str
     target: float  # e.g., 0.999 for 99.9%
@@ -43,8 +28,6 @@ class SLODefinition:
 
 @dataclass(frozen=True)
 class SLOMeasurement:
-    """A single SLO measurement."""
-
     name: str
     measured_value: float
     target_value: float
@@ -61,9 +44,6 @@ class SLOMeasurement:
             "target_value": self.target_value,
             "timestamp": self.timestamp,
         }
-
-
-# ─── Enterprise SLO definitions ─────────────────────────────────────────────
 
 
 SLO_AVAILABILITY = SLODefinition(
@@ -136,15 +116,6 @@ MAX_LATENCY_SAMPLES = 10000  # Cap memory usage for SLO latency tracking
 
 
 class SLOTracker:
-    """Track and measure SLO compliance.
-
-    Collects latency samples, error counts, and health check results
-    to compute SLO compliance in a rolling window.
-
-    Call reset() to clear all counters (useful for rolling SLO
-    windows or test teardown).
-    """
-
     def __init__(self) -> None:
         self._latency_samples: list[float] = []
         self._total_scans: int = 0
@@ -156,11 +127,6 @@ class SLOTracker:
         self._start_time: float = time.monotonic()
 
     def reset(self) -> None:
-        """Reset all SLO counters and latency samples.
-
-        Useful for rolling SLO windows or test teardown.
-        Clears all accumulated data and resets the start time.
-        """
         self._latency_samples.clear()
         self._total_scans = 0
         self._failed_scans = 0
@@ -171,7 +137,6 @@ class SLOTracker:
         self._start_time = time.monotonic()
 
     def record_scan(self, duration_ms: float, success: bool) -> None:
-        """Record a scan result."""
         self._latency_samples.append(duration_ms)
         if len(self._latency_samples) > MAX_LATENCY_SAMPLES:
             self._latency_samples = self._latency_samples[-MAX_LATENCY_SAMPLES:]
@@ -180,23 +145,19 @@ class SLOTracker:
             self._failed_scans += 1
 
     def record_health_check(self, healthy: bool) -> None:
-        """Record a health check result."""
         self._health_checks += 1
         if healthy:
             self._health_ok += 1
 
     def record_determinism_check(self, passed: bool) -> None:
-        """Record a determinism verification result."""
         self._determinism_checks += 1
         if passed:
             self._determinism_ok += 1
 
     def measure(self) -> list[SLOMeasurement]:
-        """Compute current SLO measurements."""
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         measurements: list[SLOMeasurement] = []
 
-        # Availability
         if self._health_checks > 0:
             avail = self._health_ok / self._health_checks
             measurements.append(
@@ -210,7 +171,6 @@ class SLOTracker:
                 )
             )
 
-        # Latency
         if self._latency_samples:
             sorted_lat = sorted(self._latency_samples)
             p50 = sorted_lat[int(len(sorted_lat) * 0.50)]
@@ -245,7 +205,6 @@ class SLOTracker:
                 )
             )
 
-        # Throughput
         elapsed_min = (time.monotonic() - self._start_time) / 60.0
         if elapsed_min >= 1.0:
             throughput = self._total_scans / elapsed_min
@@ -259,7 +218,6 @@ class SLOTracker:
                 )
             )
 
-        # Error rate
         if self._total_scans > 0:
             error_rate = self._failed_scans / self._total_scans
             measurements.append(
@@ -273,7 +231,6 @@ class SLOTracker:
                 )
             )
 
-        # Determinism
         if self._determinism_checks > 0:
             det_rate = self._determinism_ok / self._determinism_checks
             measurements.append(
@@ -290,7 +247,6 @@ class SLOTracker:
         return measurements
 
     def get_report(self) -> dict[str, Any]:
-        """Generate a full SLO compliance report."""
         measurements = self.measure()
         all_compliant = all(m.compliant for m in measurements) if measurements else True
 

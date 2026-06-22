@@ -606,12 +606,31 @@ function toggleShortcuts() {
 function connectWS() {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   ws = new WebSocket(proto + '://' + location.host + '/ws');
-  ws.onopen = () => { wsRetries = 0; updateWSStatus(true); };
+  ws.onopen = () => {
+    wsRetries = 0;
+    updateWSStatus(true);
+    // The server requires explicit auth + subscribe for the
+    // authenticated fanout (P0 fix).  An unauthenticated socket still
+    // receives no events: we have to send both messages before
+    // ``addLiveEvent`` sees any traffic.
+    if (token) {
+      ws.send(JSON.stringify({action: 'auth', token: token}));
+      ws.send(JSON.stringify({action: 'subscribe', channels: ['*']}));
+    }
+  };
   ws.onclose = () => { updateWSStatus(false); if (wsRetries < MAX_WS_RETRIES) { wsRetries++; setTimeout(connectWS, 2000 * wsRetries); } };
   ws.onerror = () => { updateWSStatus(false); };
   ws.onmessage = (e) => {
     try {
       const msg = JSON.parse(e.data);
+      // Filter the protocol control messages out of the live event
+      // stream; they are not user-facing events.
+      if (['auth', 'subscribed', 'pong', 'error'].includes(msg.type)) {
+        if (msg.type === 'error') {
+          console.warn('ws:', msg.message);
+        }
+        return;
+      }
       addLiveEvent(msg);
       if (['project.run.completed','project.run.failed','alert.new','intelligence.new'].includes(msg.type)) {
         refreshAll();

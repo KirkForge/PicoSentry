@@ -1,12 +1,3 @@
-"""CycloneDX SBOM formatter — enterprise standard for Software Bill of Materials.
-
-Produces CycloneDX 1.5 JSON compatible with dependency-track, OWASP tools,
-and enterprise procurement pipelines.
-
-Deterministic: same target + same findings = same CycloneDX output.
-Timestamp is derived from a deterministic epoch, not wall-clock time.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -14,10 +5,13 @@ import json
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
 
-# Severity to CycloneDX severity rating mapping
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
+
+
 _SEVERITY_RATING = {
     Severity.CRITICAL: "critical",
     Severity.HIGH: "high",
@@ -28,31 +22,15 @@ _SEVERITY_RATING = {
 
 
 def format_cyclonedx(result: SandboxResult | AnalysisResult) -> str:
-    """
-    Format a result as CycloneDX 1.5 JSON.
-
-    Produces a vulnerability-oriented SBOM with findings mapped to
-    CycloneDX vulnerability objects.
-
-    Deterministic: sorted keys, deterministic timestamp, no random IDs.
-
-    Args:
-        result: SandboxResult or AnalysisResult to format.
-
-    Returns:
-        CycloneDX 1.5 JSON string.
-    """
     if isinstance(result, SandboxResult):
         return _l3_cyclonedx(result)
     return _l4_cyclonedx(result)
 
 
 def _l3_cyclonedx(result: SandboxResult) -> str:
-    """Format L3 sandbox result as CycloneDX 1.5 JSON."""
-    # Deterministic timestamp: fixed epoch anchored to version
+
     det_timestamp = _deterministic_timestamp(__version__)
 
-    # Build vulnerabilities from sandbox events
     vulns: list = []
     seen: set = set()
     for event in result.events:
@@ -79,7 +57,6 @@ def _l3_cyclonedx(result: SandboxResult) -> str:
         }
         vulns.append(vuln)
 
-    # Root component
     root_name = " ".join(result.command) if result.command else result.policy_name or "unknown"
 
     bom = {
@@ -109,11 +86,9 @@ def _l3_cyclonedx(result: SandboxResult) -> str:
 
 
 def _l4_cyclonedx(result: AnalysisResult) -> str:
-    """Format L4 analysis result as CycloneDX 1.5 JSON."""
-    # Deterministic timestamp: fixed epoch anchored to version
+
     det_timestamp = _deterministic_timestamp(__version__)
 
-    # Build vulnerabilities from findings
     vulns: list = []
     seen: set = set()
     for f in result.findings:
@@ -144,7 +119,6 @@ def _l4_cyclonedx(result: AnalysisResult) -> str:
 
         vulns.append(vuln)
 
-    # Root component
     root_name = result.target or "unknown"
 
     bom = {
@@ -174,7 +148,6 @@ def _l4_cyclonedx(result: AnalysisResult) -> str:
 
 
 def _severity_from_verdict(verdict: str) -> str:
-    """Map PicoDome verdict to CycloneDX severity."""
     mapping = {
         "ALLOW": "info",
         "DENY": "high",
@@ -184,12 +157,7 @@ def _severity_from_verdict(verdict: str) -> str:
 
 
 def _deterministic_timestamp(version: str) -> str:
-    """Generate a deterministic ISO 8601 timestamp from version string.
 
-    Uses a fixed epoch date + version-based offset to produce a stable
-    timestamp that changes only when the version changes. Not wall-clock time.
-    """
-    # Parse version components for offset
     try:
         parts = version.replace("v", "").split(".")
         major, minor, patch = int(parts[0]), int(parts[1]), int(parts[2])

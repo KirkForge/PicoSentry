@@ -1,0 +1,17 @@
+{
+  "name": "engin-typo-fixture",
+  "version": "1.0.0",
+  "description": "Fixture exercising the exact-pinned engines.node typo pattern (L2-ENGIN-001).",
+  "license": "MIT",
+  "engines": {
+    "node": "18.17.1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/engin-typo-fixture/engin-typo-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@engin-typo-fixture.example.com"}
+  ],
+  "dependencies": {}
+}

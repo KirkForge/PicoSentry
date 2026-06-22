@@ -1,11 +1,6 @@
-"""Seccomp-bpf sandbox backend (Linux only).
-
-Uses libseccomp via ctypes for real kernel-level syscall filtering.
-Provides deterministic allow/deny/kill enforcement via BPF.
-"""
-
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import logging
 import os
@@ -14,6 +9,22 @@ import signal
 import time
 import warnings
 
+from picosentry.sandbox.l3.backends._seccomp_common import (
+    FS_READ_SYSCALLS,
+    FS_WRITE_SYSCALLS,
+    NETWORK_SYSCALLS,
+    PROCESS_SYSCALLS,
+    SAFE_SYSCALLS,
+    SCMP_ACT_ALLOW,
+    SCMP_ACT_ERRNO_EPERM,
+    SCMP_ACT_KILL_PROCESS,
+    SCMP_ACT_KILL_THREAD,
+    SCMP_ACT_TRAP,
+    add_rule_safely,
+    resolve_syscall,
+    setup_lib,
+    target_to_syscalls,
+)
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     Policy,
@@ -27,240 +38,27 @@ from picosentry.sandbox.models import _now_ms
 
 logger = logging.getLogger("picodome.l3.seccomp")
 
-# ─── libseccomp constants ───────────────────────────────────────────────────
 
-SCMP_ACT_KILL_PROCESS = 0x80000000
-SCMP_ACT_KILL_THREAD = 0x00000000
-SCMP_ACT_TRAP = 0x00030000
-SCMP_ACT_ALLOW = 0x7FFF0000
-
-# errno(EPERM) action for non-fatal denials — returns EPERM instead of SIGSYS,
-# so the calling process learns which syscall was denied instead of being killed silently.
-SCMP_ACT_ERRNO_EPERM = 0x00050001  # seccomp ACT_ERRNO with errno=EPERM (1)
-
-# ─── Syscall name → number mappings ─────────────────────────────────────────
-
-_NETWORK_SYSCALLS = {
-    "connect",
-    "accept",
-    "accept4",
-    "bind",
-    "listen",
-    "sendto",
-    "sendmsg",
-    "sendmmsg",
-    "recvfrom",
-    "recvmsg",
-    "recvmmsg",
-    "socket",
-    "socketpair",
-    "getsockname",
-    "getpeername",
-    "setsockopt",
-    "getsockopt",
-    "shutdown",
-}
-
-_FS_WRITE_SYSCALLS = {
-    "write",
-    "writev",
-    "pwrite64",
-    "pwritev",
-    "pwritev2",
-    "open",
-    "openat",
-    "creat",
-    "mkdir",
-    "mkdirat",
-    "rmdir",
-    "unlink",
-    "unlinkat",
-    "rename",
-    "renameat",
-    "renameat2",
-    "link",
-    "linkat",
-    "symlink",
-    "symlinkat",
-    "chmod",
-    "fchmod",
-    "fchmodat",
-    "chown",
-    "fchown",
-    "lchown",
-    "fchownat",
-    "truncate",
-    "ftruncate",
-    "fallocate",
-    "mknod",
-    "mknodat",
-    "mount",
-    "umount",
-    "umount2",
-}
-
-_FS_READ_SYSCALLS = {
-    "read",
-    "readv",
-    "pread64",
-    "preadv",
-    "preadv2",
-    "stat",
-    "lstat",
-    "fstat",
-    "newfstatat",
-    "getdents",
-    "getdents64",
-    "readlink",
-    "readlinkat",
-    "access",
-    "faccessat",
-    "faccessat2",
-}
-
-_PROCESS_SYSCALLS = {
-    "execve",
-    "execveat",
-    "fork",
-    "vfork",
-    "clone",
-    "clone3",
-    # Child reaping — inseparable from spawning
-    "wait4",
-    "waitid",
-    "waitpid",
-    # Process management — needed by npm, pip, yarn
-    "kill",
-    "setsid",
-    "sigprocmask",
-    "close_range",
-}
-
-# Comprehensive safe syscalls needed for basic binary execution
-_SAFE_SYSCALLS = {
-    "read",
-    "readv",
-    "pread64",
-    "preadv",
-    "preadv2",
-    "write",
-    "writev",
-    "pwrite64",
-    "open",
-    "openat",
-    "close",
-    "stat",
-    "lstat",
-    "fstat",
-    "newfstatat",
-    "statfs",
-    "fstatfs",
-    "access",
-    "faccessat",
-    "faccessat2",
-    "readlink",
-    "readlinkat",
-    "getcwd",
-    "getdents64",
-    "mmap",
-    "mprotect",
-    "munmap",
-    "brk",
-    "mremap",
-    "madvise",
-    "execve",
-    "execveat",
-    "exit",
-    "exit_group",
-    "getpid",
-    "gettid",
-    "getuid",
-    "getgid",
-    "geteuid",
-    "getegid",
-    "getgroups",
-    "rt_sigaction",
-    "rt_sigprocmask",
-    "rt_sigreturn",
-    "sigaltstack",
-    "tgkill",
-    "tkill",
-    "restart_syscall",
-    "futex",
-    "set_robust_list",
-    "get_robust_list",
-    "set_tid_address",
-    "rseq",
-    "membarrier",
-    "fcntl",
-    "ioctl",
-    "dup",
-    "dup2",
-    "dup3",
-    "pipe2",
-    "lseek",
-    "clock_gettime",
-    "clock_nanosleep",
-    "nanosleep",
-    "gettimeofday",
-    "time",
-    "setitimer",
-    "getitimer",
-    "poll",
-    "ppoll",
-    "select",
-    "pselect6",
-    "epoll_create1",
-    "epoll_ctl",
-    "epoll_pwait",
-    "eventfd2",
-    "arch_prctl",
-    "prctl",
-    "prlimit64",
-    "getrandom",
-    "getrusage",
-    "getrlimit",
-    "uname",
-    "sysinfo",
-    "sched_yield",
-    "sched_getaffinity",
-    "memfd_create",
-    "capget",
-    "capset",
-    # Child process reaping (inseparable from process management)
-    "wait4",
-    "waitid",
-    "waitpid",
-    # CPython subprocess fork/exec path (close_range kills children without this)
-    "close_range",
-    # Process management — signal dispatch, session creation, signal mask
-    "kill",
-    "setsid",
-    "sigprocmask",
-    # Modern binary runtime requirements
-    "statx",
-    "getppid",
-    "umask",
-    # io_uring — used by libuv/node.js for async I/O (Linux 5.1+)
-    "io_uring_setup",
-    "io_uring_enter",
-    # Thread scheduling — used by node.js/libuv
-    "sched_getparam",
-    "sched_getscheduler",
-    # File advisory — used by pip and other package managers
-    "fadvise64",
-    # File sync — used by pip for atomic file writes
-    "fsync",
-}
+__all__ = [
+    "FS_READ_SYSCALLS",
+    "FS_WRITE_SYSCALLS",
+    "NETWORK_SYSCALLS",
+    "PROCESS_SYSCALLS",
+    "SAFE_SYSCALLS",
+    "SCMP_ACT_ALLOW",
+    "SCMP_ACT_ERRNO_EPERM",
+    "SCMP_ACT_KILL_PROCESS",
+    "SCMP_ACT_KILL_THREAD",
+    "SCMP_ACT_TRAP",
+    "SeccompBackend",
+    "add_rule_safely",
+    "resolve_syscall",
+    "setup_lib",
+    "target_to_syscalls",
+]
 
 
 class SeccompBackend(SandboxBackend):
-    """Real seccomp-bpf backend using libseccomp via ctypes.
-
-    Uses os.fork() + os.execve() directly to avoid subprocess.Popen's
-    child-process setup syscalls conflicting with the seccomp filter.
-    """
-
     def __init__(self):
         self._syscall_cache: dict[str, int] = {}
 
@@ -277,26 +75,17 @@ class SeccompBackend(SandboxBackend):
         return "moderate"
 
     def is_available(self) -> bool:
-        """Check if seccomp-bpf is available and both permissive and fail-closed
-        filters can be created.
-
-        Some containers allow SCMP_ACT_ALLOW (permissive) but reject
-        SCMP_ACT_KILL_PROCESS (fail-closed), which means default-deny
-        policies would fail silently. Verify both.
-        """
         try:
             lib = ctypes.CDLL("libseccomp.so.2")
             lib.seccomp_init.argtypes = [ctypes.c_uint32]
             lib.seccomp_init.restype = ctypes.c_void_p
             lib.seccomp_release.argtypes = [ctypes.c_void_p]
 
-            # Test permissive (ALLOW) filter
             ctx_allow = lib.seccomp_init(SCMP_ACT_ALLOW)
             if not ctx_allow:
                 return False
             lib.seccomp_release(ctx_allow)
 
-            # Test fail-closed (KILL_PROCESS) filter — this is what default-deny uses
             ctx_kill = lib.seccomp_init(SCMP_ACT_KILL_PROCESS)
             if not ctx_kill:
                 return False
@@ -322,59 +111,44 @@ class SeccompBackend(SandboxBackend):
             lib = ctypes.CDLL("libseccomp.so.2")
             self._setup_lib(lib)
 
-            # Build seccomp filter
             ctx, blocked = self._build_filter(lib, policy)
             if ctx is None:
                 return self._fallback_run(command, policy, timeout, cwd, env)
 
-            # Resolve full command path
             cmd_path = shutil.which(command[0])
             if cmd_path is None:
                 cmd_path = command[0]  # Try as-is
 
-            # Setup pipes for stdout/stderr capture
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
 
-            # fork+exec is required for seccomp: the child must apply the BPF filter before exec.
-            # Suppress the Python 3.12+ deprecation warning about fork in multi-threaded processes —
-            # the seccomp backend is always called from a single-threaded scan context.
+            child_env = os.environ.copy()
+            if env:
+                child_env.update(env)
+            env_list = child_env
+
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
                 pid = os.fork()
 
             if pid == 0:
-                # ── Child process ──
                 os.close(out_r)
                 os.close(err_r)
 
-                # Redirect stdout/stderr
                 os.dup2(out_w, 1)
                 os.dup2(err_w, 2)
                 os.close(out_w)
                 os.close(err_w)
 
-                # Change directory
                 if cwd:
-                    try:
+                    with contextlib.suppress(OSError):
                         os.chdir(cwd)
-                    except OSError:
-                        pass
 
-                # Load seccomp filter
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)
                 if ret != 0:
                     os._exit(127)  # seccomp filter failed — exit child immediately
 
-                # Prepare env
-                child_env = os.environ.copy()
-                if env:
-                    child_env.update(env)
-                # Convert to dict for execve
-                env_list = child_env
-
-                # Exec
                 try:
                     os.execve(cmd_path, command, env_list)
                 except FileNotFoundError:
@@ -384,14 +158,11 @@ class SeccompBackend(SandboxBackend):
                 os._exit(1)
 
             else:
-                # ── Parent process ──
                 os.close(out_w)
                 os.close(err_w)
 
-                # Release seccomp context in parent
                 lib.seccomp_release(ctx)
 
-                # Wait with timeout
                 stdout_bytes, stderr_bytes, exit_code = self._wait_with_timeout(pid, out_r, err_r, effective_timeout)
 
                 stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
@@ -408,22 +179,30 @@ class SeccompBackend(SandboxBackend):
                         )
                     )
 
-                # Check for seccomp kill (SIGSYS = 31)
                 if exit_code == -31:
-                    # Build a helpful diagnostic: which syscall categories were denied
                     denied_categories = []
                     if blocked:
                         denied_categories.append(f"blocked={', '.join(sorted(blocked)[:10])}")
-                    if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+                    if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
                         denied_categories.append("default_action=DENY")
-                    # Suggest remediation
+
                     suggestions = []
                     if "clone" in blocked or "clone3" in blocked or "fork" in blocked:
-                        suggestions.append("Process spawning was denied. Use --allow-runtime node/python or add process_spawn: allow to your policy.")
+                        suggestions.append(
+                            "Process spawning was denied. Use --allow-runtime node/python "
+                            "or add process_spawn: allow to your policy."
+                        )
                     if "wait4" in blocked or "waitid" in blocked:
-                        suggestions.append("Child reaping was denied. If you allow process spawning, child reaping syscalls must also be allowed.")
+                        suggestions.append(
+                            "Child reaping was denied. If you allow process spawning, "
+                            "child reaping syscalls must also be allowed."
+                        )
                     if not suggestions:
-                        suggestions.append("A syscall was blocked by the sandbox policy. Use --allow-runtime node/python for common package managers, or use a permissive policy with default_action=ALLOW.")
+                        suggestions.append(
+                            "A syscall was blocked by the sandbox policy. "
+                            "Use --allow-runtime node/python for common package managers, "
+                            "or use a permissive policy with default_action=ALLOW."
+                        )
 
                     diagnostic = "Process killed by seccomp — syscall violation."
                     if denied_categories:
@@ -441,7 +220,6 @@ class SeccompBackend(SandboxBackend):
                         )
                     )
 
-                # Post-hoc analysis on output
                 events.extend(self._posthoc_analysis(stdout, stderr))
 
         except FileNotFoundError:
@@ -478,30 +256,12 @@ class SeccompBackend(SandboxBackend):
         )
 
     def _setup_lib(self, lib: ctypes.CDLL):
-        """Set up libseccomp function signatures.
-
-        Note: seccomp_rule_add is variadic in C: seccomp_rule_add(ctx, action, syscall, arg_count, ...).
-        We always pass arg_count=0 (no argument filtering), so no varargs are read.
-        This works on x86-64 SysV ABI but will silently break if arg filtering is ever added
-        without switching to the proper variadic call interface (lib.seccomp_rule_add(ctx, ..., 0)
-        with arg structs passed as additional ctypes args). Do NOT add arg filtering without
-        refactoring this call to pass variadic arguments correctly.
-        """
-        lib.seccomp_init.argtypes = [ctypes.c_uint32]
-        lib.seccomp_init.restype = ctypes.c_void_p
-        lib.seccomp_rule_add.argtypes = [ctypes.c_void_p, ctypes.c_uint32, ctypes.c_int, ctypes.c_uint]
-        lib.seccomp_rule_add.restype = ctypes.c_int
-        lib.seccomp_syscall_resolve_name.argtypes = [ctypes.c_char_p]
-        lib.seccomp_syscall_resolve_name.restype = ctypes.c_int
-        lib.seccomp_load.argtypes = [ctypes.c_void_p]
-        lib.seccomp_load.restype = ctypes.c_int
-        lib.seccomp_release.argtypes = [ctypes.c_void_p]
+        setup_lib(lib)
 
     def _build_filter(self, lib: ctypes.CDLL, policy: Policy) -> tuple:
-        """Build seccomp BPF filter from policy. Returns (ctx, blocked_syscalls)."""
         blocked: set[str] = set()
 
-        if policy.default_action == SyscallAction.DENY or policy.default_action == SyscallAction.KILL:
+        if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
             default_action = SCMP_ACT_KILL_PROCESS
         else:
             default_action = SCMP_ACT_ALLOW
@@ -517,48 +277,29 @@ class SeccompBackend(SandboxBackend):
                 for name in syscalls:
                     num = self._resolve(lib, name)
                     if num >= 0:
-                        lib.seccomp_rule_add(ctx, SCMP_ACT_ALLOW, num, 0)
+                        add_rule_safely(lib, ctx, SCMP_ACT_ALLOW, num, name)
             elif rule.action in (SyscallAction.DENY, SyscallAction.KILL):
                 syscalls = self._target_to_syscalls(rule.target)
                 for name in syscalls:
                     num = self._resolve(lib, name)
                     if num >= 0:
-                        lib.seccomp_rule_add(ctx, SCMP_ACT_KILL_PROCESS, num, 0)
+                        add_rule_safely(lib, ctx, SCMP_ACT_KILL_PROCESS, num, name)
                         blocked.add(name)
 
-        # Always allow essential syscalls for basic binary execution
-        for name in _SAFE_SYSCALLS:
+        for name in SAFE_SYSCALLS:
             num = self._resolve(lib, name)
             if num >= 0:
-                lib.seccomp_rule_add(ctx, SCMP_ACT_ALLOW, num, 0)
+                add_rule_safely(lib, ctx, SCMP_ACT_ALLOW, num, name)
 
         return ctx, blocked
 
     def _target_to_syscalls(self, target: RuleTarget) -> set[str]:
-        """Map a RuleTarget to Linux syscall names."""
-        mapping = {
-            RuleTarget.FILE_READ: _FS_READ_SYSCALLS,
-            RuleTarget.FILE_WRITE: _FS_WRITE_SYSCALLS,
-            RuleTarget.FILE_EXEC: {"execve", "execveat"},
-            RuleTarget.NETWORK_OUT: _NETWORK_SYSCALLS,
-            RuleTarget.NETWORK_IN: _NETWORK_SYSCALLS,
-            RuleTarget.NETWORK_BIND: {"bind", "listen", "accept", "accept4"},
-            RuleTarget.PROCESS_SPAWN: _PROCESS_SYSCALLS,
-            RuleTarget.PROCESS_KILL: {"kill", "tkill", "tgkill"},
-            RuleTarget.DNS_QUERY: set(),
-            RuleTarget.SIGNAL_SEND: {"kill", "tkill", "tgkill", "rt_sigqueueinfo", "pidfd_send_signal"},
-            RuleTarget.SYSCALL_GENERIC: set(),
-        }
-        return mapping.get(target, set())
+        return target_to_syscalls(target)
 
     def _resolve(self, lib: ctypes.CDLL, name: str) -> int:
-        """Resolve syscall name to number, with caching."""
-        if name not in self._syscall_cache:
-            self._syscall_cache[name] = lib.seccomp_syscall_resolve_name(name.encode())
-        return self._syscall_cache[name]
+        return resolve_syscall(lib, name, self._syscall_cache)
 
     def _wait_with_timeout(self, pid: int, out_fd: int, err_fd: int, timeout: float) -> tuple:
-        """Wait for child process with timeout, collecting stdout/stderr."""
         import select as _select
 
         stdout_chunks = []
@@ -588,7 +329,6 @@ class SeccompBackend(SandboxBackend):
                 except OSError:
                     pass
 
-            # Check if child exited
             wpid, status = os.waitpid(pid, os.WNOHANG)
             if wpid == pid:
                 if os.WIFEXITED(status):
@@ -597,12 +337,9 @@ class SeccompBackend(SandboxBackend):
                     exit_code = -os.WTERMSIG(status)
                 break
 
-        # Collect remaining output
         for fd in [out_fd, err_fd]:
-            try:
+            with contextlib.suppress(OSError):
                 os.set_blocking(fd, False)
-            except OSError:
-                pass
             try:
                 while True:
                     data = os.read(fd, 65536)
@@ -615,7 +352,6 @@ class SeccompBackend(SandboxBackend):
             except OSError:
                 pass
 
-        # If still running after timeout, kill it
         if exit_code is None:
             try:
                 os.kill(pid, signal.SIGKILL)
@@ -630,7 +366,6 @@ class SeccompBackend(SandboxBackend):
         return b"".join(stdout_chunks), b"".join(stderr_chunks), exit_code
 
     def _posthoc_analysis(self, stdout: str, stderr: str) -> list[SandboxEvent]:
-        """Post-hoc pattern analysis on captured output."""
         from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 
         sb = SubprocessBackend()
@@ -655,12 +390,6 @@ class SeccompBackend(SandboxBackend):
         env: dict | None,
         reason: str = "seccomp setup failed",
     ) -> SandboxResult:
-        """Handle backend failure.
-
-        If policy.fail_closed is True (default), return a KILL verdict
-        instead of degrading to the unconfined subprocess backend.
-        Only falls back to subprocess when fail_closed=False.
-        """
         if policy.fail_closed:
             logger.error(
                 "FAIL-CLOSED: %s — refusing fallback to unconfined subprocess backend",
@@ -698,7 +427,7 @@ class SeccompBackend(SandboxBackend):
             cwd=cwd,
             env=env,
         )
-        # Mark as degraded — observational when kernel was expected
+
         return SandboxResult(
             run_id=result.run_id,
             timestamp=result.timestamp,

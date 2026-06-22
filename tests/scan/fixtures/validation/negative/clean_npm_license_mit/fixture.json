@@ -1,0 +1,10 @@
+{
+  "label": "negative",
+  "description": "Clean npm project with an MIT license, narrow node engine range, and a non-personal repo URL. Asserts L2-LICENSE-001, L2-BUND-001, L2-ENGIN-001, L2-FORK-001 stay silent on a well-formed package.json.",
+  "forbidden_rule_ids": [
+    "L2-LICENSE-001",
+    "L2-BUND-001",
+    "L2-ENGIN-001",
+    "L2-FORK-001"
+  ]
+}

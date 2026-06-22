@@ -1,0 +1,8 @@
+{
+  "name": "bundled-alt-spelling",
+  "version": "1.0.0",
+  "bundleDependencies": [
+    "evil-pkg-a",
+    "evil-pkg-b"
+  ]
+}

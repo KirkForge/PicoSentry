@@ -1,23 +1,3 @@
-"""Data retention manager — lifecycle, TTL, and secure deletion.
-
-Enterprise compliance requires that scan results and audit logs have
-defined retention periods. This module:
-
-1. Defines TTL per data type (scan results, audit logs, baselines)
-2. Runs periodic cleanup of expired data
-3. Provides secure deletion (overwrite before unlink)
-4. Exports data for compliance audits
-
-Configuration is loaded from ``.picodome.yml`` or defaults:
-
-    retention:
-      scan_results_days: 90
-      audit_logs_days: 365
-      baselines_days: 0      # 0 = never expire
-      secure_delete: true
-      storage_quota_mb: 500
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -40,8 +20,6 @@ _DEFAULT_SCAN_RESULTS_DIR = _DEFAULT_DATA_DIR / "scans"
 
 @dataclass(frozen=True)
 class RetentionPolicy:
-    """Retention configuration for a single data type."""
-
     data_type: str
     ttl_days: int  # 0 = never expire
     secure_delete: bool = False
@@ -58,8 +36,6 @@ class RetentionPolicy:
 
 @dataclass
 class RetentionConfig:
-    """Full retention configuration."""
-
     scan_results: RetentionPolicy = field(
         default_factory=lambda: RetentionPolicy(
             data_type="scan_results",
@@ -110,26 +86,8 @@ class RetentionConfig:
                 )
         return cfg
 
-    @classmethod
-    def from_yaml_config(cls, config_data: dict[str, Any]) -> RetentionConfig:
-        """Parse from .picodome.yml retention section."""
-        retention = config_data.get("retention", {})
-        return cls.from_dict(retention)
-
 
 class RetentionManager:
-    """Manages data retention lifecycle.
-
-    Usage::
-
-        rm = RetentionManager()
-        rm.save_scan_result(result_json, package_name="evil-pkg")
-
-        # Run cleanup (typically from cron or daemon tick)
-        stats = rm.run_cleanup()
-        print(f"Cleaned {stats['files_removed']} expired files")
-    """
-
     def __init__(
         self,
         config: RetentionConfig | None = None,
@@ -149,10 +107,6 @@ class RetentionManager:
         result_json: str,
         package_name: str = "unknown",
     ) -> Path:
-        """Save a scan result to the data directory.
-
-        File naming: ``<package>_<timestamp>_<hash>.json``
-        """
         timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
         content_hash = hashlib.sha256(result_json.encode()).hexdigest()[:12]
         filename = f"{package_name}_{timestamp}_{content_hash}.json"
@@ -163,10 +117,6 @@ class RetentionManager:
         return path
 
     def run_cleanup(self) -> dict[str, Any]:
-        """Remove expired files according to retention policy.
-
-        Returns stats about what was cleaned up.
-        """
         stats: dict[str, Any] = {
             "files_removed": 0,
             "bytes_freed": 0,
@@ -176,7 +126,6 @@ class RetentionManager:
 
         now = time.time()
 
-        # Cleanup scan results
         scan_stats = self._cleanup_directory(
             self._scan_dir,
             self._config.scan_results,
@@ -187,7 +136,6 @@ class RetentionManager:
         stats["errors"].extend(scan_stats["errors"])
         stats["policies_applied"].append(self._config.scan_results.data_type)
 
-        # Audit the cleanup
         try:
             audit = get_audit_logger()
             audit.record(
@@ -202,7 +150,6 @@ class RetentionManager:
         return stats
 
     def get_storage_stats(self) -> dict[str, Any]:
-        """Get storage usage statistics."""
         stats: dict[str, Any] = {
             "scan_results": self._dir_stats(self._scan_dir),
             "total_bytes": 0,
@@ -211,10 +158,6 @@ class RetentionManager:
         return stats
 
     def export_data(self, output_path: Path, data_type: str = "all") -> Path:
-        """Export data for compliance audits.
-
-        Creates a JSON archive of scan results and/or audit logs.
-        """
         export: dict[str, Any] = {
             "export_timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "data_type": data_type,
@@ -236,7 +179,6 @@ class RetentionManager:
             encoding="utf-8",
         )
 
-        # Audit
         try:
             audit = get_audit_logger()
             audit.record(
@@ -251,30 +193,23 @@ class RetentionManager:
         return output_path
 
     def secure_delete(self, path: Path) -> bool:
-        """Securely delete a file by overwriting before unlink.
-
-        Writes random data, then zeros, then removes the file.
-        """
         if not path.is_file():
             return False
 
         try:
             size = path.stat().st_size
 
-            # Overwrite with zeros
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(b"\x00" * size)
                 f.flush()
                 os.fsync(f.fileno())
 
-            # Overwrite with random-ish pattern
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.write(os.urandom(size))
                 f.flush()
                 os.fsync(f.fileno())
 
-            # Truncate and delete
-            with open(path, "wb") as f:
+            with path.open("wb") as f:
                 f.truncate(0)
                 f.flush()
                 os.fsync(f.fileno())
@@ -287,19 +222,15 @@ class RetentionManager:
             logger.warning("Secure delete failed for %s: %s", path, e)
             return False
 
-    # ── Internal ────────────────────────────────────────────────────────
-
     def _cleanup_directory(
         self,
         directory: Path,
         policy: RetentionPolicy,
         now: float,
     ) -> dict[str, Any]:
-        """Clean up expired files in a directory."""
         stats: dict[str, Any] = {"files_removed": 0, "bytes_freed": 0, "errors": []}
 
         if policy.ttl_days == 0:
-            # Never expire
             return stats
 
         cutoff = now - (policy.ttl_days * 86400)
@@ -321,12 +252,10 @@ class RetentionManager:
             except OSError as e:
                 stats["errors"].append(f"{f.name}: {e}")
 
-        # Check quota
         if policy.max_size_mb > 0:
             dir_stats = self._dir_stats(directory)
             max_bytes = policy.max_size_mb * 1024 * 1024
             if dir_stats["total_bytes"] > max_bytes:
-                # Remove oldest files until under quota
                 files = sorted(directory.glob("*.json"), key=lambda f: f.stat().st_mtime)
                 for f in files:
                     if dir_stats["total_bytes"] <= max_bytes:
@@ -347,7 +276,6 @@ class RetentionManager:
 
     @staticmethod
     def _dir_stats(directory: Path) -> dict[str, Any]:
-        """Compute stats for a directory."""
         if not directory.is_dir():
             return {"file_count": 0, "total_bytes": 0}
 
@@ -363,15 +291,11 @@ class RetentionManager:
         return {"file_count": file_count, "total_bytes": total_bytes}
 
 
-# ─── Module-level singleton ────────────────────────────────────────────────
-
-
 _retention_manager_lock = threading.Lock()
 _retention_manager: RetentionManager | None = None
 
 
 def get_retention_manager() -> RetentionManager:
-    """Get the global retention manager (lazy init)."""
     global _retention_manager
     if _retention_manager is None:
         with _retention_manager_lock:

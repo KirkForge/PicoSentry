@@ -1,13 +1,3 @@
-"""
-L2-LOCK-001: Lockfile drift detection.
-
-Flags discrepancies between package.json and lockfile (package-lock.json
-or pnpm-lock.yaml). Detects missing entries, version mismatches, and
-integrity hash changes that indicate tampering or drift.
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
-
 from __future__ import annotations
 
 import json
@@ -25,20 +15,16 @@ from .utils import load_package_json
 __all__ = ["detect_lockfile_drift"]
 
 logger = logging.getLogger("picosentry.lockfile_drift")
-# Weak integrity algorithms that are vulnerable to collision attacks.
+
 WEAK_INTEGRITY = ("sha1-", "md5-")
 
 
 def _load_lockfile_v1(content: str) -> dict[str, str]:
-    """Parse npm lockfile v1 — extract {name: resolved_version}."""
     deps: dict[str, str] = {}
     try:
         data = json.loads(content)
         for key, entry in data.get("dependencies", {}).items():
             if isinstance(entry, dict) and "version" in entry:
-                # In npm v1 lockfile format, the key IS the package name.
-                # Scoped packages like @babel/core use the full scoped name
-                # as the key — do NOT strip the scope prefix via rsplit("@").
                 deps[key] = entry["version"]
     except json.JSONDecodeError:
         pass
@@ -46,20 +32,18 @@ def _load_lockfile_v1(content: str) -> dict[str, str]:
 
 
 def _load_lockfile_v2(content: str) -> dict[str, str]:
-    """Parse npm lockfile v2/v3 — extract {name: resolved_version}."""
     deps: dict[str, str] = {}
     try:
         data = json.loads(content)
-        # v2/v3 uses "packages" key with path-based keys
+
         for pkg_path, entry in data.get("packages", {}).items():
             if isinstance(entry, dict) and "version" in entry:
-                # Extract package name from path like "node_modules/lodash"
                 name = entry.get("name", "")
                 if not name and "node_modules/" in pkg_path:
                     name = pkg_path.split("node_modules/")[-1]
                 if name:
                     deps[name] = entry["version"]
-        # Also check "dependencies" for v2
+
         for _key, entry in data.get("dependencies", {}).items():
             if isinstance(entry, dict) and "version" in entry:
                 name = entry.get("name", _key.split("@")[0] if "@" in _key else _key)
@@ -71,24 +55,15 @@ def _load_lockfile_v2(content: str) -> dict[str, str]:
 
 
 def _load_pnpm_lockfile(content: str) -> dict[str, str]:
-    """Parse pnpm-lock.yaml using the proper v6+ parser.
-
-    Returns {name: version} mapping for compatibility with existing drift checks.
-    Also extracts integrity and resolution info for advanced checks.
-    """
     lockfile = parse_pnpm_lockfile(content)
-    deps: dict[str, str] = {}
+    deps: dict[str, str] = {
+        name: version_info
+        for importer_deps in lockfile.importers.values()
+        for name, version_info in importer_deps.items()
+        if isinstance(version_info, str)
+    }
 
-    # Extract from importers (workspace projects)
-    for _importer_path, importer_deps in lockfile.importers.items():
-        for name, version_info in importer_deps.items():
-            if isinstance(version_info, str):
-                # May be like "4.17.21" or a resolution reference
-                deps[name] = version_info
-
-    # Also extract from packages section for completeness
     for pkg in lockfile.packages.values():
-        # Don't override importer deps — those are the direct deps
         if pkg.name and pkg.version and pkg.name not in deps:
             deps[pkg.name] = pkg.version
 
@@ -96,7 +71,6 @@ def _load_pnpm_lockfile(content: str) -> dict[str, str]:
 
 
 def _get_all_dep_versions(pkg: dict) -> dict[str, str]:
-    """Get all dependency names and their requested versions from package.json."""
     deps: dict[str, str] = {}
     for key in ("dependencies", "devDependencies", "peerDependencies", "optionalDependencies"):
         section = pkg.get(key)
@@ -106,7 +80,6 @@ def _get_all_dep_versions(pkg: dict) -> dict[str, str]:
 
 
 def _check_pnpm_workspace(target: Path) -> list[Finding]:
-    """Check pnpm-workspace.yaml for dangerous settings."""
     findings: list[Finding] = []
     workspace_yaml = target / "pnpm-workspace.yaml"
     if not workspace_yaml.is_file():
@@ -139,15 +112,9 @@ def _check_pnpm_workspace(target: Path) -> list[Finding]:
     return findings
 
 
-def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect lockfile drift — discrepancies between package.json and lockfile.
-    Also checks pnpm-workspace.yaml for dangerous settings.
-    No network calls. Pure filesystem scan.
-    """
+def detect_lockfile_drift(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-    # Check pnpm-workspace.yaml first
     findings.extend(_check_pnpm_workspace(target))
 
     root_pkg = target / "package.json"
@@ -160,7 +127,6 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
 
     pkg_deps = _get_all_dep_versions(pkg)
 
-    # Check for package-lock.json
     lockfile = target / "package-lock.json"
     pnpm_lock = target / "pnpm-lock.yaml"
     yarn_lock = target / "yarn.lock"
@@ -169,7 +135,6 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
     pnpm_exists = pnpm_lock.is_file()
     yarn_exists = yarn_lock.is_file()
 
-    # No lockfile at all
     if not lockfile_exists and not pnpm_exists and not yarn_exists:
         if pkg_deps:
             findings.append(
@@ -196,7 +161,6 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
             )
         return findings
 
-    # Parse lockfile
     locked_deps: dict[str, str] = {}
     lockfile_path: Path | None = None
 
@@ -232,7 +196,6 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
     if not locked_deps:
         return findings
 
-    # Compare package.json deps with lockfile
     for dep_name, requested_version in sorted(pkg_deps.items()):
         if dep_name not in locked_deps:
             findings.append(
@@ -254,18 +217,13 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
                 )
             )
 
-    # Check for packages in lockfile but not in package.json (orphaned)
     pkg_dep_names = set(pkg_deps.keys())
     for locked_name in sorted(locked_deps.keys()):
-        # Skip the root package entry
         if locked_name == "" or locked_name == pkg.get("name", ""):
             continue
         if locked_name not in pkg_dep_names:
-            # Not necessarily bad — transitive deps appear in lockfile
-            # Only flag if it looks like a direct dep that was removed
             pass  # Transitive deps are expected in lockfiles
 
-    # Check integrity field presence (npm lockfile v2+)
     if lockfile_exists and lockfile_path:
         try:
             content = lockfile.read_text(encoding="utf-8", errors="replace")
@@ -275,7 +233,7 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
             for pkg_path, entry in packages.items():
                 if not isinstance(entry, dict):
                     continue
-                # Root package doesn't need integrity
+
                 if not pkg_path:
                     continue
                 name = entry.get("name", pkg_path.split("/")[-1] if "/" in pkg_path else pkg_path)
@@ -301,7 +259,7 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
                         ],
                     )
                 )
-            # Check for weak integrity algorithms (sha1, md5)
+
             weak_integrity = []
             for pkg_path, entry in packages.items():
                 if not isinstance(entry, dict):
@@ -340,13 +298,11 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
         except (json.JSONDecodeError, OSError):
             logger.debug("Failed to read lockfile", exc_info=True)
 
-    # pnpm-lock.yaml specific checks (v6+)
     if pnpm_exists:
         try:
             pnpm_content = pnpm_lock.read_text(encoding="utf-8", errors="replace")
             pnpm_parsed = parse_pnpm_lockfile(pnpm_content)
 
-            # Check for missing integrity in pnpm lockfile packages
             missing = find_missing_integrity(pnpm_parsed)
             if missing:
                 findings.append(
@@ -368,7 +324,6 @@ def detect_lockfile_drift(target: Path, corpus_dir: Path) -> list[Finding]:
                     )
                 )
 
-            # Check for weak integrity algorithms
             weak = find_weak_integrity(pnpm_parsed)
             if weak:
                 findings.append(

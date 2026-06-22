@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from contextlib import suppress
 from pathlib import Path
+from typing import Any
 
 from picosentry.scan.advisory import (
     _SEMVER_RE,
@@ -78,7 +79,7 @@ def _write_json(path: Path, obj):
 
 def _make_advisory(**kw) -> Advisory:
     """Shorthand to build an Advisory directly."""
-    defaults = {
+    defaults: dict[str, Any] = {
         "id": "GHSA-test",
         "package_name": "lodash",
         "summary": "test vuln",
@@ -772,6 +773,7 @@ class TestSemverRegex(unittest.TestCase):
     def test_standard_version(self):
         m = _SEMVER_RE.search("1.2.3")
         self.assertEqual(m.group(0), "1.2.3")
+
     def test_prefixed_version(self):
         m = _SEMVER_RE.search("v1.2.3")
         self.assertIsNotNone(m)

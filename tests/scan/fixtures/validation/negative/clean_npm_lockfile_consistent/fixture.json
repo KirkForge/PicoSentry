@@ -1,0 +1,8 @@
+{
+  "label": "negative",
+  "description": "Clean npm project with a package.json and package-lock.json that reference the same dep at the same version. Asserts L2-LOCK-001 and L2-PNPM-001 stay silent on consistent lockfiles.",
+  "forbidden_rule_ids": [
+    "L2-LOCK-001",
+    "L2-PNPM-001"
+  ]
+}

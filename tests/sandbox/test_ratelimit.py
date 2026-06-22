@@ -65,8 +65,7 @@ class TestTokenBucketLimiter:
         results = []
 
         def worker():
-            for _ in range(20):
-                results.append(limiter.allow("shared-actor"))
+            results.extend(limiter.allow("shared-actor") for _ in range(20))
 
         threads = [threading.Thread(target=worker) for _ in range(5)]
         for t in threads:
@@ -119,7 +118,7 @@ class TestJobQueue:
     def test_complete_job(self):
         q = JobQueue(max_size=10)
         job = q.enqueue(command=["echo", "test"], actor="u1")
-        dequeued = q.dequeue(timeout=1.0)  # noqa: F841
+        _ = q.dequeue(timeout=1.0)
         q.complete(job.job_id, result={"verdict": "ALLOW"})
         result = q.get_result(job.job_id)
         assert result == {"verdict": "ALLOW"}
@@ -128,7 +127,7 @@ class TestJobQueue:
         q = JobQueue(max_size=10)
         job = q.enqueue(command=["echo", "test"], actor="u1")
         q.dequeue(timeout=1.0)
-        q.fail(job.job_id, error="timeout")
+        q.fail(job.job_id)
         j = q.get(job.job_id)
         assert j.status == "failed"
 
@@ -142,7 +141,7 @@ class TestJobQueue:
 
     def test_purge_expired(self):
         q = JobQueue(max_size=10)
-        job = q.enqueue(command=["echo", "old"], actor="u1")  # noqa: F841
+        _ = q.enqueue(command=["echo", "old"], actor="u1")
         # Manually set created_at to the past
         with q._lock:
             for j in q._heap:

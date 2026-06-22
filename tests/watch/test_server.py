@@ -161,6 +161,21 @@ class TestRuleDetailEndpoint:
         response = client_no_auth.get("/v1/rules/nonexistent_rule_id")
         assert response.status_code == 404
 
+    def test_rule_detail_requires_api_key_when_configured(self, client_with_auth: TestClient) -> None:
+        """Rule detail reveals regex patterns and is gated by API key."""
+        rules = client_with_auth.get("/v1/rules").json()
+        rule_id = rules[0]["id"]
+
+        response = client_with_auth.get(f"/v1/rules/{rule_id}")
+        assert response.status_code == 401
+
+        response = client_with_auth.get(
+            f"/v1/rules/{rule_id}",
+            headers={"X-API-Key": "test-secret-key-1234567890abcdef"},
+        )
+        assert response.status_code == 200
+        assert "pattern" in response.json()
+
 
 # ─── POST /v1/scan/prompt ─────────────────────────────────────────────────
 
@@ -592,7 +607,7 @@ class TestAdminApp:
     def test_admin_no_post_endpoints(self, admin_client: TestClient) -> None:
         """Admin app does not accept POST requests."""
         response = admin_client.post("/v1/scan/prompt", json={"text": "test"})
-        assert response.status_code == 405 or response.status_code == 404
+        assert response.status_code in {405, 404}
 
 
 class TestInputSizeLimits:
@@ -612,7 +627,7 @@ class TestInputSizeLimits:
 
     def test_output_oversized_returns_413(self, client_no_auth) -> None:
         """POST /v1/scan/output with oversized payload returns 413."""
-        config = _make_config(api_key=None, max_prompt_size=100)
+        config = _make_config(api_key=None, max_output_size=100)
         app = create_app(config)
         client = TestClient(app)
         response = client.post(
@@ -621,3 +636,39 @@ class TestInputSizeLimits:
         )
         assert response.status_code == 413
         assert "maximum size" in response.json()["detail"].lower()
+
+    def test_output_schema_too_large_returns_413(self) -> None:
+        """POST /v1/scan/output with an oversized runtime schema returns 413."""
+        config = _make_config(api_key=None, max_json_schema_nodes=5)
+        app = create_app(config)
+        client = TestClient(app)
+        response = client.post(
+            "/v1/scan/output",
+            json={
+                "output": "{}",
+                "schema": {"a": {"b": {"c": {"d": {}}}}, "e": {"f": {}}},
+            },
+        )
+        assert response.status_code == 413
+        assert "node count" in response.json()["detail"].lower()
+
+
+
+class TestDocsEndpoints:
+    """FastAPI auto-generated docs endpoints are disabled by default."""
+
+    def test_docs_disabled_by_default(self, client_no_auth: TestClient) -> None:
+        response = client_no_auth.get("/docs")
+        assert response.status_code == 404
+
+    def test_redoc_disabled_by_default(self, client_no_auth: TestClient) -> None:
+        response = client_no_auth.get("/redoc")
+        assert response.status_code == 404
+
+    def test_docs_enabled_via_config(self) -> None:
+        config = _make_config(api_key=None, enable_docs=True)
+        app = create_app(config)
+        client = TestClient(app)
+        # FastAPI /docs redirects to the static swagger UI; accept either 200 or 307.
+        response = client.get("/docs", follow_redirects=False)
+        assert response.status_code in {200, 307}

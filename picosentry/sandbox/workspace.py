@@ -1,14 +1,3 @@
-"""
-Workspace / multi-project scanning for monorepos.
-
-Discovers all projects (Node.js, Python, mixed) in a directory tree,
-runs the sandbox on each project's test/install commands, and
-aggregates results across the workspace.
-
-Designed for enterprise pipelines where a single repo may contain
-multiple packages (monorepo, pnpm workspace, Nx, etc.).
-"""
-
 from __future__ import annotations
 
 import json
@@ -18,16 +7,17 @@ from pathlib import Path
 
 from picosentry.sandbox.config import PicoDomeConfig, load_config
 from picosentry.sandbox.l3.engine import sandbox_run
-from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.engine import L4Engine, create_default_engine
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
+    from picosentry.sandbox.l3.models import SandboxResult
 
 logger = logging.getLogger("picodome.workspace")
 
-# ── Project discovery patterns ────────────────────────────────────────────
 
-# Files that indicate a project root
 PROJECT_MARKERS = {
     "package.json": "node",
     "requirements.txt": "python",
@@ -41,7 +31,7 @@ PROJECT_MARKERS = {
     "turbo.json": "node",
 }
 
-# Directories to skip during discovery
+
 SKIP_DIRS = frozenset(
     {
         "node_modules",
@@ -70,8 +60,6 @@ SKIP_DIRS = frozenset(
 
 
 class ProjectInfo:
-    """Information about a discovered project."""
-
     def __init__(
         self,
         path: Path,
@@ -94,8 +82,6 @@ class ProjectInfo:
 
 
 class WorkspaceResult:
-    """Aggregated results from multi-project workspace scanning."""
-
     def __init__(self) -> None:
         self.projects: dict[str, ProjectInfo] = {}
         self.sandbox_results: dict[str, SandboxResult] = {}
@@ -120,22 +106,6 @@ class WorkspaceResult:
 
 
 def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
-    """Discover all projects in a directory tree.
-
-    A project is any directory containing a recognized project marker
-    (package.json, requirements.txt, pyproject.toml, etc.).
-
-    Walks the tree up to max_depth, skipping known noise directories.
-    Deduplicates by path (a directory with both package.json and
-    pyproject.toml is counted once as 'mixed').
-
-    Args:
-        root: Root directory to scan.
-        max_depth: Maximum directory depth from root to search.
-
-    Returns:
-        Sorted list of ProjectInfo objects.
-    """
     if not root.is_dir():
         return []
 
@@ -160,12 +130,10 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                 project_types.add(ptype)
 
         if project_types:
-            # Determine project type (mixed if multiple)
             ptype = "mixed" if len(project_types) > 1 else project_types.pop()
             name = ""
             version = ""
 
-            # Try to extract name/version from package.json
             pkg_json = current / "package.json"
             if pkg_json.is_file():
                 try:
@@ -175,7 +143,6 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                 except (json.JSONDecodeError, OSError):
                     name = current.name
 
-            # Try pyproject.toml if no package.json name
             if not name:
                 pyproject = current / "pyproject.toml"
                 if pyproject.is_file():
@@ -198,7 +165,6 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
                 version=version,
             )
 
-        # Recurse into subdirectories
         for entry in entries:
             if entry.is_symlink():
                 continue
@@ -209,20 +175,16 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[ProjectInfo]:
 
 
 def _default_sandbox_commands(project: ProjectInfo) -> list[list[str]]:
-    """Get default sandbox commands for a project type.
-
-    Returns a list of command lists (each is argv-style).
-    """
     if project.project_type == "node":
         return [
             ["npm", "install", "--dry-run"],
             ["npm", "test"],
         ]
-    elif project.project_type == "python":
+    if project.project_type == "python":
         return [
             ["pip", "install", "--dry-run", "."],
         ]
-    elif project.project_type == "mixed":
+    if project.project_type == "mixed":
         return [
             ["npm", "install", "--dry-run"],
             ["pip", "install", "--dry-run", "."],
@@ -238,36 +200,17 @@ def scan_workspace(
     fail_on: str | None = None,
     timeout: float = 30.0,
 ) -> WorkspaceResult:
-    """Scan an entire workspace for supply-chain issues.
-
-    Discovers all projects in the directory tree, runs each through
-    the L3 sandbox and L4 behavioral analysis, and aggregates results.
-
-    Args:
-        root: Root directory of the workspace.
-        engine: Pre-configured L4 engine (created if None).
-        config: PicoDome configuration (loaded if None).
-        commands: Optional mapping of project path → list of commands.
-            If not provided, default commands are used based on project type.
-        fail_on: Minimum severity to consider a failure.
-        timeout: Sandbox timeout in seconds per command.
-
-    Returns:
-        WorkspaceResult with aggregated findings and metadata.
-    """
     if engine is None:
         engine = create_default_engine()
 
     if config is None:
         config = load_config(root)
 
-    # Apply config overrides
     if config.timeout:
         timeout = config.timeout
 
     start = time.monotonic()
 
-    # Discover projects
     projects = discover_projects(root)
 
     result = WorkspaceResult()
@@ -279,7 +222,6 @@ def scan_workspace(
         rel = project.path.relative_to(root) if str(project.path).startswith(str(root)) else project.path.name
         logger.info("Scanning: %s (%s)", rel, project.project_type)
 
-        # Get sandbox commands
         project_commands = (
             commands.get(str(project.path), _default_sandbox_commands(project))
             if commands
@@ -290,30 +232,25 @@ def scan_workspace(
             logger.info("  No commands for %s, skipping", rel)
             continue
 
-        # Run sandbox for each command
         all_findings_count = 0
         project_ok = True
 
         for cmd in project_commands:
             try:
-                # L3 sandbox
                 sandbox_result = sandbox_run(
                     command=cmd,
                     timeout=timeout,
                     cwd=str(project.path),
                 )
 
-                # L4 behavioral analysis
                 profile = profile_from_sandbox_result(sandbox_result)
                 analysis = engine.analyze(profile)
 
-                # Store results
                 key = str(project.path)
                 result.sandbox_results[f"{key}:{' '.join(cmd)}"] = sandbox_result
                 result.analysis_results[f"{key}:{' '.join(cmd)}"] = analysis
                 all_findings_count += len(analysis.findings)
 
-                # Check fail threshold
                 if fail_on and analysis.findings:
                     severity_order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3, "INFO": 4}
                     min_level = severity_order.get(fail_on.upper(), 2)
@@ -335,7 +272,7 @@ def scan_workspace(
                 project_ok = False
                 error_msg = f"{rel}: {e}"
                 result.errors.append(error_msg)
-                logger.error("  %s: FAILED — %s", rel, e)
+                logger.exception("  %s: FAILED", rel)
 
         result.projects[str(project.path)] = project
         if project_ok:
@@ -363,16 +300,6 @@ def scan_workspace_to_json(
     output: Path | None = None,
     **kwargs,
 ) -> str:
-    """Scan workspace and return JSON string.
-
-    Args:
-        root: Root of the workspace.
-        output: Optional file path to write results.
-        **kwargs: Passed to scan_workspace().
-
-    Returns:
-        JSON string of aggregated results.
-    """
     wr = scan_workspace(root, **kwargs)
 
     data = {

@@ -26,7 +26,7 @@ class TestNoLicenseField:
         """Package with no license field → MEDIUM finding."""
         pkg = {"name": "no-license-pkg", "version": "1.0.0"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].rule_id == "L2-LICENSE-001"
         assert findings[0].severity.value == "MEDIUM"
@@ -36,7 +36,7 @@ class TestNoLicenseField:
         """Package with empty string license → unknown finding."""
         pkg = {"name": "empty-license", "version": "1.0.0", "license": ""}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].rule_id == "L2-LICENSE-001"
 
@@ -48,7 +48,7 @@ class TestUnlicensedPackages:
         """UNLICENSED license → HIGH finding."""
         pkg = {"name": "proprietary-lib", "version": "2.0.0", "license": "UNLICENSED"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value == "HIGH"
         assert "UNLICENSED" in findings[0].message
@@ -57,7 +57,7 @@ class TestUnlicensedPackages:
         """'SEE LICENSE IN' license → HIGH finding."""
         pkg = {"name": "see-license", "version": "1.0.0", "license": "SEE LICENSE IN LICENSE"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value == "HIGH"
 
@@ -69,7 +69,7 @@ class TestCopyleftLicenses:
         """GPL-3.0 → MEDIUM copyleft finding."""
         pkg = {"name": "gpl-lib", "version": "1.0.0", "license": "GPL-3.0"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value == "MEDIUM"
         assert "copyleft" in findings[0].message.lower()
@@ -78,7 +78,7 @@ class TestCopyleftLicenses:
         """AGPL-3.0 → MEDIUM copyleft finding."""
         pkg = {"name": "agpl-lib", "version": "1.0.0", "license": "AGPL-3.0"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value == "MEDIUM"
 
@@ -86,7 +86,7 @@ class TestCopyleftLicenses:
         """GPL-2.0-or-later → MEDIUM copyleft finding."""
         pkg = {"name": "gpl2-lib", "version": "1.0.0", "license": "GPL-2.0-or-later"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert "copyleft" in findings[0].message.lower()
 
@@ -94,7 +94,7 @@ class TestCopyleftLicenses:
         """LGPL-2.1 → MEDIUM copyleft finding."""
         pkg = {"name": "lgpl-lib", "version": "1.0.0", "license": "LGPL-2.1"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert "copyleft" in findings[0].message.lower()
 
@@ -106,42 +106,42 @@ class TestPermissiveLicenses:
         """MIT license → no finding."""
         pkg = {"name": "mit-lib", "version": "1.0.0", "license": "MIT"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_apache_2(self, tmp_path, corpus_dir):
         """Apache-2.0 → no finding."""
         pkg = {"name": "apache-lib", "version": "1.0.0", "license": "Apache-2.0"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_bsd_3_clause(self, tmp_path, corpus_dir):
         """BSD-3-Clause → no finding."""
         pkg = {"name": "bsd-lib", "version": "1.0.0", "license": "BSD-3-Clause"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_isc_license(self, tmp_path, corpus_dir):
         """ISC → no finding."""
         pkg = {"name": "isc-lib", "version": "1.0.0", "license": "ISC"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_dual_mit_or_apache(self, tmp_path, corpus_dir):
         """(MIT OR Apache-2.0) dual license → no finding."""
         pkg = {"name": "dual-lib", "version": "1.0.0", "license": "(MIT OR Apache-2.0)"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_unlicense(self, tmp_path, corpus_dir):
         """Unlicense (public domain) → no finding."""
         pkg = {"name": "unlicense-lib", "version": "1.0.0", "license": "Unlicense"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
 
@@ -152,7 +152,7 @@ class TestUnknownLicenses:
         """Custom/unknown license string → LOW finding."""
         pkg = {"name": "weird-license", "version": "1.0.0", "license": "MyCustomLicense2024"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity.value == "LOW"
         assert "unrecognized" in findings[0].message.lower()
@@ -169,14 +169,14 @@ class TestLicenseObjectType:
             "license": {"type": "MIT", "url": "https://opensource.org/licenses/MIT"},
         }
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 0
 
     def test_license_object_gpl(self, tmp_path, corpus_dir):
         """License as {"type": "GPL-3.0"} → MEDIUM copyleft finding."""
         pkg = {"name": "obj-gpl", "version": "1.0.0", "license": {"type": "GPL-3.0"}}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert "copyleft" in findings[0].message.lower()
 
@@ -196,7 +196,7 @@ class TestNodeModulesScanning:
         evil_pkg = {"name": "evil-no-license", "version": "1.0.0"}
         (evil_dir / "package.json").write_text(json.dumps(evil_pkg))
 
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].package == "evil-no-license@1.0.0"
         assert findings[0].severity.value == "MEDIUM"
@@ -214,7 +214,7 @@ class TestNodeModulesScanning:
         pkg_json = {"name": "@evil/proprietary", "version": "1.0.0", "license": "UNLICENSED"}
         (pkg_dir / "package.json").write_text(json.dumps(pkg_json))
 
-        findings = detect_license_issues(tmp_path, corpus_dir)
+        findings = detect_license_issues(tmp_path)
         # Should find the @evil/proprietary UNLICENSED finding
         assert len(findings) >= 1
         unlicensed = [f for f in findings if "UNLICENSED" in f.message]
@@ -230,8 +230,8 @@ class TestDeterminism:
         pkg = {"name": "gpl-lib", "version": "1.0.0", "license": "GPL-3.0"}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
 
-        findings_a = detect_license_issues(tmp_path, corpus_dir)
-        findings_b = detect_license_issues(tmp_path, corpus_dir)
+        findings_a = detect_license_issues(tmp_path)
+        findings_b = detect_license_issues(tmp_path)
 
         assert len(findings_a) == len(findings_b)
         for a, b in zip(findings_a, findings_b, strict=False):

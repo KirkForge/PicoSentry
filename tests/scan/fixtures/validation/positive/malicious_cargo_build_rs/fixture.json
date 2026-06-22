@@ -1,0 +1,6 @@
+{
+  "label": "positive",
+  "description": "Cargo project whose build.rs spawns a shell, downloads a stage-2 payload, and reads CARGO_REGISTRY_TOKEN. Fires L2-BUILD-001.",
+  "expected_rule_ids": ["L2-BUILD-001"],
+  "strict": true
+}

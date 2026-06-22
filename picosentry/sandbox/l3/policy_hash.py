@@ -1,26 +1,15 @@
-"""Policy hashing utilities.
-
-Enterprise evidence requires a stable policy hash.
-
-We compute sha256 over a canonical JSON representation of the Policy.
-"""
-
 from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.l3.models import Policy
+
+if TYPE_CHECKING:
+    from picosentry.sandbox.l3.models import Policy
 
 
 def canonical_policy_dict(policy: Policy) -> dict[str, Any]:
-    """Return a canonical dict for hashing.
-
-    - sort rules by rule_id
-    - sort list fields within rules
-    - ensure stable key ordering
-    """
 
     d = policy.to_dict()
     rules = d.get("rules", [])
@@ -47,7 +36,6 @@ def canonical_policy_dict(policy: Policy) -> dict[str, Any]:
 
 
 def policy_hash(policy: Policy) -> str:
-    """Compute sha256 of canonical policy representation."""
     canon = canonical_policy_dict(policy)
     blob = json.dumps(canon, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(blob).hexdigest()

@@ -1,6 +1,5 @@
 """Extended tests for obfuscation detection rule."""
 
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -16,16 +15,7 @@ from picosentry.scan.rules.obfuscation import (
     detect_obfuscation,
 )
 
-
-def _make_project(tmp_path, pkg_json, files=None):
-    """Create a minimal project with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestPatternRegexes(unittest.TestCase):
@@ -120,6 +110,20 @@ class TestScanFile(unittest.TestCase):
         self.assertIn(".map", SKIP_EXTENSIONS)
         self.assertIn(".woff", SKIP_EXTENSIONS)
 
+    def test_large_benign_file_no_tokens(self):
+        """A large JS file without obfuscation tokens should return zero quickly.
+
+        This exercises the literal-token fast path: none of the required
+        tokens (eval, function, \\x, \\u, atob, Buffer.from) are present, so the
+        expensive regexes are skipped.
+        """
+        with tempfile.TemporaryDirectory() as tmp:
+            f = Path(tmp) / "big.js"
+            # Content is long but contains no suspicious tokens.
+            f.write_text("// benign module\n" + "const x = 1;\n" * 20_000)
+            findings = _scan_file(f)
+            self.assertEqual(len(findings), 0)
+
 
 class TestDetectObfuscation(unittest.TestCase):
     """Test detect_obfuscation on project trees."""
@@ -127,7 +131,7 @@ class TestDetectObfuscation(unittest.TestCase):
     def test_root_js_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             _make_project(Path(tmp), {"name": "test", "version": "1.0.0"}, {"index.js": 'eval("malicious")'})
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertGreater(len(findings), 0)
 
     def test_node_modules_scan(self):
@@ -138,13 +142,13 @@ class TestDetectObfuscation(unittest.TestCase):
             nm.mkdir(parents=True)
             (nm / "package.json").write_text('{"name": "evil", "version": "1.0.0"}')
             (nm / "index.js").write_text('eval("pwned")')
-            findings = detect_obfuscation(root, root / "corpus")
+            findings = detect_obfuscation(root)
             self.assertGreater(len(findings), 0)
 
     def test_no_js_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             _make_project(Path(tmp), {"name": "test", "version": "1.0.0"}, {"style.css": "body { color: red; }"})
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertEqual(len(findings), 0)
 
     def test_scoped_package(self):
@@ -155,14 +159,14 @@ class TestDetectObfuscation(unittest.TestCase):
             scoped.mkdir(parents=True)
             (scoped / "package.json").write_text('{"name": "@scope/pkg", "version": "1.0.0"}')
             (scoped / "index.js").write_text('Function("return this")()')
-            findings = detect_obfuscation(root, root / "corpus")
+            findings = detect_obfuscation(root)
             self.assertGreater(len(findings), 0)
             self.assertIn("@scope", findings[0].package)
 
     def test_empty_project(self):
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "package.json").write_text('{"name": "empty"}')
-            findings = detect_obfuscation(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_obfuscation(Path(tmp))
             self.assertEqual(len(findings), 0)
 
 

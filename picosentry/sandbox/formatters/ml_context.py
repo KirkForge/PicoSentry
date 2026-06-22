@@ -1,19 +1,14 @@
-"""ML context formatter — compact, token-budgeted output for LLM context.
-
-Designed to be safe to inject into an agent's context without polluting
-reasoning or causing hallucinated fixes. No narrative, no severity inflation.
-
-Deterministic: same input = same output. Sorted keys, no timestamps.
-"""
-
 from __future__ import annotations
 
 from picosentry.sandbox import __version__
 from picosentry.sandbox.l3.models import SandboxResult
-from picosentry.sandbox.l4.models import AnalysisResult
 from picosentry.sandbox.models import Severity
+from typing import TYPE_CHECKING
 
-# Dome-themed severity labels (compact for token efficiency)
+if TYPE_CHECKING:
+    from picosentry.sandbox.l4.models import AnalysisResult
+
+
 _DOME_LABELS = {
     Severity.CRITICAL: "HARD PINCH",
     Severity.HIGH: "HARD PINCH",
@@ -27,23 +22,12 @@ def format_ml_context(
     result: SandboxResult | AnalysisResult,
     token_budget: int = 4096,
 ) -> str:
-    """
-    Format a result as compact structured text for ML/LLM context.
-
-    Token-budgeted — output is truncated if it exceeds budget.
-    No narrative — the consumer formats findings.
-
-    Args:
-        result: SandboxResult or AnalysisResult to format.
-        token_budget: Approximate token budget (1 token ≈ 4 chars).
-    """
     if isinstance(result, SandboxResult):
         return _l3_ml_context(result, token_budget)
     return _l4_ml_context(result, token_budget)
 
 
 def _l3_ml_context(result: SandboxResult, token_budget: int) -> str:
-    """Format L3 sandbox result for ML context."""
     lines = [
         f"PICODOME L3 SANDBOX | v{__version__}",
         f"command: {' '.join(result.command)}",
@@ -56,8 +40,10 @@ def _l3_ml_context(result: SandboxResult, token_budget: int) -> str:
 
     if result.events:
         lines.append(f"events: {len(result.events)}")
-        for event in result.events:
-            lines.append(f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}")
+        lines.extend(
+            f"  - {event.rule_id}: {event.verdict.value} | {event.operation} | {event.detail}"
+            for event in result.events
+        )
     else:
         lines.append("events: 0")
 
@@ -66,7 +52,6 @@ def _l3_ml_context(result: SandboxResult, token_budget: int) -> str:
 
 
 def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
-    """Format L4 analysis result for ML context."""
     lines = [
         f"PICODOME L4 ANALYSIS | v{__version__}",
         f"target: {result.target}",
@@ -75,7 +60,6 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
     ]
 
     if result.findings:
-        # Group by severity
         by_severity: dict = {}
         for f in result.findings:
             sev = f.severity.value
@@ -97,21 +81,15 @@ def _l4_ml_context(result: AnalysisResult, token_budget: int) -> str:
 
     if result.drift_results:
         lines.append(f"\ndrift: {len(result.drift_results)}")
-        for d in result.drift_results:
-            lines.append(f"  baseline={d.baseline_name} score={d.score:.0%}")
+        lines.extend(f"  baseline={d.baseline_name} score={d.score:.0%}" for d in result.drift_results)
 
     output = "\n".join(lines)
     return _truncate_to_budget(output, token_budget)
 
 
 def _truncate_to_budget(text: str, token_budget: int) -> str:
-    """Truncate text to approximately fit within a token budget.
-
-    Uses rough heuristic: 1 token ≈ 4 characters.
-    """
     max_chars = token_budget * 4
     if len(text) <= max_chars:
         return text
 
-    truncated = text[: max_chars - 3] + "..."
-    return truncated
+    return text[: max_chars - 3] + "..."

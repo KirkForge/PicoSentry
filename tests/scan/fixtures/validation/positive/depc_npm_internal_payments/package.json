@@ -1,0 +1,8 @@
+{
+  "name": "payments-consumer",
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@internal/payments": "1.0.0"
+  }
+}

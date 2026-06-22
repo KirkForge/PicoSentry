@@ -1,12 +1,3 @@
-"""Shared enums and base dataclasses — vendored from pico-core.
-
-Provides canonical types used across scan, sandbox, watch, and serve:
-- Verdict, Severity: canonical enums shared by all scanners/sandboxes
-- Confidence: confidence level for findings
-- ScanStats: aggregate statistics base with deterministic serialization
-- FindingProtocol: minimum interface for cross-codebase finding objects
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -15,8 +6,6 @@ from typing import Any, Protocol, runtime_checkable
 
 
 class Severity(str, Enum):
-    """Canonical severity levels across all PicoSeries tools."""
-
     CRITICAL = "CRITICAL"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -24,7 +13,6 @@ class Severity(str, Enum):
     INFO = "INFO"
 
 
-# Canonical severity ordering — use this instead of duplicating dicts.
 SEVERITY_ORDER: dict[str, int] = {
     "critical": 0,
     "high": 1,
@@ -35,16 +23,12 @@ SEVERITY_ORDER: dict[str, int] = {
 
 
 class Verdict(str, Enum):
-    """Canonical verdict for scan/sandbox results."""
-
     ALLOW = "ALLOW"
     DENY = "DENY"
     KILL = "KILL"
 
 
 class Confidence(str, Enum):
-    """Confidence level for findings."""
-
     EXACT = "EXACT"
     HIGH = "HIGH"
     MEDIUM = "MEDIUM"
@@ -53,11 +37,6 @@ class Confidence(str, Enum):
 
 @dataclass(frozen=True)
 class ScanStats:
-    """Aggregate statistics for a scan or analysis. Frozen for determinism.
-
-    Shared base for both PicoDome SandboxResult.stats and PicoSentry ScanResult.stats.
-    """
-
     packages_scanned: int = 0
     files_scanned: int = 0
     duration_ms: int = 0
@@ -65,10 +44,6 @@ class ScanStats:
     findings_by_rule: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self, deterministic: bool = False) -> dict:
-        """Serialize to dict with sorted keys.
-
-        In deterministic mode, omit duration_ms (timing is non-deterministic).
-        """
         d: dict = {
             "packages_scanned": self.packages_scanned,
             "files_scanned": self.files_scanned,
@@ -77,22 +52,11 @@ class ScanStats:
         }
         if not deterministic:
             d["duration_ms"] = self.duration_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @runtime_checkable
 class FindingProtocol(Protocol):
-    """Minimum interface for finding objects across PicoSeries codebases.
-
-    PicoDome.Finding, PicoSentry.Finding, and PicoWatch result types all
-    satisfy this protocol structurally. Used for cross-codebase integration
-    where the consumer only needs the common fields: rule_id, severity,
-    and a way to serialize.
-
-    This is a structural type — no inheritance required. Any object with
-    these attributes automatically satisfies FindingProtocol.
-    """
-
     rule_id: str
     severity: Severity
 

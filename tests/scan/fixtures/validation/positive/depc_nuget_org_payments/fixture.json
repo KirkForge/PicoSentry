@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "NuGet dep 'Org.Payments' (fires L2-NUGET-DEPC-001). Variant using Org. prefix.",
+  "expected_rule_ids": ["L2-NUGET-DEPC-001"]
+}

@@ -129,7 +129,8 @@ class TestSeccompBackend:
         # and exits with the child's return code — not just the parent's.
         result = backend.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "import subprocess, sys; sys.exit(subprocess.run(['/bin/true']).returncode)",
             ],
             node_policy(),
@@ -154,15 +155,14 @@ class TestSeccompBackend:
 
         result = backend.run(
             [
-                "python3", "-c",
+                "python3",
+                "-c",
                 "import subprocess, sys; sys.exit(subprocess.run(['/bin/true']).returncode)",
             ],
             node_policy(),
             timeout=10.0,
         )
-        assert result.exit_code == 0, (
-            f"Child killed under node policy: exit_code={result.exit_code}"
-        )
+        assert result.exit_code == 0, f"Child killed under node policy: exit_code={result.exit_code}"
         assert result.overall_verdict == Verdict.ALLOW
 
     def test_sandbox_blocks_network(self):
@@ -212,7 +212,7 @@ class TestSandboxEngine:
             ),
         ]
         policy = Policy(name="test-restrictive", rules=policy_rules)
-        result = sandbox_run(  # noqa: F841
+        _ = sandbox_run(
             ["python3", "-c", "print('1.2.3.4')"],
             policy=policy,
             timeout=5.0,
@@ -223,7 +223,6 @@ class TestSandboxEngine:
         # With seccomp, print does not trigger network syscalls. Post-hoc pattern analysis catches IP in output.
         # The seccomp backend handles this at kernel level; subprocess backend catches it post-hoc.
         # Either way, events should exist if anything suspicious was found.
-        pass  # Accept any verdict for this policy+command combination
 
 
 # ── Backend detection and engine tests ─────────────────────────────────
@@ -292,9 +291,11 @@ class TestBackendDetection:
         """On non-Linux/macOS without degraded, auto-detect should raise."""
         from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
 
-        with patch("picosentry.sandbox.l3.engine.platform.system", return_value="FreeBSD"):
-            with pytest.raises(BackendUnavailableError, match="No enforcement backend"):
-                _detect_backend(allow_degraded=False)
+        with (
+            patch("picosentry.sandbox.l3.engine.platform.system", return_value="FreeBSD"),
+            pytest.raises(BackendUnavailableError, match="No enforcement backend"),
+        ):
+            _detect_backend(allow_degraded=False)
 
     def test_allow_degraded_env_var(self):
         import os

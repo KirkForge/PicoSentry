@@ -1,17 +1,3 @@
-"""
-L2-ENGIN-001: Engine constraint detection.
-
-Flags packages with missing, overly permissive, or suspicious engine constraints.
-Engine fields control which Node.js versions a package can run on.
-
-- Missing engines field: package claims to work on any Node version (MEDIUM)
-- Overly permissive engines (>=0.0.0, *, "any"): no real constraint (MEDIUM)
-- Engines with only npm specified but no node: incomplete constraint (LOW)
-- Engines with very narrow range (exact version): potential compatibility trap (INFO)
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -20,16 +6,15 @@ from ..models import Confidence, Finding, Severity
 from .utils import iter_node_modules, load_package_json
 
 __all__ = ["detect_engine_issues"]
-# Overly permissive engine ranges — accept any version
+
 OVERLY_PERMISSIVE = ("*", "", ">=0.0.0", "x", "any", "latest", "*.*.*")
 
 
 def _is_overly_permissive(version_str: str) -> bool:
-    """Check if an engine version range is overly permissive."""
     stripped = version_str.strip()
     if stripped in OVERLY_PERMISSIVE:
         return True
-    # >=0.0.0 variants
+
     if stripped.startswith(">="):
         base = stripped[2:].strip()
         parts = base.split(".")
@@ -39,16 +24,14 @@ def _is_overly_permissive(version_str: str) -> bool:
 
 
 def _is_exact_version(version_str: str) -> bool:
-    """Check if an engine version is pinned to an exact version (no ranges)."""
     stripped = version_str.strip()
-    # Exact version: starts with digit, no range operators
+
     return bool(
         stripped and stripped[0].isdigit() and not any(c in stripped for c in ("*", "^", "~", ">", "<", "|", " "))
     )
 
 
 def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
-    """Check a single package.json for engine constraint issues."""
     findings: list[Finding] = []
     pkg_name = pkg.get("name", pkg_json_path.parent.name)
     pkg_version = pkg.get("version", "unknown")
@@ -56,9 +39,7 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
 
     engines = pkg.get("engines")
 
-    # Missing engines field
     if engines is None or engines == {}:
-        # Only flag if the package has install scripts (higher risk)
         scripts = pkg.get("scripts", {})
         has_install_script = isinstance(scripts, dict) and any(
             k in scripts for k in ("install", "postinstall", "preinstall")
@@ -86,7 +67,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                 )
             )
         else:
-            # No engines, no install scripts — lower risk
             findings.append(
                 Finding(
                     rule_id="L2-ENGIN-001",
@@ -110,7 +90,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
     if not isinstance(engines, dict):
         return findings
 
-    # Check for overly permissive node constraint
     node_version = engines.get("node")
     if node_version is not None:
         if _is_overly_permissive(str(node_version)):
@@ -158,7 +137,6 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                 )
             )
 
-    # Check for engines with only npm specified (no node)
     if "npm" in engines and "node" not in engines:
         findings.append(
             Finding(
@@ -182,22 +160,15 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
     return findings
 
 
-def detect_engine_issues(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect engine constraint issues — missing, overly permissive, or suspicious.
-
-    No network calls. Pure filesystem scan.
-    """
+def detect_engine_issues(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-    # Root package.json
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             findings.extend(_check_engines(pkg, root_pkg))
 
-    # node_modules packages
     for pkg_json, pkg in iter_node_modules(target):
         findings.extend(_check_engines(pkg, pkg_json))
 

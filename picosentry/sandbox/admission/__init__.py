@@ -1,29 +1,10 @@
-"""Kubernetes Admission Controller — validate pod specs before deployment.
-
-This module implements a Kubernetes Validating Admission Webhook that
-intercepts pod creation/update requests and enforces security policies:
-  - Deny privileged containers
-  - Deny runAsRoot without explicit override
-  - Deny missing security contexts
-  - Deny hostPath mounts
-  - Optionally scan container images for vulnerabilities
-
-Deployment:
-  1. Generate TLS cert and key for the webhook
-  2. Create a K8s Secret with tls.crt and tls.key
-  3. Deploy the admission controller as a Deployment + Service
-  4. Register the ValidatingWebhookConfiguration
-
-The webhook endpoint is POST /validate, accepting AdmissionReview
-objects and returning allow/deny decisions.
-"""
-
 from __future__ import annotations
 
 import base64
 import json
 import logging
 import ssl
+import urllib.parse
 from collections.abc import Callable
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
@@ -35,12 +16,7 @@ _DEFAULT_PORT = 8443
 _DEFAULT_HOST = "127.0.0.1"
 
 
-# ─── Admission Review models ───────────────────────────────────────────────
-
-
 class AdmissionRequest:
-    """Parsed admission request from Kubernetes API server."""
-
     def __init__(
         self,
         uid: str,
@@ -59,7 +35,6 @@ class AdmissionRequest:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> AdmissionRequest:
-        """Parse from the 'request' field of an AdmissionReview."""
         return cls(
             uid=data.get("uid", ""),
             kind=data.get("kind", {}),
@@ -71,8 +46,6 @@ class AdmissionRequest:
 
 
 class AdmissionResponse:
-    """Build an admission response to send back to K8s."""
-
     def __init__(
         self,
         uid: str,
@@ -103,21 +76,12 @@ class AdmissionResponse:
         return result
 
 
-# ─── HTTP Handler ───────────────────────────────────────────────────────────
-
-
 class AdmissionHandler(BaseHTTPRequestHandler):
-    """HTTP handler for the K8s admission webhook.
-
-    Handles POST /validate with AdmissionReview JSON payloads.
-    """
-
-    # Overrideable validator function
     validator: ClassVar[Callable[[AdmissionRequest], tuple[bool, str]] | None] = None
 
     def do_POST(self) -> None:
-        """Handle admission review requests."""
-        if self.path != "/validate":
+        parsed = urllib.parse.urlparse(self.path)
+        if parsed.path != "/validate":
             self.send_response(404)
             self.end_headers()
             return
@@ -137,7 +101,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
 
         req = AdmissionRequest.from_dict(request_data)
 
-        # Validate using the configured validator
         validator = AdmissionHandler.validator
         if validator:
             allowed, reason = validator(req)
@@ -150,7 +113,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
             reason=reason,
         )
 
-        # Build the full AdmissionReview response
         review_response = {
             "apiVersion": "admission.k8s.io/v1",
             "kind": "AdmissionReview",
@@ -163,7 +125,6 @@ class AdmissionHandler(BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(review_response).encode("utf-8"))
 
     def _send_admission_error(self, error: str) -> None:
-        """Send an error admission response."""
         review_response = {
             "apiVersion": "admission.k8s.io/v1",
             "kind": "AdmissionReview",
@@ -185,23 +146,7 @@ class AdmissionHandler(BaseHTTPRequestHandler):
         logger.debug("Admission webhook: %s", format % args)
 
 
-# ─── Server ─────────────────────────────────────────────────────────────────
-
-
 class AdmissionWebhookServer:
-    """Kubernetes admission webhook server.
-
-    Runs an HTTPS server on the specified port with TLS cert/key,
-    handling POST /validate requests from the K8s API server.
-
-    Args:
-        port: Port to listen on.
-        cert_file: Path to TLS certificate file.
-        key_file: Path to TLS private key file.
-        validator: Function that takes an AdmissionRequest and returns
-            (allowed: bool, reason: str).
-    """
-
     def __init__(
         self,
         host: str = _DEFAULT_HOST,
@@ -218,7 +163,6 @@ class AdmissionWebhookServer:
         self._server: HTTPServer | None = None
 
     def start(self, background: bool = False) -> None:
-        """Start the admission webhook server."""
         AdmissionHandler.validator = self._validator
 
         self._server = HTTPServer((self._host, self._port), AdmissionHandler)
@@ -247,7 +191,6 @@ class AdmissionWebhookServer:
                 self.stop()
 
     def stop(self) -> None:
-        """Stop the admission webhook server."""
         if self._server:
             self._server.shutdown()
             self._server = None

@@ -1,0 +1,12 @@
+{
+  "label": "positive",
+  "description": "Replicates the node-ipc 9.1.6/9.2.3/12.0.1 peacenotwar/wipeout supply-chain attack. The package ships ssl-geosafe.js (a known payload filename for the node-ipc-compromise-2022 campaign) and references the bt.node.js C2 domain. The postinstall script triggers L2-POST-001. Combined with CRED-001 (reading /etc/passwd) and NETEX-001 (DNS exfil to attacker.example), this is a faithful reproduction of the 2022 CVE.",
+  "expected_rule_ids": [
+    "L2-CAMP-NODE-IPC-COMPROMISE",
+    "L2-POST-001"
+  ],
+  "expected_findings": [
+    {"rule_id": "L2-CAMP-NODE-IPC-COMPROMISE", "file_contains": "ssl-geosafe.js"}
+  ],
+  "strict": true
+}

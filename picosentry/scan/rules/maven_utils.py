@@ -1,16 +1,3 @@
-"""
-Maven-specific detection and parsing utilities for Java/Gradle projects.
-
-Analogues of ``go_utils.py`` but for the Maven/Gradle ecosystem.
-
-Provides:
-- ``detect_maven_project()`` — check for Maven indicator files (pom.xml, build.gradle)
-- ``parse_pom_xml()`` — parse pom.xml for package metadata and dependencies
-- ``parse_gradle_build()`` — parse build.gradle (Groovy DSL) for dependencies
-- ``get_maven_dep_identifiers()`` — extract artifact ID names from parsed data
-- ``detect_private_maven_repository()`` — check for private Maven repository config
-"""
-
 from __future__ import annotations
 
 import logging
@@ -20,44 +7,25 @@ from pathlib import Path
 
 logger = logging.getLogger("picosentry.maven_utils")
 
-# ── Maven XML namespace ────────────────────────────────────────────────────
+
 _MAVEN_NS = "http://maven.apache.org/POM/4.0.0"
 _NS = {"mvn": _MAVEN_NS}
 
-# ── Gradle (Groovy DSL) patterns ──────────────────────────────────────────
+
 _GRADLE_DEP_SIMPLE_RE = re.compile(
     r"^\s*(?:implementation|api|compileOnly|runtimeOnly|testImplementation|testCompileOnly|testRuntimeOnly|annotationProcessor|compile|testCompile|runtime)\s+['\"]([^:]+):([^:]+):([^'\"]+)['\"]"
 )
 _GRADLE_DEP_PROJECT_RE = re.compile(
     r"^\s*(?:implementation|api|compileOnly|runtimeOnly)\s+project\(['\"]([^'\"]+)['\"]\)"
 )
-_GRADLE_REPO_URL_RE = re.compile(
-    r"^\s*maven\s*\(\s*['\"]([^'\"]+)['\"]\s*\)\s*$"
-)
-_GRADLE_MAVEN_BLOCK_RE = re.compile(
-    r"^\s*maven\s*\{\s*$"
-)
-_GRADLE_URL_RE = re.compile(
-    r"^\s*url\s+['\"]([^'\"]+)['\"]"
-)
-_GRADLE_GROUP_RE = re.compile(
-    r"^\s*group\s+['\"]([^'\"]+)['\"]"
-)
-_GRADLE_VERSION_RE = re.compile(
-    r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]"
-)
-
-# ── Package detection ──────────────────────────────────────────────────────
+_GRADLE_REPO_URL_RE = re.compile(r"^\s*maven\s*\(\s*['\"]([^'\"]+)['\"]\s*\)\s*$")
+_GRADLE_MAVEN_BLOCK_RE = re.compile(r"^\s*maven\s*\{\s*$")
+_GRADLE_URL_RE = re.compile(r"^\s*url\s+['\"]([^'\"]+)['\"]")
+_GRADLE_GROUP_RE = re.compile(r"^\s*group\s+['\"]([^'\"]+)['\"]")
+_GRADLE_VERSION_RE = re.compile(r"^\s*version\s*=\s*['\"]([^'\"]+)['\"]")
 
 
 def detect_maven_project(target: Path) -> bool:
-    """Check if the target directory contains a Maven/Gradle project.
-
-    Returns True if any of these indicator files exist:
-    - pom.xml (primary Maven indicator)
-    - build.gradle or build.gradle.kts (Gradle indicator)
-    - mvnw or gradlew (wrapper scripts)
-    """
     if not target.is_dir():
         return False
 
@@ -70,11 +38,7 @@ def detect_maven_project(target: Path) -> bool:
     return bool((target / "settings.gradle").is_file() or (target / "settings.gradle.kts").is_file())
 
 
-# ── pom.xml parsing ────────────────────────────────────────────────────────
-
-
 def _resolve_property(text: str, properties: dict[str, str]) -> str:
-    """Resolve ``${property.name}`` references in a string."""
     if not text:
         return ""
     result = text
@@ -86,22 +50,6 @@ def _resolve_property(text: str, properties: dict[str, str]) -> str:
 
 
 def parse_pom_xml(target: Path) -> dict | None:
-    """Parse ``pom.xml`` for package metadata and dependencies.
-
-    Uses xml.etree.ElementTree with Maven XML namespace handling.
-
-    Returns a dict with:
-    - ``group_id``: Maven group ID (from <groupId>)
-    - ``artifact_id``: Maven artifact ID (from <artifactId>)
-    - ``version``: package version
-    - ``dependencies``: list of (group_id, artifact_id, version, scope) tuples
-    - ``dependency_management``: list of (group_id, artifact_id, version) tuples
-    - ``repositories``: list of (id, url) tuples for custom repositories
-    - ``properties``: dict of ${property} definitions
-    - ``parent``: optional dict of parent POM coordinates
-
-    Returns None if pom.xml doesn't exist or can't be parsed.
-    """
     pom_path = target / "pom.xml"
     if not pom_path.is_file():
         return None
@@ -114,7 +62,6 @@ def parse_pom_xml(target: Path) -> dict | None:
 
     root = tree.getroot()
 
-    # Helper: find a tag with or without namespace
     def _find(tag: str, parent: ET.Element = root) -> ET.Element | None:
         result = parent.find(f"mvn:{tag}", _NS)
         if result is not None:
@@ -138,13 +85,11 @@ def parse_pom_xml(target: Path) -> dict | None:
         "parent": None,
     }
 
-    # Extract properties
     props_elem = _find("properties")
     if props_elem is not None:
         for prop in props_elem:
             result["properties"][prop.tag.split("}", 1)[-1]] = prop.text or ""
 
-    # Extract parent coordinates
     parent_elem = _find("parent")
     if parent_elem is not None:
         pg = _find("groupId", parent_elem)
@@ -156,12 +101,10 @@ def parse_pom_xml(target: Path) -> dict | None:
             "version": pv.text if pv is not None else "",
         }
 
-    # Extract project coordinates
     gid = _find("groupId")
     if gid is not None:
         result["group_id"] = _resolve_property(gid.text or "", result["properties"])
     else:
-        # Use parent groupId if not specified
         result["group_id"] = result["parent"]["group_id"] if result["parent"] else ""
 
     aid = _find("artifactId")
@@ -174,7 +117,6 @@ def parse_pom_xml(target: Path) -> dict | None:
     elif result["parent"]:
         result["version"] = result["parent"]["version"]
 
-    # Extract dependencies
     deps_elem = _find("dependencies")
     if deps_elem is not None:
         for dep in _findall("dependency", deps_elem):
@@ -189,7 +131,6 @@ def parse_pom_xml(target: Path) -> dict | None:
             if group and art:
                 result["dependencies"].append((group, art, version, scope))
 
-    # Extract dependency management
     dep_mgmt = _find("dependencyManagement")
     if dep_mgmt is not None:
         deps_m = _find("dependencies", dep_mgmt)
@@ -204,7 +145,6 @@ def parse_pom_xml(target: Path) -> dict | None:
                 if group and art:
                     result["dependency_management"].append((group, art, version))
 
-    # Extract repositories
     repos_elem = _find("repositories")
     if repos_elem is not None:
         for repo in _findall("repository", repos_elem):
@@ -218,22 +158,7 @@ def parse_pom_xml(target: Path) -> dict | None:
     return result
 
 
-# ── build.gradle parsing (Groovy DSL) ──────────────────────────────────────
-
-
 def parse_gradle_build(target: Path) -> dict | None:
-    """Parse ``build.gradle`` (Groovy DSL) for dependencies.
-
-    Returns a dict with:
-    - ``group``: project group
-    - ``name``: project name (from rootProject.name or filename)
-    - ``version``: project version
-    - ``dependencies``: list of (group, artifact, version, configuration) tuples
-    - ``repositories``: list of repository URL strings
-    - ``has_maven_publish``: bool if maven-publish or uploadArchives configured
-
-    Returns None if build.gradle doesn't exist.
-    """
     gradle_path = target / "build.gradle"
     if not gradle_path.is_file():
         gradle_path = target / "build.gradle.kts"
@@ -260,11 +185,9 @@ def parse_gradle_build(target: Path) -> dict | None:
     for line in lines:
         stripped = line.strip()
 
-        # Skip comments and blank lines
-        if not stripped or stripped.startswith("//") or stripped.startswith("#"):
+        if not stripped or stripped.startswith(("//", "#")):
             continue
 
-        # Track block nesting
         if stripped == "repositories {":
             in_repositories_block = 1
             continue
@@ -278,7 +201,6 @@ def parse_gradle_build(target: Path) -> dict | None:
                 in_dependencies_block -= 1
             continue
 
-        # Inside repositories block
         if in_repositories_block > 0:
             url_match = _GRADLE_REPO_URL_RE.match(stripped)
             if url_match:
@@ -304,17 +226,13 @@ def parse_gradle_build(target: Path) -> dict | None:
                 result["repositories"].append("https://jcenter.bintray.com")
                 continue
 
-        # Inside dependencies block
         if in_dependencies_block > 0:
             dep_match = _GRADLE_DEP_SIMPLE_RE.match(stripped)
             if dep_match:
                 config = dep_match.group(0).split("(")[0] if "(" in dep_match.group(0) else ""
-                result["dependencies"].append(
-                    (dep_match.group(1), dep_match.group(2), dep_match.group(3), config)
-                )
+                result["dependencies"].append((dep_match.group(1), dep_match.group(2), dep_match.group(3), config))
                 continue
 
-        # Outside blocks — project-level metadata
         if stripped.startswith("group "):
             grp_match = re.match(r"group\s+['\"]([^'\"]+)['\"]", stripped)
             if grp_match:
@@ -329,19 +247,10 @@ def parse_gradle_build(target: Path) -> dict | None:
     return result
 
 
-# ── Dependency name extraction ─────────────────────────────────────────────
-
-
 def get_maven_dep_identifiers(maven_data: dict) -> set[str]:
-    """Extract dependency artifact IDs from parsed Maven data.
-
-    Returns a set of artifact ID strings (e.g. ``junit-jupiter``, ``spring-core``).
-    Includes dependencies from both pom.xml and build.gradle.
-    """
     names: set[str] = set()
 
     for dep in maven_data.get("dependencies", []):
-        # dep is (group_id, artifact_id, version, scope)
         artifact_id = dep[1]
         if artifact_id:
             names.add(artifact_id)
@@ -349,11 +258,7 @@ def get_maven_dep_identifiers(maven_data: dict) -> set[str]:
     return names
 
 
-# ── Private repository detection ───────────────────────────────────────────
-
-
 def _is_public_repo_url(url: str) -> bool:
-    """Check if a repository URL is a well-known public Maven repository."""
     public_repos = [
         "repo1.maven.org",
         "repo.maven.apache.org",
@@ -367,31 +272,19 @@ def _is_public_repo_url(url: str) -> bool:
 
 
 def detect_private_maven_repository(target: Path) -> bool:
-    """Check if a private Maven repository is configured.
 
-    Looks for:
-    - ``<repositories>`` sections in pom.xml with non-public URLs
-    - ``<distributionManagement>`` sections in pom.xml
-    - custom repository URLs in build.gradle
-    - Local project ``.mvn/settings.xml`` (maven specific)
-    - ``maven-publish`` or ``uploadArchives`` in Gradle config
-
-    Returns True if any private repository config is found.
-    """
-    # Check pom.xml for custom repositories
     pom_data = parse_pom_xml(target)
     if pom_data:
-        for repo_id, repo_url in pom_data.get("repositories", []):
+        for _repo_id, repo_url in pom_data.get("repositories", []):
             if repo_url and not _is_public_repo_url(repo_url):
                 return True
 
-        # Check for distributionManagement (indicates private deployment)
         pom_path = target / "pom.xml"
         if pom_path.is_file():
             try:
                 tree = ET.parse(pom_path)
                 root = tree.getroot()
-                # distributionManagement without namespace fallback
+
                 dm = root.find("mvn:distributionManagement", _NS)
                 if dm is None:
                     dm = root.find("distributionManagement")
@@ -400,22 +293,20 @@ def detect_private_maven_repository(target: Path) -> bool:
             except (ET.ParseError, OSError):
                 pass
 
-    # Check build.gradle for custom repositories
     gradle_data = parse_gradle_build(target)
     if gradle_data:
         for repo in gradle_data.get("repositories", []):
-            if repo and repo not in ("mavenLocal",) and not _is_public_repo_url(repo):
+            if repo and repo != "mavenLocal" and not _is_public_repo_url(repo):
                 return True
         if gradle_data.get("has_maven_publish"):
             return True
 
-    # Check for local .mvn/settings.xml
     mvn_settings = target / ".mvn" / "settings.xml"
     if mvn_settings.is_file():
         try:
             tree = ET.parse(mvn_settings)
             root = tree.getroot()
-            # Check for <servers> or <profiles> with custom repos
+
             servers = root.find("servers")
             if servers is not None and len(servers) > 0:
                 return True

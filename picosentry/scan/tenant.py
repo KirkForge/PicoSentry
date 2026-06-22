@@ -1,28 +1,3 @@
-"""
-Multi-tenant isolation for enterprise PicoSentry deployments.
-
-Provides tenant-scoped data isolation, access boundaries, and resource
-management for shared PicoSentry infrastructure.
-
-Tenants are isolated via:
-- Separate data directories for audit, corpus, policy, and IoC data
-- Tenant-scoped audit sinks with per-tenant log files
-- Tenant-scoped cache with isolated key namespaces
-- Tenant policy stacks with inheritance boundaries
-
-Usage:
-    from picosentry.scan.tenant import TenantManager, TenantConfig
-
-    manager = TenantManager(base_dir=Path("/var/lib/picosentry/tenants"))
-    manager.create_tenant("org-alpha", display_name="Alpha Corp")
-    manager.create_tenant("org-beta", display_name="Beta Inc")
-
-    # Get tenant-scoped paths
-    alpha = manager.get_tenant("org-alpha")
-    print(alpha.audit_dir)   # /var/lib/picosentry/tenants/org-alpha/audit
-    print(alpha.corpus_dir)  # /var/lib/picosentry/tenants/org-alpha/corpus
-"""
-
 from __future__ import annotations
 
 import json
@@ -40,21 +15,8 @@ logger = logging.getLogger("picosentry.tenant")
 TENANT_VERSION = "1.0"
 
 
-# ── Tenant configuration ─────────────────────────────────────────────────
-
-
 @dataclass
 class TenantConfig:
-    """Configuration for a single tenant.
-
-    Each tenant gets its own data directory structure:
-        <base_dir>/<tenant_id>/audit/
-        <base_dir>/<tenant_id>/corpus/
-        <base_dir>/<tenant_id>/policy/
-        <base_dir>/<tenant_id>/ioc/
-        <base_dir>/<tenant_id>/cache/
-    """
-
     tenant_id: str = ""
     display_name: str = ""
     created_at: str = ""
@@ -66,7 +28,6 @@ class TenantConfig:
     rbac_scopes: list[str] = field(default_factory=lambda: ["read", "scan"])
     metadata: dict[str, Any] = field(default_factory=dict)
 
-    # Paths (set by TenantManager)
     base_path: str = ""
 
     def __post_init__(self) -> None:
@@ -127,16 +88,7 @@ class TenantConfig:
         )
 
 
-# ── Tenant manager ──────────────────────────────────────────────────────
-
-
 class TenantManager:
-    """Multi-tenant manager for PicoSentry deployments.
-
-    Manages tenant lifecycle, data isolation, and access boundaries.
-    Each tenant's data is stored in a separate directory tree.
-    """
-
     def __init__(self, base_dir: Path | None = None) -> None:
         self.base_dir = base_dir or Path.home() / ".local" / "share" / "picosentry" / "tenants"
         self.base_dir.mkdir(parents=True, exist_ok=True)
@@ -167,8 +119,6 @@ class TenantManager:
         }
         tenants_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
 
-    # ── Tenant lifecycle ──────────────────────────────────────────────
-
     def create_tenant(
         self,
         tenant_id: str,
@@ -180,24 +130,6 @@ class TenantManager:
         max_targets: int = 0,
         metadata: dict[str, Any] | None = None,
     ) -> TenantConfig:
-        """Create a new tenant with isolated data directories.
-
-        Args:
-            tenant_id: Unique tenant identifier (alphanumeric + hyphens).
-            display_name: Human-readable name.
-            plan: Subscription plan (standard, enterprise).
-            created_by: Identity creating the tenant.
-            rbac_scopes: Default RBAC scopes for tenant members.
-            max_scans_per_day: Rate limit (0 = unlimited).
-            max_targets: Maximum targets (0 = unlimited).
-            metadata: Additional tenant metadata.
-
-        Returns:
-            TenantConfig with paths initialized.
-
-        Raises:
-            ValueError: If tenant_id already exists or is invalid.
-        """
         import re
 
         if not re.match(r"^[a-z0-9][a-z0-9-]{1,62}[a-z0-9]$", tenant_id):
@@ -217,16 +149,13 @@ class TenantManager:
             metadata=metadata or {},
         )
 
-        # Create tenant directory structure
         tenant_dir = self.base_dir / tenant_id
         tenant_dir.mkdir(parents=True, exist_ok=True)
         config.base_path = str(tenant_dir)
 
-        # Create sub-directories
         for subdir in ("audit", "corpus", "policy", "ioc", "cache"):
             (tenant_dir / subdir).mkdir(exist_ok=True)
 
-        # Write tenant config
         config.config_path.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
 
         self._tenants[tenant_id] = config
@@ -241,31 +170,17 @@ class TenantManager:
         return config
 
     def get_tenant(self, tenant_id: str) -> TenantConfig | None:
-        """Get a tenant's configuration."""
         return self._tenants.get(tenant_id)
 
     def update_tenant(self, tenant_id: str, **kwargs: Any) -> TenantConfig:
-        """Update a tenant's configuration.
-
-        Args:
-            tenant_id: Tenant to update.
-            **kwargs: Fields to update (display_name, plan, enabled, etc.)
-
-        Returns:
-            Updated TenantConfig.
-
-        Raises:
-            ValueError: If tenant not found.
-        """
         if tenant_id not in self._tenants:
             raise ValueError(f"Tenant '{tenant_id}' not found")
 
         config = self._tenants[tenant_id]
         for key, value in kwargs.items():
-            if hasattr(config, key) and key != "tenant_id" and key != "base_path":
+            if hasattr(config, key) and key not in {"tenant_id", "base_path"}:
                 setattr(config, key, value)
 
-        # Write updated config
         config.config_path.write_text(json.dumps(config.to_dict(), indent=2), encoding="utf-8")
         self._save_state()
 
@@ -274,18 +189,6 @@ class TenantManager:
         return config
 
     def delete_tenant(self, tenant_id: str, confirm: bool = False) -> bool:
-        """Delete a tenant and all its data.
-
-        Args:
-            tenant_id: Tenant to delete.
-            confirm: Must be True to actually delete.
-
-        Returns:
-            True if tenant was deleted.
-
-        Raises:
-            ValueError: If confirm is False or tenant not found.
-        """
         if not confirm:
             raise ValueError("Pass confirm=True to delete a tenant and all its data")
 
@@ -296,7 +199,6 @@ class TenantManager:
         config = self._tenants[tenant_id]
         tenant_dir = Path(config.base_path)
 
-        # Remove data directory
         if tenant_dir.is_dir():
             shutil.rmtree(tenant_dir)
 
@@ -308,64 +210,48 @@ class TenantManager:
         return True
 
     def list_tenants(self, enabled_only: bool = False) -> list[TenantConfig]:
-        """List all tenants, optionally filtering to enabled only."""
         tenants = list(self._tenants.values())
         if enabled_only:
             tenants = [t for t in tenants if t.enabled]
         return sorted(tenants, key=lambda t: t.tenant_id)
 
     def disable_tenant(self, tenant_id: str) -> TenantConfig:
-        """Disable a tenant (stops scanning but preserves data)."""
         return self.update_tenant(tenant_id, enabled=False)
 
     def enable_tenant(self, tenant_id: str) -> TenantConfig:
-        """Re-enable a disabled tenant."""
         return self.update_tenant(tenant_id, enabled=True)
 
-    # ── Tenant-scoped paths ────────────────────────────────────────────
-
     def tenant_audit_path(self, tenant_id: str, filename: str = "audit.jsonl") -> Path | None:
-        """Get the audit log path for a tenant."""
         config = self._tenants.get(tenant_id)
         if not config:
             return None
         return config.audit_dir / filename
 
     def tenant_corpus_path(self, tenant_id: str) -> Path | None:
-        """Get the corpus directory for a tenant."""
         config = self._tenants.get(tenant_id)
         if not config:
             return None
         return config.corpus_dir
 
     def tenant_policy_path(self, tenant_id: str, filename: str = ".picosentry-policy.yml") -> Path | None:
-        """Get the policy file path for a tenant."""
         config = self._tenants.get(tenant_id)
         if not config:
             return None
         return config.policy_dir / filename
 
     def tenant_ioc_path(self, tenant_id: str) -> Path | None:
-        """Get the IoC directory for a tenant."""
         config = self._tenants.get(tenant_id)
         if not config:
             return None
         return config.ioc_dir
 
     def tenant_cache_path(self, tenant_id: str) -> Path | None:
-        """Get the cache directory for a tenant."""
         config = self._tenants.get(tenant_id)
         if not config:
             return None
         return config.cache_dir
 
-    # ── Tenant health ──────────────────────────────────────────────────
-
     def tenant_health(self, tenant_id: str) -> dict[str, Any]:
-        """Get health status for a tenant.
-
-        Checks data directories, policy presence, and corpus status.
-        """
         config = self._tenants.get(tenant_id)
         if not config:
             return {"tenant_id": tenant_id, "status": "not_found"}
@@ -375,23 +261,17 @@ class TenantManager:
         corpus_dir = config.corpus_dir
         audit_dir = config.audit_dir
 
-        # Check directory existence
         dirs_ok = tenant_dir.is_dir()
 
-        # Check policy
         policy_file = policy_dir / ".picosentry-policy.yml"
         has_policy = policy_file.is_file()
 
-        # Check audit log
         has_audit = any(audit_dir.glob("*.jsonl"))
 
-        # Check corpus
         has_corpus = any(corpus_dir.glob("*.json"))
 
-        # Check IoC data
         has_ioc = any((config.ioc_dir).glob("*.json"))
 
-        # Compute disk usage
         disk_usage = sum(f.stat().st_size for f in tenant_dir.rglob("*") if f.is_file()) if dirs_ok else 0
 
         return {
@@ -411,11 +291,6 @@ class TenantManager:
         }
 
     def fleet_overview(self) -> dict[str, Any]:
-        """Get an overview of all tenants.
-
-        Returns summary stats: total tenants, enabled, disabled,
-        disk usage, and per-tenant health.
-        """
         tenant_healths = {tid: self.tenant_health(tid) for tid in self._tenants}
         total = len(self._tenants)
         enabled = sum(1 for t in self._tenants.values() if t.enabled)

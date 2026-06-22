@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm consumer of node-ipc at a safe major version. Postinstall is a benign console.log. Must NOT fire the node-ipc compromise campaign rule — the consumer is at a major version that was never flagged in the IoC list, and the project contains no payload filenames or C2 references.",
+  "forbidden_rule_ids": ["L2-CAMP-NODE-IPC-COMPROMISE"]
+}

@@ -1,0 +1,7 @@
+[tool.poetry]
+name = "poetry-subprocess-fixture"
+version = "0.1.0"
+description = "Variant exercising tool.poetry.scripts with subprocess."
+
+[tool.poetry.scripts]
+mycmd = "subprocess.call(['echo', 'hi'])"

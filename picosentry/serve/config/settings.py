@@ -198,9 +198,11 @@ class _SignedPluginsCheck:
         self._settings = settings
 
     def check(self) -> SecurityViolation | None:
-        if self._settings.is_production() and os.environ.get(
-            "PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", ""
-        ).lower() not in ("1", "true", "yes"):
+        if self._settings.is_production() and os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() not in (
+            "1",
+            "true",
+            "yes",
+        ):
             return SecurityViolation(
                 check="signed_plugins",
                 message="Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1",

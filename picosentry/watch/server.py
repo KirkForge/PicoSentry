@@ -19,8 +19,7 @@ except ImportError as _import_err:
         ) from _import_err
     if _missing in {"pydantic", "pydantic_core"}:
         raise ImportError(
-            "picosentry.watch.server requires pydantic. "
-            "Install it with: pip install 'picosentry[serve]'"
+            "picosentry.watch.server requires pydantic. Install it with: pip install 'picosentry[serve]'"
         ) from _import_err
     raise _import_err
 
@@ -45,8 +44,7 @@ def _require_watch_server_extra(missing: str, exc: ImportError, *, what: str) ->
         ) from exc
     if missing in {"pydantic", "pydantic_core"}:
         raise ImportError(
-            f"picosentry.watch.server {what} requires pydantic. "
-            "Install it with: pip install 'picosentry[serve]'"
+            f"picosentry.watch.server {what} requires pydantic. Install it with: pip install 'picosentry[serve]'"
         ) from exc
     raise exc
 

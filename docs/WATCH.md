@@ -114,6 +114,75 @@ detections cannot regress.
    defense: block obvious attacks cheaply, then send borderline prompts to a
    heavier model-based guard.
 
+## HTTP server hardening
+
+`picosentry watch serve` starts two FastAPI applications on separate ports:
+
+- **Main API** (`PICOWATCH_HOST`/`PICOWATCH_PORT`, default `127.0.0.1:8766`) —
+  prompt/output scan endpoints.
+- **Admin API** (`PICOWATCH_ADMIN_HOST`/`PICOWATCH_ADMIN_PORT`, default
+  `127.0.0.1:9091`) — read-only health, metrics, and rules endpoints.
+
+### Authentication
+
+Set a strong API key (`PICOWATCH_API_KEY`, >= 32 characters) to gate mutation
+endpoints. Admin endpoints are also gated by the same key when
+`PICOWATCH_ADMIN_AUTH_ENABLED=true` (default).
+
+```bash
+export PICOWATCH_API_KEY="$(openssl rand -hex 32)"
+export PICOWATCH_ADMIN_AUTH_ENABLED=true
+```
+
+- `POST /v1/scan/prompt` and `POST /v1/scan/output` require the key.
+- `GET /v1/rules/{rule_id}` (reveals regex patterns) requires the key.
+- Admin `GET /metrics`, `GET /v1/rules`, and `GET /v1/rules/{rule_id}` require
+  the key when admin auth is enabled.
+- `GET /v1/health` is always unauthenticated so load balancers can probe it.
+
+Keys are accepted via `X-API-Key` or `Authorization: Bearer <key>`.
+
+### Rate limiting
+
+All endpoints except `GET /v1/health` share a per-IP rate limit:
+
+```toml
+[picowatch]
+rate_limit = 100        # requests per window
+rate_limit_window = 60  # seconds
+```
+
+Excess requests receive `429 Too Many Requests` with a `Retry-After` header.
+
+### Auto-generated docs
+
+FastAPI's `/docs` and `/redoc` are **disabled by default** to reduce exposed
+surface. Enable them only in internal/debug environments:
+
+```toml
+[picowatch]
+enable_docs = true
+```
+
+### Security headers
+
+Every response includes:
+
+- `X-Content-Type-Options: nosniff`
+- `X-Frame-Options: DENY`
+- `Referrer-Policy: strict-origin-when-cross-origin`
+- `Cache-Control: no-store` on `/v1/scan/*`
+
+### Output schema limits
+
+Runtime JSON schemas passed to `POST /v1/scan/output` are bounded by default:
+
+- `max_json_schema_nodes` = 1,000 nodes
+- `max_json_schema_depth` = 32 levels
+
+Schemas exceeding either limit are rejected with `413` before evaluation,
+preventing pathological schemas from consuming CPU or memory.
+
 ## CLI usage
 
 ```bash
@@ -124,9 +193,27 @@ picosentry watch scan-prompt --text "ignore all previous instructions"
 picosentry watch serve
 
 # Scan via the HTTP API
-curl -X POST http://127.0.0.1:8766/v1/prompts/scan \
+curl -X POST http://127.0.0.1:8766/v1/scan/prompt \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: $PICOWATCH_API_KEY" \
   -d '{"text": "..."}'
+
+# Validate LLM output with a runtime JSON schema
+curl -X POST http://127.0.0.1:8766/v1/scan/output \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: $PICOWATCH_API_KEY" \
+  -d '{"output": "{}", "schema": {"type": "object"}}'
+
+# Read rule metadata (no key required when unauthenticated)
+curl http://127.0.0.1:8766/v1/rules
+
+# Read rule pattern (key required — pattern redaction)
+curl http://127.0.0.1:8766/v1/rules/inj_override_ignore \
+  -H "X-API-Key: $PICOWATCH_API_KEY"
+
+# Admin metrics
+curl http://127.0.0.1:9091/metrics \
+  -H "X-API-Key: $PICOWATCH_API_KEY"
 ```
 
 ## Recommended deployment

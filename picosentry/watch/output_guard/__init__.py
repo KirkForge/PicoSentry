@@ -12,6 +12,10 @@ from picosentry.watch.prompt_guard.rules import RuleEngine
 from picosentry.watch.types import PromptScanResult, Rule, ValidationResult
 
 
+class SchemaTooLargeError(ValueError):
+    """Raised when a runtime JSON schema exceeds configured size/depth limits."""
+
+
 class OutputGuard:
     def __init__(
         self,
@@ -63,6 +67,11 @@ class OutputGuard:
         if effective_schema is None and schema_name and schema_name in self._loaded_schemas:
             effective_schema = self._loaded_schemas[schema_name]
         if effective_schema is not None:
+            _check_schema_size(
+                effective_schema,
+                max_nodes=self._config.max_json_schema_nodes,
+                max_depth=self._config.max_json_schema_depth,
+            )
             schema_violations = self._check_schema(output, effective_schema)
             violations.extend(schema_violations)
 
@@ -240,3 +249,24 @@ class OutputGuard:
             redacted = phone_pattern.sub("[PHONE-REDACTED]", redacted)
 
         return redacted, violations
+
+
+def _check_schema_size(schema: dict[str, Any], *, max_nodes: int, max_depth: int) -> None:
+    """Reject pathological JSON schemas before they are evaluated."""
+
+    def _count(obj: Any, depth: int) -> int:
+        if depth > max_depth:
+            raise SchemaTooLargeError(
+                f"JSON schema depth exceeds maximum ({max_depth}). Rejecting immediately."
+            )
+        if isinstance(obj, dict):
+            return 1 + sum(_count(v, depth + 1) for v in obj.values())
+        if isinstance(obj, list):
+            return 1 + sum(_count(item, depth + 1) for item in obj)
+        return 1
+
+    nodes = _count(schema, 1)
+    if nodes > max_nodes:
+        raise SchemaTooLargeError(
+            f"JSON schema exceeds maximum node count ({max_nodes}). Rejecting immediately."
+        )

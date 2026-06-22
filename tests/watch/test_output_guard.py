@@ -2,8 +2,10 @@
 
 from pathlib import Path
 
+import pytest
+
 from picosentry.watch.config import PicoWatchConfig
-from picosentry.watch.output_guard import OutputGuard
+from picosentry.watch.output_guard import OutputGuard, SchemaTooLargeError
 
 RULES_DIR = Path(__file__).parent.parent.parent / "picosentry" / "watch" / "rules"
 OUTPUT_RULES_DIR = RULES_DIR / "output_policy"
@@ -259,3 +261,26 @@ class TestOutputGuard:
         assert "[SSN-REDACTED]" in result.redacted
         assert "[EMAIL-REDACTED]" in result.redacted
         assert "[API-KEY-REDACTED]" in result.redacted
+
+
+
+class TestOutputGuardSchemaLimits:
+    """Runtime JSON schema size/depth limits."""
+
+    def test_schema_within_limits_passes(self) -> None:
+        config = _make_config(RULES_DIR, max_json_schema_nodes=10, max_json_schema_depth=3)
+        guard = OutputGuard(config=config)
+        result = guard.validate("{}", schema={"type": "object"})
+        assert result.valid is True
+
+    def test_schema_exceeding_node_count_rejected(self) -> None:
+        config = _make_config(RULES_DIR, max_json_schema_nodes=3, max_json_schema_depth=10)
+        guard = OutputGuard(config=config)
+        with pytest.raises(SchemaTooLargeError):
+            guard.validate("{}", schema={"a": {"b": {"c": {}}}})
+
+    def test_schema_exceeding_depth_rejected(self) -> None:
+        config = _make_config(RULES_DIR, max_json_schema_nodes=100, max_json_schema_depth=2)
+        guard = OutputGuard(config=config)
+        with pytest.raises(SchemaTooLargeError):
+            guard.validate("{}", schema={"a": {"b": {"c": {}}}})

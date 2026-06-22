@@ -72,7 +72,7 @@ class PicoSentryConfig:
         self.summary: bool = False
         self.baseline: str | None = None
         self.baseline_update: bool = False
-        self.sarif_file: str = "sarif.json"
+        self.sarif_file: str | None = None
         self.deterministic_output: bool = False
         self.log_format: str = "text"
 

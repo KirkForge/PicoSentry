@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import argparse
+import os
 import sys
+from pathlib import Path
 from typing import Any
 
 from picosentry.sandbox.formatters.cyclonedx import format_cyclonedx
@@ -198,6 +200,62 @@ def _resolve_signing_key(args: argparse.Namespace) -> bytes | None:
     return key
 
 
+def _workspace_root() -> Path:
+    """Return the configured workspace root for sandbox CLI paths.
+
+    Defaults to the current working directory. Operators can widen it
+    with PICODOME_WORKSPACE_ROOT, but it never defaults to '/' or some
+    other overly-broad path.
+    """
+    env_root = os.environ.get("PICODOME_WORKSPACE_ROOT", "").strip()
+    return Path(env_root).resolve() if env_root else Path.cwd().resolve()
+
+
+def _resolve_external_path(
+    path_str: str | None,
+    workspace_root: Path,
+    *,
+    must_exist: bool,
+    description: str,
+) -> Path | None:
+    """Resolve a CLI-supplied external path inside the workspace root.
+
+    Rejects URL-like strings, symlinks that escape the workspace, and
+    paths outside the workspace. Returns None when path_str is None.
+    """
+    if path_str is None:
+        return None
+
+    if "://" in path_str:
+        print(f"Error: {description} must be a local path, not a URL: {path_str}", file=sys.stderr)
+        return None
+
+    path = Path(path_str).resolve()
+
+    if must_exist and not path.exists():
+        print(f"Error: {description} does not exist: {path}", file=sys.stderr)
+        return None
+
+    if path.is_symlink():
+        resolved = path.resolve()
+        try:
+            resolved.relative_to(workspace_root.resolve())
+        except ValueError:
+            print(f"Error: {description} symlink escapes workspace root: {path}", file=sys.stderr)
+            return None
+
+    try:
+        path.relative_to(workspace_root.resolve())
+    except ValueError:
+        print(
+            f"Error: {description} is outside workspace root ({workspace_root}): {path}",
+            file=sys.stderr,
+        )
+        return None
+
+    return path
+
+
 __all__ = [
     "_add_common_flags",
     "_auto_detect_policy",
@@ -207,5 +265,7 @@ __all__ = [
     "_output",
     "_output_summary",
     "_output_summary_pipeline",
+    "_resolve_external_path",
     "_resolve_signing_key",
+    "_workspace_root",
 ]

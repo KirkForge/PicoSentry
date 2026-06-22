@@ -85,8 +85,11 @@ def parse_poetry_lock(path: Path) -> list[LockEntry]:
 
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.debug("Failed to parse poetry.lock at %s", path)
+    except tomllib.TOMLDecodeError as exc:
+        logger.warning("Skipping poetry.lock at %s due to parse error: %s", path, exc)
+        return entries
+    except OSError as exc:
+        logger.warning("Could not read poetry.lock at %s: %s", path, exc)
         return entries
 
     for package in data.get("package", []):
@@ -120,8 +123,11 @@ def parse_uv_lock(path: Path) -> list[LockEntry]:
 
     try:
         data = tomllib.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        logger.debug("Failed to parse uv.lock at %s", path)
+    except tomllib.TOMLDecodeError as exc:
+        logger.warning("Skipping uv.lock at %s due to parse error: %s", path, exc)
+        return entries
+    except OSError as exc:
+        logger.warning("Could not read uv.lock at %s: %s", path, exc)
         return entries
 
     for dist in data.get("distribution", []):

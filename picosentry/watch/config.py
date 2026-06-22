@@ -14,8 +14,12 @@ DEFAULT_THRESHOLD_WARN = 0.4
 DEFAULT_CLASSIFIER_ENABLED = True
 DEFAULT_CLASSIFIER_BLEND_FACTOR = 1.0
 DEFAULT_MAX_PROMPT_SIZE = 1_000_000  # 1MB
+DEFAULT_MAX_OUTPUT_SIZE = 1_000_000  # 1MB
+DEFAULT_MAX_JSON_SCHEMA_NODES = 1_000
+DEFAULT_MAX_JSON_SCHEMA_DEPTH = 32
 DEFAULT_AUDIT_RETENTION_DAYS = 30
 DEFAULT_HOST = "127.0.0.1"
+DEFAULT_ADMIN_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
 DEFAULT_ADMIN_PORT = 9091
 DEFAULT_CORPUS_VERSION = "2026.05.1"
@@ -61,12 +65,15 @@ class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from Pi
     classifier_enabled: bool = DEFAULT_CLASSIFIER_ENABLED
     classifier_blend_factor: float = DEFAULT_CLASSIFIER_BLEND_FACTOR
     max_prompt_size: int = DEFAULT_MAX_PROMPT_SIZE
+    max_output_size: int = DEFAULT_MAX_OUTPUT_SIZE
     corpus_version: str = DEFAULT_CORPUS_VERSION
 
 
 @dataclass
 class OutputGuardConfig:  # rationale: L6 output guard config, extracted from PicoWatchConfig (PR-02)
     schema_dir: Path | None = None
+    max_json_schema_nodes: int = DEFAULT_MAX_JSON_SCHEMA_NODES
+    max_json_schema_depth: int = DEFAULT_MAX_JSON_SCHEMA_DEPTH
 
 
 @dataclass
@@ -78,9 +85,12 @@ class TelemetryConfig:
 @dataclass
 class ServerConfig:
     host: str = DEFAULT_HOST
+    admin_host: str = DEFAULT_ADMIN_HOST
     port: int = DEFAULT_PORT
     admin_port: int = DEFAULT_ADMIN_PORT
     api_key: str | None = None
+    admin_auth_enabled: bool = True
+    enable_docs: bool = False
     rate_limit: int = DEFAULT_RATE_LIMIT
     rate_limit_window: int = DEFAULT_RATE_LIMIT_WINDOW
 
@@ -144,6 +154,14 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.prompt_guard.max_prompt_size = value
 
     @property
+    def max_output_size(self) -> int:
+        return self.prompt_guard.max_output_size
+
+    @max_output_size.setter
+    def max_output_size(self, value: int) -> None:
+        self.prompt_guard.max_output_size = value
+
+    @property
     def corpus_version(self) -> str:
         return self.prompt_guard.corpus_version
 
@@ -158,6 +176,22 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     @schema_dir.setter
     def schema_dir(self, value: Path | None) -> None:
         self.output_guard.schema_dir = value
+
+    @property
+    def max_json_schema_nodes(self) -> int:
+        return self.output_guard.max_json_schema_nodes
+
+    @max_json_schema_nodes.setter
+    def max_json_schema_nodes(self, value: int) -> None:
+        self.output_guard.max_json_schema_nodes = value
+
+    @property
+    def max_json_schema_depth(self) -> int:
+        return self.output_guard.max_json_schema_depth
+
+    @max_json_schema_depth.setter
+    def max_json_schema_depth(self, value: int) -> None:
+        self.output_guard.max_json_schema_depth = value
 
     @property
     def otel_endpoint(self) -> str | None:
@@ -184,6 +218,14 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.server.host = value
 
     @property
+    def admin_host(self) -> str:
+        return self.server.admin_host
+
+    @admin_host.setter
+    def admin_host(self, value: str) -> None:
+        self.server.admin_host = value
+
+    @property
     def port(self) -> int:
         return self.server.port
 
@@ -206,6 +248,22 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     @api_key.setter
     def api_key(self, value: str | None) -> None:
         self.server.api_key = value
+
+    @property
+    def admin_auth_enabled(self) -> bool:
+        return self.server.admin_auth_enabled
+
+    @admin_auth_enabled.setter
+    def admin_auth_enabled(self, value: bool) -> None:
+        self.server.admin_auth_enabled = value
+
+    @property
+    def enable_docs(self) -> bool:
+        return self.server.enable_docs
+
+    @enable_docs.setter
+    def enable_docs(self, value: bool) -> None:
+        self.server.enable_docs = value
 
     @property
     def rate_limit(self) -> int:
@@ -332,11 +390,26 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 max_prompt_size=_env_or_file(
                     "max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int
                 ),
+                max_output_size=_env_or_file(
+                    "max_output_size", "PICOWATCH_MAX_OUTPUT_SIZE", DEFAULT_MAX_OUTPUT_SIZE, int
+                ),
                 corpus_version=os.environ.get("PICOWATCH_CORPUS_VERSION")
                 or picowatch_conf.get("corpus_version", DEFAULT_CORPUS_VERSION),
             ),
             output_guard=OutputGuardConfig(
                 schema_dir=Path(schema_dir_str) if schema_dir_str else None,
+                max_json_schema_nodes=_env_or_file(
+                    "max_json_schema_nodes",
+                    "PICOWATCH_MAX_JSON_SCHEMA_NODES",
+                    DEFAULT_MAX_JSON_SCHEMA_NODES,
+                    int,
+                ),
+                max_json_schema_depth=_env_or_file(
+                    "max_json_schema_depth",
+                    "PICOWATCH_MAX_JSON_SCHEMA_DEPTH",
+                    DEFAULT_MAX_JSON_SCHEMA_DEPTH,
+                    int,
+                ),
             ),
             telemetry=TelemetryConfig(
                 otel_endpoint=os.environ.get("PICOWATCH_OTEL_ENDPOINT") or picowatch_conf.get("otel_endpoint"),
@@ -349,9 +422,15 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             ),
             server=ServerConfig(
                 host=os.environ.get("PICOWATCH_HOST") or picowatch_conf.get("host", DEFAULT_HOST),
+                admin_host=os.environ.get("PICOWATCH_ADMIN_HOST")
+                or picowatch_conf.get("admin_host", DEFAULT_ADMIN_HOST),
                 port=_env_or_file("port", "PICOWATCH_PORT", DEFAULT_PORT, int),
                 admin_port=_env_or_file("admin_port", "PICOWATCH_ADMIN_PORT", DEFAULT_ADMIN_PORT, int),
                 api_key=os.environ.get("PICOWATCH_API_KEY") or picowatch_conf.get("api_key"),
+                admin_auth_enabled=_env_or_file(
+                    "admin_auth_enabled", "PICOWATCH_ADMIN_AUTH_ENABLED", True, bool
+                ),
+                enable_docs=_env_or_file("enable_docs", "PICOWATCH_ENABLE_DOCS", False, bool),
                 rate_limit=_env_or_file("rate_limit", "PICOWATCH_RATE_LIMIT", DEFAULT_RATE_LIMIT, int),
                 rate_limit_window=_env_or_file(
                     "rate_limit_window",
@@ -436,6 +515,30 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
 
     if config.api_key and len(config.api_key) < 32:
         _logger.warning("PICOWATCH_API_KEY is shorter than 32 characters — recommend a strong random key")
+
+    if config.max_output_size < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_OUTPUT_SIZE=%s must be >=1; using default %d",
+            config.max_output_size,
+            DEFAULT_MAX_OUTPUT_SIZE,
+        )
+        config.max_output_size = DEFAULT_MAX_OUTPUT_SIZE
+
+    if config.max_json_schema_nodes < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_JSON_SCHEMA_NODES=%s must be >=1; using default %d",
+            config.max_json_schema_nodes,
+            DEFAULT_MAX_JSON_SCHEMA_NODES,
+        )
+        config.max_json_schema_nodes = DEFAULT_MAX_JSON_SCHEMA_NODES
+
+    if config.max_json_schema_depth < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_JSON_SCHEMA_DEPTH=%s must be >=1; using default %d",
+            config.max_json_schema_depth,
+            DEFAULT_MAX_JSON_SCHEMA_DEPTH,
+        )
+        config.max_json_schema_depth = DEFAULT_MAX_JSON_SCHEMA_DEPTH
 
 
 def check_config_permissions() -> list[str]:

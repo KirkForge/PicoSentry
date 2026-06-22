@@ -5,12 +5,15 @@ import contextlib
 import datetime
 import hashlib
 import json
+import os
 import sys
 import urllib.request
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, safe_urlopen
+from picosentry.scan.config import load_config
 from picosentry.scan.engine import user_corpus_dir
 from picosentry.scan.rules.corpus_index import save_indexed_corpus
 from picosentry.scan.rules.typosquat_utils import (
@@ -83,6 +86,11 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         help="Override the default corpus source URL for ecosystems without a built-in fetcher.",
     )
     parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="Refuse all network access. Also enabled by PICOSENTRY_OFFLINE=1.",
+    )
+    parser.add_argument(
         "--no-merge",
         dest="merge",
         action="store_false",
@@ -108,6 +116,37 @@ def _write_manifest(output_dir: Path, entries: dict[str, dict[str, Any]]) -> Non
         "ecosystems": entries,
     }
     manifest_path.write_text(json.dumps(manifest, indent=4, ensure_ascii=False), encoding="utf-8")
+
+
+def _is_offline(args: argparse.Namespace) -> bool:
+    """Return True if the user explicitly requested offline mode."""
+    if getattr(args, "offline", False):
+        return True
+    env = os.environ.get("PICOSENTRY_OFFLINE", "").strip().lower()
+    return env in {"1", "true", "yes"}
+
+
+def _is_source_allowed(url: str, allowed_sources: list[str]) -> bool:
+    """Validate a fetched source URL against the configured allow-list.
+
+    An empty allow-list means the built-in default sources are permitted.
+    Non-empty allow-lists require an exact URL, prefix, or hostname match.
+    """
+    if not allowed_sources:
+        return True
+
+    parsed = urlparse(url)
+    for allowed in allowed_sources:
+        if not allowed:
+            continue
+        if url == allowed:
+            return True
+        if allowed.startswith(("http://", "https://")) and url.startswith(allowed):
+            return True
+        # Hostname-only allow-list entry
+        if allowed in (parsed.hostname, parsed.netloc):
+            return True
+    return False
 
 
 def _fetch_npm(top_n: int) -> tuple[list[str], str, bool]:
@@ -408,6 +447,21 @@ def _hash_corpus(names: list[str]) -> str:
 
 
 def cmd(args: argparse.Namespace) -> int:
+    if _is_offline(args):
+        print(
+            "Error: update is disabled in offline mode (PICOSENTRY_OFFLINE=1 or --offline).",
+            file=sys.stderr,
+        )
+        return 2
+
+    config = load_config(Path.cwd())
+    if not config.updates_enabled:
+        print(
+            "Error: updates are disabled in project config (updates.enabled=false).",
+            file=sys.stderr,
+        )
+        return 2
+
     top_n = getattr(args, "top", 1000)
     merge = getattr(args, "merge", True)
     ecosystem_arg = getattr(args, "ecosystem", "npm")
@@ -432,6 +486,14 @@ def cmd(args: argparse.Namespace) -> int:
             names, source_url, used_builtin = _fetch_ecosystem(ecosystem, top_n, getattr(args, "source_url", None))
         except Exception as e:
             print(f"Error fetching {ecosystem}: {e}", file=sys.stderr)
+            failed.append(ecosystem)
+            continue
+
+        if not used_builtin and not _is_source_allowed(source_url, config.updates_allowed_sources):
+            print(
+                f"Error fetching {ecosystem}: source URL {source_url} is not in updates.allowed_sources.",
+                file=sys.stderr,
+            )
             failed.append(ecosystem)
             continue
 

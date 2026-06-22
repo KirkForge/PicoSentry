@@ -121,7 +121,8 @@ def extract_metadata(path: Path) -> dict | None:
 
     try:
         msg = email.message_from_string(content)
-    except Exception:
+    except (email.errors.MessageParseError, ValueError) as exc:
+        logger.warning("Skipping malformed metadata at %s: %s", path, exc)
         return None
 
     name = msg.get("Name", "")
@@ -177,7 +178,11 @@ def load_pyproject_toml(target: Path) -> dict | None:
 
     try:
         data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-    except Exception:
+    except tomllib.TOMLDecodeError as exc:
+        logger.warning("Skipping pyproject.toml at %s due to parse error: %s", pyproject, exc)
+        return None
+    except OSError as exc:
+        logger.warning("Could not read pyproject.toml at %s: %s", pyproject, exc)
         return None
 
     return data

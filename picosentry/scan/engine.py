@@ -73,14 +73,12 @@ def user_corpus_dir() -> Path:
 
 
 def _get_version() -> str:
-
-    try:
-        from importlib.metadata import version
-
-        return version("picosentry")
-    except Exception:
-        pass
-
+    # Prefer the in-tree source version: when running from a checkout (tests,
+    # local dev, or an editable install) the source `__init__.py` is the
+    # ground truth. Installed wheel metadata can lag behind during version-bump
+    # commits, so falling back to it only after reading the source avoids
+    # test failures like `test_engine_version_in_scan_result` when the editable
+    # install has not been refreshed.
     import re
 
     init_path = Path(__file__).parent / "__init__.py"
@@ -91,6 +89,14 @@ def _get_version() -> str:
             return match.group(1)
     except OSError:
         pass
+
+    try:
+        from importlib.metadata import version
+
+        return version("picosentry")
+    except Exception:
+        pass
+
     return "0.0.0"
 
 

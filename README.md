@@ -197,6 +197,16 @@ extras (see [install options](#install-options) below).
 
 ---
 
+### Programmatic use
+
+PicoSentry is **CLI-first**. The supported interface is the command line
+(`picosentry`, `picowatch`, `picodome`, …). The Python modules under
+`picosentry.*` are internal implementation details and may change without
+notice; there is no stable public import API today. If you need a
+programmatic entrypoint, open an issue describing the use case.
+
+---
+
 ### Sandbox gRPC transport (opt-in)
 
 The sandbox daemon can serve over gRPC instead of HTTP. Install the

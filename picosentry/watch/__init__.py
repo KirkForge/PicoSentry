@@ -1,4 +1,4 @@
-__version__ = "2.0.15"
+__version__ = "2.0.16"
 
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.health import health_check

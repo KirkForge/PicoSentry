@@ -184,9 +184,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         row = db.execute_one("SELECT * FROM projects WHERE id = ?", (project_id,))
         return dict(row) if row else None
 
-    def run_project(
-        self, project_id: str, timeout: int | None = None, org_id: int | None = None
-    ) -> dict[str, Any]:
+    def run_project(self, project_id: str, timeout: int | None = None, org_id: int | None = None) -> dict[str, Any]:
         meta = self.registry.get(project_id)
         if not meta:
             return {"error": f"Unknown project: {project_id}"}

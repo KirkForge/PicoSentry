@@ -12,6 +12,7 @@ Exit code 0 on success, non-zero if the sentinels are missing or the
 inputs don't exist. Designed to be followed by `git diff --exit-code
 docs/BENCHMARKS.md` in CI to catch doc drift.
 """
+
 from __future__ import annotations
 
 import json
@@ -81,8 +82,7 @@ def main() -> int:
         "| rule_id                 | n_pos | n_neg | TP | FP | FN | "
         "precision | recall |\n"
         "|-------------------------|------:|------:|---:|---:|---:|"
-        "----------:|-------:|\n"
-        + "\n".join(rows)
+        "----------:|-------:|\n" + "\n".join(rows)
     )
 
     text = BENCH.read_text()

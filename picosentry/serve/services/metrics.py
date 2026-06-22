@@ -51,9 +51,7 @@ class MetricsCollector:
                 Metric(name=name, value=value, labels=labels or {}, timestamp=time.time(), metric_type="histogram")
             )
 
-    def project_run(
-        self, project_id: str, duration: float, status: str, org_id: int | None = None
-    ):
+    def project_run(self, project_id: str, duration: float, status: str, org_id: int | None = None):
         labels = {"project": project_id}
         if org_id is not None:
             labels["org_id"] = str(org_id)

@@ -6,6 +6,11 @@
 > **Updated on every minor release.** The numbers in this document are the v2.0.15 baseline;
 > the next release is expected to expand the fixture corpus (see [v2.1.0 expansion target](#v210-expansion-target)).
 >
+> **Real-world malware benchmark corpus:**
+> [`picosentry/scan/corpus/malware/`](../picosentry/scan/corpus/malware/)
+> contains 23,000+ known-malicious package advisories from DataDog and OSV, with a
+> dedicated recall benchmark in `tests/scan/test_malware_benchmark.py`.
+>
 > **A checked-in JSON dump of the latest run lives at**
 > [`tests/scan/fixtures/validation/REPORT.json`](../tests/scan/fixtures/validation/REPORT.json).
 > The per-rule table below is mechanically derivable from that file; if the two diverge, the
@@ -61,6 +66,14 @@ Specifically:
    per-rule depth variants, the new L2-BUILD-001 cross-ecosystem build-hook detector,
    and explicit CAMP-rule coverage (4 of 4 L2-CAMP rule_ids now have a positive
    fixture and a negative fixture).
+  6. **Real-world malware benchmark added.** The hand-crafted fixture suite is now
+     complemented by a separate recall benchmark built from public datasets
+     ([DataDog](https://github.com/DataDog/malicious-software-packages-dataset),
+     [OSV](https://osv.dev/)). It samples 100 known-malicious npm packages and 100
+     known-malicious PyPI packages against 100 clean packages from the curated corpus,
+     asserting recall ≥ 85% (npm) / 80% (PyPI) and precision ≥ 95% on advisory rules.
+     [Backstabber's Knife Collection](https://github.com/dasfreak/Backstabbers-Knife-Collection)
+     is supported via `--backstabber` if you obtain the dataset directly from the authors.
 
 The 100% floor exists so a *regression* breaks the build. It is not a claim that
 the scanner is 100% accurate in production. If you find a package that PicoSentry

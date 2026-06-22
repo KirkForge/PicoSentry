@@ -35,10 +35,18 @@ class PicoDomeResponseMixin:
         return f"picodome-{uuid.uuid4().hex[:16]}"
 
     def _add_common_headers(self: PicoDomeHandler, request_id: str) -> None:
+        import ssl
+
         self.send_header("X-Request-ID", request_id)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("X-Frame-Options", "DENY")
+        self.send_header("X-XSS-Protection", "0")
+        self.send_header("Referrer-Policy", "strict-origin-when-cross-origin")
         self.send_header("Cache-Control", "no-store")
+
+        connection = getattr(self, "connection", None)
+        if isinstance(connection, ssl.SSLSocket):
+            self.send_header("Strict-Transport-Security", "max-age=31536000; includeSubDomains")
 
         request_origin = self.headers.get("Origin", "")
         if _CORS_DENY_BY_DEFAULT:
@@ -64,9 +72,7 @@ class PicoDomeResponseMixin:
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
-        request_id = getattr(self, "_request_id", "")
-        if request_id:
-            self.send_header("X-Request-ID", request_id)
+        self._add_common_headers(getattr(self, "_request_id", ""))
         self.end_headers()
         self.wfile.write(body)
 

@@ -33,6 +33,7 @@ class PicoDomeHandler(
     BaseHTTPRequestHandler,
 ):
     MAX_REQUEST_SIZE = 10 * 1024 * 1024  # 10 MB
+    timeout = 30  # seconds; idle connection read timeout
     API_VERSION = API_VERSION  # exposed as self.API_VERSION for route mixins
 
     rbac: RBAC = RBAC()

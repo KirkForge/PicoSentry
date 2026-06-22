@@ -16,6 +16,9 @@ router = APIRouter()
 
 @router.get("/", tags=["Health"], response_class=HTMLResponse)
 async def root():
+    from picosentry.serve.api.server import _docs_url
+
+    docs_link = ' · <a href="/docs" style="color:#00ff88">API Docs</a>' if _docs_url else ""
     return f"""<!DOCTYPE html>
 <html><head><title>PicoShogun</title></head>
 <body style="font-family:monospace;background:#0a0a0a;color:#e0e0e0;display:flex;\
@@ -23,8 +26,8 @@ justify-content:center;align-items:center;height:100vh;margin:0">
 <div style="text-align:center">
 <h1 style="color:#00ff88">⚔️ PicoShogun</h1>
 <p>Security Command Centre — v{__version__}</p>
-<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a> · \
-<a href="/docs" style="color:#00ff88">API Docs</a> · <a href="/health" style="color:#00ff88">Health</a></p>
+<p style="color:#888"><a href="/dashboard" style="color:#00ff88">Dashboard</a>{docs_link} · \
+<a href="/health" style="color:#00ff88">Health</a></p>
 </div></body></html>"""
 
 

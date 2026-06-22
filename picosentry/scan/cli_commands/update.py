@@ -252,8 +252,8 @@ def _fetch_maven(top_n: int) -> tuple[list[str], str, bool]:
 
         if not isinstance(data, list):
             break
-        page_names = [p.get("name") for p in data if isinstance(p, dict)]
-        page_names = [n for n in page_names if isinstance(n, str)]
+        raw_names = [p.get("name") for p in data if isinstance(p, dict)]
+        page_names = [n for n in raw_names if isinstance(n, str)]
         if not page_names:
             break
         names.extend(page_names)
@@ -288,8 +288,8 @@ def _fetch_rubygems(top_n: int) -> tuple[list[str], str, bool]:
 
         if not isinstance(data, list):
             break
-        page_names = [p.get("name") for p in data if isinstance(p, dict)]
-        page_names = [n for n in page_names if isinstance(n, str)]
+        raw_names = [p.get("name") for p in data if isinstance(p, dict)]
+        page_names = [n for n in raw_names if isinstance(n, str)]
         if not page_names:
             break
         names.extend(page_names)

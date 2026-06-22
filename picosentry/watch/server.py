@@ -6,9 +6,23 @@ import secrets
 import uuid
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+try:
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request
+    from fastapi.responses import JSONResponse, PlainTextResponse
+    from pydantic import BaseModel, Field
+except ImportError as _import_err:
+    _missing = getattr(_import_err, "name", "")
+    if _missing == "fastapi":
+        raise ImportError(
+            "picosentry.watch.server requires the 'watch-server' extra. "
+            "Install it with: pip install 'picosentry[watch-server]'"
+        ) from _import_err
+    if _missing in {"pydantic", "pydantic_core"}:
+        raise ImportError(
+            "picosentry.watch.server requires pydantic. "
+            "Install it with: pip install 'picosentry[serve]'"
+        ) from _import_err
+    raise _import_err
 
 from picosentry.watch import __version__
 from picosentry.watch.config import PicoWatchConfig
@@ -20,6 +34,21 @@ from picosentry.watch.telemetry import TelemetrySink, init_tracing, trace_output
 from picosentry.watch.types import PromptScanResult
 
 logger = logging.getLogger(__name__)
+
+
+def _require_watch_server_extra(missing: str, exc: ImportError, *, what: str) -> None:
+    """Raise a helpful ImportError for a missing watch-server dependency."""
+    if missing == "fastapi":
+        raise ImportError(
+            f"picosentry.watch.server {what} requires the 'watch-server' extra. "
+            "Install it with: pip install 'picosentry[watch-server]'"
+        ) from exc
+    if missing in {"pydantic", "pydantic_core"}:
+        raise ImportError(
+            f"picosentry.watch.server {what} requires pydantic. "
+            "Install it with: pip install 'picosentry[serve]'"
+        ) from exc
+    raise exc
 
 
 class PromptScanRequest(BaseModel):
@@ -374,7 +403,10 @@ def create_admin_app(
 
 
 def run_server(config: PicoWatchConfig | None = None, host: str = "127.0.0.1", port: int = 8766) -> None:
-    import uvicorn
+    try:
+        import uvicorn
+    except ImportError as exc:
+        _require_watch_server_extra(getattr(exc, "name", ""), exc, what="run_server()")
 
     config = config or PicoWatchConfig.from_env()
 

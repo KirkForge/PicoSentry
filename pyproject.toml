@@ -126,6 +126,10 @@ include = ["picosentry*"]
 [tool.setuptools.exclude-package-data]
 "*" = ["__pycache__/*", "*.py[cod]", "*.pyo", ".DS_Store"]
 
+# The real-world malware benchmark corpus lives in datasets/malware/ and is
+# intentionally **not** shipped in the wheel. It is build-time/benchmark-only
+# data (DataDog + OSV advisories) and is kept outside the importable package
+# to keep the installed artifact small and the surface area explicit.
 [tool.setuptools.package-data]
 picosentry = ["py.typed"]
 "picosentry.scan" = [

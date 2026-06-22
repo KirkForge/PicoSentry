@@ -270,6 +270,7 @@ app.add_middleware(
     max_requests_per_org=1000,
     window=60,
     persist=settings.is_production(),
+    exempt_paths={"/health", "/health/live", "/health/ready"},
 )
 app.add_middleware(
     CORSMiddleware,

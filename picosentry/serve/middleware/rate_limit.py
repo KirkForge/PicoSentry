@@ -19,6 +19,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         window: int = 60,
         max_buckets: int = 100000,
         persist: bool = False,
+        exempt_paths: set[str] | None = None,
     ):
         super().__init__(app)
         self.max_requests_per_ip = max_requests_per_ip
@@ -26,6 +27,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = window
         self.max_buckets = max_buckets
         self.persist = persist
+        self.exempt_paths = exempt_paths or set()
 
         self.ip_requests: dict[str, list] = defaultdict(list)
         self.org_requests: dict[str, list] = defaultdict(list)
@@ -148,6 +150,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         return len(buckets[key])
 
     async def dispatch(self, request: Request, call_next):
+        if request.url.path in self.exempt_paths:
+            return await call_next(request)
+
         now = time.time()
         client_ip = request.client.host if request.client else "unknown"
 

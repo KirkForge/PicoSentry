@@ -8,6 +8,8 @@ from picosentry.sandbox.cli_commands._common import (
     _add_common_flags,
     _compute_exit_code_sandbox,
     _output,
+    _resolve_external_path,
+    _workspace_root,
 )
 from picosentry.sandbox.guards import DeterministicGuard, verify_determinism
 from picosentry.sandbox.l3.engine import sandbox_run
@@ -61,14 +63,37 @@ def cmd(args: argparse.Namespace) -> int:
         print("Error: no command specified", file=sys.stderr)
         return 1
 
-    if getattr(args, "allow_runtime", None) and not args.policy:
+    workspace_root = _workspace_root()
+
+    if args.policy is not None:
+        policy_path = _resolve_external_path(
+            str(args.policy),
+            workspace_root,
+            must_exist=True,
+            description="--policy",
+        )
+        if policy_path is None:
+            return 2
+        policy = load_policy(policy_path)
+    elif getattr(args, "allow_runtime", None):
         from picosentry.sandbox.l3.policy import load_policy as _lp
 
         policy = _lp(name=args.allow_runtime)
-    elif args.policy:
-        policy = load_policy(args.policy)
     else:
         policy = None
+
+    cwd: str | None = None
+    if args.cwd is not None:
+        cwd_path = _resolve_external_path(
+            args.cwd,
+            workspace_root,
+            must_exist=True,
+            description="--cwd",
+        )
+        if cwd_path is None:
+            return 2
+        cwd = str(cwd_path)
+
     deterministic = args.deterministic_output
 
     from picosentry.sandbox.l3.engine import BackendUnavailableError, _detect_backend
@@ -92,7 +117,7 @@ def cmd(args: argparse.Namespace) -> int:
         command=args.command,
         policy=policy,
         timeout=args.timeout,
-        cwd=args.cwd,
+        cwd=cwd,
         backend=backend,
         deterministic=deterministic,
     )
@@ -109,7 +134,7 @@ def cmd(args: argparse.Namespace) -> int:
             args.command,
             policy=policy,
             timeout=args.timeout,
-            cwd=args.cwd,
+            cwd=cwd,
         )
         if not args.quiet:
             if is_match:

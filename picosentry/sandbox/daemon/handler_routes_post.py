@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import os
 import time
 import uuid
 from importlib import import_module
@@ -46,6 +47,14 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
         self._send_error(403, "cluster token mismatch")
         return False
     return True
+
+
+def _max_scan_timeout_seconds() -> float:
+    """Upper bound for scan timeout from env (default 300 s)."""
+    try:
+        return max(1.0, float(os.environ.get("PICODOME_MAX_SCAN_TIMEOUT", "300")))
+    except ValueError:
+        return 300.0
 
 
 # Maps daemon API ``backend`` values to the fully-qualified backend class.
@@ -128,7 +137,7 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.COMMAND_DENIED, detail=deny_error)
             return
 
-        timeout = data.get("timeout", 30.0)
+        timeout = min(float(data.get("timeout", 30.0)), _max_scan_timeout_seconds())
 
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"

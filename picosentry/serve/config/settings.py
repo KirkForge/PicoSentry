@@ -193,6 +193,22 @@ class _WildcardHostsCheck:
         return None
 
 
+class _SignedPluginsCheck:
+    def __init__(self, settings: "Settings") -> None:
+        self._settings = settings
+
+    def check(self) -> SecurityViolation | None:
+        if self._settings.is_production() and os.environ.get(
+            "PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", ""
+        ).lower() not in ("1", "true", "yes"):
+            return SecurityViolation(
+                check="signed_plugins",
+                message="Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1",
+                severity="ERROR",
+            )
+        return None
+
+
 @dataclass
 class Settings:  # rationale: composed config with injectable sub-configs for testing (PR-02)
     env: str = field(default_factory=lambda: _env("ENV", "development"))
@@ -225,6 +241,10 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                 issues.append("SECURITY: Wildcard allowed hosts in production")
             if "*" in self.api.cors_origins and self.api.cors_origins == ["*"]:
                 issues.append("SECURITY: Wildcard CORS origin in production — specify explicit origins")
+            if os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() not in ("1", "true", "yes"):
+                issues.append(
+                    "SECURITY: Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1"
+                )
 
         if not self.is_production():
             if self.security.secret_key == "change-me-in-production":
@@ -247,6 +267,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         custom_checks: list[SecureBootCheck] = [
             _SslCertCheck(self),
             _WildcardHostsCheck(self),
+            _SignedPluginsCheck(self),
         ]
         _core_assert_secure(
             checks=custom_checks,

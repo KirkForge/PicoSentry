@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import logging
+import os
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
@@ -42,6 +43,23 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
     return True
 
 
+def _max_list_limit() -> int:
+    """Upper bound for list/audit query limits from env (default 1000)."""
+    try:
+        return max(1, int(os.environ.get("PICODOME_MAX_LIST_LIMIT", "1000")))
+    except ValueError:
+        return 1000
+
+
+def _clamped_limit(query: dict, key: str = "limit", default: int = 50) -> int:
+    """Parse and clamp a query limit parameter."""
+    try:
+        value = int(query.get(key, [str(default)])[0])
+    except (ValueError, TypeError):
+        value = default
+    return max(1, min(value, _max_list_limit()))
+
+
 class PicoDomeGetRoutesMixin:
     def _handle_get(self: PicoDomeHandler) -> None:
 
@@ -60,15 +78,9 @@ class PicoDomeGetRoutesMixin:
         query = parse_qs(parsed.query)
 
         if path == "/health":
-            if not self.rate_limiter.allow(actor="__health__"):
-                self._send_error(ErrorCodes.RATE_LIMITED)
-            else:
-                self._handle_health()
+            self._handle_health()
         elif path == "/ready":
-            if not self.rate_limiter.allow(actor="__ready__"):
-                self._send_error(ErrorCodes.RATE_LIMITED)
-            else:
-                self._handle_ready()
+            self._handle_ready()
         elif path == "/metrics":
             metrics_only = getattr(self, "_metrics_only", False)
             if metrics_only:
@@ -205,6 +217,7 @@ class PicoDomeGetRoutesMixin:
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; version=0.0.4")
         self.send_header("Content-Length", str(len(body)))
+        self._add_common_headers(getattr(self, "_request_id", ""))
         self.end_headers()
         self.wfile.write(body)
 
@@ -216,7 +229,7 @@ class PicoDomeGetRoutesMixin:
             self._send_error(ErrorCodes.SCAN_NOT_FOUND, detail=job_id)
 
     def _handle_list_scans(self: PicoDomeHandler, query: dict) -> None:
-        limit = int(query.get("limit", ["50"])[0])
+        limit = _clamped_limit(query, "limit", 50)
         jobs = self.job_store.list_recent(limit=limit)
         self._send_json(
             {
@@ -269,7 +282,7 @@ class PicoDomeGetRoutesMixin:
             target=query.get("target", [None])[0],
             since=query.get("since", [None])[0],
             until=query.get("until", [None])[0],
-            limit=int(query.get("limit", ["100"])[0]),
+            limit=_clamped_limit(query, "limit", 100),
         )
         self._send_json(
             {

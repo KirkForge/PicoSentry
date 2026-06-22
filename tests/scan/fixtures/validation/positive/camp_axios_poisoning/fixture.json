@@ -1,0 +1,12 @@
+{
+  "label": "positive",
+  "description": "Replicates the axios 0.27.2 supply-chain poisoning (axios-poisoning-2024). The package depends on the decoy 'plain-crypto-js' (a named_signature for the campaign) and ships rat_loader.js + inject.dll (payload_filenames for the campaign). Postinstall triggers L2-POST-001; the bundled native DLL triggers L2-BUND-001; the platform-specific persistence scripts trigger L2-SIDELOAD-001.",
+  "expected_rule_ids": [
+    "L2-CAMP-AXIOS-POISONING",
+    "L2-POST-001"
+  ],
+  "expected_findings": [
+    {"rule_id": "L2-CAMP-AXIOS-POISONING", "file_contains": "rat_loader.js"}
+  ],
+  "strict": true
+}

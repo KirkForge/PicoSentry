@@ -1,17 +1,3 @@
-"""Rekor transparency log notary integration.
-
-Submits audit entries to a Rekor transparency log for external, tamper-evident
-verification. Falls back gracefully when offline — PicoDome must never crash
-or block because an external service is unavailable.
-
-Key design:
-- HMAC-SHA256 signs every entry before submission (local integrity anchor).
-- Rekor provides the external, append-only verification layer.
-- All HTTP calls use a configurable timeout (default 10s).
-- ``NullNotary`` is used in air-gapped/offline mode — records are signed
-  locally but never submitted externally.
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -37,21 +23,16 @@ except ImportError:  # pragma: no cover
 
 logger = logging.getLogger("picodome.notary")
 
-# ─── Defaults ────────────────────────────────────────────────────────────────
 
 DEFAULT_REKOR_URL = "https://rekor.sigstore.dev"
 DEFAULT_TIMEOUT_SECONDS = 10
 
-# Generate a per-process random key if not configured via env var.
-# WARNING: This key is different across process restarts. For persistent
-# verification, set PICODOME_NOTARY_HMAC_KEY in your environment.
+
 _process_hmac_key: str = _os.environ.get(
     "PICODOME_NOTARY_HMAC_KEY",
     f"picodome-local-{_secrets.token_hex(16)}",
 )
 DEFAULT_HMAC_KEY = _process_hmac_key
-
-# ─── Exceptions ─────────────────────────────────────────────────────────────
 
 
 class NotaryError(Exception):
@@ -70,22 +51,7 @@ class NotaryVerificationError(NotaryError):
     """Raised when entry verification fails."""
 
 
-# ─── HMAC-SHA256 Signing ────────────────────────────────────────────────────
-
-
 def sign_entry(entry: dict[str, Any], key: str = DEFAULT_HMAC_KEY) -> str:
-    """Sign an audit entry dict with HMAC-SHA256.
-
-    The entry is canonicalised as sorted JSON before signing to ensure
-    deterministic signatures regardless of dict insertion order.
-
-    Args:
-        entry: The audit event dict to sign.
-        key: HMAC key (default: built-in key; override in production).
-
-    Returns:
-        Hex-encoded HMAC-SHA256 digest.
-    """
     canonical = json.dumps(entry, sort_keys=True, default=str)
     return hmac.new(
         key.encode("utf-8"),
@@ -99,27 +65,12 @@ def verify_entry_signature(
     signature: str,
     key: str = DEFAULT_HMAC_KEY,
 ) -> bool:
-    """Verify an HMAC-SHA256 signature against an audit entry.
-
-    Args:
-        entry: The audit event dict.
-        signature: The hex-encoded HMAC-SHA256 digest to verify.
-        key: HMAC key used for verification.
-
-    Returns:
-        True if the signature matches, False otherwise.
-    """
     expected = sign_entry(entry, key=key)
     return hmac.compare_digest(expected, signature)
 
 
-# ─── Data Models ─────────────────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class NotaryResult:
-    """Result of a notary submission."""
-
     uuid: str
     entry: dict[str, Any]
     hmac_signature: str
@@ -127,17 +78,7 @@ class NotaryResult:
     rekor_uuid: str = ""
 
 
-# ─── AuditNotary ABC ────────────────────────────────────────────────────────
-
-
 class AuditNotary(ABC):
-    """Abstract base class for audit notary backends.
-
-    The notary provides two functions:
-    1. Local HMAC-SHA256 signing of every entry (always available).
-    2. External transparency log submission (optional, network-dependent).
-    """
-
     @abstractmethod
     def submit_entry(self, entry: dict[str, Any]) -> str:
         """Submit an audit entry to the notary.
@@ -177,17 +118,7 @@ class AuditNotary(ABC):
         """
 
 
-# ─── NullNotary (offline/air-gapped) ────────────────────────────────────────
-
-
 class NullNotary(AuditNotary):
-    """No-op notary for offline/air-gapped environments.
-
-    Signs entries locally with HMAC-SHA256 but never submits to an
-    external service. Useful when Rekor is unavailable or when running
-    in an air-gapped environment.
-    """
-
     def __init__(self, hmac_key: str = DEFAULT_HMAC_KEY) -> None:
         self._hmac_key = hmac_key
         self._entries: dict[str, dict[str, Any]] = {}
@@ -197,10 +128,6 @@ class NullNotary(AuditNotary):
             )
 
     def submit_entry(self, entry: dict[str, Any]) -> str:
-        """Sign entry locally and store it. No network call.
-
-        Returns a locally-generated UUID.
-        """
         entry_uuid = str(uuid.uuid4())
         signature = sign_entry(entry, key=self._hmac_key)
         self._entries[entry_uuid] = {
@@ -213,7 +140,6 @@ class NullNotary(AuditNotary):
         return entry_uuid
 
     def verify_entry(self, uuid: str, entry: dict[str, Any]) -> bool:
-        """Verify entry against local HMAC signature."""
         record = self._entries.get(uuid)
         if record is None:
             logger.warning("NullNotary: entry %s not found", uuid[:8])
@@ -222,16 +148,13 @@ class NullNotary(AuditNotary):
         stored_entry = record["entry"]
         stored_sig = record["hmac_signature"]
 
-        # Verify the entry content matches what was stored
         if json.dumps(stored_entry, sort_keys=True, default=str) != json.dumps(entry, sort_keys=True, default=str):
             logger.warning("NullNotary: entry content mismatch for %s", uuid[:8])
             return False
 
-        # Verify HMAC signature
         return verify_entry_signature(entry, stored_sig, key=self._hmac_key)
 
     def get_proof(self, uuid: str) -> dict[str, Any]:
-        """Return local proof (HMAC signature only, no Merkle proof)."""
         record = self._entries.get(uuid)
         if record is None:
             return {"error": f"Entry {uuid} not found"}
@@ -245,20 +168,7 @@ class NullNotary(AuditNotary):
         }
 
 
-# ─── RekorNotary (Sigstore transparency log) ───────────────────────────────
-
-
 class RekorNotary(AuditNotary):
-    """Rekor transparency log notary.
-
-    Submits audit entries to a Rekor transparency log for external,
-    tamper-evident verification. Falls back to local HMAC signing when
-    Rekor is unavailable.
-
-    All HTTP calls are timeout-bounded (default 10s). Network errors are
-    caught and logged — PicoDome never crashes because Rekor is down.
-    """
-
     def __init__(
         self,
         rekor_url: str = DEFAULT_REKOR_URL,
@@ -275,19 +185,9 @@ class RekorNotary(AuditNotary):
             )
 
     def submit_entry(self, entry: dict[str, Any]) -> str:
-        """Submit an audit entry to the Rekor transparency log.
 
-        First signs locally with HMAC-SHA256, then attempts to submit
-        to Rekor. If Rekor is unavailable, returns a local UUID and
-        logs a warning — does not raise.
-
-        Returns:
-            Rekor UUID on success, or local UUID on failure.
-        """
-        # Always sign locally first
         hmac_signature = sign_entry(entry, key=self._hmac_key)
 
-        # Attempt Rekor submission
         try:
             rekor_uuid = self._submit_to_rekor(entry, hmac_signature)
             self._entries[rekor_uuid] = {
@@ -300,7 +200,6 @@ class RekorNotary(AuditNotary):
             logger.info("RekorNotary: submitted entry %s to Rekor", rekor_uuid[:8])
             return rekor_uuid
         except NotaryError as exc:
-            # Rekor unavailable — fall back to local UUID
             local_uuid = str(uuid.uuid4())
             self._entries[local_uuid] = {
                 "entry": entry,
@@ -317,14 +216,8 @@ class RekorNotary(AuditNotary):
             return local_uuid
 
     def verify_entry(self, uuid: str, entry: dict[str, Any]) -> bool:
-        """Verify an entry against the notary.
-
-        Checks both local HMAC signature and (if available) the Rekor
-        transparency log.
-        """
         record = self._entries.get(uuid)
         if record is None:
-            # Try to look up in Rekor
             try:
                 return self._verify_in_rekor(uuid, entry)
             except NotaryError:
@@ -334,37 +227,27 @@ class RekorNotary(AuditNotary):
         stored_entry = record["entry"]
         stored_sig = record["hmac_signature"]
 
-        # Verify local HMAC first
         if not verify_entry_signature(entry, stored_sig, key=self._hmac_key):
             logger.warning("RekorNotary: HMAC verification failed for %s", uuid[:8])
             return False
 
-        # Verify content matches
         if json.dumps(stored_entry, sort_keys=True, default=str) != json.dumps(entry, sort_keys=True, default=str):
             logger.warning("RekorNotary: entry content mismatch for %s", uuid[:8])
             return False
 
-        # If we have a Rekor UUID, try to verify against Rekor too
         rekor_uuid = record.get("rekor_uuid")
         if rekor_uuid and record.get("notary") == "rekor":
             try:
                 return self._verify_in_rekor(rekor_uuid, entry)
             except NotaryError:
-                # Rekor unavailable — local HMAC is sufficient
                 logger.warning("RekorNotary: Rekor unavailable for verification of %s", uuid[:8])
                 return True  # Local HMAC passed
 
         return True
 
     def get_proof(self, uuid: str) -> dict[str, Any]:
-        """Retrieve a transparency proof for a notarized entry.
-
-        Returns both the local HMAC signature and, if available, the
-        Rekor inclusion proof.
-        """
         record = self._entries.get(uuid)
         if record is None:
-            # Try Rekor directly
             try:
                 return self._get_rekor_proof(uuid)
             except NotaryError:
@@ -377,7 +260,6 @@ class RekorNotary(AuditNotary):
             "submitted_at": record["submitted_at"],
         }
 
-        # If we have a Rekor UUID, try to get the Merkle proof
         rekor_uuid = record.get("rekor_uuid")
         if rekor_uuid and record.get("notary") == "rekor":
             try:
@@ -388,17 +270,7 @@ class RekorNotary(AuditNotary):
 
         return proof
 
-    # ── Internal HTTP methods ───────────────────────────────────────────
-
     def _submit_to_rekor(self, entry: dict[str, Any], hmac_signature: str) -> str:
-        """Submit an entry to the Rekor API.
-
-        Uses urllib (no requests dependency) with timeout bounding.
-
-        Raises:
-            NotaryTimeoutError: If the request exceeds the timeout.
-            NotaryConnectionError: If the connection fails.
-        """
         if not _HAS_URLLIB:
             raise NotaryConnectionError("urllib not available")
 
@@ -429,14 +301,13 @@ class RekorNotary(AuditNotary):
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 if resp.status == 201:
                     data = json.loads(resp.read().decode("utf-8"))
-                    # Rekor returns a dict with UUID keys
+
                     uuids = list(data.keys())
                     if uuids:
                         return uuids[0]
-                    # Fallback: generate local UUID
+
                     return str(uuid.uuid4())
-                else:
-                    raise NotaryConnectionError(f"Rekor returned status {resp.status}")
+                raise NotaryConnectionError(f"Rekor returned status {resp.status}")
         except NotaryError:
             raise
         except urllib.error.URLError as exc:
@@ -449,11 +320,6 @@ class RekorNotary(AuditNotary):
             raise NotaryConnectionError(f"Rekor submission error: {exc}") from exc
 
     def _verify_in_rekor(self, uuid: str, entry: dict[str, Any]) -> bool:
-        """Verify an entry in the Rekor transparency log.
-
-        Raises:
-            NotaryError: If verification cannot be performed.
-        """
         if not _HAS_URLLIB:
             raise NotaryConnectionError("urllib not available")
 
@@ -464,7 +330,7 @@ class RekorNotary(AuditNotary):
             with urllib.request.urlopen(req, timeout=self._timeout) as resp:
                 if resp.status == 200:
                     data = json.loads(resp.read().decode("utf-8"))
-                    # Verify the body content matches
+
                     body_content = data.get("body", {})
                     if isinstance(body_content, dict):
                         stored = body_content.get("content", {}).get("envelope", "")
@@ -484,11 +350,6 @@ class RekorNotary(AuditNotary):
             raise NotaryConnectionError(f"Rekor verification error: {exc}") from exc
 
     def _get_rekor_proof(self, uuid: str) -> dict[str, Any]:
-        """Get a Merkle inclusion proof from Rekor.
-
-        Raises:
-            NotaryError: If the proof cannot be retrieved.
-        """
         if not _HAS_URLLIB:
             raise NotaryConnectionError("urllib not available")
 
@@ -512,20 +373,11 @@ class RekorNotary(AuditNotary):
             raise NotaryConnectionError(f"Rekor proof retrieval error: {exc}") from exc
 
 
-# ─── Module-level default notary ─────────────────────────────────────────────
-
-
 _default_notary_lock = threading.Lock()
 _default_notary: AuditNotary | None = None
 
 
 def get_default_notary() -> AuditNotary:
-    """Get the global default notary (lazy init, defaults to NullNotary).
-
-    The default is ``NullNotary`` because PicoDome must work offline.
-    Users who want Rekor integration should call ``set_default_notary()``
-    with a ``RekorNotary`` instance.
-    """
     global _default_notary
     if _default_notary is None:
         with _default_notary_lock:
@@ -535,10 +387,5 @@ def get_default_notary() -> AuditNotary:
 
 
 def set_default_notary(notary: AuditNotary) -> None:
-    """Set the global default notary.
-
-    Args:
-        notary: An AuditNotary instance (NullNotary or RekorNotary).
-    """
     global _default_notary
     _default_notary = notary

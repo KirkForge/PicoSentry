@@ -1,23 +1,6 @@
-"""SQLite-backed scan job store — production-grade persistent storage.
-
-Uses SQLite for concurrent read/write access with WAL mode for
-high-throughput daemon deployments. Falls back gracefully when
-SQLite is unavailable (should never happen — it's in the stdlib).
-
-Advantages over JSONL:
-- Concurrent read/write without full file rewrite
-- WAL mode allows readers during writes
-- Indexed lookups by job_id, status, actor, tenant_id
-- Atomic transactions for data consistency
-- No compaction needed — VACUUM on demand
-
-Configuration:
-  PICODOME_SQLITE_PATH — path to SQLite database file
-    (default: ~/.picodome/jobs.db)
-"""
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
@@ -29,8 +12,7 @@ from typing import Any
 
 from picosentry.sandbox.daemon.store import JOB_STORE_SCHEMA_VERSION
 
-# Whitelist of allowed columns in the jobs table.
-# Prevents SQL injection via f-string column interpolation in update().
+
 ALLOWED_COLUMNS = frozenset(
     {
         "job_id",
@@ -72,16 +54,6 @@ CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs(created_at);
 
 
 class SQLiteScanJobStore:
-    """SQLite-backed persistent scan job store with WAL mode.
-
-    Thread-safe via connection-per-thread with check_same_thread=False
-    and a threading lock for write operations.
-
-    Args:
-        db_path: Path to the SQLite database file.
-        max_jobs: Maximum number of jobs to retain (oldest pruned on add).
-    """
-
     def __init__(
         self,
         db_path: Path | str | None = None,
@@ -94,7 +66,6 @@ class SQLiteScanJobStore:
         self._initialized = False
 
     def _get_conn(self) -> sqlite3.Connection:
-        """Get a thread-local SQLite connection."""
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(str(self._db_path), check_same_thread=False)
@@ -107,7 +78,6 @@ class SQLiteScanJobStore:
         return self._local.conn
 
     def _ensure_schema(self) -> None:
-        """Initialize the database schema if needed."""
         if self._initialized:
             return
         with self._lock:
@@ -120,16 +90,6 @@ class SQLiteScanJobStore:
             logger.info("SQLite job store initialized at %s", self._db_path)
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
-        """Add a new job to the SQLite store.
-
-        Args:
-            job_id: Unique job identifier.
-            command: Command that was submitted.
-            actor: Authenticated actor.
-
-        Returns:
-            The job dict.
-        """
         self._ensure_schema()
         now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
         job = {
@@ -171,25 +131,12 @@ class SQLiteScanJobStore:
                 )
                 conn.commit()
 
-        # Prune old jobs if over limit
         self._prune_old_jobs()
 
         return job
 
     def update(self, job_id: str, **kwargs: Any) -> dict[str, Any] | None:
-        """Update a job's fields in SQLite.
 
-        Args:
-            job_id: Job identifier.
-            **kwargs: Fields to update (must be in ALLOWED_COLUMNS).
-
-        Returns:
-            Updated job dict, or None if not found.
-
-        Raises:
-            ValueError: If any key is not in ALLOWED_COLUMNS.
-        """
-        # Validate all column names against whitelist to prevent SQL injection
         invalid_keys = set(kwargs.keys()) - ALLOWED_COLUMNS
         if invalid_keys:
             raise ValueError(f"Invalid column(s) for update: {invalid_keys}. Allowed: {sorted(ALLOWED_COLUMNS)}")
@@ -197,7 +144,7 @@ class SQLiteScanJobStore:
         self._ensure_schema()
         with self._lock:
             conn = self._get_conn()
-            # Build SET clause
+
             set_clauses = []
             values = []
             for key, value in kwargs.items():
@@ -229,14 +176,6 @@ class SQLiteScanJobStore:
         return self.get(job_id)
 
     def get(self, job_id: str) -> dict[str, Any] | None:
-        """Get a job by ID from SQLite.
-
-        Args:
-            job_id: Job identifier.
-
-        Returns:
-            Job dict, or None if not found.
-        """
         self._ensure_schema()
         with self._lock:
             conn = self._get_conn()
@@ -247,14 +186,6 @@ class SQLiteScanJobStore:
         return self._row_to_dict(row)
 
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
-        """List recent jobs, newest first.
-
-        Args:
-            limit: Maximum number of jobs to return.
-
-        Returns:
-            List of job dicts.
-        """
         self._ensure_schema()
         with self._lock:
             conn = self._get_conn()
@@ -265,21 +196,12 @@ class SQLiteScanJobStore:
         return [self._row_to_dict(row) for row in cursor.fetchall()]
 
     def count(self) -> int:
-        """Count total jobs in the store."""
         self._ensure_schema()
         conn = self._get_conn()
         cursor = conn.execute("SELECT COUNT(*) FROM jobs")
         return cursor.fetchone()[0]
 
     def prune(self, max_jobs: int | None = None) -> int:
-        """Delete oldest jobs exceeding max_jobs.
-
-        Args:
-            max_jobs: Maximum jobs to keep. Uses instance default if None.
-
-        Returns:
-            Number of jobs deleted.
-        """
         self._ensure_schema()
         limit = max_jobs or self._max_jobs
         with self._lock:
@@ -298,33 +220,27 @@ class SQLiteScanJobStore:
             return deleted
 
     def close(self) -> None:
-        """Close the database connection for the current thread."""
         if hasattr(self._local, "conn") and self._local.conn is not None:
             self._local.conn.close()
             self._local.conn = None
 
     @property
     def db_path(self) -> Path:
-        """The configured database path."""
         return self._db_path
 
     def _prune_old_jobs(self) -> None:
-        """Background prune: remove jobs over the limit."""
         total = self.count()
         if total > self._max_jobs:
             self.prune()
 
     @staticmethod
     def _row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
-        """Convert a sqlite3.Row to a dict with proper types."""
         d = dict(row)
-        # Parse JSON fields
+
         if "command" in d and isinstance(d["command"], str):
-            try:
+            with contextlib.suppress(json.JSONDecodeError):
                 d["command"] = json.loads(d["command"])
-            except json.JSONDecodeError:
-                pass
-        # Convert empty strings to None
+
         for field in ("completed_at", "result", "error"):
             if d.get(field) == "":
                 d[field] = None
@@ -332,9 +248,5 @@ class SQLiteScanJobStore:
 
     @classmethod
     def from_env(cls, max_jobs: int = 10000) -> SQLiteScanJobStore:
-        """Create a store from environment configuration.
-
-        Uses PICODOME_SQLITE_PATH if set, otherwise default.
-        """
         db_path = os.environ.get("PICODOME_SQLITE_PATH")
         return cls(db_path=Path(db_path) if db_path else None, max_jobs=max_jobs)

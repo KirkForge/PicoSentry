@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Cargo crate named 'actix-webb' — edit dist 1 from 'actix-web' (top-100 cargo) (fires L2-CARGO-TYPO-001). Trailing b.",
+  "expected_rule_ids": ["L2-CARGO-TYPO-001"]
+}

@@ -1,9 +1,7 @@
-"""L4 honeypot touch detector."""
-
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Paths that no legitimate package should access
+
 HONEYPOT_PATHS = [
     "/etc/passwd",
     "/etc/shadow",
@@ -23,9 +21,7 @@ HONEYPOT_PATHS = [
 
 def detect_honeypot_touches(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect access to honeypot paths — files no package should touch."""
     findings: list[Finding] = []
     import fnmatch
 
@@ -43,7 +39,6 @@ def detect_honeypot_touches(
                 )
                 break
 
-    # Check for process spawns that look like privilege escalation
     priv_esc_binaries = {"sudo", "su", "pkexec", "doas", "chown", "chmod"}
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1]

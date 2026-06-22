@@ -1,0 +1,21 @@
+{
+  "name": "trapdoor-fixture",
+  "version": "1.0.0",
+  "description": "Reproduction of a 2024 cross-ecosystem supply-chain attack pattern (do not use in production). The fixture references the historical 'trap-core.js' payload filename as an empty file by that name; no real payload is shipped.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/trapdoor-fixture/trapdoor-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@trapdoor-fixture.example.com"},
+    {"name": "fixture-reviewer", "email": "reviewer@trapdoor-fixture.example.com"}
+  ],
+  "dependencies": {},
+  "scripts": {
+    "postinstall": "echo trapdoor-fixture: postinstall hook for detection testing only"
+  }
+}

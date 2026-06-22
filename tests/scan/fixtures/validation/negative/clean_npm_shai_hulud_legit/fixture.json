@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Bun-friendly npm project. The package name, manifest, and source files contain no Shai-Hulud named signatures, payload filenames, or compromised-package dependencies. Must NOT fire L2-CAMP-SHAI-HULUD.",
+  "forbidden_rule_ids": ["L2-CAMP-SHAI-HULUD"]
+}

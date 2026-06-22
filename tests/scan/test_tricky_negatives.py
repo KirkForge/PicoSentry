@@ -69,9 +69,7 @@ def test_tricky_pypi_exec_compile_obfs_001_fires() -> None:
     execution, which we don't assert here.)
     """
     findings = _scan("tricky_pypi_exec_compile")
-    assert "L2-PYPI-OBFS-001" in _rule_ids(findings), (
-        f"Expected L2-PYPI-OBFS-001 to fire, got: {findings}"
-    )
+    assert "L2-PYPI-OBFS-001" in _rule_ids(findings), f"Expected L2-PYPI-OBFS-001 to fire, got: {findings}"
 
 
 def test_tricky_typosquat_lowpop_typo_001_fires() -> None:
@@ -81,9 +79,7 @@ def test_tricky_typosquat_lowpop_typo_001_fires() -> None:
     drops still match the detector when within edit-distance threshold.
     """
     findings = _scan("tricky_typosquat_lowpop")
-    assert "L2-TYPO-001" in _rule_ids(findings), (
-        f"Expected L2-TYPO-001 to fire on l0dash, got: {findings}"
-    )
+    assert "L2-TYPO-001" in _rule_ids(findings), f"Expected L2-TYPO-001 to fire on l0dash, got: {findings}"
 
 
 def test_tricky_npm_git_dep_safe_worm_001_fires_at_medium() -> None:
@@ -98,8 +94,7 @@ def test_tricky_npm_git_dep_safe_worm_001_fires_at_medium() -> None:
     worm = [f for f in findings if f["rule_id"] == "L2-WORM-001"]
     assert worm, f"Expected L2-WORM-001 to fire, got: {findings}"
     assert worm[0]["severity"] == "MEDIUM", (
-        f"Expected MEDIUM severity for git-resolved dep without install script, "
-        f"got: {worm[0]['severity']}"
+        f"Expected MEDIUM severity for git-resolved dep without install script, got: {worm[0]['severity']}"
     )
 
 
@@ -114,9 +109,7 @@ def test_tricky_npm_reads_etc_hosts_clean() -> None:
     a normal part of DNS resolution libraries.
     """
     findings = _scan("tricky_npm_reads_etc_hosts")
-    assert findings == [], (
-        f"Expected clean (no findings) for /etc/hosts reader, got: {findings}"
-    )
+    assert findings == [], f"Expected clean (no findings) for /etc/hosts reader, got: {findings}"
 
 
 def test_tricky_pypi_hex_buffer_clean() -> None:
@@ -128,9 +121,7 @@ def test_tricky_pypi_hex_buffer_clean() -> None:
     limit: dynamic hex decoding evades the detector.)
     """
     findings = _scan("tricky_pypi_hex_buffer")
-    assert findings == [], (
-        f"Expected clean (no findings) for bytes.fromhex, got: {findings}"
-    )
+    assert findings == [], f"Expected clean (no findings) for bytes.fromhex, got: {findings}"
 
 
 def test_tricky_npm_dual_license_clean() -> None:
@@ -141,6 +132,22 @@ def test_tricky_npm_dual_license_clean() -> None:
     ``UNLICENSED`` or unknown license strings are flagged.
     """
     findings = _scan("tricky_npm_dual_license")
+    assert findings == [], f"Expected clean (no findings) for permissive dual license, got: {findings}"
+
+
+def test_tricky_pypi_obfs_exec_namespace_bypass_clean() -> None:
+    """``globals()['ex' + 'ec'](...)`` evades L2-PYPI-OBFS-001 (exec/eval).
+
+    The detector's EVAL_PATTERN matches the literal ``exec(`` / ``eval(``
+    token. Splitting the function name across a string concatenation
+    (or using ``getattr(__builtins__, 'ev'+'al')``, ``globals()['ex'+'ec']``,
+    etc.) is a real-world obfuscation pattern that defeats this regex.
+
+    An AST-based detector that resolves the call target before matching
+    would catch this. Until that lands, this fixture documents the
+    known limit and the test guards against it disappearing silently.
+    """
+    findings = _scan("pypi_obfs_exec_namespace_bypass")
     assert findings == [], (
-        f"Expected clean (no findings) for permissive dual license, got: {findings}"
+        f"Expected clean (no findings) for exec() bypass via globals() string lookup, got: {findings}"
     )

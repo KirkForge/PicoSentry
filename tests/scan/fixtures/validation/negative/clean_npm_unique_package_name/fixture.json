@@ -1,4 +1,20 @@
 {
   "label": "negative",
-  "description": "npm app with a long, unique, hyphenated name. The typosquat detector should not over-match on a name that is far from any top-100 corpus entry."
+  "description": "npm app with a long, unique, hyphenated name. The typosquat detector should not over-match on a name that is far from any top-100 corpus entry.",
+  "forbidden_rule_ids": [
+    "L2-TYPO-001",
+    "L2-POST-001",
+    "L2-OBFS-001",
+    "L2-OBFS-002",
+    "L2-OBFS-003",
+    "L2-OBFS-004",
+    "L2-CRED-001",
+    "L2-NETEX-001",
+    "L2-WORM-001",
+    "L2-ENGIN-001",
+    "L2-FORK-001",
+    "L2-LICENSE-001",
+    "L2-MAINT-001",
+    "L2-PROV-001"
+  ]
 }

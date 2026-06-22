@@ -1,9 +1,3 @@
-"""Redis health check and configuration for horizontal scaling.
-
-Provides a unified health check for Redis connectivity and
-a configuration helper for setting up Redis-backed stores.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -18,16 +12,6 @@ _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 
 @dataclass(frozen=True)
 class RedisConfig:
-    """Redis configuration for all Redis-backed stores.
-
-    Attributes:
-        url: Redis connection URL.
-        enabled: Whether Redis is enabled (auto-detected if not set).
-        socket_timeout: Socket timeout in seconds.
-        socket_connect_timeout: Connection timeout in seconds.
-        retry_on_timeout: Whether to retry on timeout.
-    """
-
     url: str = ""
     enabled: bool | None = None  # None = auto-detect
     socket_timeout: float = 5.0
@@ -36,13 +20,6 @@ class RedisConfig:
 
     @classmethod
     def from_env(cls) -> RedisConfig:
-        """Create RedisConfig from environment variables.
-
-        Env vars:
-          PICODOME_REDIS_URL — Redis URL (required for Redis mode)
-          PICODOME_REDIS_ENABLED — 'true' or 'false' (optional, auto-detect if unset)
-          PICODOME_REDIS_TIMEOUT — socket timeout in seconds (optional)
-        """
         url = os.environ.get("PICODOME_REDIS_URL", "")
         enabled_str = os.environ.get("PICODOME_REDIS_ENABLED", "")
         timeout_str = os.environ.get("PICODOME_REDIS_TIMEOUT", "")
@@ -61,16 +38,6 @@ class RedisConfig:
 
 
 def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
-    """Check Redis connectivity and return health status.
-
-    Returns:
-        Dict with keys:
-          - connected: bool
-          - latency_ms: float (0 if not connected)
-          - version: str (empty if not connected)
-          - error: str (empty if connected)
-          - mode: "redis" or "in-memory"
-    """
     config = config or RedisConfig.from_env()
 
     try:
@@ -83,7 +50,6 @@ def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
             decode_responses=True,
         )
 
-        # Measure latency
         import time
 
         start = time.monotonic()
@@ -125,6 +91,5 @@ def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
 
 
 def is_redis_available(config: RedisConfig | None = None) -> bool:
-    """Quick check if Redis is available for use."""
     result = check_redis_health(config)
     return result["connected"]

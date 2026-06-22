@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Range-overlap CVE variant: serde 1.0.50 (middle of the affected range, fixed at 1.0.184) (fires L2-CARGO-ADV-001). Tests that the version check handles mid-range versions, not just boundary.",
+  "expected_rule_ids": ["L2-CARGO-ADV-001"]
+}

@@ -222,21 +222,21 @@ class TestDetectCustomIocs(unittest.TestCase):
             nm = Path(tmp) / "node_modules" / "evil"
             nm.mkdir(parents=True)
             (nm / "package.json").write_text(json.dumps({"name": "evil", "version": "1.0.0"}))
-            findings = detect_custom_iocs(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_custom_iocs(Path(tmp))
             self.assertGreaterEqual(len(findings), 1)
 
     @patch("picosentry.scan.rules.ioc_detection.load_all_iocs")
     def test_detect_no_iocs(self, mock_load):
         mock_load.return_value = []
         with tempfile.TemporaryDirectory() as tmp:
-            findings = detect_custom_iocs(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_custom_iocs(Path(tmp))
             self.assertEqual(len(findings), 0)
 
     @patch("picosentry.scan.rules.ioc_detection.load_all_iocs")
     def test_detect_load_error(self, mock_load):
         mock_load.side_effect = OSError("corrupted")
         with tempfile.TemporaryDirectory() as tmp:
-            findings = detect_custom_iocs(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_custom_iocs(Path(tmp))
             self.assertEqual(len(findings), 0)
 
     @patch("picosentry.scan.rules.ioc_detection.load_all_iocs")
@@ -253,13 +253,13 @@ class TestDetectCustomIocs(unittest.TestCase):
         ]
         with tempfile.TemporaryDirectory() as tmp:
             (Path(tmp) / "package.json").write_text(json.dumps({"name": "root-pkg", "version": "1.0.0"}))
-            findings = detect_custom_iocs(Path(tmp), Path(tmp) / "corpus")
+            findings = detect_custom_iocs(Path(tmp))
             self.assertGreaterEqual(len(findings), 1)
 
     @patch("picosentry.scan.rules.ioc_detection.load_all_iocs")
     def test_detect_nonexistent_target(self, mock_load):
         mock_load.return_value = []
-        findings = detect_custom_iocs(Path("/nonexistent/path"), Path("/nonexistent/corpus"))
+        findings = detect_custom_iocs(Path("/nonexistent/path"))
         self.assertEqual(len(findings), 0)
 
 

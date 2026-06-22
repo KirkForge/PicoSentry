@@ -1,9 +1,3 @@
-"""Seatbelt sandbox backend (macOS only).
-
-Uses macOS sandbox-exec with dynamically generated seatbelt profiles.
-Translates PicoDome Policy to the Seatbelt profile DSL.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -11,6 +5,7 @@ import os
 import platform
 import subprocess
 import tempfile
+from pathlib import Path
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -28,19 +23,11 @@ logger = logging.getLogger("picodome.l3.seatbelt")
 
 
 def _escape_seatbelt_path(path: str) -> str:
-    """Escape a path for Seatbelt profile DSL to prevent injection.
-
-    The Seatbelt DSL uses double-quoted strings, so backslash and
-    double-quote must be escaped to prevent breaking out of a clause.
-    """
     path = path.replace(chr(92), chr(92) + chr(92))  # backslash -> double-backslash
-    path = path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
-    return path
+    return path.replace(chr(34), chr(92) + chr(34))  # double-quote -> escaped double-quote
 
 
 class SeatbeltBackend(SandboxBackend):
-    """Seatbelt backend using macOS sandbox-exec with generated profiles."""
-
     @property
     def name(self) -> str:
         return "seatbelt"
@@ -54,7 +41,6 @@ class SeatbeltBackend(SandboxBackend):
         return "hard"
 
     def is_available(self) -> bool:
-        """Check if seatbelt is available (macOS only, sandbox-exec present)."""
         if platform.system() != "Darwin":
             return False
         try:
@@ -62,6 +48,7 @@ class SeatbeltBackend(SandboxBackend):
                 ["sandbox-exec", "-h"],
                 capture_output=True,
                 timeout=2,
+                check=False,
             )
             return True
         except (FileNotFoundError, subprocess.TimeoutExpired):
@@ -83,7 +70,6 @@ class SeatbeltBackend(SandboxBackend):
             return self._fallback_run(command, policy, timeout, cwd, env)
 
         try:
-            # Generate seatbelt profile
             profile = self._generate_profile(policy, command, cwd)
 
             with tempfile.NamedTemporaryFile(mode="w", suffix=".sb", delete=False, prefix="picodome_") as f:
@@ -91,7 +77,6 @@ class SeatbeltBackend(SandboxBackend):
                 profile_path = f.name
 
             try:
-                # Execute under sandbox-exec
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
                 run_env = os.environ.copy()
@@ -127,7 +112,6 @@ class SeatbeltBackend(SandboxBackend):
                         )
                     )
 
-                # Check for sandbox violations in stderr
                 if "deny" in stderr.lower() or "violation" in stderr.lower():
                     events.append(
                         SandboxEvent(
@@ -139,14 +123,13 @@ class SeatbeltBackend(SandboxBackend):
                         )
                     )
 
-                # Post-hoc analysis
                 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 
                 sb = SubprocessBackend()
                 events.extend(sb._check_suspicious_patterns(stdout, stderr))
 
             finally:
-                os.unlink(profile_path)
+                Path(profile_path).unlink()
 
         except FileNotFoundError:
             events.append(
@@ -196,10 +179,8 @@ class SeatbeltBackend(SandboxBackend):
         command: list[str],
         cwd: str | None = None,
     ) -> str:
-        """Generate a macOS sandbox-exec profile from PicoDome Policy."""
         lines = ["(version 1)"]
 
-        # Default action
         if policy.default_action == SyscallAction.DENY:
             lines.append("(deny default)")
         else:
@@ -218,7 +199,6 @@ class SeatbeltBackend(SandboxBackend):
         return "\n".join(lines)
 
     def _rule_to_allow_clause(self, rule: PolicyRule, cwd: str | None) -> str | None:
-        """Convert an ALLOW rule to a seatbelt allow clause."""
         parts = ["(allow"]
 
         if rule.target in (RuleTarget.FILE_READ, RuleTarget.FILE_WRITE):
@@ -236,7 +216,7 @@ class SeatbeltBackend(SandboxBackend):
                 return f"({' '.join(parts)})" if len(parts) > 1 else None
 
             _op = "file-read*" if rule.target == RuleTarget.FILE_READ else "file-write*"
-            # Always include file-read-data, file-read-metadata
+
             if rule.target == RuleTarget.FILE_READ:
                 parts.append("file-read-data")
                 parts.append("file-read-metadata")
@@ -244,8 +224,7 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.NETWORK_OUT:
             parts.append("network-outbound")
             if rule.addresses:
-                for addr in rule.addresses:
-                    parts.append(f'(remote ip "{_escape_seatbelt_path(addr)}")')
+                parts.extend(f'(remote ip "{_escape_seatbelt_path(addr)}")' for addr in rule.addresses)
 
         elif rule.target == RuleTarget.NETWORK_IN:
             parts.append("network-inbound")
@@ -267,7 +246,6 @@ class SeatbeltBackend(SandboxBackend):
         return f"({' '.join(parts)})"
 
     def _rule_to_deny_clause(self, rule: PolicyRule) -> str | None:
-        """Convert a DENY/KILL rule to a seatbelt deny clause."""
         parts = ["(deny"]
 
         if rule.target in (RuleTarget.NETWORK_OUT, RuleTarget.NETWORK_IN):
@@ -281,12 +259,10 @@ class SeatbeltBackend(SandboxBackend):
         elif rule.target == RuleTarget.FILE_WRITE:
             parts.append("file-write*")
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(subpath "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(subpath "{_escape_seatbelt_path(path)}")' for path in rule.paths)
         elif rule.target == RuleTarget.FILE_READ:
             if rule.paths:
-                for path in rule.paths:
-                    parts.append(f'(literal "{_escape_seatbelt_path(path)}")')
+                parts.extend(f'(literal "{_escape_seatbelt_path(path)}")' for path in rule.paths)
             else:
                 parts.append("file-read*")
 
@@ -296,14 +272,13 @@ class SeatbeltBackend(SandboxBackend):
         return f"({' '.join(parts)})"
 
     def _normalize_path(self, path: str, cwd: str | None) -> str:
-        """Normalize a path for the seatbelt profile DSL."""
         if path == "**":
             return "/"
         if path.startswith("/"):
             return path
         if cwd:
-            return os.path.join(cwd, path)
-        return os.path.abspath(path)
+            return str(Path(cwd) / path)
+        return str(Path(path).resolve())
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
         for event in events:
@@ -322,12 +297,6 @@ class SeatbeltBackend(SandboxBackend):
         env: dict | None,
         reason: str = "seatbelt not available",
     ) -> SandboxResult:
-        """Handle backend failure.
-
-        If policy.fail_closed is True (default), return a KILL verdict
-        instead of degrading to the unconfined subprocess backend.
-        Only falls back to subprocess when fail_closed=False.
-        """
         if policy.fail_closed:
             logger.error(
                 "FAIL-CLOSED: %s — refusing fallback to unconfined subprocess backend",
@@ -365,7 +334,7 @@ class SeatbeltBackend(SandboxBackend):
             cwd=cwd,
             env=env,
         )
-        # Mark as degraded — observational when kernel was expected
+
         return SandboxResult(
             run_id=result.run_id,
             timestamp=result.timestamp,

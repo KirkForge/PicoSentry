@@ -1,21 +1,3 @@
-"""
-L2-MAINT-001: Maintainer change detection.
-
-Flags packages where the publisher/maintainer has changed, which is a
-key indicator of supply chain attacks (e.g., event-stream@3.3.6 where
-the original maintainer handed off to a malicious actor).
-
-Pure function: (target_path, corpus_dir) → List[Finding]
-
-Offline signals detected:
-1. _npmUser differs from author — publisher != declared author
-2. New maintainers from different domain — org/account transfer signal
-3. No author + has install scripts — anonymous RCE risk (event-stream pattern)
-4. Single maintainer + install scripts — bus factor + attack surface
-5. No author/maintainer at all — unaccountable package
-6. Very short author names — pseudonymous publisher risk
-"""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -27,34 +9,27 @@ __all__ = ["detect_maintainer_changes"]
 
 
 def _extract_author_name(author) -> str:
-    """Extract a name string from an author field (string or dict)."""
     if isinstance(author, str):
-        # "Name <email>" or "Name (url)" patterns
-        name = author.split("<")[0].split("(")[0].strip()
-        return name
-    elif isinstance(author, dict):
+        return author.split("<")[0].split("(")[0].strip()
+    if isinstance(author, dict):
         return str(author.get("name", ""))
     return ""
 
 
 def _extract_author_names(pkg: dict) -> list[str]:
-    """Extract all author/maintainer/contributor names from a package.json."""
     names: list[str] = []
 
-    # Single author field
     author = pkg.get("author")
     if author:
         name = _extract_author_name(author)
         if name:
             names.append(name)
 
-    # Contributors
     for c in pkg.get("contributors", []):
         name = _extract_author_name(c)
         if name:
             names.append(name)
 
-    # Maintainers field (npm-specific)
     for m in pkg.get("maintainers", []):
         name = _extract_author_name(m)
         if name:
@@ -64,7 +39,6 @@ def _extract_author_names(pkg: dict) -> list[str]:
 
 
 def _has_install_scripts(pkg: dict) -> bool:
-    """Check if a package has lifecycle scripts that execute code."""
     scripts = pkg.get("scripts", {})
     if not isinstance(scripts, dict):
         return False
@@ -80,17 +54,15 @@ def _has_install_scripts(pkg: dict) -> bool:
 
 
 def _extract_npm_user_name(pkg: dict) -> str:
-    """Extract the npm publisher name from _npmUser field."""
     npm_user = pkg.get("_npmUser")
     if isinstance(npm_user, dict):
         return str(npm_user.get("name", ""))
-    elif isinstance(npm_user, str):
+    if isinstance(npm_user, str):
         return npm_user.split("<")[0].strip()
     return ""
 
 
 def _extract_maintainer_domains(pkg: dict) -> list[str]:
-    """Extract email domains from maintainers list."""
     domains: list[str] = []
     for m in pkg.get("maintainers", []):
         if isinstance(m, dict):
@@ -103,20 +75,15 @@ def _extract_maintainer_domains(pkg: dict) -> list[str]:
 
 
 def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]) -> None:
-    """Check a single package.json for maintainer change signals."""
     pkg_name = pkg.get("name", pkg_json.parent.name)
     pkg_version = pkg.get("version", "unknown")
     pkg_label = f"{pkg_name}@{pkg_version}"
     author_names = _extract_author_names(pkg)
     has_scripts = _has_install_scripts(pkg)
 
-    # --- Signal 1: _npmUser differs from author ---
-    # In installed packages, _npmUser shows who published to npm.
-    # If it differs from the declared author, someone else published.
     npm_user = _extract_npm_user_name(pkg)
     author_name = _extract_author_name(pkg.get("author", ""))
     if npm_user and author_name:
-        # Normalize for comparison
         npm_lower = npm_user.lower().replace("-", "").replace("_", "")
         author_lower = author_name.lower().replace("-", "").replace("_", "")
         if npm_lower != author_lower and npm_lower not in author_lower and author_lower not in npm_lower:
@@ -143,8 +110,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                 )
             )
 
-    # --- Signal 2: Maintainers from different domains ---
-    # Original maintainer on @original.com, new one on @suspicious.xyz
     maintainer_domains = _extract_maintainer_domains(pkg)
     if len(maintainer_domains) >= 2 and len(set(maintainer_domains)) >= 2:
         unique_domains = sorted(set(maintainer_domains))
@@ -170,9 +135,10 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-    # --- Signal 3: No author + has install scripts ---
-    # The event-stream pattern: anonymous publisher with code execution.
     if not author_names and has_scripts and pkg_name != "root":
+        _install_script_names = (
+            s for s in pkg.get("scripts", {}) if s in {"install", "postinstall", "preinstall", "prepare"}
+        )
         findings.append(
             Finding(
                 rule_id="L2-MAINT-001",
@@ -184,7 +150,7 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
                     f"Package '{pkg_name}' has no author/maintainer info but "
                     f"has install scripts — unaccountable code execution"
                 ),
-                evidence=f"no author field, scripts: {', '.join(s for s in pkg.get('scripts', {}) if s in {'install', 'postinstall', 'preinstall', 'prepare'})}",
+                evidence=(f"no author field, scripts: {', '.join(sorted(_install_script_names))}"),
                 remediation=(
                     "Packages without author information that run code on install "
                     "are a critical supply chain risk. Verify the package source, "
@@ -197,8 +163,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-    # --- Signal 4: Single maintainer + install scripts ---
-    # Bus factor: one person controls all execution paths.
     if len(author_names) == 1 and has_scripts:
         findings.append(
             Finding(
@@ -221,8 +185,6 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-    # --- Signal 5: No author/maintainer at all ---
-    # Already handled by Signal 3 if scripts present; flag without scripts too.
     if not author_names and not has_scripts and pkg_name != "root":
         findings.append(
             Finding(
@@ -243,44 +205,36 @@ def _check_maintainer_signals(pkg: dict, pkg_json: Path, findings: list[Finding]
             )
         )
 
-    # --- Signal 6: Very short author name — pseudonymous risk ---
     if author_names:
-        for author in author_names:
-            if len(author) <= 2:
-                findings.append(
-                    Finding(
-                        rule_id="L2-MAINT-001",
-                        severity=Severity.LOW,
-                        confidence=Confidence.MEDIUM,
-                        package=pkg_label,
-                        file=str(pkg_json),
-                        message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
-                        evidence=f"author = '{author}'",
-                        remediation=(
-                            "Very short author names may indicate a pseudonymous publisher. "
-                            "Verify the author's identity through npm or GitHub."
-                        ),
-                        references=[],
-                    )
-                )
+        findings.extend(
+            Finding(
+                rule_id="L2-MAINT-001",
+                severity=Severity.LOW,
+                confidence=Confidence.MEDIUM,
+                package=pkg_label,
+                file=str(pkg_json),
+                message=(f"Package '{pkg_name}' has suspiciously short author name: '{author}'"),
+                evidence=f"author = '{author}'",
+                remediation=(
+                    "Very short author names may indicate a pseudonymous publisher. "
+                    "Verify the author's identity through npm or GitHub."
+                ),
+                references=[],
+            )
+            for author in author_names
+            if len(author) <= 2
+        )
 
 
-def detect_maintainer_changes(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect packages with maintainer change signals.
-    No network calls. Pure filesystem scan.
-    """
+def detect_maintainer_changes(target: Path) -> list[Finding]:
     findings: list[Finding] = []
 
-    # Check root package.json
     root_pkg = target / "package.json"
     if root_pkg.is_file():
         pkg = load_package_json(root_pkg)
         if pkg:
             _check_maintainer_signals(pkg, root_pkg, findings)
 
-    # Check node_modules packages
-    # node_modules packages
     for pkg_json, pkg in iter_node_modules(target):
         _check_maintainer_signals(pkg, pkg_json, findings)
 

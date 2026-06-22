@@ -1,0 +1,8 @@
+{
+  "label": "negative",
+  "description": "Clean pnpm workspace with a pnpm-workspace.yaml listing two simple packages and no .pnpmfile overrides. Asserts L2-PNPM-001 and L2-LOCK-001 stay silent on normal pnpm workspace configurations.",
+  "forbidden_rule_ids": [
+    "L2-PNPM-001",
+    "L2-LOCK-001"
+  ]
+}

@@ -45,7 +45,7 @@ class TestGitSshProtocol:
                 "dependencies": {"malicious-lib": "git+ssh://git@github.com:evil/repo.git"},
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         f = findings[0]
         assert f.rule_id == "L2-SIDELOAD-001"
@@ -63,7 +63,7 @@ class TestGitSshProtocol:
                 "devDependencies": {"dev-lib": "git+ssh://git@github.com:evil/dev.git"},
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.CRITICAL
 
@@ -74,7 +74,7 @@ class TestGitProtocol:
     def test_git_protocol_dependency(self, tmp_path, corpus_dir):
         """git:// in dependencies → CRITICAL."""
         _write_pkg(tmp_path, {"name": "test-pkg", "dependencies": {"unverified-pkg": "git://github.com/evil/repo.git"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.CRITICAL
         assert "git://" in findings[0].evidence
@@ -88,7 +88,7 @@ class TestGitHttpsProtocol:
         _write_pkg(
             tmp_path, {"name": "test-pkg", "dependencies": {"forked-lib": "git+https://github.com/forked/lib.git"}}
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.HIGH
 
@@ -97,7 +97,7 @@ class TestGitHttpsProtocol:
         _write_pkg(
             tmp_path, {"name": "test-pkg", "dependencies": {"insecure-pkg": "git+http://github.com/evil/repo.git"}}
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.CRITICAL
 
@@ -108,7 +108,7 @@ class TestGithubShorthand:
     def test_github_shorthand(self, tmp_path, corpus_dir):
         """github: shorthand → HIGH."""
         _write_pkg(tmp_path, {"name": "test-pkg", "dependencies": {"some-lib": "github:user/repo"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.HIGH
         assert "github:" in findings[0].evidence
@@ -120,7 +120,7 @@ class TestFileProtocol:
     def test_file_protocol(self, tmp_path, corpus_dir):
         """file:// in dependencies → MEDIUM."""
         _write_pkg(tmp_path, {"name": "test-pkg", "dependencies": {"local-lib": "file:../local-lib"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.MEDIUM
         assert "file:" in findings[0].evidence
@@ -128,7 +128,7 @@ class TestFileProtocol:
     def test_file_protocol_dev(self, tmp_path, corpus_dir):
         """file:// in devDependencies → MEDIUM."""
         _write_pkg(tmp_path, {"name": "test-pkg", "devDependencies": {"local-dev": "file:../local-dev"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
 
 
@@ -138,7 +138,7 @@ class TestLinkProtocol:
     def test_link_protocol(self, tmp_path, corpus_dir):
         """link: in dependencies → MEDIUM."""
         _write_pkg(tmp_path, {"name": "test-pkg", "dependencies": {"linked-lib": "link:../linked-lib"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.MEDIUM
         assert "link:" in findings[0].evidence
@@ -160,7 +160,7 @@ class TestMixedProtocols:
                 },
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 3
         severities = {f.severity for f in findings}
         assert Severity.HIGH in severities
@@ -178,7 +178,7 @@ class TestMixedProtocols:
                 },
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 2
         packages = {f.package for f in findings}
         assert "dep-a" in packages
@@ -199,18 +199,18 @@ class TestCleanPackages:
                 "devDependencies": {"jest": "^29.0.0", "typescript": "^5.0.0"},
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0
 
     def test_empty_package(self, tmp_path, corpus_dir):
         """Package with no dependencies → no findings."""
         _write_pkg(tmp_path, {"name": "empty-pkg", "version": "1.0.0"})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0
 
     def test_no_package_json(self, tmp_path, corpus_dir):
         """Missing package.json → no findings, no crash."""
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0
 
 
@@ -226,14 +226,14 @@ class TestPeerAndOptionalDeps:
                 "peerDependencies": {"react-native": "git+ssh://git@github.com:fork/react-native.git"},
             },
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.CRITICAL
 
     def test_optional_dep_file(self, tmp_path, corpus_dir):
         """file: in optionalDependencies → MEDIUM."""
         _write_pkg(tmp_path, {"name": "test-pkg", "optionalDependencies": {"native-addon": "file:./native"}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.MEDIUM
 
@@ -258,7 +258,7 @@ class TestNodeModulesScan:
             )
         )
 
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].package == "evil-subdep"
         assert findings[0].severity == Severity.CRITICAL
@@ -282,7 +282,7 @@ class TestNodeModulesScan:
             )
         )
 
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].severity == Severity.HIGH
 
@@ -300,8 +300,8 @@ class TestDeterminism:
             },
         )
 
-        findings_a = detect_sideloading(tmp_path, corpus_dir)
-        findings_b = detect_sideloading(tmp_path, corpus_dir)
+        findings_a = detect_sideloading(tmp_path)
+        findings_b = detect_sideloading(tmp_path)
 
         # Same count
         assert len(findings_a) == len(findings_b)
@@ -321,7 +321,7 @@ class TestConfidence:
         _write_pkg(
             tmp_path, {"name": "test-pkg", "dependencies": {"git-dep": "git+ssh://git@github.com:evil/repo.git"}}
         )
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 1
         assert findings[0].confidence == Confidence.EXACT
 
@@ -333,17 +333,17 @@ class TestInvalidPackageJson:
         """Malformed package.json → no crash, no findings."""
         pkg = tmp_path / "package.json"
         pkg.write_text("{invalid json!!!")
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0
 
     def test_non_dict_deps(self, tmp_path, corpus_dir):
         """dependencies as array instead of dict → no findings."""
         _write_pkg(tmp_path, {"name": "bad-pkg", "dependencies": ["lodash", "express"]})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0
 
     def test_non_string_version(self, tmp_path, corpus_dir):
         """Version as object instead of string → no findings."""
         _write_pkg(tmp_path, {"name": "bad-pkg", "dependencies": {"some-dep": {"version": "1.0.0"}}})
-        findings = detect_sideloading(tmp_path, corpus_dir)
+        findings = detect_sideloading(tmp_path)
         assert len(findings) == 0

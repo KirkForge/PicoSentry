@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PyPI project (no setup.py — only pyproject.toml) with a bare exec() call. Single-rule fixture for L2-PYPI-OBFS-001. No setup.py means L2-PYPI-POST-001 does not fire.",
+  "expected_rule_ids": ["L2-PYPI-OBFS-001"]
+}

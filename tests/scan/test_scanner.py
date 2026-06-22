@@ -19,16 +19,7 @@ import pytest
 from picosentry.scan.engine import ScanEngine, create_default_engine
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
 
-
-def _make_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
-    """Create a minimal project tree with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import make_npm_project as _make_project
 
 
 class TestDeterminism:
@@ -418,7 +409,7 @@ class TestNewRules:
         )
         from picosentry.scan.rules.credential_read import detect_credential_reading
 
-        findings = detect_credential_reading(project, project.parent)
+        findings = detect_credential_reading(project)
         assert any(f.rule_id == "L2-CRED-001" for f in findings)
 
     def test_lockfile_drift_detects_missing_dep(self, tmp_path):
@@ -432,7 +423,7 @@ class TestNewRules:
         )
         from picosentry.scan.rules.lockfile_drift import detect_lockfile_drift
 
-        findings = detect_lockfile_drift(project, project.parent)
+        findings = detect_lockfile_drift(project)
         # Should find that lodash is declared but not in lockfile
         assert any(f.rule_id == "L2-LOCK-001" for f in findings)
 
@@ -447,7 +438,7 @@ class TestNewRules:
         )
         from picosentry.scan.rules.bundled_shadow import detect_bundled_shadows
 
-        findings = detect_bundled_shadows(project, project.parent)
+        findings = detect_bundled_shadows(project)
         assert any(f.rule_id == "L2-BUND-001" for f in findings)
 
     def test_provenance_flags_no_repository(self, tmp_path):
@@ -461,7 +452,7 @@ class TestNewRules:
         )
         from picosentry.scan.rules.provenance import detect_provenance_issues
 
-        findings = detect_provenance_issues(project, project.parent)
+        findings = detect_provenance_issues(project)
         assert any(f.rule_id == "L2-PROV-001" for f in findings)
 
     def test_pnpm_dangerously_allow_builds(self, tmp_path):
@@ -477,7 +468,7 @@ class TestNewRules:
         )
         from picosentry.scan.rules.lockfile_drift import detect_lockfile_drift
 
-        findings = detect_lockfile_drift(project, project.parent)
+        findings = detect_lockfile_drift(project)
         assert any(f.rule_id == "L2-LOCK-001" and "dangerouslyAllowAllBuilds" in f.evidence for f in findings), (
             f"Expected dangerouslyAllowAllBuilds finding, got: {[(f.rule_id, f.evidence) for f in findings]}"
         )
@@ -538,7 +529,7 @@ class TestMLContextFormat:
 # These test against known real-world supply chain attacks.
 # If any of these fail, the scanner has regressed.
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+from tests.scan.conftest import FIXTURES_DIR  # noqa: E402
 
 
 class TestIoCRegression:
@@ -914,7 +905,8 @@ class TestCorpusVersioning:
         engine_b = ScanEngine(corpus_dir=corpus_b)
 
         assert engine_a._corpus_version != engine_b._corpus_version, (
-            f"Different corpus content should produce different hashes: {engine_a._corpus_version} == {engine_b._corpus_version}"
+            "Different corpus content should produce different hashes: "
+            f"{engine_a._corpus_version} == {engine_b._corpus_version}"
         )
 
     def test_corpus_version_in_scan_result(self, tmp_path):
@@ -1075,7 +1067,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         maintainer_findings = [f for f in findings if f.rule_id == "L2-MAINT-001"]
         npm_user_findings = [
             f for f in maintainer_findings if "published by" in f.message and "declares author" in f.message
@@ -1096,7 +1088,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         no_author_scripts = [
             f
             for f in findings
@@ -1123,7 +1115,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         bus_factor = [f for f in findings if f.rule_id == "L2-MAINT-001" and "single maintainer" in f.message.lower()]
         assert len(bus_factor) >= 1, (
             f"Expected single maintainer + scripts finding, got: {[f.message for f in findings]}"
@@ -1145,7 +1137,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         domain_findings = [
             f for f in findings if f.rule_id == "L2-MAINT-001" and "different domains" in f.message.lower()
         ]
@@ -1164,7 +1156,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         no_author = [
             f
             for f in findings
@@ -1187,7 +1179,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         short_name = [f for f in findings if f.rule_id == "L2-MAINT-001" and "short author" in f.message.lower()]
         assert len(short_name) >= 1, f"Expected short author name finding, got: {[f.message for f in findings]}"
 
@@ -1204,7 +1196,7 @@ class TestMaintainerChange:
         )
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
-        findings = detect_maintainer_changes(project, project.parent)
+        findings = detect_maintainer_changes(project)
         high_findings = [f for f in findings if f.rule_id == "L2-MAINT-001" and f.severity == Severity.HIGH]
         assert len(high_findings) == 0, (
             f"Legitimate author should not trigger HIGH, got: {[f.message for f in high_findings]}"
@@ -1415,14 +1407,11 @@ class TestUpdateCommand:
     """Test the 'update' command's network safety features."""
 
     def _mock_urlopen(self, response_data: bytes):
-        """Create a mock for urllib.request.urlopen that returns response_data."""
+        """Create a mock for safe_urlopen that returns (response, body)."""
         from unittest.mock import MagicMock
 
         mock_resp = MagicMock()
-        mock_resp.read.return_value = response_data
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
-        return MagicMock(return_value=mock_resp)
+        return MagicMock(return_value=(mock_resp, response_data))
 
     def test_update_response_size_limit(self, tmp_path):
         """update command rejects responses larger than 10MB."""
@@ -1438,7 +1427,7 @@ class TestUpdateCommand:
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result == 1  # Should fail due to size limit
 
@@ -1454,7 +1443,7 @@ class TestUpdateCommand:
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result != 0  # Should fail
 
@@ -1465,39 +1454,34 @@ class TestUpdateCommand:
 
         from picosentry.scan.cli import _cmd_update
 
-        # Mock a valid npm response
-        valid_response = json.dumps(
-            {
-                "objects": [{"package": {"name": "express"}}],
-                "total": 1,
-            }
-        ).encode("utf-8")
+        # Mock a valid npm-rank response
+        valid_response = json.dumps([{"name": "express"}]).encode("utf-8")
 
         mock_urlopen = self._mock_urlopen(valid_response)
 
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         assert result == 0
         assert Path(output).is_file()
 
     def test_update_validates_response_format(self, tmp_path):
-        """update command validates that response has 'objects' key."""
+        """update command validates that npm-rank response is a list."""
         import argparse
         from unittest.mock import patch
 
         from picosentry.scan.cli import _cmd_update
 
-        # Response is valid JSON but wrong format (no "objects" key)
+        # Response is valid JSON but wrong format (npm-rank expects a list)
         bad_format = json.dumps({"error": "not found"}).encode("utf-8")
         mock_urlopen = self._mock_urlopen(bad_format)
 
         output = str(tmp_path / "npm_top_packages.json")
         args = argparse.Namespace(top=10, output=output)
 
-        with patch("urllib.request.urlopen", mock_urlopen):
+        with patch("picosentry.scan.cli_commands.update.safe_urlopen", mock_urlopen):
             result = _cmd_update(args)
         # Should fail — response doesn't have expected format
         assert result == 1

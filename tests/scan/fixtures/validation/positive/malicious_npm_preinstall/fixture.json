@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package with preinstall lifecycle script (fires L2-POST-001). The preinstall hook is in the same dangerous-script-key set as postinstall and is a common typo-squat trick to dodge postinstall-only allowlists.",
+  "expected_rule_ids": ["L2-POST-001"]
+}

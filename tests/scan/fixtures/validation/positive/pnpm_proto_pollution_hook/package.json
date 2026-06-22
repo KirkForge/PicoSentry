@@ -1,0 +1,22 @@
+{
+  "name": "pnpm-pollution-hook-fixture",
+  "version": "1.0.0",
+  "description": "Fixture exercising the .pnpmfile.cjs overrides-hook prototype-pollution pattern. The .pnpmfile.cjs contains a commented-out illustrative snippet; the pnpm.overrides field is the actual fire trigger for L2-PNPM-001.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=16.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pnpm-pollution-hook-fixture/pnpm-pollution-hook-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@pnpm-pollution-hook-fixture.example.com"}
+  ],
+  "dependencies": {},
+  "pnpm": {
+    "overrides": {
+      "left-pad": "https://github.com/example/left-pad-fixture/archive/refs/heads/main.tar.gz"
+    }
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "RubyGems gem 'd3vise' (in Gemfile) — homoglyph: '3' for 'e' in 'devise' (top-100 rubygems) (fires L2-RUBYGEMS-TYPO-001).",
+  "expected_rule_ids": ["L2-RUBYGEMS-TYPO-001"]
+}

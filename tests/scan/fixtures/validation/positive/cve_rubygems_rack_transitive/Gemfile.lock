@@ -1,0 +1,15 @@
+GEM
+  remote: https://rubygems.org/
+  specs:
+    rack (2.0.6)
+    wrapper-gem (1.0.0)
+      rack (= 2.0.6)
+
+PLATFORMS
+  ruby
+
+DEPENDENCIES
+  wrapper-gem (~> 1.0)
+
+BUNDLED WITH
+   2.4.0

@@ -22,20 +22,25 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline |
-| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC transport experimental |
-| `picosentry watch` | **Beta** | Prompt-injection detection works; HTTP server experimental |
-| `picosentry serve` | **Experimental** | API server + dashboard in active development |
-| Cross-layer correlation | **Experimental** | Links findings across layers |
-| Plugin system | **Beta** | Loads and dispatches; signature verify works |
-| Postgres backend | **Stub** | SQLite only; migration not started |
-| Cluster mode | **Experimental** | Single-node verified; multi-node gossip untested |
-| Detection benchmarks | **Stable** | 45 fixtures, 49 L2 rule_ids + 1 L2-CAMP rule, 100% precision/recall; small corpus (see "Honest limitations" in that document); see [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md) |
-| Corpus marketplace | **Stub** | Export/import CLI commands not wired |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
+| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
+| `picosentry watch` | **Beta** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
+| `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
+| `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; live-tested against a kind cluster |
+| `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
+| Cross-layer correlation | **Beta** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested |
+| Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol |
+| Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
+| Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
+| Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.15` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.0.15 published |
 
-The scanner is the stable product. The kernel sandbox is beta enforcement-only today;
-it kills disallowed syscalls but does not yet emit a per-syscall trace (see "What it
-does NOT do" below).
+The scanner is the stable product. Everything else is beta or experimental —
+read the notes column honestly. "Beta" means it works but hasn't been
+battle-tested in production. "Experimental" means it runs but hasn't had a
+security review — don't expose it to untrusted networks.
 
 ---
 
@@ -43,27 +48,36 @@ does NOT do" below).
 
 - **Records per-syscall traces from the kernel sandbox** (opt-in via
   `--backend=seccomp-trace` on `picosentry sandbox`; requires Linux + libseccomp +
-  `CONFIG_SECCOMP_LOG=y`). Default `--backend=auto` continues to use the
-  enforcement-only `seccomp-bpf` backend. Path/address arguments on events are
-  not yet captured (v2.0.9 plan: `PTRACE_SECCOMP` or `SECCOMP_RET_USER_NOTIF`).
+  `CONFIG_SECCOMP_LOG=y`). Path/address arguments on events are not yet captured.
+- **`picosentry watch` is a fast pre-filter, not a semantic guarantee.** It uses
+  deterministic regex rules plus a lexical classifier to catch common prompt
+  injections and output-policy violations. Paraphrase, novel phrasing, encoding
+  tricks, or adversarial prompts can still slip through. For high-stakes LLM
+  deployments, pair it with a dedicated model-based guard as a second layer.
 - **Does not scan LLM model weights.** It guards prompts and outputs in deployed
   apps, not the model itself.
-- **Does not run cluster mode in production.** Single-node only; multi-node gossip
-  is untested.
-- **Does not have a real Postgres backend.** SQLite only.
+- **Cluster mode is beta.** Gossip over HTTP(S) requires a shared cluster token
+  and supports optional mTLS; a 3-node integration test exercises leader election,
+  token enforcement, and scan redistribution. It has not been battle-tested in a
+  real multi-host deployment.
+- **Postgres backend is Beta.** It includes a live integration test for
+  connection pooling, runtime placeholder translation, and DDL
+  auto-translation, but it has not been battle-tested at scale.
+- **Admission controller is not tested against a real K8s cluster.** The code
+  exists and the CLI works, but it hasn't seen a real API server.
 - **Has published detection-benchmark data** in
-  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The 2.0.9 baseline is 45
-  fixtures / 49 L2 rule_ids (plus 1 L2-CAMP rule) / 100% precision /
-  100% recall. The corpus is small — 1 fixture per rule, mostly
-  hand-crafted — so the 100% number is a smoke test, not a
+  [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.15 corpus is 188
+  fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids
+  / 100% precision / 100% recall. The corpus is small (mean ~3
+  positives + ~3 negatives per rule across 54 rules) and the fixtures are
+  mostly hand-crafted, so the 100% number is a smoke test, not a
   statistically meaningful measurement. See "Honest limitations" in
   that document for what the numbers do and don't prove.
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV
   corpus (`[scan]` extra); offline-only operation pulls from the local corpus
   snapshot.
 
-If a feature is in `experimental.py` as Stub or Experimental, treat it as not
-shipped.
+If a feature is listed as Experimental above, treat it as not production-ready.
 
 ---
 
@@ -141,7 +155,7 @@ supported ecosystems).
 | Multi-ecosystem (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet) | yes | partial | yes | yes | partial |
 | Runtime sandbox enforcement (kernel-level) | beta | no | no | no | no |
 | Runtime syscall observation from kernel | no | no | no | no | no |
-| FOSS source available | yes (BUSL-1.1) | yes (Apache-2.0) | yes (Apache-2.0) | yes (Apache-2.0) | no |
+| Source-available license | yes (BUSL-1.1) | yes (Apache-2.0) | yes (Apache-2.0) | yes (Apache-2.0) | no |
 
 Where PicoSentry is weaker: pip-audit and osv-scanner have wider and more frequently
 refreshed CVE coverage via OSV. Trivy has broader container and IaC scanning. Socket
@@ -178,7 +192,57 @@ extras (see [install options](#install-options) below).
 | `pip install picosentry[watch-server]` | + FastAPI + uvicorn for watch HTTP daemon |
 | `pip install picosentry[otel]` | + OpenTelemetry tracing |
 | `pip install picosentry[sigstore]` | + Sigstore signing support |
-| `pip install picosentry[all]` | Everything |
+| `pip install picosentry[grpc]` | + `grpcio>=1.50` for the sandbox gRPC transport (committed protobuf stubs are included in the wheel, no `grpc_tools` required) |
+| `pip install picosentry[all]` | Everything (including `[grpc]`) |
+
+---
+
+### Programmatic use
+
+PicoSentry is **CLI-first**. The supported interface is the command line
+(`picosentry`, `picowatch`, `picodome`, …). The Python modules under
+`picosentry.*` are internal implementation details and may change without
+notice; there is no stable public import API today. If you need a
+programmatic entrypoint, open an issue describing the use case.
+
+---
+
+### Sandbox gRPC transport (opt-in)
+
+The sandbox daemon can serve over gRPC instead of HTTP. Install the
+extra, then start the daemon with `--transport=grpc`:
+
+```bash
+pip install 'picosentry[grpc]'
+
+# Start the daemon (port 50051 by default; pass --grpc-port to change)
+picosentry daemon --host=0.0.0.0 --port=8443 --transport=grpc --grpc-port=50051
+```
+
+The generated protobuf stubs (`picodome_pb2.py`, `picodome_pb2_grpc.py`)
+are committed under `picosentry/sandbox/grpc_transport/proto/` and
+ship in the wheel, so a client only needs `grpcio` to talk to the
+daemon. Regenerate the stubs with `scripts/regen_proto.sh` after
+editing `picodome.proto`.
+
+For Kubernetes: `deploy/kubernetes/deployment.yaml` boots the daemon
+with gRPC enabled by default and ships a `picodome-grpc` Service on
+port 50051. For Helm, the equivalent is opt-in:
+
+```yaml
+# values.yaml
+grpc:
+  enabled: true
+  port: 50051
+```
+
+```bash
+helm install picodome deploy/helm/picodome/ --set grpc.enabled=true
+```
+
+The gRPC service exposes `Scan`, `Health`, `GetPolicy`, and
+`QueryAudit` RPCs — see `picosentry/sandbox/grpc_transport/proto/picodome.proto`
+for the full schema.
 
 ---
 
@@ -195,9 +259,78 @@ picosentry scan --diff scan-a.json scan-b.json  # compare two scans
 picosentry scan --fail-on high ./project        # exit non-zero on HIGH+
 picosentry sandbox echo "hello"                 # beta — kernel-level enforcement
 picosentry watch scan-prompt --text "..."       # beta — LLM prompt guard
-picosentry serve --port 8765                    # experimental — API + dashboard
+picosentry serve --port 8765                    # beta — API + dashboard
 picosentry health
 ```
+
+### Corpus management
+
+PicoSentry ships with a small built-in typosquat/dep-confusion corpus.  For
+stronger coverage, download per-ecosystem top-package lists and keep them
+fresh:
+
+```bash
+picosentry update --ecosystem npm --top 5000
+picosentry update --ecosystem all --top 10000
+```
+
+Supported ecosystems: `npm`, `pypi`, `go`, `cargo`, `maven`, `rubygems`,
+`nuget`.  npm and PyPI have live registry fetchers; other ecosystems merge a
+built-in fallback with any names supplied via `--source-url`.  The command
+writes a `corpus.json` manifest, and the scanner warns when any ecosystem
+corpus is older than 30 days.
+
+---
+
+## Plugins (serve mode)
+
+The `picosentry serve` runtime discovers plugins from three places, in
+priority order:
+
+1. **`--plugin-dir PATH`** (repeatable) on the `serve` subcommand.
+2. **`PICOSHOGUN_PLUGIN_DIR`** env var (comma-separated list of paths).
+3. **`~/.picosentry/plugins/`** if it exists.
+
+The bundled `picosentry/serve/plugins/` (which ships `test_plugin` and
+`discord_notifier`) is always scanned last. Each plugin lives in its
+own subdirectory containing `plugin.json` (manifest) and a Python
+entry-point module. Manifests are validated against
+`picosentry/serve/services/plugin_manager.py:REQUIRED_MANIFEST_FIELDS`
+and may be Ed25519-signed — the `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1`
+env var turns signature verification from a warning into a hard refusal
+to load.
+
+```bash
+# Install a plugin in your user-level directory:
+mkdir -p ~/.picosentry/plugins/my-plugin
+cat > ~/.picosentry/plugins/my-plugin/plugin.json <<'EOF'
+{
+  "name": "my_plugin",
+  "version": "0.1.0",
+  "author": "you",
+  "description": "on-alert hook example",
+  "entry_point": "my_plugin",
+  "hooks": ["alert"]
+}
+EOF
+cat > ~/.picosentry/plugins/my-plugin/my_plugin.py <<'EOF'
+from picosentry.serve.services.plugin_manager import PluginInterface
+
+class MyPlugin(PluginInterface):
+    def initialize(self, config): return True
+    def on_alert(self, alert): return alert
+EOF
+
+# Or pass it on the command line:
+picosentry serve --plugin-dir /opt/picosentry-plugins
+
+# Or set the env var (takes a comma-separated list):
+PICOSHOGUN_PLUGIN_DIR=/srv/plugs:/opt/picosentry-plugins picosentry serve
+```
+
+The `GET /plugins` endpoint returns the resolved directory list in a
+`dirs` field alongside the loaded plugin status, so you can verify
+discovery worked without checking the logs.
 
 ---
 
@@ -221,7 +354,7 @@ picosentry/
     scan/           supply-chain scanner (CLI: `picosentry scan`)
     sandbox/        runtime kernel-sandbox (CLI: `picosentry sandbox`, beta)
     watch/          LLM prompt/output guard (CLI: `picosentry watch`, beta)
-    serve/          API server + dashboard (CLI: `picosentry serve`, experimental)
+    serve/          API server + dashboard (CLI: `picosentry serve`, beta)
     experimental.py feature-maturity tracking
 examples/
     pypi-obfuscated-setup/    reproducible malicious PyPI fixture

@@ -1,0 +1,7 @@
+{
+  "name": "transitive-lodash-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "wrapper-pkg": "1.0.0"
+  }
+}

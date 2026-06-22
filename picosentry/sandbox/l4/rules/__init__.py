@@ -1,5 +1,3 @@
-"""L4 behavioral detector rules."""
-
 from picosentry.sandbox.l4.rules.baseline_drift import detect_baseline_drift
 from picosentry.sandbox.l4.rules.container_escape import detect_container_escape
 from picosentry.sandbox.l4.rules.crypto_mining import detect_crypto_mining

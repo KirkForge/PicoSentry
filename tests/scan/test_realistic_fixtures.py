@@ -13,14 +13,14 @@ These tests validate that PicoSentry handles real-world project structures:
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
 from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import ScanResult
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
+from tests.scan.conftest import FIXTURES_DIR
+
 PICOSENTRY = [sys.executable, "-m", "picosentry"]
 
 

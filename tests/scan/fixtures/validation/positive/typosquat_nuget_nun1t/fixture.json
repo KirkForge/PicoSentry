@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "NuGet package reference 'nun1t' — homoglyph: '1' for 'i' in 'nunit' (top-100 nuget) (fires L2-NUGET-TYPO-001).",
+  "expected_rule_ids": ["L2-NUGET-TYPO-001"]
+}

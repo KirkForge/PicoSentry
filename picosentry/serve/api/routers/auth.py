@@ -1,4 +1,3 @@
-"""Authentication and API key management endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -15,30 +14,35 @@ router = APIRouter(prefix="/auth")
 
 @router.post("/register", tags=["Authentication"])
 async def register(request: RegisterRequest):
-    """Register a new user account.
-
-    Disabled by default in production — set PICOSHOGUN_ALLOW_REGISTRATION=true to enable.
-    """
     if not settings.security.allow_registration:
         raise HTTPException(status_code=403, detail="Registration is disabled")
+    # Registration always creates a viewer.  Admin/operator promotion must
+    # happen through an authenticated admin-only path; the client cannot
+    # self-elect.  ``RegisterRequest`` rejects a client-supplied ``role``
+    # field at the Pydantic layer (``extra="forbid"``), so this is the
+    # single source of truth for the new user's role.
     try:
         user_id = auth_service.create_user(
             username=request.username,
             password=request.password,
             email=request.email,
-            role=request.role,
+            role="viewer",
         )
         if not user_id:
             raise HTTPException(status_code=409, detail="Username already exists")
-        return {"user_id": user_id, "username": request.username, "role": request.role}
+        return {"user_id": user_id, "username": request.username, "role": "viewer"}
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 
 
+class _LoginRequest(BaseModel):
+    username: str
+    password: str
+
+
 @router.post("/login", tags=["Authentication"])
-async def login(username: str, password: str):
-    """Authenticate and receive a JWT access token."""
-    token = auth_service.authenticate(username, password)
+async def login(request: _LoginRequest):
+    token = auth_service.authenticate(request.username, request.password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_info = auth_service.validate_token(token) or {}
@@ -51,7 +55,6 @@ async def login(username: str, password: str):
 
 
 class CreateAPIKeyRequest(BaseModel):
-    """Request body for creating an API key."""
     name: str = "default"
     permissions: str = "read"
 
@@ -61,7 +64,6 @@ async def create_api_key(
     request: CreateAPIKeyRequest,
     user: dict = Depends(get_current_user),
 ):
-    """Create a new API key."""
     api_key = auth_service.create_api_key(user["id"], name=request.name, permissions=request.permissions)
     return {"api_key": api_key, "name": request.name, "permissions": request.permissions}
 
@@ -71,7 +73,6 @@ async def rotate_api_key(
     key_id: int,
     user: dict = Depends(get_current_user),
 ):
-    """Rotate (regenerate) an API key."""
     new_key = auth_service.rotate_api_key(key_id, user["id"])
     if not new_key:
         raise HTTPException(status_code=404, detail="API key not found")
@@ -83,7 +84,6 @@ async def revoke_api_key(
     key_id: int,
     user: dict = Depends(get_current_user),
 ):
-    """Revoke (delete) an API key."""
     success = auth_service.revoke_api_key(key_id, user["id"])
     if not success:
         raise HTTPException(status_code=404, detail="API key not found")

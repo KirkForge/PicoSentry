@@ -1,9 +1,3 @@
-"""L4 Behavioral Analysis — data models.
-
-Deterministic by default: AnalysisResult.to_dict() omits timing fields
-when deterministic=True. Finding.finding_id defaults to "".
-"""
-
 from __future__ import annotations
 
 from dataclasses import dataclass, field
@@ -17,8 +11,6 @@ from picosentry.sandbox.models import (
 
 @dataclass(frozen=True)
 class NetworkCall:
-    """A single network call observed during execution."""
-
     address: str
     port: int = 0
     protocol: str = "tcp"
@@ -36,13 +28,11 @@ class NetworkCall:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class DnsQuery:
-    """A DNS query observed during execution."""
-
     hostname: str
     resolved_ips: list[str] = field(default_factory=list)
     timestamp_ms: int = 0
@@ -54,13 +44,11 @@ class DnsQuery:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class FileOperation:
-    """A filesystem operation observed during execution."""
-
     path: str
     operation: str  # read, write, delete, create, chmod, chown
     success: bool = True
@@ -76,13 +64,11 @@ class FileOperation:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class ProcessSpawn:
-    """A child process spawned during execution."""
-
     executable: str
     args: list[str] = field(default_factory=list)
     pid: int = 0
@@ -98,13 +84,11 @@ class ProcessSpawn:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class TimingPoint:
-    """A timing measurement during execution."""
-
     label: str
     elapsed_ms: int
     timestamp_ms: int = 0
@@ -116,13 +100,11 @@ class TimingPoint:
         }
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class BehavioralProfile:
-    """Full behavioral profile of a sandbox execution."""
-
     package: str
     timing_points: list[TimingPoint] = field(default_factory=list)
     network_calls: list[NetworkCall] = field(default_factory=list)
@@ -150,13 +132,11 @@ class BehavioralProfile:
         }
         if not deterministic:
             d["total_runtime_ms"] = self.total_runtime_ms
-        return {k: v for k, v in sorted(d.items())}
+        return dict(sorted(d.items()))
 
 
 @dataclass(frozen=True)
 class Baseline:
-    """A known-good behavioral baseline for a package."""
-
     name: str
     package: str
     version: str = ""
@@ -187,8 +167,6 @@ class Baseline:
 
 @dataclass(frozen=True)
 class DriftResult:
-    """Result of comparing a profile against a baseline."""
-
     baseline_name: str
     score: float  # 0.0 = identical, 1.0 = completely different
     network_drift: bool = False
@@ -213,8 +191,6 @@ class DriftResult:
 
 @dataclass(frozen=True)
 class AnalysisResult:
-    """Complete L4 behavioral analysis result."""
-
     target: str
     findings: list[Finding] = field(default_factory=list)
     profile: BehavioralProfile | None = None
@@ -223,10 +199,6 @@ class AnalysisResult:
     stats: ScanStats = field(default_factory=ScanStats)
 
     def to_dict(self, deterministic: bool = False) -> dict:
-        """Serialize to dict with sorted keys.
-
-        In deterministic mode, omit timing fields from stats and finding IDs.
-        """
         return {
             "drift_results": [d.to_dict() for d in self.drift_results],
             "findings": [f.to_dict(deterministic=deterministic) for f in self.findings],

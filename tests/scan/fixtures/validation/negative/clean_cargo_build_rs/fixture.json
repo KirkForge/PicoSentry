@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Cargo project whose build.rs only writes to OUT_DIR and reads no credentials. L2-BUILD-001 must stay silent.",
+  "forbidden_rule_ids": ["L2-BUILD-001"]
+}

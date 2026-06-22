@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "npm package with a postinstall script that hits the AWS Instance Metadata Service (IMDS) endpoint 169.254.169.254 — a server-side request forgery against cloud metadata that exfiltrates IAM role credentials. Fires L2-POST-001 (lifecycle script) and L2-NETEX-001 (IMDS endpoint contact).",
+  "expected_rule_ids": ["L2-POST-001", "L2-NETEX-001"]
+}

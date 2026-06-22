@@ -1,11 +1,3 @@
-"""Shared configuration primitives — vendored from pico-core.
-
-Provides:
-- from_env: helper to read config values from environment variables
-- assert_secure: startup gate that refuses to boot with insecure defaults
-- ConfigProtocol: typing protocol for injected config (PR-02 pattern)
-"""
-
 from __future__ import annotations
 
 import logging
@@ -17,58 +9,8 @@ from typing import Any, Protocol, runtime_checkable
 logger = logging.getLogger("picosentry._core.config")
 
 
-# -- from_env helper -----------------------------------------------------------
-
-
-def from_env(key: str, default: str | None = None, required: bool = False) -> str | None:
-    """Read a configuration value from the environment.
-
-    Args:
-        key: Environment variable name.
-        default: Default value if not set.
-        required: If True, raise ValueError when not set and no default.
-
-    Returns:
-        The value from the environment, or default.
-    """
-    value = os.environ.get(key)
-    if value is not None:
-        return value
-    if required:
-        raise ValueError(f"Required environment variable {key} is not set")
-    return default
-
-
-def from_env_int(key: str, default: int = 0) -> int:
-    """Read an integer configuration value from the environment."""
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    try:
-        return int(value)
-    except ValueError:
-        logger.warning("Invalid integer for %s=%r, using default %d", key, value, default)
-        return default
-
-
-def from_env_bool(key: str, default: bool = False) -> bool:
-    """Read a boolean configuration value from the environment.
-
-    Accepts: true/false, 1/0, yes/no (case-insensitive).
-    """
-    value = os.environ.get(key)
-    if value is None:
-        return default
-    return value.strip().lower() in ("true", "1", "yes")
-
-
-# -- Secure boot ----------------------------------------------------------------
-
-
 @dataclass(frozen=True)
 class SecurityViolation:
-    """A single security violation found during startup gate check."""
-
     check: str
     message: str
     severity: str = "ERROR"  # ERROR = block boot, WARN = allow but log
@@ -76,16 +18,9 @@ class SecurityViolation:
 
 @runtime_checkable
 class SecureBootCheck(Protocol):
-    """Protocol for custom startup gate checks.
-
-    Each codebase registers its own checks (e.g. PicoWatch: API key length,
-    PicoDome: mTLS cert presence).
-    """
-
     def check(self) -> SecurityViolation | None: ...
 
 
-# Standardized exit code for security violations
 SECURITY_EXIT_CODE = 7
 
 
@@ -99,42 +34,57 @@ def assert_secure(
     env: str = "production",
     block_on_error: bool = True,
 ) -> list[SecurityViolation]:
-    """Startup gate that refuses to boot with insecure defaults in production.
-
-    Standardized checks:
-    - secret_key not default/empty (when in production)
-    - bind not 0.0.0.0 (when using API key)
-    - CORS not wildcard *
-    - debug off in production
-
-    Each codebase registers its own checks via SecureBootCheck protocol.
-
-    Args:
-        checks: Additional codebase-specific checks to run.
-        secret_key: The configured secret key.
-        bind_host: The host to bind the server to.
-        cors_origin: The CORS origin setting.
-        debug: Whether debug mode is enabled.
-        env: Environment name ('production', 'staging', 'development', 'test').
-        block_on_error: If True, exit with SECURITY_EXIT_CODE on ERROR violations.
-
-    Returns:
-        List of SecurityViolation objects found.
-    """
     violations: list[SecurityViolation] = []
     is_production = env in ("production", "staging")
 
-    # 1. Secret key check (production only)
-    if is_production and (not secret_key or secret_key in ("changeme", "default", "secret")):
-        violations.append(
-            SecurityViolation(
-                check="secret_key",
-                message="Secret key is empty or default in production",
-                severity="ERROR",
-            )
-        )
+    # The default key the serve-mode settings module ships with, plus the
+    # other "obvious placeholder" strings that show up in tutorials and
+    # leaked config examples.  Any of these in the active secret key is a
+    # bug, in production OR development — there is no scenario where a
+    # code path that signs JWTs or hashes passwords should accept one of
+    # these.  ALLOW_INSECURE_SECRET=true is the explicit escape hatch for
+    # local dev work that hasn't picked a real key yet.
+    _WEAK_SECRET_DENYLIST = frozenset(
+        {
+            "",
+            "change-me-in-production",
+            "changeme",
+            "default",
+            "secret",
+            "password",
+            "please-change-me",
+            "your-secret-key",
+            "your-secret-key-here",
+        }
+    )
+    _MIN_SECRET_KEY_LENGTH = 32
 
-    # 2. Bind host check (warn on 0.0.0.0 when using auth)
+    insecure_secret_override = os.environ.get("ALLOW_INSECURE_SECRET", "").lower() in ("true", "1", "yes")
+    if not insecure_secret_override:
+        if secret_key in _WEAK_SECRET_DENYLIST:
+            violations.append(
+                SecurityViolation(
+                    check="secret_key",
+                    message=(
+                        "Secret key is empty or uses a well-known placeholder. "
+                        "Set a real key via the SECRET_KEY env var, or "
+                        "ALLOW_INSECURE_SECRET=true for local dev only."
+                    ),
+                    severity="ERROR",
+                )
+            )
+        elif len(secret_key) < _MIN_SECRET_KEY_LENGTH:
+            violations.append(
+                SecurityViolation(
+                    check="secret_key_length",
+                    message=(
+                        f"Secret key is {len(secret_key)} bytes; minimum is "
+                        f"{_MIN_SECRET_KEY_LENGTH}. Short keys are brute-forceable."
+                    ),
+                    severity="ERROR",
+                )
+            )
+
     if bind_host == "0.0.0.0":
         violations.append(
             SecurityViolation(
@@ -144,7 +94,6 @@ def assert_secure(
             )
         )
 
-    # 3. CORS wildcard check
     if cors_origin == "*":
         violations.append(
             SecurityViolation(
@@ -154,7 +103,6 @@ def assert_secure(
             )
         )
 
-    # 4. Debug in production check
     if is_production and debug:
         violations.append(
             SecurityViolation(
@@ -164,18 +112,15 @@ def assert_secure(
             )
         )
 
-    # Run additional codebase-specific checks
-    for custom_check in (checks or []):
+    for custom_check in checks or []:
         result = custom_check.check()
         if result is not None:
             violations.append(result)
 
-    # Log all violations
     for v in violations:
         log_method = logging.ERROR if v.severity == "ERROR" else logging.WARNING
         logger.log(log_method, "Security: [%s] %s", v.check, v.message)
 
-    # Block on ERROR severity violations
     if block_on_error:
         errors = [v for v in violations if v.severity == "ERROR"]
         if errors:
@@ -189,17 +134,8 @@ def assert_secure(
     return violations
 
 
-# -- ConfigProtocol ------------------------------------------------------------
-
-
 @runtime_checkable
 class ConfigProtocol(Protocol):
-    """Protocol for injected configuration objects.
-
-    Part of PR-02: break config star-topology by using Protocol typing
-    so tests can inject mocks without reaching env vars.
-    """
-
     def to_dict(self) -> dict[str, Any]: ...
 
 
@@ -209,7 +145,4 @@ __all__ = [
     "SecureBootCheck",
     "SecurityViolation",
     "assert_secure",
-    "from_env",
-    "from_env_bool",
-    "from_env_int",
 ]

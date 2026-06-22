@@ -36,7 +36,7 @@ class TestAuditSchemaVersioning:
             )
             # Read the log file
             log_path = logger.log_path
-            with open(log_path) as f:
+            with Path(log_path).open() as f:
                 line = f.readline().strip()
                 data = json.loads(line)
                 assert "schema_version" in data
@@ -85,7 +85,7 @@ class TestJobStoreSchemaVersioning:
             store.add("test-2", ["ls"], "actor")
             # Read the file
             store_file = Path(tmp) / "jobs.jsonl"
-            with open(store_file) as f:
+            with store_file.open() as f:
                 line = f.readline().strip()
                 data = json.loads(line)
                 assert "schema_version" in data

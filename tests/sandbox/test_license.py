@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -152,7 +153,11 @@ class TestCheckLicense:
             assert info.tier == LicenseTier.PERSONAL
 
     def test_env_key(self):
-        with patch.dict(os.environ, {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"}, clear=False):
+        with patch.dict(
+            os.environ,
+            {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"},
+            clear=False,
+        ):
             _reset_cache()
             info = check_license()
             assert info.tier == LicenseTier.COMMERCIAL
@@ -167,12 +172,14 @@ class TestCheckLicense:
                 }
             )
         )
-        with patch.dict(os.environ, {}, clear=True):
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("os.getcwd", return_value=str(tmp_path)),
+            patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or Path(p).is_file()),
+        ):
             _reset_cache()
-            with patch("os.getcwd", return_value=str(tmp_path)):
-                with patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or os.path.isfile(p)):
-                    info = check_license()
-                    assert info.tier == LicenseTier.ENTERPRISE
+            info = check_license()
+            assert info.tier == LicenseTier.ENTERPRISE
 
     def test_caches_result(self):
         with patch.dict(os.environ, {}, clear=True):
@@ -198,7 +205,11 @@ class TestRequireCommercial:
             assert result is False
 
     def test_commercial_returns_true(self):
-        with patch.dict(os.environ, {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"}, clear=False):
+        with patch.dict(
+            os.environ,
+            {"PICODOME_LICENSE_KEY": "picoshogun-commercial-testorg-1234567890abcdef"},
+            clear=False,
+        ):
             _reset_cache()
             result = require_commercial()
             assert result is True

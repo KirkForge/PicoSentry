@@ -1,18 +1,3 @@
-"""
-Detection quality evidence — **STUB**.
-
-This framework is designed to track precision, recall, and known limitations
-by rule family for enterprise deployments. However, it currently has no real
-benchmark data — it's a scaffold awaiting community contributions.
-
-⚠️ **EXPERIMENTAL STUB**: The classes and functions defined here are
-   placeholders. Real benchmark data has not been collected yet. Do not
-   rely on this module for production decisions.
-
-To contribute benchmark data:
-   See https://github.com/KirkForge/PicoSentry/blob/main/CONTRIBUTING.md
-"""
-
 from __future__ import annotations
 
 import json
@@ -24,20 +9,9 @@ from typing import Any
 
 logger = logging.getLogger("picosentry.detection_quality")
 
-# ── Rule quality metrics ───────────────────────────────────────────────
-
 
 @dataclass
 class RuleQualityMetrics:
-    """Quality metrics for a single detector rule.
-
-    Precision = TP / (TP + FP)
-    Recall = TP / (TP + FN)
-    F1 = 2 * (precision * recall) / (precision + recall)
-
-    These are measured against a curated evaluation set, not estimated.
-    """
-
     rule_id: str
     rule_family: str  # e.g. "typosquat", "obfuscation"
     true_positives: int = 0
@@ -56,7 +30,6 @@ class RuleQualityMetrics:
 
     @property
     def precision(self) -> float:
-        """Precision: of all positive calls, how many were correct."""
         total_positives = self.true_positives + self.false_positives
         if total_positives == 0:
             return 0.0
@@ -64,7 +37,6 @@ class RuleQualityMetrics:
 
     @property
     def recall(self) -> float:
-        """Recall: of all actual positives, how many were found."""
         actual_positives = self.true_positives + self.false_negatives
         if actual_positives == 0:
             return 0.0
@@ -72,14 +44,12 @@ class RuleQualityMetrics:
 
     @property
     def f1(self) -> float:
-        """F1 score: harmonic mean of precision and recall."""
         if self.precision + self.recall == 0:
             return 0.0
         return 2 * (self.precision * self.recall) / (self.precision + self.recall)
 
     @property
     def fp_rate(self) -> float:
-        """False positive rate as proportion of total positive calls."""
         total_positives = self.true_positives + self.false_positives
         if total_positives == 0:
             return 0.0
@@ -121,18 +91,8 @@ class RuleQualityMetrics:
         )
 
 
-# ── Known limitations per detector ──────────────────────────────────────
-
-
 @dataclass
 class KnownLimitation:
-    """A documented limitation of a detector rule.
-
-    Enterprise buyers need to understand what a rule can and cannot
-    detect so they can set appropriate expectations and supplement
-    with other controls where needed.
-    """
-
     rule_id: str
     category: str  # "false_positive_tendency", "blind_spot", "edge_case", "performance"
     description: str
@@ -162,17 +122,7 @@ class KnownLimitation:
         )
 
 
-# ── Detection benchmark ─────────────────────────────────────────────────
-
-
 class DetectionBenchmark:
-    """Versioned detection quality benchmark.
-
-    Tracks precision/recall per rule family, known limitations,
-    and regression cases. Enterprise teams can use this to justify
-    adoption and track detection quality over time.
-    """
-
     BENCHMARK_VERSION = "1.0.0"
 
     def __init__(self, benchmark_dir: Path | None = None) -> None:
@@ -182,14 +132,7 @@ class DetectionBenchmark:
         self._load_builtin_data()
 
     def _load_builtin_data(self) -> None:
-        """Load built-in quality metrics and limitations.
 
-        NOTE: Metrics below are ESTIMATED baseline values, not measured from
-        a controlled evaluation set. They serve as placeholders until real
-        benchmark data is collected via ``scripts/run-benchmark.sh``.
-        The ``measured_at`` field is set to "estimated" to make this clear.
-        """
-        # Try loading real metrics from benchmark directory first
         metrics_file = self.benchmark_dir / "metrics.json"
         if metrics_file.is_file():
             try:
@@ -201,8 +144,6 @@ class DetectionBenchmark:
             except (json.JSONDecodeError, OSError) as e:
                 logger.warning("Failed to load metrics from %s: %s", metrics_file, e)
 
-        # Fall back to estimated baseline values
-        # Known limitations documented from DEEP_REVIEW.md and test analysis
         self._limitations = [
             KnownLimitation(
                 rule_id="L2-FORK-001",
@@ -217,8 +158,9 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-OBFS-001",
                 category="false_positive_tendency",
-                description="Obfuscation detection may flag minified production code that uses "
-                "hex encodings or base64 for legitimate purposes (e.g. inline images).",
+                description="Obfuscation detection uses a staged literal-token filter (eval/Function) "
+                "so benign files without those tokens are skipped, but minified production code that "
+                "contains the tokens legitimately can still be flagged.",
                 impact="Moderate FP rate on projects bundling minified assets.",
                 workaround="Use baseline to suppress known-good minified bundles.",
                 tracked_in="DEEP_REVIEW.md",
@@ -226,8 +168,9 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-OBFS-003",
                 category="false_positive_tendency",
-                description="Base64+eval detection flags webpack bundles that embed base64 data URIs. "
-                "Common in SPAs and electron apps.",
+                description="Base64+eval detection uses a staged literal-token filter (atob, Buffer.from, "
+                "eval/Function), which avoids scanning files that cannot match. Webpack bundles that embed "
+                "base64 data URIs and also contain eval/Function tokens may still be flagged.",
                 impact="High FP rate on projects using webpack with data URI loaders.",
                 workaround="Suppress in baseline or set confidence=MEDIUM for webpack bundles.",
                 tracked_in="DEEP_REVIEW.md",
@@ -235,10 +178,13 @@ class DetectionBenchmark:
             KnownLimitation(
                 rule_id="L2-TYPO-001",
                 category="edge_case",
-                description="Typosquat detection requires the top-N corpus. If the corpus is stale "
-                "or incomplete, legitimate packages near the top-N boundary may be misclassified.",
-                impact="Low FP rate; accuracy depends on corpus freshness.",
-                workaround="Keep corpus updated. Pin corpus version for reproducibility.",
+                description="Typosquat detection indexes the corpus by length and only compares "
+                "against compatible buckets, so it scales to top-10k+ corpora. Accuracy still depends "
+                "on a fresh, complete corpus; stale corpora can miss new popular packages or misclassify "
+                "packages near the top-N boundary.",
+                impact="Low FP rate; accuracy depends on corpus freshness and coverage.",
+                workaround="Run 'picosentry update --ecosystem <ecosystem>' regularly. "
+                "Pin corpus version for reproducibility.",
                 tracked_in="DEEP_REVIEW.md",
             ),
             KnownLimitation(
@@ -292,12 +238,6 @@ class DetectionBenchmark:
             ),
         ]
 
-        # Initial quality metrics — ESTIMATES based on test suite coverage.
-        # WARNING: These are NOT measured against a comprehensive evaluation set.
-        # They are synthetic estimates for enterprise demonstration only.
-        # Do NOT use these numbers for security decisions. Calibrate against your
-        # own evaluation corpus for production accuracy requirements.
-        # See: picosentry benchmark --calibrate to measure real metrics.
         self._metrics = {
             "L2-POST-001": RuleQualityMetrics(
                 rule_id="L2-POST-001",
@@ -422,20 +362,17 @@ class DetectionBenchmark:
         }
 
     def get_metrics(self, rule_id: str = "") -> dict[str, RuleQualityMetrics]:
-        """Get quality metrics, optionally filtered by rule_id."""
         if rule_id:
             return {k: v for k, v in self._metrics.items() if k == rule_id}
         return dict(self._metrics)
 
     def get_metrics_by_family(self) -> dict[str, list[RuleQualityMetrics]]:
-        """Get quality metrics grouped by rule family."""
         families: dict[str, list[RuleQualityMetrics]] = {}
         for m in self._metrics.values():
             families.setdefault(m.rule_family, []).append(m)
         return families
 
     def get_limitations(self, rule_id: str = "", category: str = "") -> list[KnownLimitation]:
-        """Get known limitations, optionally filtered by rule_id or category."""
         results = self._limitations
         if rule_id:
             results = [lim for lim in results if lim.rule_id == rule_id]
@@ -444,15 +381,9 @@ class DetectionBenchmark:
         return results
 
     def get_noisy_rules(self) -> list[RuleQualityMetrics]:
-        """Get rules flagged as noisy (high FP rate tendency)."""
         return [m for m in self._metrics.values() if m.noisy]
 
-    def get_suppressed_by_default(self) -> list[str]:
-        """Get rule IDs suppressed in default baselines."""
-        return [m.rule_id for m in self._metrics.values() if m.suppressed_by_default]
-
     def overall_quality(self) -> dict[str, Any]:
-        """Compute overall detection quality across all rules."""
         if not self._metrics:
             return {"version": self.BENCHMARK_VERSION, "rules": 0}
 
@@ -483,7 +414,6 @@ class DetectionBenchmark:
         }
 
     def to_json(self, indent: int = 2) -> str:
-        """Export full benchmark as JSON."""
         data = {
             "version": self.BENCHMARK_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -494,19 +424,13 @@ class DetectionBenchmark:
         return json.dumps(data, indent=indent, sort_keys=True)
 
 
-# ── Convenience functions ─────────────────────────────────────────────────
-
-
 def get_known_limitations(rule_id: str = "") -> list[KnownLimitation]:
-    """Get known limitations for a detector rule."""
     return DetectionBenchmark().get_limitations(rule_id=rule_id)
 
 
 def get_detection_metrics(rule_id: str = "") -> dict[str, RuleQualityMetrics]:
-    """Get detection quality metrics for a rule."""
     return DetectionBenchmark().get_metrics(rule_id=rule_id)
 
 
 def benchmark_scan() -> dict[str, Any]:
-    """Run a detection quality benchmark and return overall metrics."""
     return DetectionBenchmark().overall_quality()

@@ -1,14 +1,3 @@
-"""
-L2-PNPM-001: Detect dangerous pnpm configurations.
-
-Flags:
-- dangerouslyAllowAllBuilds in .npmrc or package.json
-- onlyBuiltDependenciesFile without proper config
-- Missing .npmrc when pnpm-lock.yaml exists (no build policy)
-- pnpm overrides that bypass integrity
-- pnpm patchedDependencies that modify package code
-"""
-
 import contextlib
 import json
 from pathlib import Path
@@ -19,8 +8,7 @@ from .utils import load_package_json
 __all__ = ["detect_pnpm_config"]
 
 
-def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
-    """Scan for dangerous pnpm configurations."""
+def detect_pnpm_config(target_path: Path) -> list[Finding]:
     findings: list[Finding] = []
 
     target = Path(target_path)
@@ -31,7 +19,6 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
     if not has_pnpm_lock:
         return findings
 
-    # Check package.json for pnpm config
     pkg_data = {}
     if pkg_path.exists():
         with contextlib.suppress(json.JSONDecodeError, UnicodeDecodeError):
@@ -41,7 +28,6 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
     pnpm_overrides = pnpm_config.get("overrides", {})
     pnpm_patches = pnpm_config.get("patchedDependencies", {})
 
-    # L2-PNPM-001a: dangerouslyAllowAllBuilds in .npmrc
     if has_npmrc:
         npmrc_path = target / ".npmrc"
         try:
@@ -64,7 +50,10 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                         line=line_no,
                         message=".npmrc enables dangerouslyAllowAllBuilds — all install scripts run without allowlist",
                         evidence=f"Config line: {stripped}",
-                        remediation="Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages with build scripts.",
+                        remediation=(
+                            "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies "
+                            "to allowlist specific packages with build scripts."
+                        ),
                         references=[
                             "https://pnpm.io/settings#dangerouslyallowallbuilds",
                             "https://pnpm.io/package_json#pnpmonlybuiltdependencies",
@@ -72,7 +61,6 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                     )
                 )
 
-    # L2-PNPM-001b: dangerouslyAllowAllBuilds in package.json pnpm section
     if pnpm_config.get("dangerouslyAllowAllBuilds"):
         findings.append(
             Finding(
@@ -84,7 +72,9 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                 line=None,
                 message="package.json enables dangerouslyAllowAllBuilds — all install scripts run without allowlist",
                 evidence="pnpm.dangerouslyAllowAllBuilds: true",
-                remediation="Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages.",
+                remediation=(
+                    "Remove dangerouslyAllowAllBuilds and use onlyBuiltDependencies to allowlist specific packages."
+                ),
                 references=[
                     "https://pnpm.io/settings#dangerouslyallowallbuilds",
                     "https://pnpm.io/package_json#pnpmonlybuiltdependencies",
@@ -92,7 +82,6 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
             )
         )
 
-    # L2-PNPM-001c: pnpm-lock.yaml exists but no .npmrc (no build policy at all)
     if has_pnpm_lock and not has_npmrc:
         findings.append(
             Finding(
@@ -109,10 +98,8 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
             )
         )
 
-    # L2-PNPM-001d: pnpm overrides that shadow dependencies
     if pnpm_overrides:
         for override_key in pnpm_overrides:
-            # Overrides that point to different registries or versions bypass integrity
             override_val = pnpm_overrides[override_key]
             findings.append(
                 Finding(
@@ -124,12 +111,14 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                     line=None,
                     message=f"pnpm override detected: {override_key} → {override_val}",
                     evidence=f"pnpm.overrides.{override_key} = {override_val}",
-                    remediation="Review pnpm overrides regularly. Overrides bypass resolution and may introduce unverified code.",
+                    remediation=(
+                        "Review pnpm overrides regularly. "
+                        "Overrides bypass resolution and may introduce unverified code."
+                    ),
                     references=["https://pnpm.io/package_json#pnpmoverrides"],
                 )
             )
 
-    # L2-PNPM-001e: patchedDependencies (code modification)
     if pnpm_patches:
         findings.append(
             Finding(
@@ -141,7 +130,10 @@ def detect_pnpm_config(target_path: Path, corpus_dir: Path) -> list[Finding]:
                 line=None,
                 message=f"pnpm patchedDependencies modifies {len(pnpm_patches)} package(s) — patches bypass npm audit",
                 evidence=f"patchedDependencies: {list(pnpm_patches.keys())}",
-                remediation="Minimize pnpm patches. Each patch modifies third-party code and is invisible to npm audit. Prefer upstream fixes.",
+                remediation=(
+                    "Minimize pnpm patches. Each patch modifies third-party code "
+                    "and is invisible to npm audit. Prefer upstream fixes."
+                ),
                 references=["https://pnpm.io/package_json#pnpmpatcheddependencies"],
             )
         )

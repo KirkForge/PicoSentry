@@ -7,7 +7,6 @@ Tests the command-line interface and SARIF output format.
 import json
 import subprocess
 import sys
-from pathlib import Path
 
 import pytest
 
@@ -15,18 +14,7 @@ from picosentry.scan.engine import create_default_engine
 from picosentry.scan.formatters import format_sarif
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity
 
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-def _make_project(tmp_path: Path, pkg_json: dict, files: dict | None = None) -> Path:
-    """Create a minimal project tree with package.json and optional files."""
-    (tmp_path / "package.json").write_text(json.dumps(pkg_json))
-    if files:
-        for rel, content in files.items():
-            fpath = tmp_path / rel
-            fpath.parent.mkdir(parents=True, exist_ok=True)
-            fpath.write_text(content)
-    return tmp_path
+from tests.scan.conftest import FIXTURES_DIR, make_npm_project as _make_project
 
 
 class TestSARIFOutput:
@@ -493,7 +481,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         assert len(post_findings) >= 1
         assert any(f.severity == Severity.CRITICAL for f in post_findings), (
@@ -514,7 +502,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         assert len(post_findings) >= 1
         assert any(f.severity == Severity.CRITICAL for f in post_findings)
@@ -533,7 +521,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         assert len(post_findings) >= 1
         assert any(f.severity == Severity.CRITICAL for f in post_findings)
@@ -552,7 +540,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         assert len(post_findings) >= 1
         assert all(f.severity == Severity.HIGH for f in post_findings), (
@@ -573,7 +561,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         assert len(post_findings) >= 1
         critical = [f for f in post_findings if f.severity == Severity.CRITICAL]
@@ -596,7 +584,7 @@ class TestPostInstallExecDetection:
         )
         from picosentry.scan.rules.post_install import detect_post_install_scripts
 
-        findings = detect_post_install_scripts(project, project.parent)
+        findings = detect_post_install_scripts(project)
         post_findings = [f for f in findings if f.rule_id == "L2-POST-001"]
         critical = [f for f in post_findings if f.severity == Severity.CRITICAL]
         assert len(critical) >= 1
@@ -893,7 +881,7 @@ class TestGitHubFormat:
             text=True,
             timeout=30,
         )
-        assert proc.returncode == 0 or proc.returncode == 1  # may have findings
+        assert proc.returncode in {0, 1}  # may have findings
         assert sarif_path.exists(), "SARIF file should be created"
         sarif_data = json.loads(sarif_path.read_text())
         assert sarif_data["version"] == "2.1.0"

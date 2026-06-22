@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """PicoDome — Deployment Security Checker.
 
 Validates that deployment manifests and configuration don't contain
@@ -13,7 +12,7 @@ Runs as part of CI to catch:
   - Missing security contexts in containers
 
 Usage:
-  python scripts/check_deploy_security.py [--strict]
+  python tests/sandbox/check_deploy_security.py [--strict]
 
   --strict  Treat warnings as errors (exit 1 on any finding)
 """
@@ -43,19 +42,46 @@ class Finding(NamedTuple):
     line: int | None = None
 
 
+# Dev-bypass environment variables that are safe for local development but must
+# never be enabled in a production deployment.
+_DEV_BYPASS_ENV_VARS: tuple[tuple[str, str, str], ...] = (
+    ("PICODOME_DEV_MODE", "CRITICAL", "disables authentication"),
+    ("PICODOME_TLS_DEV", "HIGH", "uses self-signed TLS certificates"),
+    ("PICODOME_SKIP_SECURE_ASSERT", "HIGH", "disables daemon secure-boot checks"),
+    ("PICOSHOGUN_SKIP_SECURE_ASSERT", "HIGH", "disables serve secure-boot checks"),
+    ("PICOWATCH_SKIP_SECURE_ASSERT", "HIGH", "disables watch secure-boot checks"),
+)
+
+# Preserve the original short check names for the two variables that existing
+# tests and consumers already reference.
+_DEV_BYPASS_CHECK_PREFIX: dict[str, str] = {
+    "PICODOME_DEV_MODE": "dev-mode",
+    "PICODOME_TLS_DEV": "tls-dev",
+}
+
+
+def _env_var_enabled_in_line(var: str, line: str, lines: list[str], i: int) -> bool:
+    """Return True if `var` is set to 1 on this line or the next value line."""
+    if var not in line:
+        return False
+    return bool(
+        re.search(rf"{re.escape(var)}.*1", line) or (i < len(lines) and re.search(r'value:\s*["\']?1["\']?', lines[i]))
+    )
+
+
 def _load_yaml_file(path: Path) -> dict | list | None:
     """Load a YAML file, falling back to basic parsing if PyYAML unavailable."""
     try:
         import yaml
 
-        with open(path) as f:
+        with path.open() as f:
             return yaml.safe_load(f)
     except ImportError:
         pass
 
     # Minimal YAML parser for simple key: value files
     try:
-        with open(path) as f:
+        with path.open() as f:
             text = f.read()
         # Try JSON first (some .yaml files are actually JSON)
         try:
@@ -64,8 +90,8 @@ def _load_yaml_file(path: Path) -> dict | list | None:
             pass
         # Very basic YAML: extract top-level key: value pairs
         result: dict = {}
-        for line in text.splitlines():
-            line = line.strip()
+        for raw_line in text.splitlines():
+            line = raw_line.strip()
             if not line or line.startswith("#"):
                 continue
             match = re.match(r'^(\w+):\s*["\']?(.+?)["\']?\s*$', line)
@@ -77,7 +103,7 @@ def _load_yaml_file(path: Path) -> dict | list | None:
                     result[key] = int(val)
                 else:
                     result[key] = val
-        return result if result else None
+        return result or None
     except Exception:
         return None
 
@@ -103,36 +129,15 @@ def check_k8s_deployment(findings: list[Finding]) -> None:
     lines = _read_file_lines(deploy_path)
 
     for i, line in enumerate(lines, 1):
-        # DEV_MODE enabled (matches PICODOME_DEV_MODE with "1" on same or next line)
-        if "PICODOME_DEV_MODE" in line:
-            # Check if "1" is on the same line
-            if (
-                re.search(r"PICODOME_DEV_MODE.*1", line)
-                or (i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-            ):
+        # Dev-bypass env vars enabled in the manifest
+        for var, severity, reason in _DEV_BYPASS_ENV_VARS:
+            if _env_var_enabled_in_line(var, line, lines, i):
+                prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                 findings.append(
                     Finding(
-                        "CRITICAL",
-                        "dev-mode-k8s",
-                        "PICODOME_DEV_MODE=1 found in K8s deployment — disables authentication",
-                        str(deploy_path),
-                        i,
-                    )
-                )
-
-        # TLS dev mode
-        if "PICODOME_TLS_DEV" in line:
-            if (
-                re.search(r"PICODOME_TLS_DEV.*1", line)
-                or (i < len(lines)
-                and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-            ):
-                findings.append(
-                    Finding(
-                        "HIGH",
-                        "tls-dev-k8s",
-                        "PICODOME_TLS_DEV=1 found in K8s deployment — uses self-signed certs",
+                        severity,
+                        f"{prefix}-k8s",
+                        f"{var}=1 found in K8s deployment — {reason}",
                         str(deploy_path),
                         i,
                     )
@@ -300,45 +305,55 @@ def check_helm_values(findings: list[Finding]) -> None:
     # Check data structure if YAML parsed (dedup with line-level checks)
     if data and isinstance(data, dict):
         enterprise = data.get("enterprise", {})
-        if isinstance(enterprise, dict) and not enterprise.get("enabled", False):
+        if (
+            isinstance(enterprise, dict)
+            and not enterprise.get("enabled", False)
             # Only add if not already found by line-level check
-            if not any(f.check == "enterprise-disabled-helm" for f in findings):
-                findings.append(
-                    Finding(
-                        "MEDIUM",
-                        "enterprise-disabled-helm",
-                        "enterprise.enabled is false — production deployments should enable enterprise mode",
-                        str(values_path),
-                    )
+            and not any(f.check == "enterprise-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "enterprise-disabled-helm",
+                    "enterprise.enabled is false — production deployments should enable enterprise mode",
+                    str(values_path),
                 )
+            )
 
         auth = data.get("auth", {})
         if isinstance(auth, dict):
             tokens = auth.get("tokens", "")
-            if tokens and isinstance(tokens, str) and tokens not in ("", '""', "''"):
+            if (
+                tokens
+                and isinstance(tokens, str)
+                and tokens not in ("", '""', "''")
                 # Non-empty inline token — check if it's not a placeholder
-                if tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME"):
-                    if not any(f.check == "inline-tokens-helm" for f in findings):
-                        findings.append(
-                            Finding(
-                                "HIGH",
-                                "inline-tokens-helm",
-                                "auth.tokens is set inline in values.yaml — use existingSecret instead",
-                                str(values_path),
-                            )
-                        )
-
-        mtls = data.get("mtls", {})
-        if isinstance(mtls, dict) and not mtls.get("enabled", False):
-            if not any(f.check == "mtls-disabled-helm" for f in findings):
+                and tokens not in ("REPLACE_WITH_STRONG_TOKEN", "CHANGE_ME")
+                and not any(f.check == "inline-tokens-helm" for f in findings)
+            ):
                 findings.append(
                     Finding(
-                        "MEDIUM",
-                        "mtls-disabled-helm",
-                        "mtls.enabled is false — no mutual TLS in production",
+                        "HIGH",
+                        "inline-tokens-helm",
+                        "auth.tokens is set inline in values.yaml — use existingSecret instead",
                         str(values_path),
                     )
                 )
+
+        mtls = data.get("mtls", {})
+        if (
+            isinstance(mtls, dict)
+            and not mtls.get("enabled", False)
+            and not any(f.check == "mtls-disabled-helm" for f in findings)
+        ):
+            findings.append(
+                Finding(
+                    "MEDIUM",
+                    "mtls-disabled-helm",
+                    "mtls.enabled is false — no mutual TLS in production",
+                    str(values_path),
+                )
+            )
 
 
 def check_helm_templates(findings: list[Finding]) -> None:
@@ -351,35 +366,17 @@ def check_helm_templates(findings: list[Finding]) -> None:
         lines = _read_file_lines(tpl_path)
 
         for i, line in enumerate(lines, 1):
-            # Dev mode in templates (name and value may be on separate lines)
-            if "PICODOME_DEV_MODE" in line and "comment" not in line.lower():
-                if (
-                    re.search(r"PICODOME_DEV_MODE.*1", line)
-                    or (i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-                ):
+            # Dev-bypass env vars enabled in templates
+            for var, severity, _reason in _DEV_BYPASS_ENV_VARS:
+                if var not in line or "comment" in line.lower():
+                    continue
+                if _env_var_enabled_in_line(var, line, lines, i):
+                    prefix = _DEV_BYPASS_CHECK_PREFIX.get(var, var.lower().replace("_", "-"))
                     findings.append(
                         Finding(
-                            "CRITICAL",
-                            "dev-mode-template",
-                            f"PICODOME_DEV_MODE=1 in template: {line.strip()}",
-                            str(tpl_path),
-                            i,
-                        )
-                    )
-
-            # TLS dev mode in templates
-            if "PICODOME_TLS_DEV" in line and "comment" not in line.lower():
-                if (
-                    re.search(r"PICODOME_TLS_DEV.*1", line)
-                    or (i < len(lines)
-                    and re.search(r'value:\s*["\']?1["\']?', lines[i]))
-                ):
-                    findings.append(
-                        Finding(
-                            "HIGH",
-                            "tls-dev-template",
-                            f"PICODOME_TLS_DEV=1 in template: {line.strip()}",
+                            severity,
+                            f"{prefix}-template",
+                            f"{var}=1 in template: {line.strip()}",
                             str(tpl_path),
                             i,
                         )
@@ -454,7 +451,7 @@ def check_dockerfile(findings: list[Finding]) -> None:
 
     if user_lines:
         last_user_line = user_lines[-1][0]
-        for copy_i, copy_l in copy_lines:
+        for copy_i, _copy_l in copy_lines:
             if copy_i > last_user_line:
                 # COPY after last USER is fine (running as non-root)
                 pass
@@ -485,7 +482,7 @@ def check_source_hardcoded_secrets(findings: list[Finding], src_dir: Path | None
         for i, line in enumerate(lines, 1):
             # Skip comments and docstrings
             stripped = line.strip()
-            if stripped.startswith("#") or stripped.startswith('"""') or stripped.startswith("'''"):
+            if stripped.startswith(("#", '"""', "'''")):
                 continue
 
             # Hardcoded tokens/passwords (but not in docstrings, comments, or config params)
@@ -601,16 +598,15 @@ def check_gitignore_secrets(findings: list[Finding]) -> None:
                         str(gitignore_path),
                     )
                 )
-        else:
-            if pattern not in content:
-                findings.append(
-                    Finding(
-                        "LOW",
-                        "gitignore-missing",
-                        f".gitignore missing '{pattern}' — {reason}",
-                        str(gitignore_path),
-                    )
+        elif pattern not in content:
+            findings.append(
+                Finding(
+                    "LOW",
+                    "gitignore-missing",
+                    f".gitignore missing '{pattern}' — {reason}",
+                    str(gitignore_path),
                 )
+            )
 
 
 # ── Main ───────────────────────────────────────────────────────────────
@@ -675,12 +671,11 @@ def main(args: list[str] | None = None) -> int:
     if critical_high:
         print("❌ FAIL — Critical or High severity findings detected")
         return 1
-    elif parsed.strict and findings:
+    if parsed.strict and findings:
         print("❌ FAIL — Findings detected in strict mode")
         return 1
-    else:
-        print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
-        return 0
+    print("⚠️  WARN — Only medium/low findings (passing in non-strict mode)")
+    return 0
 
 
 if __name__ == "__main__":

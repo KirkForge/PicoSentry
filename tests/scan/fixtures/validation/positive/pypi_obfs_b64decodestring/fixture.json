@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "PYPI OBFS bypass variant: base64.decodestring() — the deprecated alias for b64decode (fires L2-PYPI-OBFS-002). The regex matches the legacy name.",
+  "expected_rule_ids": ["L2-PYPI-OBFS-002"]
+}

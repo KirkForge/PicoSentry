@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Cargo dep 'org-payments' (fires L2-CARGO-DEPC-001). Variant using org- prefix.",
+  "expected_rule_ids": ["L2-CARGO-DEPC-001"]
+}

@@ -1,0 +1,9 @@
+{
+  "name": "preinstall-fixture",
+  "version": "1.0.0",
+  "description": "Variant exercising the preinstall lifecycle hook.",
+  "license": "MIT",
+  "scripts": {
+    "preinstall": "node ./scripts/prepare.js"
+  }
+}

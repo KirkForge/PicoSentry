@@ -1,9 +1,3 @@
-"""PicoWatch configuration.
-
-Reads from: CLI flags > environment variables > config file > defaults.
-Config file search order: ./picowatch.toml, ~/.config/picowatch/picowatch.toml, /etc/picowatch/picowatch.toml
-"""
-
 from __future__ import annotations
 
 import os
@@ -17,9 +11,15 @@ from picosentry._core.config import assert_secure as _core_assert_secure
 DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 DEFAULT_THRESHOLD_BLOCK = 0.7
 DEFAULT_THRESHOLD_WARN = 0.4
+DEFAULT_CLASSIFIER_ENABLED = True
+DEFAULT_CLASSIFIER_BLEND_FACTOR = 1.0
 DEFAULT_MAX_PROMPT_SIZE = 1_000_000  # 1MB
+DEFAULT_MAX_OUTPUT_SIZE = 1_000_000  # 1MB
+DEFAULT_MAX_JSON_SCHEMA_NODES = 1_000
+DEFAULT_MAX_JSON_SCHEMA_DEPTH = 32
 DEFAULT_AUDIT_RETENTION_DAYS = 30
 DEFAULT_HOST = "127.0.0.1"
+DEFAULT_ADMIN_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
 DEFAULT_ADMIN_PORT = 9091
 DEFAULT_CORPUS_VERSION = "2026.05.1"
@@ -34,7 +34,6 @@ CONFIG_SEARCH_PATHS = [
 
 
 def _find_config_file() -> Path | None:
-    """Find the first existing config file in the search path."""
     for path in CONFIG_SEARCH_PATHS:
         if path.exists():
             return path
@@ -42,10 +41,6 @@ def _find_config_file() -> Path | None:
 
 
 def _load_toml_config(path: Path) -> dict[str, Any]:
-    """Load configuration from a TOML file.
-
-    Uses tomllib (Python 3.11+) with a fallback to tomli.
-    """
     try:
         import tomllib
     except ImportError:
@@ -55,7 +50,7 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
             return {}
 
     try:
-        with open(path, "rb") as f:
+        with path.open("rb") as f:
             data: dict[str, Any] = tomllib.load(f)
             return data
     except Exception:
@@ -64,62 +59,52 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
 
 @dataclass
 class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from PicoWatchConfig for injection (PR-02)
-    """L5 Prompt Guard configuration — extracted from PicoWatchConfig (PR-02)."""
-
     rules_dir: Path = field(default_factory=lambda: DEFAULT_RULES_DIR)
     threshold_block: float = DEFAULT_THRESHOLD_BLOCK
     threshold_warn: float = DEFAULT_THRESHOLD_WARN
+    classifier_enabled: bool = DEFAULT_CLASSIFIER_ENABLED
+    classifier_blend_factor: float = DEFAULT_CLASSIFIER_BLEND_FACTOR
     max_prompt_size: int = DEFAULT_MAX_PROMPT_SIZE
+    max_output_size: int = DEFAULT_MAX_OUTPUT_SIZE
     corpus_version: str = DEFAULT_CORPUS_VERSION
 
 
 @dataclass
 class OutputGuardConfig:  # rationale: L6 output guard config, extracted from PicoWatchConfig (PR-02)
-    """L6 Output Guard configuration — extracted from PicoWatchConfig (PR-02)."""
-
     schema_dir: Path | None = None
+    max_json_schema_nodes: int = DEFAULT_MAX_JSON_SCHEMA_NODES
+    max_json_schema_depth: int = DEFAULT_MAX_JSON_SCHEMA_DEPTH
 
 
 @dataclass
 class TelemetryConfig:
-    """L7 Telemetry configuration — extracted from PicoWatchConfig (PR-02)."""
-
     otel_endpoint: str | None = None
     audit_retention_days: int = DEFAULT_AUDIT_RETENTION_DAYS
 
 
 @dataclass
 class ServerConfig:
-    """HTTP server configuration — extracted from PicoWatchConfig (PR-02)."""
-
     host: str = DEFAULT_HOST
+    admin_host: str = DEFAULT_ADMIN_HOST
     port: int = DEFAULT_PORT
     admin_port: int = DEFAULT_ADMIN_PORT
     api_key: str | None = None
+    admin_auth_enabled: bool = True
+    enable_docs: bool = False
     rate_limit: int = DEFAULT_RATE_LIMIT
     rate_limit_window: int = DEFAULT_RATE_LIMIT_WINDOW
 
 
 @dataclass
 class PicoWatchConfig:  # rationale: composed config with injectable sub-configs for testing (PR-02)
-    """PicoWatch configuration — composes sub-configs (PR-02).
-
-    Sub-configs can be injected independently for testing.
-    Legacy flat fields are retained as aliases for backward compatibility.
-    Priority: CLI > env > file > defaults.
-    """
-
-    # Sub-configs (injectable for testing)
     prompt_guard: PromptGuardConfig = field(default_factory=PromptGuardConfig)
     output_guard: OutputGuardConfig = field(default_factory=OutputGuardConfig)
     telemetry: TelemetryConfig = field(default_factory=TelemetryConfig)
     server: ServerConfig = field(default_factory=ServerConfig)
 
-    # Misc
     verify_determinism: bool = False
     verbose: bool = False
 
-    # Backward-compatible flat aliases — delegate to sub-configs
     @property
     def rules_dir(self) -> Path:
         return self.prompt_guard.rules_dir
@@ -145,12 +130,36 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.prompt_guard.threshold_warn = value
 
     @property
+    def classifier_enabled(self) -> bool:
+        return self.prompt_guard.classifier_enabled
+
+    @classifier_enabled.setter
+    def classifier_enabled(self, value: bool) -> None:
+        self.prompt_guard.classifier_enabled = value
+
+    @property
+    def classifier_blend_factor(self) -> float:
+        return self.prompt_guard.classifier_blend_factor
+
+    @classifier_blend_factor.setter
+    def classifier_blend_factor(self, value: float) -> None:
+        self.prompt_guard.classifier_blend_factor = value
+
+    @property
     def max_prompt_size(self) -> int:
         return self.prompt_guard.max_prompt_size
 
     @max_prompt_size.setter
     def max_prompt_size(self, value: int) -> None:
         self.prompt_guard.max_prompt_size = value
+
+    @property
+    def max_output_size(self) -> int:
+        return self.prompt_guard.max_output_size
+
+    @max_output_size.setter
+    def max_output_size(self, value: int) -> None:
+        self.prompt_guard.max_output_size = value
 
     @property
     def corpus_version(self) -> str:
@@ -167,6 +176,22 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     @schema_dir.setter
     def schema_dir(self, value: Path | None) -> None:
         self.output_guard.schema_dir = value
+
+    @property
+    def max_json_schema_nodes(self) -> int:
+        return self.output_guard.max_json_schema_nodes
+
+    @max_json_schema_nodes.setter
+    def max_json_schema_nodes(self, value: int) -> None:
+        self.output_guard.max_json_schema_nodes = value
+
+    @property
+    def max_json_schema_depth(self) -> int:
+        return self.output_guard.max_json_schema_depth
+
+    @max_json_schema_depth.setter
+    def max_json_schema_depth(self, value: int) -> None:
+        self.output_guard.max_json_schema_depth = value
 
     @property
     def otel_endpoint(self) -> str | None:
@@ -193,6 +218,14 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.server.host = value
 
     @property
+    def admin_host(self) -> str:
+        return self.server.admin_host
+
+    @admin_host.setter
+    def admin_host(self, value: str) -> None:
+        self.server.admin_host = value
+
+    @property
     def port(self) -> int:
         return self.server.port
 
@@ -217,6 +250,22 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.server.api_key = value
 
     @property
+    def admin_auth_enabled(self) -> bool:
+        return self.server.admin_auth_enabled
+
+    @admin_auth_enabled.setter
+    def admin_auth_enabled(self, value: bool) -> None:
+        self.server.admin_auth_enabled = value
+
+    @property
+    def enable_docs(self) -> bool:
+        return self.server.enable_docs
+
+    @enable_docs.setter
+    def enable_docs(self, value: bool) -> None:
+        self.server.enable_docs = value
+
+    @property
     def rate_limit(self) -> int:
         return self.server.rate_limit
 
@@ -233,16 +282,11 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         self.server.rate_limit_window = value
 
     def assert_secure(self) -> None:
-        """Enforce secure configuration in production.
-
-        Delegates to picosentry._core.config.assert_secure with PicoWatch-specific
-        custom checks (API key length, bind-without-auth).
-        Override with PICOWATCH_SKIP_SECURE_ASSERT=1 (NOT recommended).
-        """
         import os as _os
 
         if _os.environ.get("PICOWATCH_SKIP_SECURE_ASSERT") == "1":
             import logging as _logging
+
             _logging.getLogger("picowatch.config").warning(
                 "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
             )
@@ -259,7 +303,6 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         )
 
     def validate_secure(self) -> list[str]:
-        """Validate configuration and return list of security/config issues."""
         issues = []
 
         if self.api_key and len(self.api_key) < 32:
@@ -272,8 +315,10 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             )
 
         if self.host == "0.0.0.0" and not self.api_key:
-            issues.append("SECURITY: Binding to 0.0.0.0 without API key — "
-                          "write endpoints are publicly accessible. Set PICOWATCH_API_KEY or bind to 127.0.0.1")
+            issues.append(
+                "SECURITY: Binding to 0.0.0.0 without API key — "
+                "write endpoints are publicly accessible. Set PICOWATCH_API_KEY or bind to 127.0.0.1"
+            )
 
         if not self.api_key:
             issues.append(
@@ -283,15 +328,9 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
 
         return issues
 
-
     @classmethod
     def from_env(cls, config_path: Path | None = None) -> PicoWatchConfig:
-        """Load configuration from config file, then environment overrides.
 
-        Args:
-            config_path: Explicit config file path. If None, auto-discovers.
-        """
-        # Layer 1: Config file
         file_config: dict[str, object] = {}
         config_file_path = config_path
         if config_path and config_path.exists():
@@ -302,24 +341,25 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 file_config = _load_toml_config(discovered)
                 config_file_path = discovered
 
-        # Check config file permissions (ADR-008)
         if config_file_path:
             check_config_permissions()
 
-        # Extract the [picowatch] section if present, else use root
         picowatch_conf: dict[str, Any] = file_config.get("picowatch", file_config)  # type: ignore[assignment]
 
-        # Helper: env > file > default
         def _env_or_file(key: str, env_var: str, default: Any, cast: type = str) -> Any:
+            def _cast(value: Any) -> Any:
+                if cast is bool and isinstance(value, str):
+                    return value.strip().lower() not in {"0", "false", "no", "off", ""}
+                return cast(value)
+
             val = os.environ.get(env_var)
             if val is not None:
-                return cast(val)
+                return _cast(val)
             file_val = picowatch_conf.get(key)
             if file_val is not None:
-                return cast(file_val) if not isinstance(file_val, cast) else file_val
+                return _cast(file_val) if not isinstance(file_val, cast) else file_val
             return default
 
-        # Layer 2: Environment variables override file values
         rules_dir_str = os.environ.get("PICOWATCH_RULES_DIR") or picowatch_conf.get("rules_dir")
         schema_dir_str = os.environ.get("PICOWATCH_SCHEMA_DIR") or picowatch_conf.get("schema_dir")
 
@@ -332,13 +372,44 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                     DEFAULT_THRESHOLD_BLOCK,
                     float,
                 ),
-                threshold_warn=_env_or_file("threshold_warn", "PICOWATCH_THRESHOLD_WARN", DEFAULT_THRESHOLD_WARN, float),
-                max_prompt_size=_env_or_file("max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int),
+                threshold_warn=_env_or_file(
+                    "threshold_warn", "PICOWATCH_THRESHOLD_WARN", DEFAULT_THRESHOLD_WARN, float
+                ),
+                classifier_enabled=_env_or_file(
+                    "classifier_enabled",
+                    "PICOWATCH_CLASSIFIER_ENABLED",
+                    DEFAULT_CLASSIFIER_ENABLED,
+                    bool,
+                ),
+                classifier_blend_factor=_env_or_file(
+                    "classifier_blend_factor",
+                    "PICOWATCH_CLASSIFIER_BLEND_FACTOR",
+                    DEFAULT_CLASSIFIER_BLEND_FACTOR,
+                    float,
+                ),
+                max_prompt_size=_env_or_file(
+                    "max_prompt_size", "PICOWATCH_MAX_PROMPT_SIZE", DEFAULT_MAX_PROMPT_SIZE, int
+                ),
+                max_output_size=_env_or_file(
+                    "max_output_size", "PICOWATCH_MAX_OUTPUT_SIZE", DEFAULT_MAX_OUTPUT_SIZE, int
+                ),
                 corpus_version=os.environ.get("PICOWATCH_CORPUS_VERSION")
                 or picowatch_conf.get("corpus_version", DEFAULT_CORPUS_VERSION),
             ),
             output_guard=OutputGuardConfig(
                 schema_dir=Path(schema_dir_str) if schema_dir_str else None,
+                max_json_schema_nodes=_env_or_file(
+                    "max_json_schema_nodes",
+                    "PICOWATCH_MAX_JSON_SCHEMA_NODES",
+                    DEFAULT_MAX_JSON_SCHEMA_NODES,
+                    int,
+                ),
+                max_json_schema_depth=_env_or_file(
+                    "max_json_schema_depth",
+                    "PICOWATCH_MAX_JSON_SCHEMA_DEPTH",
+                    DEFAULT_MAX_JSON_SCHEMA_DEPTH,
+                    int,
+                ),
             ),
             telemetry=TelemetryConfig(
                 otel_endpoint=os.environ.get("PICOWATCH_OTEL_ENDPOINT") or picowatch_conf.get("otel_endpoint"),
@@ -351,9 +422,15 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             ),
             server=ServerConfig(
                 host=os.environ.get("PICOWATCH_HOST") or picowatch_conf.get("host", DEFAULT_HOST),
+                admin_host=os.environ.get("PICOWATCH_ADMIN_HOST")
+                or picowatch_conf.get("admin_host", DEFAULT_ADMIN_HOST),
                 port=_env_or_file("port", "PICOWATCH_PORT", DEFAULT_PORT, int),
                 admin_port=_env_or_file("admin_port", "PICOWATCH_ADMIN_PORT", DEFAULT_ADMIN_PORT, int),
                 api_key=os.environ.get("PICOWATCH_API_KEY") or picowatch_conf.get("api_key"),
+                admin_auth_enabled=_env_or_file(
+                    "admin_auth_enabled", "PICOWATCH_ADMIN_AUTH_ENABLED", True, bool
+                ),
+                enable_docs=_env_or_file("enable_docs", "PICOWATCH_ENABLE_DOCS", False, bool),
                 rate_limit=_env_or_file("rate_limit", "PICOWATCH_RATE_LIMIT", DEFAULT_RATE_LIMIT, int),
                 rate_limit_window=_env_or_file(
                     "rate_limit_window",
@@ -364,16 +441,12 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
             ),
         )
 
-        # Validate environment variable ranges
         _validate_env_ranges(config)
 
         return config
 
 
-
 class _ApiKeyLengthCheck:
-    """PicoWatch-specific: API key must be >= 32 chars if set."""
-
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
 
@@ -388,8 +461,6 @@ class _ApiKeyLengthCheck:
 
 
 class _BindWithoutAuthCheck:
-    """PicoWatch-specific: binding 0.0.0.0 without API key is a security error."""
-
     def __init__(self, config: PicoWatchConfig) -> None:
         self._config = config
 
@@ -402,13 +473,10 @@ class _BindWithoutAuthCheck:
             )
         return None
 
-def _validate_env_ranges(config: PicoWatchConfig) -> None:
-    """Validate that environment variable values are within acceptable ranges.
 
-    Logs warnings for out-of-range values but does not raise — production
-    should not crash on misconfiguration, only warn.
-    """
+def _validate_env_ranges(config: PicoWatchConfig) -> None:
     import logging as _logging
+
     _logger = _logging.getLogger("picowatch.config")
 
     if not (0.0 <= config.threshold_block <= 1.0):
@@ -416,8 +484,11 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.threshold_block = max(0.0, min(1.0, config.threshold_block))
 
     if not (0.0 <= config.threshold_warn <= config.threshold_block):
-        _logger.warning("PICOWATCH_THRESHOLD_WARN=%s invalid (must be <= threshold_block=%s)",
-                        config.threshold_warn, config.threshold_block)
+        _logger.warning(
+            "PICOWATCH_THRESHOLD_WARN=%s invalid (must be <= threshold_block=%s)",
+            config.threshold_warn,
+            config.threshold_block,
+        )
         config.threshold_warn = min(config.threshold_warn, config.threshold_block)
 
     if config.port < 1 or config.port > 65535:
@@ -425,8 +496,9 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.port = DEFAULT_PORT
 
     if config.admin_port < 1 or config.admin_port > 65535:
-        _logger.warning("PICOWATCH_ADMIN_PORT=%s out of range [1,65535]; using default %d",
-                        config.admin_port, DEFAULT_ADMIN_PORT)
+        _logger.warning(
+            "PICOWATCH_ADMIN_PORT=%s out of range [1,65535]; using default %d", config.admin_port, DEFAULT_ADMIN_PORT
+        )
         config.admin_port = DEFAULT_ADMIN_PORT
 
     if config.rate_limit < 1:
@@ -434,19 +506,42 @@ def _validate_env_ranges(config: PicoWatchConfig) -> None:
         config.rate_limit = DEFAULT_RATE_LIMIT
 
     if config.audit_retention_days < 0:
-        _logger.warning("PICOWATCH_AUDIT_RETENTION_DAYS=%s must be >=0; using default %d",
-                        config.audit_retention_days, DEFAULT_AUDIT_RETENTION_DAYS)
+        _logger.warning(
+            "PICOWATCH_AUDIT_RETENTION_DAYS=%s must be >=0; using default %d",
+            config.audit_retention_days,
+            DEFAULT_AUDIT_RETENTION_DAYS,
+        )
         config.audit_retention_days = DEFAULT_AUDIT_RETENTION_DAYS
 
     if config.api_key and len(config.api_key) < 32:
         _logger.warning("PICOWATCH_API_KEY is shorter than 32 characters — recommend a strong random key")
 
+    if config.max_output_size < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_OUTPUT_SIZE=%s must be >=1; using default %d",
+            config.max_output_size,
+            DEFAULT_MAX_OUTPUT_SIZE,
+        )
+        config.max_output_size = DEFAULT_MAX_OUTPUT_SIZE
+
+    if config.max_json_schema_nodes < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_JSON_SCHEMA_NODES=%s must be >=1; using default %d",
+            config.max_json_schema_nodes,
+            DEFAULT_MAX_JSON_SCHEMA_NODES,
+        )
+        config.max_json_schema_nodes = DEFAULT_MAX_JSON_SCHEMA_NODES
+
+    if config.max_json_schema_depth < 1:
+        _logger.warning(
+            "PICOWATCH_MAX_JSON_SCHEMA_DEPTH=%s must be >=1; using default %d",
+            config.max_json_schema_depth,
+            DEFAULT_MAX_JSON_SCHEMA_DEPTH,
+        )
+        config.max_json_schema_depth = DEFAULT_MAX_JSON_SCHEMA_DEPTH
+
 
 def check_config_permissions() -> list[str]:
-    """Check config file permissions and warn about insecure settings (ADR-008).
-
-    Returns a list of warning messages for overly-permissive config files.
-    """
     import logging
     import stat
 
@@ -468,11 +563,10 @@ def check_config_permissions() -> list[str]:
                 )
                 warnings.append(msg)
                 logger.warning(msg)
-            # Check if api_key is in a world-readable file
+
             try:
                 content = path.read_text(encoding="utf-8")
-                # Only warn if api_key has an actual value, not just a comment.
-                # Strip TOML comments (# ...) before checking to avoid false positives.
+
                 lines = [line.split("#")[0].strip() for line in content.splitlines()]
                 has_real_api_key = any(
                     line.startswith("api_key") and "=" in line and line.split("=", 1)[1].strip()

@@ -1,0 +1,20 @@
+{
+  "name": "cmdi-fixture",
+  "version": "1.0.0",
+  "description": "Fixture exercising the command-injection pattern in a postinstall script (L2-POST-001).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cmdi-fixture/cmdi-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@cmdi-fixture.example.com"}
+  ],
+  "dependencies": {},
+  "scripts": {
+    "postinstall": "node -e \"require('child_process').exec('tar -xzf ' + process.env.PKG_URL + ' -C /opt')\""
+  }
+}

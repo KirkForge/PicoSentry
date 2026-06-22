@@ -1,13 +1,7 @@
-"""L4 environment variable leakage detector.
-
-Detects suspicious access to or exfiltration of environment variables
-that commonly contain secrets, credentials, or sensitive configuration.
-"""
-
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, Finding
 from picosentry.sandbox.models import Severity
 
-# Environment variable names that should never be read or logged in sandboxed code
+
 SENSITIVE_ENV_VARS = {
     "AWS_ACCESS_KEY_ID",
     "AWS_SECRET_ACCESS_KEY",
@@ -34,20 +28,15 @@ SENSITIVE_ENV_VARS = {
     "VAULT_TOKEN",
 }
 
-# Patterns indicating env var access or exfiltration in output
-
 
 def detect_env_leak(
     profile: BehavioralProfile,
-    baselines: dict[str, Baseline] | None = None,
 ) -> list[Finding]:
-    """Detect access to or leakage of sensitive environment variables."""
     findings: list[Finding] = []
 
-    # Check filesystem ops for .env file access
     for op in profile.fs_ops:
         path_lower = op.path.lower()
-        if path_lower.endswith(".env") or path_lower.endswith(".env.local") or path_lower.endswith(".env.production"):
+        if path_lower.endswith((".env", ".env.local", ".env.production")):
             findings.append(
                 Finding(
                     rule_id="L4-ENV-001",
@@ -58,7 +47,6 @@ def detect_env_leak(
                 )
             )
 
-    # Check network calls for potential env-var exfiltration in URLs
     for call in profile.network_calls:
         for var_name in SENSITIVE_ENV_VARS:
             lower_val = var_name.lower()
@@ -74,7 +62,6 @@ def detect_env_leak(
                     )
                 )
 
-    # Check process spawns for env-dumping commands
     env_dump_commands = {"env", "printenv", "set", "export"}
     for spawn in profile.spawns:
         exe_base = spawn.executable.split("/")[-1].lower()

@@ -1,6 +1,8 @@
 """Shared pytest fixtures and configuration for PicoShogun tests."""
+
 import os
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -16,6 +18,18 @@ os.environ["PICOSHOGUN_SECRET_KEY"] = "test-key-for-pytest-at-least-32-bytes!"
 # the test environment — these tests are end-to-end auth flows and need to be
 # able to provision fresh users per test.
 os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
+# The /scans endpoint is gated on PICOSHOGUN_SCANS_WORKSPACE_ROOT.  The
+# test corpus uses /tmp as a safe workspace — it's writable, the tests
+# are short-lived, and /tmp is the directory the test_integration suite
+# was already passing.  Production must configure this explicitly.
+os.environ.setdefault("PICOSHOGUN_SCANS_WORKSPACE_ROOT", "/tmp")
+# SQLite tests must not share the default on-disk database.  When pytest-xdist
+# runs workers in parallel, concurrent access to the same ``picoshogun.db`` file
+# produces OperationalError (database is locked / table already exists).  Route
+# each worker to its own temp DB so in-process tests remain sequential and
+# cross-process collisions disappear.
+_worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
+os.environ["PICOSHOGUN_DATABASE_PATH"] = str(Path(tempfile.gettempdir()) / f"picoshogun-test-{_worker}.db")
 
 
 def _find_and_clear_rate_limiter(app):
@@ -31,7 +45,7 @@ def _find_and_clear_rate_limiter(app):
             obj.ip_requests.clear()
             obj.org_requests.clear()
             return
-        if hasattr(obj, 'app'):
+        if hasattr(obj, "app"):
             obj = obj.app
         else:
             break
@@ -48,6 +62,7 @@ def _mock_dns_resolver(hostname):
     # that isn't already an IP literal. Private/loopback IPs are still caught
     # by the SSRF network check in _is_safe_webhook_url.
     import ipaddress
+
     try:
         # If it's already an IP, just return it — the SSRF checker handles it
         ipaddress.ip_address(hostname)
@@ -71,6 +86,7 @@ def _mock_dns_resolver(hostname):
 def _patch_webhook_dns():
     """Patch webhook manager to use mock DNS resolver in tests."""
     from picosentry.serve.services.webhooks import webhook_manager
+
     original = webhook_manager.dns_resolver
     webhook_manager.dns_resolver = _mock_dns_resolver
     yield
@@ -95,3 +111,15 @@ def _reset_rate_limiter():
     _find_and_clear_rate_limiter(app)
     yield
     _find_and_clear_rate_limiter(app)
+
+
+@pytest.fixture(autouse=True)
+def _shutdown_serve_otel():
+    """Shut down any OpenTelemetry provider created by serve tests.
+
+    Stops background OTLP export threads so the pytest process exits cleanly.
+    """
+    yield
+    from picosentry.serve.services.observability import shutdown_telemetry
+
+    shutdown_telemetry()

@@ -1,14 +1,3 @@
-"""Priority job queue for the PicoDome daemon.
-
-Bounded priority queue with FIFO ordering within each priority level.
-Supports concurrent producers/consumers with thread-safe operations.
-
-Priority levels:
-- CRITICAL: security incidents (honeypot touches, destructive commands)
-- HIGH: standard scan requests from authenticated users
-- LOW: bulk/batch scan submissions
-"""
-
 from __future__ import annotations
 
 import heapq
@@ -24,8 +13,6 @@ logger = logging.getLogger("picodome.ratelimit.queue")
 
 
 class JobPriority(IntEnum):
-    """Job priority levels (lower number = higher priority)."""
-
     CRITICAL = 0
     HIGH = 1
     NORMAL = 2
@@ -34,8 +21,6 @@ class JobPriority(IntEnum):
 
 @dataclass(order=False)
 class QueuedJob:
-    """A job in the priority queue."""
-
     job_id: str
     command: list[str]
     actor: str
@@ -45,7 +30,6 @@ class QueuedJob:
     status: str = "queued"
 
     def __lt__(self, other: QueuedJob) -> bool:
-        """Priority queue ordering: priority first, then FIFO."""
         if self.priority != other.priority:
             return self.priority < other.priority
         return self.created_at < other.created_at
@@ -63,23 +47,6 @@ class QueuedJob:
 
 
 class JobQueue:
-    """Thread-safe bounded priority job queue.
-
-    Usage::
-
-        queue = JobQueue(max_size=1000)
-        job = queue.enqueue(
-            command=["npm", "install", "some-pkg"],
-            actor="ci-pipeline",
-            priority=JobPriority.HIGH,
-        )
-        # Worker thread:
-        job = queue.dequeue()
-        if job:
-            # process job
-            queue.complete(job.job_id, result={...})
-    """
-
     def __init__(self, max_size: int = 1000) -> None:
         self._heap: list[QueuedJob] = []
         self._jobs: dict[str, QueuedJob] = {}
@@ -102,18 +69,13 @@ class JobQueue:
         priority: JobPriority = JobPriority.NORMAL,
         metadata: dict[str, Any] | None = None,
     ) -> QueuedJob | None:
-        """Add a job to the queue.
-
-        Returns the QueuedJob if accepted, None if the queue is full.
-        """
         with self._not_empty:
             if len(self._heap) >= self._max_size:
-                # Drop lowest priority job to make room
                 if priority >= JobPriority.LOW:
                     self._stats["dropped"] += 1
                     logger.warning("Job queue full (%d), dropping LOW priority job", len(self._heap))
                     return None
-                # Evict the lowest priority, newest job
+
                 self._evict_lowest()
                 if len(self._heap) >= self._max_size:
                     self._stats["dropped"] += 1
@@ -135,11 +97,6 @@ class JobQueue:
             return job
 
     def dequeue(self, timeout: float | None = None) -> QueuedJob | None:
-        """Get the highest-priority job from the queue.
-
-        Blocks until a job is available or timeout expires.
-        Returns None if timeout expires or queue is empty.
-        """
         deadline = None
         if timeout is not None:
             deadline = time.monotonic() + timeout
@@ -165,7 +122,6 @@ class JobQueue:
             return job
 
     def complete(self, job_id: str, result: dict | None = None) -> None:
-        """Mark a job as completed with optional result."""
         with self._lock:
             if job_id in self._jobs:
                 self._jobs[job_id].status = "completed"
@@ -173,37 +129,25 @@ class JobQueue:
                     self._completed[job_id] = result
                 self._stats["completed"] += 1
 
-    def fail(self, job_id: str, error: str = "") -> None:
-        """Mark a job as failed."""
+    def fail(self, job_id: str) -> None:
         with self._lock:
             if job_id in self._jobs:
                 self._jobs[job_id].status = "failed"
                 self._stats["completed"] += 1
 
     def get(self, job_id: str) -> QueuedJob | None:
-        """Get a job by ID."""
         with self._lock:
             return self._jobs.get(job_id)
 
     def get_result(self, job_id: str) -> dict | None:
-        """Get a completed job's result."""
         with self._lock:
             return self._completed.get(job_id)
 
-    def list_pending(self, limit: int = 50) -> list[QueuedJob]:
-        """List pending jobs in priority order."""
-        with self._lock:
-            pending = [j for j in self._jobs.values() if j.status == "queued"]
-            pending.sort()
-            return pending[:limit]
-
     def size(self) -> int:
-        """Current queue size."""
         with self._lock:
             return len(self._heap)
 
     def get_stats(self) -> dict[str, Any]:
-        """Queue statistics."""
         with self._lock:
             by_priority = {}
             for p in JobPriority:
@@ -219,7 +163,6 @@ class JobQueue:
             }
 
     def purge_expired(self, max_age_seconds: float = 3600) -> int:
-        """Remove jobs that have been queued too long."""
         with self._lock:
             cutoff = time.monotonic() - max_age_seconds
             expired_ids = [j.job_id for j in self._heap if j.created_at < cutoff and j.status == "queued"]
@@ -231,10 +174,9 @@ class JobQueue:
             return len(expired_ids)
 
     def _evict_lowest(self) -> None:
-        """Evict the lowest-priority, newest job from the queue."""
         if not self._heap:
             return
-        # Find lowest priority (highest number = lowest priority)
+
         worst_idx = -1
         worst_priority = -1
         worst_time = -1.0

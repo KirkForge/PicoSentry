@@ -106,7 +106,7 @@ class TestScorer:
     def test_no_matches_zero_score(self) -> None:
         """No matches = score 0.0."""
         scorer = Scorer()
-        score, ids = scorer.score([], [])
+        score, ids = scorer.score([])
         assert score == 0.0
         assert ids == []
 
@@ -120,7 +120,7 @@ class TestScorer:
 
         match = re.search("test", "test")
         assert match is not None
-        score, ids = scorer.score([(rule, match)], [rule])
+        score, ids = scorer.score([(rule, match)])
         assert score == 0.85
         assert "test" in ids
 
@@ -137,7 +137,7 @@ class TestScorer:
         match2 = re.search("b", "b")
         assert match1 is not None
         assert match2 is not None
-        score, _ids = scorer.score([(rule1, match1), (rule2, match2)], [rule1, rule2])
+        score, _ids = scorer.score([(rule1, match1), (rule2, match2)])
         # max(0.9, (0.9+0.5)/2) = max(0.9, 0.7) = 0.9
         assert score == 0.9
 

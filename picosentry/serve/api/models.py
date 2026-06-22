@@ -1,10 +1,14 @@
-"""Shared Pydantic models for the PicoShogun API."""
 from datetime import datetime
 from typing import Any
 
+import pydantic
 from pydantic import BaseModel, Field
 
-# ─── Project Models ──────────────────────────────────────────────────────
+try:
+    from pydantic import Extra  # type: ignore[attr-defined,unused-ignore]
+except ImportError:
+    Extra = None  # type: ignore[misc,assignment,no-redef,unused-ignore]
+
 
 class ProjectRunRequest(BaseModel):
     project_id: str = Field(..., description="Project ID to run")
@@ -30,8 +34,6 @@ class ProjectStatus(BaseModel):
     avg_duration: float
 
 
-# ─── Alert Models ────────────────────────────────────────────────────────
-
 class AlertResponse(BaseModel):
     id: int
     project_id: str | None
@@ -43,8 +45,6 @@ class AlertResponse(BaseModel):
     created_at: datetime
 
 
-# ─── Intelligence Models ─────────────────────────────────────────────────
-
 class IntelligenceItem(BaseModel):
     id: int
     source_project: str
@@ -54,8 +54,6 @@ class IntelligenceItem(BaseModel):
     confidence: float
     created_at: datetime
 
-
-# ─── System Models ────────────────────────────────────────────────────────
 
 class SystemStatus(BaseModel):
     projects_total: int
@@ -83,37 +81,42 @@ class HealthReadiness(BaseModel):
     timestamp: datetime | None = None
 
 
-# ─── Auth Models ──────────────────────────────────────────────────────────
-
 class RegisterRequest(BaseModel):
+    # Role is intentionally NOT a request field.  Registration always
+    # creates a viewer; admin/operator promotion must happen through an
+    # authenticated admin-only path.  ``extra="forbid"`` makes any client
+    # that tries to send a ``role`` (or any other unknown field) get a 422
+    # response, so this contract is loud rather than silent.
+    #
+    # The config is expressed differently for Pydantic v1 (``Config.extra``)
+    # and v2 (``model_config``) so tests pass regardless of which version is
+    # installed.
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
     username: str = Field(..., min_length=3, max_length=50)
     password: str = Field(..., min_length=8)
     email: str | None = Field(None)
-    role: str = Field("viewer", pattern="^(viewer|operator|admin)$")
 
-
-# ─── Webhook Models ──────────────────────────────────────────────────────
 
 class WebhookCreateRequest(BaseModel):
-    """Validated request model for creating webhooks."""
     url: str = Field(..., description="Webhook callback URL (HTTPS recommended)")
     events: list[str] = Field(default=["*"], description="Event types to subscribe to")
     name: str = Field(..., min_length=1, max_length=100, description="Webhook name")
     secret: str | None = Field(default=None, min_length=16, max_length=128, description="HMAC signing secret")
 
 
-# ─── Scheduler Models ─────────────────────────────────────────────────────
-
 class SchedulerJobCreateRequest(BaseModel):
-    """Validated request model for creating scheduler jobs."""
     name: str = Field(..., min_length=1, max_length=200, description="Job name")
     cron: str = Field(..., min_length=1, description="Cron expression or 'every N minute/hour/day'")
     command: str = Field(..., description="Job command: batch, run, report, backup, cleanup")
     params: dict = Field(default={}, description="Job parameters (strings, numbers, booleans only)")
     enabled: bool = Field(default=True, description="Whether the job is active")
 
-
-# ─── Organization Models ─────────────────────────────────────────────────
 
 class OrgTierUpgradeRequest(BaseModel):
     tier: str = Field(..., pattern="^(free|starter|pro|enterprise)$")
@@ -129,8 +132,6 @@ class OrgMemberInviteRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     role: str = Field("member", pattern="^(admin|member|viewer)$")
 
-
-# ─── Scan/Sandbox Models ─────────────────────────────────────────────────
 
 class ScanRequest(BaseModel):
     target: str = Field(..., description="Path to project directory to scan")

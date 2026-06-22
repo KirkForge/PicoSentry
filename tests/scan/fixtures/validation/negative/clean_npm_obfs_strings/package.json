@@ -1,0 +1,14 @@
+{
+  "name": "clean-strings",
+  "version": "1.0.0",
+  "description": "Clean npm fixture asserting L2-OBFS-* family stays silent on string-only modules.",
+  "license": "MIT",
+  "author": "Test Author <test@example.com>",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/example/clean-strings.git"
+  }
+}

@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Go module with a //go:generate directive that only runs a local code generator. L2-BUILD-001 must stay silent.",
+  "forbidden_rule_ids": ["L2-BUILD-001"]
+}

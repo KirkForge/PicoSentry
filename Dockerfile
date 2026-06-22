@@ -16,6 +16,10 @@
 # Build:
 #   docker build -t picosentry:latest .
 #
+# Multi-arch build (requires buildx + binfmt for arm64 emulation on amd64):
+#   docker buildx bake --push
+#   ./scripts/build_docker_multiarch.sh --push
+#
 # Run:
 #   docker run --rm -v $(pwd):/scan picosentry scan /scan
 #   docker run --rm picosentry sandbox echo "hello"
@@ -23,7 +27,10 @@
 # =============================================================================
 
 # ── Stage 1: Builder ─────────────────────────────────────────────────────────
-FROM python:3.12-slim AS builder
+FROM --platform=$BUILDPLATFORM python:3.12-slim AS builder
+
+ARG BUILDPLATFORM
+ARG TARGETPLATFORM
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -42,6 +49,8 @@ RUN python -m build --wheel
 
 # ── Stage 2: Runtime ─────────────────────────────────────────────────────────
 FROM python:3.12-slim AS runtime
+
+ARG TARGETPLATFORM
 
 LABEL org.opencontainers.image.title="PicoSentry"
 LABEL org.opencontainers.image.description="Local supply-chain scanner with kernel-sandbox enforcement (beta). See experimental.py for component maturity."
@@ -73,8 +82,13 @@ WORKDIR /home/picosentry
 # `python -m build` produced from pyproject.toml. To pin to a specific version,
 # override this line in a derived Dockerfile.
 COPY --from=builder /build/dist/*.whl /tmp/
+# [all,grpc] — `all` covers the four subcommands (scan/watch/serve + otel/sigstore),
+# `grpc` is opt-in in pyproject but is needed here so the gRPC transport
+# (`picosentry sandbox daemon --transport=grpc --grpc-port=50051`) actually
+# starts in the official image.  See deploy/helm/picodome/values.yaml
+# `grpc.enabled` for the deployment-side switch.
 RUN WHEEL=$(ls /tmp/picosentry-*-py3-none-any.whl | head -n1) && \
-    pip install --no-cache-dir "${WHEEL}[all]" && \
+    pip install --no-cache-dir "${WHEEL}[all,grpc]" && \
     rm -f /tmp/picosentry-*-py3-none-any.whl
 
 # Verify installation
@@ -83,8 +97,9 @@ RUN picosentry --version && picosentry health
 # Ports:
 #   8765 — serve (API server / dashboard)
 #   8766 — watch HTTP daemon
-#   8443 — sandbox daemon
-EXPOSE 8765 8766 8443
+#   8443 — sandbox daemon (HTTP transport; default)
+#   50051 — sandbox daemon (gRPC transport; opt-in via deploy/helm/picodome `grpc.enabled=true`)
+EXPOSE 8765 8766 8443 50051
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

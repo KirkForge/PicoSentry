@@ -1,11 +1,3 @@
-"""Subprocess sandbox backend — policy enforcement via post-hoc pattern analysis.
-
-Works on any platform without kernel-level sandboxing.
-Analyzes process stdout/stderr for suspicious patterns (network URLs, file writes,
-dynamic code execution, etc.) after execution completes. This is observational only
-and cannot prevent syscalls — it detects policy violations after the fact.
-"""
-
 from __future__ import annotations
 
 import logging
@@ -27,23 +19,8 @@ from picosentry.sandbox.models import _now_ms
 
 logger = logging.getLogger("picodome.l3.subprocess")
 
-# ─── syscall trace patterns ────────────────────────────────────────────────
-
-_LINUX_TRACE_PATTERNS = {
-    "open": re.compile(r'open(at)?\("([^"]+)",.*\)\s*=\s*(-?\d+)'),
-    "read": re.compile(r'read\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "write": re.compile(r'write\((\d+),\s*".*",\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "connect": re.compile(r'connect\((\d+),\s*\{.*sin_addr=inet_addr\("([^"]+)"\).*\},\s*(\d+)\)\s*=\s*(-?\d+)'),
-    "bind": re.compile(r"bind\((\d+),\s*\{.*\},\s*(\d+)\)\s*=\s*(-?\d+)"),
-    "execve": re.compile(r'execve\("([^"]+)"'),
-    "socket": re.compile(r"socket\(.*\)\s*=\s*(-?\d+)"),
-    "sendto": re.compile(r"sendto\((\d+),.*\)\s*=\s*(-?\d+)"),
-}
-
 
 class SubprocessBackend(SandboxBackend):
-    """Subprocess-based sandbox with best-effort policy enforcement."""
-
     @property
     def name(self) -> str:
         return "subprocess"
@@ -76,24 +53,33 @@ class SubprocessBackend(SandboxBackend):
         effective_timeout = timeout or 30.0
 
         try:
-            # Secure-default: use explicit env allowlist, not full process env inheritance.
-            # Only pass through known-safe vars; caller can add more via the env parameter.
             if env is not None:
-                # Caller provided full env — use as-is (caller is responsible)
                 run_env = dict(env)
             else:
-                # Default: minimal safe env, not os.environ.copy()
                 run_env = {
                     k: v
                     for k, v in os.environ.items()
                     if k
                     in (
-                        'PATH', 'HOME', 'USER', 'LANG', 'LC_ALL', 'LC_CTYPE',
-                        'TERM', 'TMPDIR', 'TEMP', 'TMP',
-                        'LD_LIBRARY_PATH', 'DYLD_LIBRARY_PATH',
-                        'PYTHONPATH', 'PYTHONHOME', 'PYTHONIOENCODING',
-                        'NODE_PATH', 'NPM_CONFIG_PREFIX',
-                        'PICODOME_SANDBOX_BACKEND', 'PICODOME_ALLOW_DEGRADED',
+                        "PATH",
+                        "HOME",
+                        "USER",
+                        "LANG",
+                        "LC_ALL",
+                        "LC_CTYPE",
+                        "TERM",
+                        "TMPDIR",
+                        "TEMP",
+                        "TMP",
+                        "LD_LIBRARY_PATH",
+                        "DYLD_LIBRARY_PATH",
+                        "PYTHONPATH",
+                        "PYTHONHOME",
+                        "PYTHONIOENCODING",
+                        "NODE_PATH",
+                        "NPM_CONFIG_PREFIX",
+                        "PICODOME_SANDBOX_BACKEND",
+                        "PICODOME_ALLOW_DEGRADED",
                     )
                 }
 
@@ -125,7 +111,6 @@ class SubprocessBackend(SandboxBackend):
             stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
             stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
 
-            # Post-hoc policy analysis
             events.extend(self._analyze_output(stdout, stderr, policy, command))
 
         except FileNotFoundError:
@@ -167,18 +152,6 @@ class SubprocessBackend(SandboxBackend):
             stderr=stderr,
         )
 
-    def _parse_linux_trace(self, trace_output: str) -> list[dict]:
-        """Parse strace-like output using _LINUX_TRACE_PATTERNS.
-
-        Extracts syscall metadata from strace/ptrace output when available.
-        Called when a Linux trace backend provides raw syscall data.
-        """
-        entries = []
-        for name, pattern in _LINUX_TRACE_PATTERNS.items():
-            for match in pattern.finditer(trace_output):
-                entries.append({"syscall": name, "groups": match.groups()})
-        return entries
-
     def _analyze_output(
         self,
         stdout: str,
@@ -186,7 +159,6 @@ class SubprocessBackend(SandboxBackend):
         policy: Policy,
         command: list[str],
     ) -> list[SandboxEvent]:
-        """Post-hoc analysis of command output against policy rules."""
         events: list[SandboxEvent] = []
         combined = stdout + "\n" + stderr
 
@@ -198,13 +170,11 @@ class SubprocessBackend(SandboxBackend):
             elif rule.target == RuleTarget.PROCESS_SPAWN:
                 events.extend(self._check_process_spawn(combined, rule))
 
-        # Check for suspicious patterns regardless of policy
         events.extend(self._check_suspicious_patterns(stdout, stderr))
 
         return events
 
     def _check_network(self, output: str, rule: PolicyRule, command: list[str]) -> list[SandboxEvent]:
-        """Check for network activity in output."""
         events: list[SandboxEvent] = []
         ip_pattern = re.compile(
             r"(?:(?:25[0-5]|2[0-4]\d|1\d\d|\d{1,2})\.){3}"
@@ -241,7 +211,6 @@ class SubprocessBackend(SandboxBackend):
         return events
 
     def _check_file_write(self, output: str, rule: PolicyRule) -> list[SandboxEvent]:
-        """Check for file write indicators."""
         events: list[SandboxEvent] = []
         write_indicators = [
             (r"writing to ([^\s]+)", "file_write_indicator"),
@@ -266,7 +235,6 @@ class SubprocessBackend(SandboxBackend):
         return events
 
     def _check_process_spawn(self, output: str, rule: PolicyRule) -> list[SandboxEvent]:
-        """Check for process spawn indicators."""
         events: list[SandboxEvent] = []
         spawn_patterns = [
             r"executing: ([^\s]+)",
@@ -289,7 +257,6 @@ class SubprocessBackend(SandboxBackend):
         return events
 
     def _check_suspicious_patterns(self, stdout: str, stderr: str) -> list[SandboxEvent]:
-        """Check for suspicious behavioral patterns."""
         events: list[SandboxEvent] = []
         combined = stdout + stderr
 
@@ -330,7 +297,6 @@ class SubprocessBackend(SandboxBackend):
         return events
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
-        """Compute overall verdict from events."""
         if exit_code == -1 and any(e.rule_id == "L3-TIMEOUT-001" for e in events):
             return Verdict.KILL
 

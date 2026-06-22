@@ -1,4 +1,3 @@
-"""Plugin listing endpoints."""
 import logging
 
 from fastapi import APIRouter, Depends
@@ -13,5 +12,7 @@ router = APIRouter()
 
 @router.get("/plugins", tags=["Plugins"])
 async def list_plugins(user: dict = Depends(get_current_user)):
-    """List loaded plugins and their status."""
-    return {"plugins": plugin_manager.get_status()}
+    return {
+        "plugins": plugin_manager.get_status(),
+        "dirs": plugin_manager.resolved_dirs(),
+    }

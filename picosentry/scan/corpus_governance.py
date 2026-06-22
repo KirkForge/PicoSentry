@@ -1,22 +1,3 @@
-"""
-Corpus governance -- trust model, source attribution, freshness metrics,
-and false-positive reporting for enterprise PicoSentry deployments.
-
-Provides:
-- Corpus trust classification (first-party, community, commercial, internal, quarantined)
-- Source attribution and provenance tracking
-- Freshness metrics and update SLA monitoring
-- False-positive reporting and severity review workflow
-- Corpus release notes generation
-- Rollback and pinning support
-
-Usage:
-    from picosentry.scan.corpus_governance import (
-        CorpusTrustLevel, CorpusSource, CorpusGovernance,
-        FreshnessReport, FalsePositiveReport,
-    )
-"""
-
 from __future__ import annotations
 
 import hashlib
@@ -32,19 +13,7 @@ from picosentry.scan.audit import audit
 logger = logging.getLogger("picosentry.corpus_governance")
 
 
-# -- Trust levels -----------------------------------------------------------
-
-
 class CorpusTrustLevel:
-    """Trust classification for corpus packs.
-
-    Enterprise buyers need to know the provenance and trust level of
-    every indicator in the corpus. Trust levels control:
-    - Whether a pack is used automatically or requires approval
-    - How stale a pack can be before alerting
-    - Whether findings from that pack carry evidence attribution
-    """
-
     FIRST_PARTY = "first-party"
     COMMERCIAL = "commercial"
     COMMUNITY = "community"
@@ -70,13 +39,8 @@ class CorpusTrustLevel:
         return CorpusTrustLevel.COMMUNITY
 
 
-# -- Source attribution -----------------------------------------------------
-
-
 @dataclass
 class CorpusSource:
-    """Provenance record for a corpus pack or IoC source."""
-
     name: str
     trust_level: str = CorpusTrustLevel.FIRST_PARTY
     origin_url: str = ""
@@ -98,9 +62,7 @@ class CorpusSource:
             return True
         try:
             reviewed_at = self.reviewed_at
-            # Python 3.10's `datetime.fromisoformat` does not accept the `Z`
-            # suffix (added in 3.11). Normalize so we get consistent behavior
-            # across the 3.10/3.11/3.12/3.13 matrix in CI.
+
             if reviewed_at.endswith("Z"):
                 reviewed_at = reviewed_at[:-1] + "+00:00"
             reviewed = datetime.fromisoformat(reviewed_at)
@@ -141,13 +103,8 @@ class CorpusSource:
         )
 
 
-# -- False-positive reporting ----------------------------------------------
-
-
 @dataclass
 class FalsePositiveReport:
-    """A false-positive report for a finding or IoC."""
-
     finding_id: str
     rule_id: str
     package: str
@@ -199,13 +156,8 @@ class FalsePositiveReport:
         )
 
 
-# -- Corpus release notes ---------------------------------------------------
-
-
 @dataclass
 class CorpusReleaseNotes:
-    """Release notes for a corpus version."""
-
     version: str
     released_at: str = ""
     released_by: str = ""
@@ -258,13 +210,8 @@ class CorpusReleaseNotes:
         )
 
 
-# -- Freshness report ------------------------------------------------------
-
-
 @dataclass
 class FreshnessReport:
-    """Report on corpus freshness and update SLA compliance."""
-
     sources: list[CorpusSource] = field(default_factory=list)
     generated_at: str = ""
 
@@ -274,12 +221,6 @@ class FreshnessReport:
 
     def stale_sources(self, max_age_days: int = 30) -> list[CorpusSource]:
         return [s for s in self.sources if s.is_stale(max_age_days)]
-
-    def sources_by_trust(self) -> dict[str, list[CorpusSource]]:
-        groups: dict[str, list[CorpusSource]] = {}
-        for s in self.sources:
-            groups.setdefault(s.trust_level, []).append(s)
-        return groups
 
     def total_ioc_count(self) -> int:
         return sum(s.ioc_count for s in self.sources)
@@ -311,17 +252,7 @@ class FreshnessReport:
         }
 
 
-# -- Governance engine ------------------------------------------------------
-
-
 class CorpusGovernance:
-    """Corpus governance engine for enterprise deployments.
-
-    Manages trust levels, source attribution, freshness monitoring,
-    false-positive reporting, and release notes for all corpus sources.
-    All mutations emit audit events for compliance traceability.
-    """
-
     def __init__(self, governance_dir: Path | None = None) -> None:
         self.governance_dir = governance_dir or (Path.home() / ".local" / "share" / "picosentry" / "governance")
         self.governance_dir.mkdir(parents=True, exist_ok=True)
@@ -350,7 +281,7 @@ class CorpusGovernance:
             return
 
         sources_data = data.get("sources", {})
-        # Handle both dict format (keyed by name) and list format
+
         items = sources_data.values() if isinstance(sources_data, dict) else sources_data
         for s in items:
             src = CorpusSource.from_dict(s)
@@ -409,9 +340,6 @@ class CorpusGovernance:
             return True
         audit("corpus.remove_source", target=name, outcome="not_found")
         return False
-
-    def freshness_report(self, max_age_days: int = 30) -> FreshnessReport:
-        return FreshnessReport(sources=list(self._sources.values()))
 
     def report_false_positive(self, report: FalsePositiveReport) -> None:
         report_id = hashlib.sha256(f"{report.finding_id}:{report.package}:{report.reported_at}".encode()).hexdigest()[

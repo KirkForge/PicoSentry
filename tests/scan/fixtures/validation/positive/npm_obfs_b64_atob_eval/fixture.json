@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "OBFS bypass variant: atob() then eval() (fires L2-OBFS-003). The regex matches atob + eval.",
+  "expected_rule_ids": ["L2-OBFS-003"]
+}

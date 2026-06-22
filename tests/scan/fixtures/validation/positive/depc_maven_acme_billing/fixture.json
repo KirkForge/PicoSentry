@@ -1,0 +1,5 @@
+{
+  "label": "positive",
+  "description": "Maven dep 'com.example:acme-billing' (fires L2-MAVEN-DEPC-001). Variant using acme- prefix.",
+  "expected_rule_ids": ["L2-MAVEN-DEPC-001"]
+}

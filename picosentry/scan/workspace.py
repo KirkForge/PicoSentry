@@ -1,16 +1,5 @@
-"""
-Workspace / multi-project scanning for monorepos.
-
-Scans entire monorepo by discovering all npm/pnpm projects,
-running each through the scanner, and aggregating results.
-
-Designed for enterprise pipelines where a single repo may contain
-hundreds of packages (e.g., Nx, Turborepo, Lerna, pnpm workspaces).
-"""
-
 from __future__ import annotations
 
-import json
 import logging
 import multiprocessing
 import time
@@ -22,7 +11,7 @@ from picosentry.scan.engine import ScanEngine, create_default_engine
 
 logger = logging.getLogger("picosentry.workspace")
 
-# Glob patterns for project discovery
+
 NPM_MANIFEST_GLOBS = [
     "**/package.json",
     "**/pnpm-lock.yaml",
@@ -33,7 +22,7 @@ NPM_MANIFEST_GLOBS = [
     "**/lerna.json",
     "**/turbo.json",
 ]
-# Directories to skip during discovery
+
 SKIP_DIRS = {
     "node_modules",
     ".git",
@@ -54,18 +43,6 @@ SKIP_DIRS = {
 
 
 def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
-    """Discover all npm/pnpm projects in a directory tree.
-
-    A project is any directory containing a package.json or lockfile.
-    Walks the tree up to max_depth, skipping known noise directories.
-
-    Args:
-        root: Root directory to scan.
-        max_depth: Maximum directory depth from root to search.
-
-    Returns:
-        Sorted list of project directories (deduplicated).
-    """
     if not root.is_dir():
         return []
 
@@ -82,12 +59,10 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
         except (PermissionError, OSError):
             continue
 
-        # Check if this directory is a project
         names = {p.name for p in entries}
         if "package.json" in names:
             projects.add(current.resolve())
 
-        # Recurse into subdirectories (skip symlinks to avoid traversal outside root)
         for entry in entries:
             if entry.is_symlink():
                 continue
@@ -98,17 +73,6 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
 
 
 def discover_pnpm_workspace(root: Path) -> list[Path]:
-    """Discover projects from a pnpm workspace definition.
-
-    Reads pnpm-workspace.yaml and returns all workspace member directories.
-    Falls back to generic discovery if no workspace config found.
-
-    Args:
-        root: Root of the monorepo.
-
-    Returns:
-        Sorted list of resolved project directories.
-    """
     workspace_yaml = root / "pnpm-workspace.yaml"
     if not workspace_yaml.exists():
         return discover_projects(root)
@@ -120,7 +84,7 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
         return discover_projects(root)
 
     try:
-        with open(workspace_yaml, encoding="utf-8") as f:
+        with workspace_yaml.open(encoding="utf-8") as f:
             config = yaml.safe_load(f)
     except Exception as e:
         logger.warning("Failed to parse pnpm-workspace.yaml: %s", e)
@@ -142,7 +106,6 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
             if match.is_dir() and (match / "package.json").exists():
                 projects.add(match.resolve())
 
-            # If the glob matched a directory that contains package.json deeper
             elif match.is_dir():
                 pkg_json = match / "package.json"
                 if pkg_json.exists():
@@ -152,8 +115,6 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
 
 
 class WorkspaceResult:
-    """Aggregated results from multi-project scanning."""
-
     def __init__(self) -> None:
         self.results: dict[str, object] = {}  # project_path -> ScanResult
         self.total_findings = 0
@@ -181,7 +142,6 @@ def _workspace_scan_worker(
     advisory_db_path: str | None,
     result_queue: multiprocessing.Queue,
 ) -> None:
-    """Module-level worker for workspace project scans (picklable for spawn start method)."""
     try:
         from pathlib import Path as _Path
 
@@ -198,25 +158,8 @@ def scan_workspace(
     engine: ScanEngine | None = None,
     config: PicoSentryConfig | None = None,
     rules: Sequence[str] | None = None,
-    fail_on: str = "medium",
     timeout: int = 0,
 ) -> WorkspaceResult:
-    """Scan an entire monorepo workspace.
-
-    Discovers all npm/pnpm projects, scans each one, aggregates results.
-    Supports pnpm workspaces, Nx, Turborepo, Lerna layouts.
-
-    Args:
-        root: Root of the monorepo.
-        engine: Pre-configured engine (created if None).
-        config: PicoSentry configuration (loaded if None).
-        rules: Specific rule IDs to run (all if None).
-        fail_on: Minimum severity to fail CI on.
-        timeout: Per-project timeout in seconds (0 = none).
-
-    Returns:
-        WorkspaceResult with aggregated findings and metadata.
-    """
     if engine is None:
         engine = create_default_engine()
 
@@ -225,7 +168,6 @@ def scan_workspace(
 
     start = time.monotonic()
 
-    # Discover projects
     projects = discover_pnpm_workspace(root)
     if not projects:
         projects = discover_projects(root)
@@ -260,7 +202,7 @@ def scan_workspace(
                 if _p.is_alive():
                     _p.terminate()
                     _p.join(timeout=1)
-                    # Drain the queue to release resources held by the worker
+
                     try:
                         while not _rq.empty():
                             _rq.get_nowait()
@@ -283,7 +225,7 @@ def scan_workspace(
                     str(project_path),
                     rules=list(rules) if rules else None,
                 )
-            # Apply config-based filtering to scan result
+
             if config:
                 if config.severity_overrides:
                     scan_result.apply_overrides(config.apply_severity_overrides(scan_result.findings))
@@ -296,6 +238,7 @@ def scan_workspace(
                         ]
                     )
                 from picosentry.scan.models import SEVERITY_ORDER
+
                 if config.severity_threshold:
                     threshold = config.severity_threshold
                     min_level = SEVERITY_ORDER[threshold.lower()]
@@ -320,7 +263,7 @@ def scan_workspace(
             result.failed_projects += 1
             error_msg = f"{rel}: {e}"
             result.errors.append(error_msg)
-            logger.error("  %s: FAILED — %s", rel, e)
+            logger.exception("  %s: FAILED", rel)
 
     result.duration_ms = int((time.monotonic() - start) * 1000)
 
@@ -334,32 +277,3 @@ def scan_workspace(
     )
 
     return result
-
-
-def scan_workspace_to_json(root: Path, output: Path | None = None, **kwargs) -> str:
-    """Scan workspace and return JSON string.
-
-    Args:
-        root: Root of the monorepo.
-        output: Optional file path to write results.
-        **kwargs: Passed to scan_workspace().
-
-    Returns:
-        JSON string of aggregated results.
-    """
-    wr = scan_workspace(root, **kwargs)
-
-    data = {
-        "workspace_root": str(root.resolve()),
-        "summary": wr.to_dict(),
-        "projects": wr.results,
-    }
-
-    json_str = json.dumps(data, indent=2, sort_keys=True)
-
-    if output:
-        output.parent.mkdir(parents=True, exist_ok=True)
-        output.write_text(json_str, encoding="utf-8")
-        logger.info("Workspace results written to %s", output)
-
-    return json_str

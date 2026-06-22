@@ -43,6 +43,24 @@ def _find_by_check(findings: list[Finding], check: str) -> list[Finding]:
 class TestK8sDeployment:
     """Tests for check_k8s_deployment."""
 
+    def test_picoshogun_skip_secure_assert_detected(self, tmp_path: Path) -> None:
+        content = textwrap.dedent("""\
+            env:
+              - name: PICOSHOGUN_SKIP_SECURE_ASSERT
+                value: "1"
+        """)
+        deploy_dir = tmp_path / "kubernetes"
+        deploy_dir.mkdir()
+        _write_tmp_file(deploy_dir, "deployment.yaml", content)
+
+        findings: list[Finding] = []
+        with patch("tests.sandbox.check_deploy_security.K8S_DIR", deploy_dir):
+            check_k8s_deployment(findings)
+
+        bypass = _find_by_check(findings, "picoshogun-skip-secure-assert-k8s")
+        assert len(bypass) == 1
+        assert bypass[0].severity == "HIGH"
+
     def test_dev_mode_detected(self, tmp_path: Path) -> None:
         content = textwrap.dedent("""\
             env:
@@ -249,6 +267,25 @@ class TestHelmValues:
 
 class TestHelmTemplates:
     """Tests for check_helm_templates."""
+
+    def test_picoshogun_skip_secure_assert_in_template(self, tmp_path: Path) -> None:
+        content = textwrap.dedent("""\
+            env:
+              - name: PICOSHOGUN_SKIP_SECURE_ASSERT
+                value: "1"
+        """)
+        helm_dir = tmp_path / "picodome"
+        templates_dir = helm_dir / "templates"
+        templates_dir.mkdir(parents=True)
+        _write_tmp_file(templates_dir, "deployment.yaml", content)
+
+        findings: list[Finding] = []
+        with patch("tests.sandbox.check_deploy_security.HELM_DIR", helm_dir):
+            check_helm_templates(findings)
+
+        bypass = _find_by_check(findings, "picoshogun-skip-secure-assert-template")
+        assert len(bypass) == 1
+        assert bypass[0].severity == "HIGH"
 
     def test_dev_mode_in_template(self, tmp_path: Path) -> None:
         content = textwrap.dedent("""\

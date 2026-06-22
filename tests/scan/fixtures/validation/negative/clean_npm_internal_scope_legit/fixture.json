@@ -1,0 +1,11 @@
+{
+  "label": "negative",
+  "description": "Clean npm project using an @internal scope and a corresponding private-registry .npmrc. The package has an MIT license (with private:true marking it as not for publication). Asserts L2-DEPC-001 (the original purpose), L2-PNPM-001, L2-POST-001, L2-CRED-001, and L2-LICENSE-001 do NOT fire.",
+  "forbidden_rule_ids": [
+    "L2-DEPC-001",
+    "L2-PNPM-001",
+    "L2-POST-001",
+    "L2-CRED-001",
+    "L2-LICENSE-001"
+  ]
+}

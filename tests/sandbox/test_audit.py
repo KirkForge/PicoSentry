@@ -75,7 +75,7 @@ class TestAuditLogger:
     def test_chain_integrity(self, audit):
         _e1 = audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="cmd1")
         _e2 = audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="ok")
-        e3 = audit.record(event_type=AuditEventType.POLICY_UPDATE, actor="admin", detail="change")  # noqa: F841
+        _ = audit.record(event_type=AuditEventType.POLICY_UPDATE, actor="admin", detail="change")
 
         violations = audit.verify_chain()
         assert violations == []
@@ -135,8 +135,8 @@ class TestAuditLogger:
     def test_prev_hash_chain(self, audit):
         import hashlib
 
-        e1 = audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="first")  # noqa: F841
-        e2 = audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="second")  # noqa: F841
+        _ = audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="first")
+        _ = audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="second")
 
         # e2's prev_hash should be the SHA-256 of e1's JSON line
         log_path = audit.log_path

@@ -1,11 +1,6 @@
-"""PicoDome gRPC Servicer — implements the PicoDomeService RPCs.
-
-This module contains the actual RPC handler implementations.
-It is imported lazily by server.py only when grpcio is available.
-"""
-
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import time
@@ -18,36 +13,20 @@ logger = logging.getLogger("picodome.grpc_transport.servicer")
 
 
 class PicoDomeServicer:
-    """Implementation of the PicoDomeService gRPC service.
-
-    Delegates actual scanning to the injected scan engine,
-    and logs all RPCs to the audit module.
-    """
-
     def __init__(self, scan_engine, start_time: float, scan_count_ref: Any) -> None:
-        """Initialize the servicer.
-
-        Args:
-            scan_engine: _ScanEngine instance wrapping L3+L4 pipeline.
-            start_time: Server start time (monotonic).
-            scan_count_ref: Reference to the server object (for incrementing scan count).
-        """
         self._scan_engine = scan_engine
         self._start_time = start_time
         self._scan_count_ref = scan_count_ref
 
     def Scan(self, request, context):
-        """Handle a Scan RPC."""
         self._audit_log("SCAN_START", detail=f"command={list(request.command)}")
 
         try:
-            # Extract fields from request
             command = list(request.command) if hasattr(request, "command") else []
             policy_name = request.policy if hasattr(request, "policy") else ""
             timeout = request.timeout if hasattr(request, "timeout") and request.timeout else 30.0
             cwd = request.cwd if hasattr(request, "cwd") and request.cwd else None
 
-            # Load policy if specified
             policy = None
             if policy_name:
                 try:
@@ -59,7 +38,6 @@ class PicoDomeServicer:
                 except Exception:
                     logger.debug("Policy '%s' not found, using default", policy_name)
 
-            # Run L3 sandbox
             sandbox_result = self._scan_engine.scan(
                 command=command,
                 policy=policy,
@@ -68,13 +46,11 @@ class PicoDomeServicer:
                 deterministic=False,
             )
 
-            # Run L4 analysis
             analysis_result = self._scan_engine.analyze(
                 sandbox_result,
                 deterministic=False,
             )
 
-            # Build response
             result = {
                 "job_id": f"grpc-{uuid.uuid4().hex}",
                 "sandbox": sandbox_result.to_dict(deterministic=False),
@@ -84,7 +60,6 @@ class PicoDomeServicer:
                 "findings_count": len(analysis_result.findings),
             }
 
-            # Increment scan counter
             if hasattr(self._scan_count_ref, "_scan_count"):
                 self._scan_count_ref._scan_count += 1
 
@@ -93,7 +68,6 @@ class PicoDomeServicer:
                 detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}",
             )
 
-            # Try to use proto response, fall back to manual
             try:
                 from picosentry.sandbox.grpc_transport.proto import picodome_pb2 as pb2
 
@@ -107,7 +81,6 @@ class PicoDomeServicer:
                     findings_count=len(analysis_result.findings),
                 )
             except ImportError:
-                # Return a dict-like response for manual handling
                 return _DictProxy(
                     {
                         "result_json": json.dumps(result, sort_keys=True, default=str),
@@ -121,10 +94,9 @@ class PicoDomeServicer:
                 )
 
         except Exception as e:
-            logger.exception("Scan RPC failed: %s", e)
+            logger.exception("Scan RPC failed")
             self._audit_log("SCAN_ERROR", detail=str(e))
 
-            # Return error response — works without grpcio
             error_result = {
                 "result_json": json.dumps({"error": str(e)}),
                 "exit_code": 1,
@@ -148,11 +120,9 @@ class PicoDomeServicer:
                     findings_count=error_result["findings_count"],
                 )
             except ImportError:
-                # No protobuf stubs and no grpcio — return dict proxy
                 return _DictProxy(error_result)
 
     def Health(self, request, context):
-        """Handle a Health RPC."""
         uptime = int(time.time() - self._start_time)
 
         try:
@@ -183,7 +153,6 @@ class PicoDomeServicer:
             )
 
     def GetPolicy(self, request, context):
-        """Handle a GetPolicy RPC."""
         name = request.name if hasattr(request, "name") else ""
 
         try:
@@ -220,7 +189,6 @@ class PicoDomeServicer:
             )
 
     def QueryAudit(self, request, context):
-        """Handle a QueryAudit RPC."""
         event_type = request.event_type if hasattr(request, "event_type") else ""
         actor = request.actor if hasattr(request, "actor") else ""
         target = request.target if hasattr(request, "target") else ""
@@ -235,10 +203,8 @@ class PicoDomeServicer:
 
             et = None
             if event_type:
-                try:
+                with contextlib.suppress(ValueError):
                     et = AuditEventType(event_type)
-                except ValueError:
-                    pass
 
             events = audit.query(
                 event_type=et,
@@ -270,12 +236,11 @@ class PicoDomeServicer:
             )
 
     def _audit_log(self, event_type: str, detail: str = "") -> None:
-        """Log an event to the audit module."""
         try:
             from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
             audit = get_audit_logger()
-            # Map string event type to enum
+
             try:
                 et = AuditEventType(event_type)
             except ValueError:
@@ -290,11 +255,6 @@ class PicoDomeServicer:
 
 
 class _DictProxy:
-    """Simple dict-like proxy for when proto stubs are not compiled.
-
-    Allows tests and manual mode to work without protobuf compilation.
-    """
-
     def __init__(self, data: dict) -> None:
         self._data = data
 
@@ -308,10 +268,18 @@ class _DictProxy:
 
 
 def add_servicer_manually(servicer, server):
-    """Add servicer to a gRPC server using manual method registration.
+    """Fallback servicer registration when the generated pb2_grpc
+    stubs are unavailable (e.g. the grpcio version on the target host
+    doesn't match the version the stubs were generated against, or
+    someone deleted the stubs out from under the install).
 
-    Used when compiled proto stubs are not available.
-    Creates generic RPC handlers for each method.
+    The modern grpcio API replaced ``grpc.ServiceRpcHandlers`` (which
+    was removed) with ``grpc.method_handlers_generic_handler``.  This
+    function uses the modern API so the fallback is actually live.
+
+    Note: identity passthrough deserializers/serializers mean callers
+    send raw protobuf bytes, not dicts.  The generated stubs use the
+    real protobuf codecs — prefer the stub path when available.
     """
     import grpc
 
@@ -340,5 +308,5 @@ def add_servicer_manually(servicer, server):
         ),
     }
 
-    handler = grpc.ServiceRpcHandlers(service_name, rpc_method_handlers)
+    handler = grpc.method_handlers_generic_handler(service_name, rpc_method_handlers)
     server.add_generic_rpc_handlers((handler,))

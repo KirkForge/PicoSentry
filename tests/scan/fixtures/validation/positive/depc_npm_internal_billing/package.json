@@ -1,0 +1,8 @@
+{
+  "name": "billing-consumer",
+  "version": "1.0.0",
+  "license": "MIT",
+  "dependencies": {
+    "@internal/billing": "1.0.0"
+  }
+}

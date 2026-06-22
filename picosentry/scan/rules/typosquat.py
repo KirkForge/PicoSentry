@@ -1,12 +1,3 @@
-"""
-Shared typosquatting detection engine.
-
-Consolidated from 7 per-ecosystem files into one shared algorithm.
-Each ecosystem provides data (corpus, known-legitimate list, parser functions)
-via an ECOSYSTEMS registry.
-
-Pure function: (target_path, corpus_dir) -> List[Finding]
-"""
 from __future__ import annotations
 
 import logging
@@ -27,6 +18,7 @@ from .pypi_utils import (
     parse_requirements_file,
 )
 from .rubygems_utils import detect_rubygems_project, get_rubygems_dep_names, parse_gemfile
+from .corpus_index import check_typosquat_against_index, load_indexed_corpus
 from .typosquat_utils import (
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
@@ -35,8 +27,6 @@ from .typosquat_utils import (
     BUILTIN_PYPI_TOP_100,
     BUILTIN_RUBYGEMS_TOP_100,
     BUILTIN_TOP_100,
-    check_typosquat,
-    load_corpus_for_ecosystem,
     typosquat_severity_confidence,
 )
 from .utils import get_dep_names, load_package_json
@@ -46,42 +36,33 @@ logger = logging.getLogger("picosentry.typosquat")
 __all__ = ["detect_all_typosquat"]
 
 
-# ── Ecosystem configuration ────────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class TyposquatConfig:
-    """Configuration for one ecosystem's typosquatting detection."""
-
     ecosystem: str
     rule_id: str
     detect_project: Callable[[Path], bool]
     builtin_corpus: list[str]
     known_legitimate: frozenset[str] = field(default_factory=frozenset)
-    # Go uses get_module_short_name() to extract the last path segment
+
     use_short_name: bool = False
-    # Source file to reference in findings (e.g. "Cargo.toml", "Gemfile")
+
     manifest_file: str = ""
-    # Dep name collection function: (target) -> set[str]
+
     collect_deps: Callable[[Path], set[str]] | None = None
-    # Manifest file needs dynamic detection for some ecosystems
+
     file_detection_fn: Callable[[Path], str] | None = None
 
     def __hash__(self):
         return hash(self.ecosystem)
 
 
-# ── Short-name extraction for Go ──────────────────────────────────────────
-
-
 def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: TyposquatConfig) -> list[Finding]:
-    """Standard typosquat detection for non-npm ecosystems."""
     findings: list[Finding] = []
 
     if not config.detect_project(target):
         return findings
 
-    corpus = load_corpus_for_ecosystem(corpus_dir, config.ecosystem, config.builtin_corpus)
+    index = load_indexed_corpus(corpus_dir, config.ecosystem, config.builtin_corpus)
 
     all_deps = config.collect_deps(target) if config.collect_deps else set()
     if not all_deps:
@@ -97,11 +78,10 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         if not compare_name or compare_name in config.known_legitimate:
             continue
 
-        # Skip if the name is itself a known popular package (it's the real thing)
-        if compare_name in corpus:
+        if compare_name in index:
             continue
 
-        close_matches = check_typosquat(compare_name, corpus)
+        close_matches = check_typosquat_against_index(compare_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(compare_name, best_match, best_dist)
@@ -148,9 +128,6 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
     return findings
 
 
-# ── Per-ecosystem dep collection functions ────────────────────────────────
-
-
 def _collect_go_deps(target: Path) -> set[str]:
     deps: set[str] = set()
     go_mod_data = parse_go_mod(target)
@@ -173,7 +150,7 @@ def _collect_cargo_deps(target: Path) -> set[str]:
     cargo_data = parse_cargo_toml(target)
     if cargo_data:
         deps.update(get_cargo_dep_names(cargo_data))
-        # Check root crate name (the crate itself could be a typosquat)
+
         pkg_name = cargo_data.get("package_name", "")
         if isinstance(pkg_name, str) and pkg_name:
             deps.add(pkg_name)
@@ -186,7 +163,7 @@ def _collect_pypi_deps(target: Path) -> set[str]:
     if project_data:
         project_section = project_data.get("project", project_data)
         deps.update(get_python_dep_names(project_section))
-        # Check root package name (the project itself could be a typosquat)
+
         pkg_name = project_section.get("name", "")
         if isinstance(pkg_name, str) and pkg_name:
             deps.add(pkg_name)
@@ -205,7 +182,7 @@ def _collect_maven_deps(target: Path) -> set[str]:
     pom_data = parse_pom_xml(target)
     if pom_data:
         deps.update(get_maven_dep_identifiers(pom_data))
-        # Check root artifactId (the project itself could be a typosquat)
+
         artifact_id = pom_data.get("artifact_id", "")
         if isinstance(artifact_id, str) and artifact_id:
             deps.add(artifact_id)
@@ -233,9 +210,6 @@ def _collect_rubygems_deps(target: Path) -> set[str]:
     return set()
 
 
-# ── Dynamic finding-file detection ────────────────────────────────────────
-
-
 def _maven_finding_file(target: Path) -> str:
     pom = target / "pom.xml"
     if pom.exists():
@@ -247,7 +221,6 @@ def _maven_finding_file(target: Path) -> str:
 
 
 def _nuget_finding_file(target: Path) -> str:
-    """Find the first .csproj or packages.config file in target."""
     for f in sorted(target.iterdir()):
         if f.suffix == ".csproj":
             return str(f)
@@ -262,18 +235,24 @@ def _pypi_finding_file(target: Path) -> str:
     return str(target)
 
 
-# ── Ecosystem configs ──────────────────────────────────────────────────────
-
-
 _GO_CONFIG = TyposquatConfig(
     ecosystem="go",
     rule_id="L2-GO-TYPO-001",
     detect_project=detect_go_project,
     builtin_corpus=BUILTIN_GO_TOP_100,
-    known_legitimate=frozenset({
-        "x", "v2", "v3", "api", "client", "server",
-        "internal", "cmd", "pkg",
-    }),
+    known_legitimate=frozenset(
+        {
+            "x",
+            "v2",
+            "v3",
+            "api",
+            "client",
+            "server",
+            "internal",
+            "cmd",
+            "pkg",
+        }
+    ),
     use_short_name=True,
     manifest_file="go.mod",
     collect_deps=_collect_go_deps,
@@ -284,10 +263,21 @@ _CARGO_CONFIG = TyposquatConfig(
     rule_id="L2-CARGO-TYPO-001",
     detect_project=detect_cargo_project,
     builtin_corpus=BUILTIN_CARGO_TOP_100,
-    known_legitimate=frozenset({
-        "x", "v2", "v3", "api", "client", "server",
-        "core", "sys", "bindings", "ffi", "derive",
-    }),
+    known_legitimate=frozenset(
+        {
+            "x",
+            "v2",
+            "v3",
+            "api",
+            "client",
+            "server",
+            "core",
+            "sys",
+            "bindings",
+            "ffi",
+            "derive",
+        }
+    ),
     manifest_file="Cargo.toml",
     collect_deps=_collect_cargo_deps,
 )
@@ -297,10 +287,16 @@ _PYPI_CONFIG = TyposquatConfig(
     rule_id="L2-PYPI-TYPO-001",
     detect_project=detect_pypi_project,
     builtin_corpus=BUILTIN_PYPI_TOP_100,
-    known_legitimate=frozenset({
-        "ruamel-yaml", "python-dateutil", "typing-extensions",
-        "importlib-metadata", "importlib-resources", "pkgutil-resolve-name",
-    }),
+    known_legitimate=frozenset(
+        {
+            "ruamel-yaml",
+            "python-dateutil",
+            "typing-extensions",
+            "importlib-metadata",
+            "importlib-resources",
+            "pkgutil-resolve-name",
+        }
+    ),
     collect_deps=_collect_pypi_deps,
     file_detection_fn=_pypi_finding_file,
 )
@@ -310,13 +306,37 @@ _MAVEN_CONFIG = TyposquatConfig(
     rule_id="L2-MAVEN-TYPO-001",
     detect_project=detect_maven_project,
     builtin_corpus=BUILTIN_MAVEN_TOP_100,
-    known_legitimate=frozenset({
-        "api", "core", "client", "server", "common", "util",
-        "utils", "annotations", "model", "dto", "service",
-        "dao", "impl", "shared", "parent", "starter", "boot",
-        "cloud", "data", "jpa", "security", "web", "config",
-        "support", "base", "abstract", "spi",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "core",
+            "client",
+            "server",
+            "common",
+            "util",
+            "utils",
+            "annotations",
+            "model",
+            "dto",
+            "service",
+            "dao",
+            "impl",
+            "shared",
+            "parent",
+            "starter",
+            "boot",
+            "cloud",
+            "data",
+            "jpa",
+            "security",
+            "web",
+            "config",
+            "support",
+            "base",
+            "abstract",
+            "spi",
+        }
+    ),
     collect_deps=_collect_maven_deps,
     file_detection_fn=_maven_finding_file,
 )
@@ -326,14 +346,38 @@ _NUGET_CONFIG = TyposquatConfig(
     rule_id="L2-NUGET-TYPO-001",
     detect_project=detect_nuget_project,
     builtin_corpus=BUILTIN_NUGET_TOP_100,
-    known_legitimate=frozenset({
-        "api", "client", "server", "core", "common", "extensions",
-        "abstractions", "implementation", "interfaces", "models",
-        "services", "data", "entity", "domain", "infrastructure",
-        "provider", "contracts", "helpers", "logging", "configuration",
-        "security", "serialization", "validation", "componentmodel",
-        "component", "design", "runtime", "sdk",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "client",
+            "server",
+            "core",
+            "common",
+            "extensions",
+            "abstractions",
+            "implementation",
+            "interfaces",
+            "models",
+            "services",
+            "data",
+            "entity",
+            "domain",
+            "infrastructure",
+            "provider",
+            "contracts",
+            "helpers",
+            "logging",
+            "configuration",
+            "security",
+            "serialization",
+            "validation",
+            "componentmodel",
+            "component",
+            "design",
+            "runtime",
+            "sdk",
+        }
+    ),
     collect_deps=_collect_nuget_deps,
     file_detection_fn=_nuget_finding_file,
 )
@@ -343,34 +387,56 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
     rule_id="L2-RUBYGEMS-TYPO-001",
     detect_project=detect_rubygems_project,
     builtin_corpus=BUILTIN_RUBYGEMS_TOP_100,
-    known_legitimate=frozenset({
-        "api", "client", "server", "core", "ext", "base",
-        "common", "mixins", "helpers", "utils", "engine",
-        "rails", "active", "action", "rack", "middleware",
-        "plugin", "adapter", "provider", "strategy",
-    }),
+    known_legitimate=frozenset(
+        {
+            "api",
+            "client",
+            "server",
+            "core",
+            "ext",
+            "base",
+            "common",
+            "mixins",
+            "helpers",
+            "utils",
+            "engine",
+            "rails",
+            "active",
+            "action",
+            "rack",
+            "middleware",
+            "plugin",
+            "adapter",
+            "provider",
+            "strategy",
+        }
+    ),
     manifest_file="Gemfile",
     collect_deps=_collect_rubygems_deps,
 )
 
-# ── npm is special — keep its unique logic separate ────────────────────────
-
 
 def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
-    """npm typosquat detection.
-
-    npm is special because:
-    - It checks the package's own name (the project itself could be a typosquat)
-    - It walks node_modules to find transitive dependencies
-    - It uses scoped @org/package names
-    """
     findings: list[Finding] = []
-    corpus = load_corpus_for_ecosystem(corpus_dir, "npm", BUILTIN_TOP_100)
+    index = load_indexed_corpus(corpus_dir, "npm", BUILTIN_TOP_100)
 
-    KNOWN_LEGITIMATE: frozenset[str] = frozenset({
-        "preact", "remix", "vite", "vitest", "svelte", "solid-js",
-        "pino", "ora", "got", "prettier", "knex", "mobx", "zod",
-    })
+    KNOWN_LEGITIMATE: frozenset[str] = frozenset(
+        {
+            "preact",
+            "remix",
+            "vite",
+            "vitest",
+            "svelte",
+            "solid-js",
+            "pino",
+            "ora",
+            "got",
+            "prettier",
+            "knex",
+            "mobx",
+            "zod",
+        }
+    )
 
     root_pkg = target / "package.json"
     if not root_pkg.is_file():
@@ -380,10 +446,9 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     if not pkg:
         return findings
 
-    # Check the package's own name first
     pkg_name = pkg.get("name", "")
-    if pkg_name and not pkg_name.startswith("@") and pkg_name not in corpus and pkg_name not in KNOWN_LEGITIMATE:
-        close_matches = check_typosquat(pkg_name, corpus)
+    if pkg_name and not pkg_name.startswith("@") and pkg_name not in index and pkg_name not in KNOWN_LEGITIMATE:
+        close_matches = check_typosquat_against_index(pkg_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(pkg_name, best_match, best_dist)
@@ -395,7 +460,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=pkg_name,
                     file=str(root_pkg),
                     message=(
-                        f"Package '{pkg_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Package '{pkg_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"package_name({pkg_name}) is edit_distance {best_dist} from {best_match}",
                     remediation=(
@@ -413,7 +479,6 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
 
     all_deps = get_dep_names(pkg)
 
-    # Also walk node_modules for transitive deps
     nm = target / "node_modules"
     if nm.is_dir():
         for child in sorted(nm.iterdir()):
@@ -424,7 +489,7 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                 dep_data = load_package_json(pkg_json)
                 if dep_data:
                     all_deps.update(get_dep_names(dep_data))
-            # Scoped packages
+
             if child.name.startswith("@") and child.is_dir():
                 for scoped_child in sorted(child.iterdir()):
                     if not scoped_child.is_dir():
@@ -436,9 +501,9 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                             all_deps.update(get_dep_names(dep_data))
 
     for dep_name in sorted(all_deps):
-        if dep_name in corpus or dep_name in KNOWN_LEGITIMATE:
+        if dep_name in index or dep_name in KNOWN_LEGITIMATE:
             continue
-        close_matches = check_typosquat(dep_name, corpus)
+        close_matches = check_typosquat_against_index(dep_name, index)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(dep_name, best_match, best_dist)
@@ -450,7 +515,8 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
                     package=dep_name,
                     file=str(root_pkg),
                     message=(
-                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): {', '.join(m[0] for m in close_matches)}"
+                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): "
+                        f"{', '.join(m[0] for m in close_matches)}"
                     ),
                     evidence=f"edit_distance({dep_name}, {best_match}) = {best_dist}",
                     remediation=(
@@ -469,24 +535,11 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
     return findings
 
 
-# ── Main detection engine ─────────────────────────────────────────────────
-
-
 def detect_all_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
-    """
-    Detect typosquatting for all 7 ecosystems.
-
-    For each detected ecosystem, checks if dependency names are within
-    edit distance <=2 of popular packages in that ecosystem's corpus.
-
-    No network calls. Pure filesystem + corpus scan.
-    """
     findings: list[Finding] = []
 
-    # npm — special logic (own-name check + node_modules walk)
     findings.extend(_detect_npm_typosquat(target, corpus_dir))
 
-    # Standard ecosystems — data-driven
     for config in (_GO_CONFIG, _CARGO_CONFIG, _PYPI_CONFIG, _MAVEN_CONFIG, _NUGET_CONFIG, _RUBYGEMS_CONFIG):
         findings.extend(_detect_all_typosquat_standard(target, corpus_dir, config))
 

@@ -1,0 +1,20 @@
+{
+  "name": "proto-pollution-fixture",
+  "version": "1.0.0",
+  "description": "Fixture exercising the prototype-pollution pattern in a postinstall script (L2-POST-001).",
+  "license": "MIT",
+  "engines": {
+    "node": ">=14.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/proto-pollution-fixture/proto-pollution-fixture"
+  },
+  "maintainers": [
+    {"name": "fixture-lead", "email": "lead@proto-pollution-fixture.example.com"}
+  ],
+  "dependencies": {},
+  "scripts": {
+    "postinstall": "node -e \"const t={};Object.assign(t, JSON.parse(process.env.INPUT_JSON));console.log(t.toString)\""
+  }
+}

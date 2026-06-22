@@ -1,16 +1,3 @@
-"""PicoWatch HTTP server — FastAPI daemon for L5/L6/L7.
-
-Provides POST endpoints for prompt scanning and output validation,
-plus GET endpoints for health, metrics, and rules listing.
-
-Architecture (ADR-007):
-  - Main port (8766): API endpoints (scan, validate)
-  - Admin port (9091): Health, metrics, rules (read-only)
-
-Auth: API key via X-API-Key header or Bearer token on write endpoints.
-Rate limiting: Per-IP sliding window (ADR-008).
-"""
-
 from __future__ import annotations
 
 import logging
@@ -19,14 +6,28 @@ import secrets
 import uuid
 from typing import Any
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import JSONResponse, PlainTextResponse
-from pydantic import BaseModel, Field
+try:
+    from fastapi import Depends, FastAPI, Header, HTTPException, Request
+    from fastapi.responses import JSONResponse, PlainTextResponse
+    from pydantic import BaseModel, Field
+except ImportError as _import_err:
+    _missing = getattr(_import_err, "name", "")
+    if _missing == "fastapi":
+        raise ImportError(
+            "picosentry.watch.server requires the 'watch-server' extra. "
+            "Install it with: pip install 'picosentry[watch-server]'"
+        ) from _import_err
+    if _missing in {"pydantic", "pydantic_core"}:
+        raise ImportError(
+            "picosentry.watch.server requires pydantic. "
+            "Install it with: pip install 'picosentry[serve]'"
+        ) from _import_err
+    raise _import_err
 
 from picosentry.watch import __version__
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.health import health_check
-from picosentry.watch.output_guard import OutputGuard
+from picosentry.watch.output_guard import OutputGuard, SchemaTooLargeError
 from picosentry.watch.prompt_guard import PromptGuard
 from picosentry.watch.ratelimit import RateLimiter
 from picosentry.watch.telemetry import TelemetrySink, init_tracing, trace_output_validation, trace_prompt_scan
@@ -34,20 +35,29 @@ from picosentry.watch.types import PromptScanResult
 
 logger = logging.getLogger(__name__)
 
-# ─── Request/Response Models ──────────────────────────────────────────────
+
+def _require_watch_server_extra(missing: str, exc: ImportError, *, what: str) -> None:
+    """Raise a helpful ImportError for a missing watch-server dependency."""
+    if missing == "fastapi":
+        raise ImportError(
+            f"picosentry.watch.server {what} requires the 'watch-server' extra. "
+            "Install it with: pip install 'picosentry[watch-server]'"
+        ) from exc
+    if missing in {"pydantic", "pydantic_core"}:
+        raise ImportError(
+            f"picosentry.watch.server {what} requires pydantic. "
+            "Install it with: pip install 'picosentry[serve]'"
+        ) from exc
+    raise exc
 
 
 class PromptScanRequest(BaseModel):
-    """Request body for POST /v1/scan/prompt."""
-
     text: str = Field(..., min_length=1, description="Prompt text to scan")
     context: dict[str, Any] | None = Field(default=None, description="Optional context (user_id, model, etc.)")
     request_id: str | None = Field(default=None, description="Optional request ID for telemetry correlation")
 
 
 class OutputScanRequest(BaseModel):
-    """Request body for POST /v1/scan/output."""
-
     model_config = {"populate_by_name": True}
 
     output: str = Field(..., min_length=1, description="LLM output text to validate")
@@ -60,16 +70,7 @@ class OutputScanRequest(BaseModel):
     request_id: str | None = Field(default=None, description="Optional request ID for telemetry correlation")
 
 
-# ─── App Factory ──────────────────────────────────────────────────────────
-
-
 def _get_client_ip(request: Request) -> str:
-    """Extract client IP from request.
-
-    Uses X-Forwarded-For only when PICOWATCH_TRUST_PROXY=1 is set.
-    Without that flag, always uses the direct client IP to prevent
-    spoofing via X-Forwarded-For header injection.
-    """
     if os.environ.get("PICOWATCH_TRUST_PROXY") == "1":
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
@@ -79,51 +80,78 @@ def _get_client_ip(request: Request) -> str:
     return "unknown"
 
 
-def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None) -> FastAPI:
-    """Create and configure the FastAPI application.
+async def _verify_api_key(
+    api_key: str,
+    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    authorization: str | None = Header(None),
+) -> None:
+    if not api_key:
+        return  # No auth required
 
-    Returns the app instance. Call uvicorn separately to run.
-    """
+    provided_key = ""
+    if x_api_key:
+        provided_key = x_api_key
+    elif authorization and authorization.lower().startswith("bearer "):
+        provided_key = authorization[7:].strip()
+
+    if not provided_key or not secrets.compare_digest(provided_key, api_key):
+        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+
+
+def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None) -> FastAPI:
     config = config or PicoWatchConfig.from_env()
 
-    # Enforce secure configuration in production
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
         logger.info("API key configured — write endpoints require authentication")
 
-    # Initialize guards, telemetry, and rate limiter
     prompt_guard = PromptGuard(config=config)
     output_guard = OutputGuard(config=config)
     if sink is None:
         from picosentry.watch.telemetry.sink import TelemetryConfig
-        sink = TelemetrySink(config=TelemetryConfig(
-            audit_retention_days=config.audit_retention_days,
-            otel_endpoint=config.otel_endpoint,
-        ))
+
+        sink = TelemetrySink(
+            config=TelemetryConfig(
+                audit_retention_days=config.audit_retention_days,
+                otel_endpoint=config.otel_endpoint,
+            )
+        )
     limiter = RateLimiter(max_requests=config.rate_limit, window_seconds=config.rate_limit_window)
 
-    # Initialize OTel tracing (ADR-002) — no-op if dependencies missing
     otel_enabled = init_tracing(service_name="picowatch", endpoint=config.otel_endpoint)
     if otel_enabled:
         import logging
 
         logging.getLogger("picowatch.otel").info("OpenTelemetry tracing enabled (endpoint=%s)", config.otel_endpoint)
 
-    # API key for write endpoints
     api_key = config.api_key or ""
+
+    docs_url = "/docs" if config.enable_docs else None
+    redoc_url = "/redoc" if config.enable_docs else None
 
     app = FastAPI(
         title="PicoWatch",
         version=__version__,
         description="LLM defender with telemetry — prompt injection detection, output validation, and observability",
+        docs_url=docs_url,
+        redoc_url=redoc_url,
     )
 
-    # ─── Rate limiting middleware ────────────────────────────────────────
+    @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if request.url.path.startswith("/v1/scan/"):
+            response.headers["Cache-Control"] = "no-store"
+        return response
 
     @app.middleware("http")
     async def rate_limit_middleware(request: Request, call_next: Any) -> Any:
-        """Per-IP rate limiting on POST endpoints (ADR-008)."""
-        if request.method == "POST":
+        # Health checks are excluded; every other endpoint (including GET)
+        # is subject to the per-IP rate limit.
+        if request.url.path != "/v1/health":
             client_ip = _get_client_ip(request)
             if not limiter.is_allowed(client_ip):
                 return JSONResponse(
@@ -133,34 +161,14 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 )
         return await call_next(request)
 
-    # ─── Auth dependency ────────────────────────────────────────────────
-
     async def verify_api_key(
         x_api_key: str | None = Header(None, alias="X-API-Key"),
         authorization: str | None = Header(None),
     ) -> None:
-        """Verify API key for write endpoints.
-
-        If no PICOWATCH_API_KEY is configured, all requests are allowed.
-        If PICOWATCH_API_KEY is set, require X-API-Key or Bearer token.
-        """
-        if not api_key:
-            return  # No auth required
-
-        provided_key = ""
-        if x_api_key:
-            provided_key = x_api_key
-        elif authorization and authorization.lower().startswith("bearer "):
-            provided_key = authorization[7:].strip()
-
-        if not provided_key or not secrets.compare_digest(provided_key, api_key):
-            raise HTTPException(status_code=401, detail="Invalid or missing API key")
-
-    # ─── GET endpoints (unauthenticated, admin port eligible) ───────────
+        await _verify_api_key(api_key, x_api_key, authorization)
 
     @app.get("/v1/health")
     async def get_health() -> dict[str, Any]:
-        """Health check endpoint."""
         h = health_check(
             rules_loaded=len(prompt_guard.rules),
             corpus_hash=prompt_guard.corpus_hash,
@@ -182,7 +190,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
     @app.get("/metrics")
     async def get_metrics() -> PlainTextResponse:
-        """Prometheus metrics endpoint."""
         return PlainTextResponse(
             content=sink.render_prometheus(),
             media_type="text/plain",
@@ -190,7 +197,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
     @app.get("/v1/rules")
     async def get_rules() -> list[dict[str, Any]]:
-        """List all active defense rules."""
         return [
             {
                 "id": r.id,
@@ -201,9 +207,8 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             for r in prompt_guard.rules
         ]
 
-    @app.get("/v1/rules/{rule_id}")
+    @app.get("/v1/rules/{rule_id}", dependencies=([Depends(verify_api_key)] if api_key else []))
     async def get_rule(rule_id: str) -> dict[str, Any]:
-        """Get detail for a specific rule."""
         for r in prompt_guard.rules:
             if r.id == rule_id:
                 return {
@@ -216,17 +221,13 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 }
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 
-    # ─── POST endpoints (authenticated, rate limited) ────────────────────
-
     @app.post("/v1/scan/prompt")
     async def scan_prompt(
         body: PromptScanRequest,
         _auth: None = Depends(verify_api_key),
     ) -> dict[str, Any]:
-        """Scan a prompt for injection patterns."""
         text = body.text
 
-        # Enforce input size limit (ADR-008: reject oversized inputs immediately)
         if len(text) > config.max_prompt_size:
             raise HTTPException(
                 status_code=413,
@@ -235,13 +236,10 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
         result = prompt_guard.check(text, context=body.context)
 
-        # Auto-generate request_id if not provided (ADR-002)
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
-        # Record telemetry
         sink.record_prompt_scan(result, request_id=request_id)
 
-        # Record OTel trace (ADR-002)
         model = body.context.get("model") if body.context else None
         trace_prompt_scan(result, model=model)
 
@@ -268,15 +266,13 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         body: OutputScanRequest,
         _auth: None = Depends(verify_api_key),
     ) -> dict[str, Any]:
-        """Validate an LLM output against a schema and content policy."""
-        # Enforce input size limit (ADR-008: reject oversized inputs immediately)
-        if len(body.output) > config.max_prompt_size:
+
+        if len(body.output) > config.max_output_size:
             raise HTTPException(
                 status_code=413,
-                detail=f"Input exceeds maximum size ({config.max_prompt_size} bytes). Rejecting immediately.",
+                detail=f"Output exceeds maximum size ({config.max_output_size} bytes). Rejecting immediately.",
             )
 
-        # Reconstruct PromptScanResult if provided (feedback loop)
         prompt_result = None
         if body.prompt_result and isinstance(body.prompt_result, dict):
             pr = body.prompt_result
@@ -289,15 +285,15 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 duration_ms=pr.get("duration_ms", 0.0),
             )
 
-        result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
+        try:
+            result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
+        except SchemaTooLargeError as exc:
+            raise HTTPException(status_code=413, detail=str(exc)) from exc
 
-        # Auto-generate request_id if not provided (ADR-002)
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
-        # Record telemetry
         sink.record_validation(result, request_id=request_id)
 
-        # Record OTel trace (ADR-002)
         model = body.prompt_result.get("model") if body.prompt_result and isinstance(body.prompt_result, dict) else None
         trace_output_validation(result, model=model)
 
@@ -322,18 +318,11 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
     return app
 
 
-def create_admin_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None,
-                          prompt_guard: PromptGuard | None = None) -> FastAPI:
-    """Create a read-only admin app for the admin port (ADR-007).
-
-    Exposes health, metrics, and rules on a separate port (default 9091).
-    No auth required. No POST endpoints.
-
-    Accepts an optional shared PromptGuard to avoid double-loading rules.
-    """
+def create_admin_app(
+    config: PicoWatchConfig | None = None, sink: TelemetrySink | None = None, prompt_guard: PromptGuard | None = None
+) -> FastAPI:
     config = config or PicoWatchConfig.from_env()
 
-    # Enforce secure configuration in production
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
         logger.info("API key configured — write endpoints require authentication")
@@ -342,15 +331,27 @@ def create_admin_app(config: PicoWatchConfig | None = None, sink: TelemetrySink 
     if sink is None:
         sink = TelemetrySink()
 
+    admin_api_key = config.api_key or ""
+    admin_auth_required = bool(admin_api_key and config.admin_auth_enabled)
+
+    async def verify_admin_api_key(
+        x_api_key: str | None = Header(None, alias="X-API-Key"),
+        authorization: str | None = Header(None),
+    ) -> None:
+        await _verify_api_key(admin_api_key, x_api_key, authorization)
+
+    admin_deps = [Depends(verify_admin_api_key)] if admin_auth_required else []
+
     app = FastAPI(
         title="PicoWatch Admin",
         version=__version__,
         description="Read-only admin endpoints for health, metrics, and rules",
+        docs_url="/docs" if config.enable_docs else None,
+        redoc_url="/redoc" if config.enable_docs else None,
     )
 
     @app.get("/v1/health")
     async def admin_health() -> dict[str, Any]:
-        """Health check (admin)."""
         h = health_check(
             rules_loaded=len(prompt_guard.rules),
             corpus_hash=prompt_guard.corpus_hash,
@@ -370,25 +371,22 @@ def create_admin_app(config: PicoWatchConfig | None = None, sink: TelemetrySink 
             "load_errors": h.load_errors,
         }
 
-    @app.get("/metrics")
+    @app.get("/metrics", dependencies=admin_deps)
     async def admin_metrics() -> PlainTextResponse:
-        """Prometheus metrics (admin)."""
         return PlainTextResponse(
             content=sink.render_prometheus(),
             media_type="text/plain",
         )
 
-    @app.get("/v1/rules")
+    @app.get("/v1/rules", dependencies=admin_deps)
     async def admin_rules() -> list[dict[str, Any]]:
-        """List active rules (admin)."""
         return [
             {"id": r.id, "category": r.category, "weight": r.weight, "description": r.description}
             for r in prompt_guard.rules
         ]
 
-    @app.get("/v1/rules/{rule_id}")
+    @app.get("/v1/rules/{rule_id}", dependencies=admin_deps)
     async def admin_rule(rule_id: str) -> dict[str, Any]:
-        """Get rule detail (admin)."""
         for r in prompt_guard.rules:
             if r.id == rule_id:
                 return {
@@ -405,32 +403,28 @@ def create_admin_app(config: PicoWatchConfig | None = None, sink: TelemetrySink 
 
 
 def run_server(config: PicoWatchConfig | None = None, host: str = "127.0.0.1", port: int = 8766) -> None:
-    """Run the PicoWatch HTTP server with admin port (ADR-007).
-
-    Main port serves API endpoints. Admin port serves health/metrics/rules.
-    """
-    import uvicorn
+    try:
+        import uvicorn
+    except ImportError as exc:
+        _require_watch_server_extra(getattr(exc, "name", ""), exc, what="run_server()")
 
     config = config or PicoWatchConfig.from_env()
 
-    # Enforce secure configuration in production
     config.assert_secure()  # no-op in test mode (no api_key)
     if config.api_key:
         logger.info("API key configured — write endpoints require authentication")
     shared_sink = TelemetrySink()
     app = create_app(config, sink=shared_sink)
 
-    # Reuse the same PromptGuard from the main app (avoid double-loading rules)
     shared_prompt_guard = PromptGuard(config=config)
 
-    # Spawn admin app on separate port (ADR-007) — shares sink and prompt guard
     admin_app = create_admin_app(config, sink=shared_sink, prompt_guard=shared_prompt_guard)
     import threading
 
     admin_thread = threading.Thread(
         target=uvicorn.run,
         args=(admin_app,),
-        kwargs={"host": host, "port": config.admin_port, "log_level": "warning"},
+        kwargs={"host": config.admin_host, "port": config.admin_port, "log_level": "warning"},
         daemon=True,
     )
     admin_thread.start()

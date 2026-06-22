@@ -1,0 +1,9 @@
+[package]
+name = "zzz-marker-cargo-negative"
+version = "1.0.0"
+edition = "2021"
+description = "Clean Cargo fixture for typosquat FP contract."
+license = "MIT"
+
+[dependencies]
+serde = "1"

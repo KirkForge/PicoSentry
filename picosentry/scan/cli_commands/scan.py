@@ -392,7 +392,8 @@ def cmd(args: argparse.Namespace) -> int:
                                 else [],
                                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
                             )
-                        except Exception:
+                        except Exception as exc:
+                            logger.warning("Cache entry for %s is corrupted, ignoring: %s", target, exc)
                             cached_result = None
                     if cached_result:
                         logger.info("Cache hit: lockfile=%s corpus=%s", lockfile_hash[:8], corpus_hash[:8])
@@ -402,7 +403,8 @@ def cmd(args: argparse.Namespace) -> int:
                             increment("cache.hits")
                         except ImportError:
                             pass
-        except Exception:
+        except Exception as exc:
+            logger.warning("Cache read failed for %s, disabling cache: %s", target, exc)
             cache = None  # Cache errors should not block scanning
 
     try:
@@ -428,8 +430,9 @@ def cmd(args: argparse.Namespace) -> int:
                 increment("cache.misses")
             except ImportError:
                 pass
-        except Exception:
-            pass  # Cache write errors should not block the scan result
+        except Exception as exc:
+            logger.warning("Cache write failed for %s: %s", target, exc)
+            # Cache write errors should not block the scan result.
 
     from picosentry.scan.enterprise import is_enterprise_mode
 

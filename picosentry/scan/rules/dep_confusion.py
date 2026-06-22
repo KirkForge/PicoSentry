@@ -274,8 +274,9 @@ def _pypi_has_private_index(target: Path) -> bool:
                     and "pypi.org" not in config.get(section, "repository")
                 ):
                     return True
-        except Exception:
-            pass
+        except (configparser.Error, OSError) as exc:
+            logger.warning("Could not parse .pypirc at %s: %s", pypirc, exc)
+            return False
 
     project_data = load_pyproject_toml(target)
     if project_data:

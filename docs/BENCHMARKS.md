@@ -7,7 +7,7 @@
 > the next release is expected to expand the fixture corpus (see [v2.1.0 expansion target](#v210-expansion-target)).
 >
 > **Real-world malware benchmark corpus:**
-> [`datasets/malware/`](../datasets/malware/)
+> [`picosentry/scan/corpus/malware/`](../picosentry/scan/corpus/malware/)
 > contains 23,000+ known-malicious package advisories from DataDog and OSV, with a
 > dedicated recall benchmark in `tests/scan/test_malware_benchmark.py`.
 >

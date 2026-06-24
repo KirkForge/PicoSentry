@@ -94,6 +94,7 @@ class TestDeploymentTemplate:
     def test_env_vars(self):
         content = (CHART_DIR / "templates" / "deployment.yaml").read_text()
         assert "PICODOME_ADMISSION_SCAN_ENABLED" in content
+        assert "PICODOME_ADMISSION_FAIL_CLOSED" in content
         assert "PICODOME_ADMISSION_DAEMON_URL" in content
 
     def test_security_context(self):

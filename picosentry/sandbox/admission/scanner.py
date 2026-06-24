@@ -44,9 +44,14 @@ class ImageScanner:
         self._min_level = SEVERITY_LEVELS.get(min_severity, 3)
 
         if fail_closed is None:
-            self._fail_closed = os.environ.get("PICODOME_ADMISSION_FAIL_CLOSED", "").lower() in ("1", "true", "yes")
+            # Security default: fail closed unless the operator explicitly opts out.
+            # In enterprise mode this is unconditional.
             if os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes"):
                 self._fail_closed = True
+            else:
+                self._fail_closed = os.environ.get(
+                    "PICODOME_ADMISSION_FAIL_CLOSED", "true"
+                ).lower() not in ("0", "false", "no")
         else:
             self._fail_closed = fail_closed
 

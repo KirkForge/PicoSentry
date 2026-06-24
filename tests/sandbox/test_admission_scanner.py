@@ -5,13 +5,16 @@ Covers:
 - Image scanning with mock daemon (CLEAN verdict)
 - Image scanning with DENY verdict
 - Image scanning with high-severity findings
-- Fail-open when daemon unreachable
+- Fail-closed when daemon unreachable (default)
+- Opt-out fail-open when daemon unreachable
 - Config from environment
 - Multiple containers in one pod
+- CLI argument defaults
 """
 
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import threading
@@ -23,6 +26,7 @@ import pytest
 
 from picosentry.sandbox.admission import AdmissionRequest
 from picosentry.sandbox.admission.scanner import SEVERITY_LEVELS, ImageScanner
+from picosentry.sandbox.cli_commands.admission import add_arguments
 
 
 class MockScanHandler(BaseHTTPRequestHandler):
@@ -124,12 +128,24 @@ class TestImageScannerDeny:
         assert allowed
 
 
-class TestImageScannerFailOpen:
-    def test_daemon_unreachable_allows(self):
+class TestImageScannerFailClosed:
+    def test_daemon_unreachable_denies_by_default(self):
         scanner = ImageScanner(enabled=True, daemon_url="http://localhost:1", timeout=1.0)
         req = _make_pod_request(["nginx:latest"])
+        allowed, reason = scanner.scan_pod(req)
+        assert not allowed
+        assert "unreachable" in reason.lower() or "scan" in reason.lower()
+
+    def test_daemon_unreachable_allows_when_opted_out(self):
+        scanner = ImageScanner(
+            enabled=True,
+            daemon_url="http://localhost:1",
+            timeout=1.0,
+            fail_closed=False,
+        )
+        req = _make_pod_request(["nginx:latest"])
         allowed, _ = scanner.scan_pod(req)
-        assert allowed  # fail-open
+        assert allowed
 
 
 class TestImageScannerMultipleContainers:
@@ -179,6 +195,18 @@ class TestImageScannerConfig:
             scanner = ImageScanner()
             assert scanner.enabled
             assert scanner.daemon_url == "http://mydaemon:8443"
+            assert scanner._fail_closed
+
+    def test_env_fail_closed_opt_out(self):
+        with mock.patch.dict(
+            os.environ,
+            {
+                "PICODOME_ADMISSION_SCAN_ENABLED": "true",
+                "PICODOME_ADMISSION_FAIL_CLOSED": "false",
+            },
+        ):
+            scanner = ImageScanner()
+            assert not scanner._fail_closed
 
     def test_empty_pod_allowed(self):
         scanner = ImageScanner(enabled=True)
@@ -192,3 +220,27 @@ class TestImageScannerConfig:
         )
         allowed, _ = scanner.scan_pod(req)
         assert allowed
+
+
+class TestAdmissionCLIFailClosed:
+    def _parse(self, argv: list[str]) -> argparse.Namespace:
+        parser = argparse.ArgumentParser()
+        subparsers = parser.add_subparsers()
+        add_arguments(subparsers)
+        return parser.parse_args(argv)
+
+    def test_scan_fail_closed_defaults_true(self):
+        args = self._parse(["admission", "--cert-file=/tmp/t.crt", "--key-file=/tmp/t.key", "--scan-enabled"])
+        assert args.scan_fail_closed is True
+
+    def test_scan_fail_closed_can_be_disabled(self):
+        args = self._parse(
+            [
+                "admission",
+                "--cert-file=/tmp/t.crt",
+                "--key-file=/tmp/t.key",
+                "--scan-enabled",
+                "--no-scan-fail-closed",
+            ]
+        )
+        assert args.scan_fail_closed is False

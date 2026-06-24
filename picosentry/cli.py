@@ -278,6 +278,18 @@ def main(argv: list[str] | None = None) -> None:
         "picosentry/serve/plugins/ is always scanned; this adds extras. "
         "Takes precedence over the PICOSHOGUN_PLUGIN_DIR env var.",
     )
+    serve_parser.add_argument(
+        "--require-signed-plugins",
+        action="store_true",
+        help="Refuse to load plugins that are not signed by a trusted Ed25519 key",
+    )
+    serve_parser.add_argument(
+        "--trusted-public-keys",
+        type=str,
+        default=None,
+        metavar="HEX_KEYS",
+        help="Comma-separated Ed25519 public keys (hex) trusted for plugin signatures",
+    )
 
     subparsers.add_parser("version", help="Show version and exit")
     subparsers.add_parser("health", help="Run health checks")
@@ -659,6 +671,11 @@ def _handle_serve(args: argparse.Namespace) -> None:
         os.environ["PICOSHOGUN_API_RELOAD"] = "true"
     if args.workers:
         os.environ["PICOSHOGUN_API_WORKERS"] = str(args.workers)
+    if getattr(args, "require_signed_plugins", False):
+        os.environ["PICOSHOGUN_REQUIRE_SIGNED_PLUGINS"] = "1"
+    trusted_keys = getattr(args, "trusted_public_keys", None)
+    if trusted_keys:
+        os.environ["PICOSHOGUN_TRUSTED_PUBLIC_KEYS"] = trusted_keys
 
     # Plugin dirs: CLI flag list wins over the env var. We join into the
     # same comma-separated format `PICOSHOGUN_PLUGIN_DIR` expects so

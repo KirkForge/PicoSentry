@@ -21,7 +21,10 @@ class Normalizer:
         re.MULTILINE,
     )
 
-    _BASE64 = re.compile(r"[A-Za-z0-9+/]{20,}={0,2}")
+    # Short base64 strings can encode short injection directives (e.g. "ignore"
+    # is 6 bytes / 8 base64 chars). Keep the threshold low enough to catch them
+    # while still avoiding trivial false positives.
+    _BASE64 = re.compile(r"[A-Za-z0-9+/]{12,}={0,2}")
 
     _HEX = re.compile(r"(?:0x)?[0-9a-fA-F]{20,}")
 
@@ -49,14 +52,26 @@ class Normalizer:
     def decode_and_rescan(self, text: str) -> list[str]:
         decoded_texts = list(self.decode_base64(text))
 
+        # ROT13 is self-inverting and commonly used to hide injection words.
+        # The original keyword gate was too narrow (only five strings), so
+        # non-keyword ROT13 payloads bypassed decoding. The expanded list
+        # below covers the common injection vocabulary from the PicoWatch
+        # rule corpus while still avoiding a full always-decode path that
+        # would false-positive on benign English containing "ignore" etc.
         rot13_pattern = re.compile(
-            r"vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz cezcg",
+            r"vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz\s+cezcg|"
+            r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sbez\s+abj\s+ba|"
+            r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
+            r"cebzcg|rkgenpg|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bss|"
+            r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
             re.IGNORECASE,
         )
         if rot13_pattern.search(text):
             rot13 = self.decode_rot13(text)
             if rot13 != text:
                 decoded_texts.append(rot13)
+                # Recursively consider nested encoding layers from the decoded text.
+                decoded_texts.extend(self.decode_base64(rot13, max_depth=2))
 
         if self._URL_ENC.search(text):
             url_decoded = self.decode_url(text)
@@ -130,13 +145,18 @@ class Normalizer:
 
         return result
 
-    def decode_base64(self, text: str) -> list[str]:
-        decoded = []
+    def decode_base64(self, text: str, max_depth: int = 3, _depth: int = 0) -> list[str]:
+        if _depth >= max_depth:
+            return []
+
+        decoded: list[str] = []
         for match in self._BASE64.finditer(text):
             try:
                 payload = base64.b64decode(match.group()).decode("utf-8", errors="ignore")
                 if len(payload) > 5:  # skip trivially short decodes
                     decoded.append(payload)
+                    # Recursively decode nested base64 layers.
+                    decoded.extend(self.decode_base64(payload, max_depth=max_depth, _depth=_depth + 1))
             except Exception:
                 continue
         return decoded

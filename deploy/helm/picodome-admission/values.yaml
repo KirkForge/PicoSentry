@@ -12,6 +12,8 @@ admission:
   port: 8443
   # Enable container image scanning before deployment
   scanEnabled: false
+  # Deny pods when the daemon is unreachable during image scanning
+  scanFailClosed: true
   # Minimum severity to block deployment (info/low/medium/high/critical)
   scanMinSeverity: "high"
   # PicoDome daemon URL for scan requests

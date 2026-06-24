@@ -36,6 +36,8 @@ spec:
           env:
             - name: PICODOME_ADMISSION_SCAN_ENABLED
               value: {{ .Values.admission.scanEnabled | quote }}
+            - name: PICODOME_ADMISSION_FAIL_CLOSED
+              value: {{ .Values.admission.scanFailClosed | quote }}
             - name: PICODOME_ADMISSION_SCAN_MIN_SEVERITY
               value: {{ .Values.admission.scanMinSeverity | quote }}
             - name: PICODOME_ADMISSION_DAEMON_URL

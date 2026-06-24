@@ -31,6 +31,12 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         help="Enable container image scanning via the daemon",
     )
     parser.add_argument(
+        "--scan-fail-closed",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Deny pods when the daemon is unreachable during image scanning (default: true)",
+    )
+    parser.add_argument(
         "--scan-min-severity",
         choices=["info", "low", "medium", "high", "critical"],
         default="high",
@@ -59,6 +65,7 @@ def cmd(args: argparse.Namespace) -> int:
             enabled=True,
             min_severity=getattr(args, "scan_min_severity", "high"),
             daemon_url=getattr(args, "daemon_url", None),
+            fail_closed=getattr(args, "scan_fail_closed", True),
         )
 
         def composite_validator(req):

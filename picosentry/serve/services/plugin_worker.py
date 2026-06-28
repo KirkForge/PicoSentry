@@ -15,16 +15,33 @@ import importlib
 import inspect
 import json
 import logging
+import os
 import sys
 import traceback
 from typing import Any
 
 logger = logging.getLogger("picoshogun.PluginWorker")
 
+# The RPC channel. Bound to the real stdout in main() before plugin code can
+# run; until then it falls back to sys.stdout so early errors still framed.
+_rpc: Any = sys.stdout
+
 
 def _send(obj: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(obj, separators=(",", ":")) + "\n")
+    _rpc.write(json.dumps(obj, separators=(",", ":")) + "\n")
+    _rpc.flush()
+
+
+def _isolate_stdout() -> None:
+    # The plugin runs in this process, so any print()/stray stdout from plugin
+    # code would land on the host<->worker JSON-RPC stream and be read as a
+    # corrupt frame. Dup the real stdout fd for framed responses, then point
+    # sys.stdout at stderr so plugin output can't poison the wire.
+    global _rpc
+    fd = os.dup(sys.stdout.fileno())
+    _rpc = os.fdopen(fd, "w", buffering=1, encoding="utf-8")
     sys.stdout.flush()
+    sys.stdout = sys.stderr
 
 
 def _recv() -> dict[str, Any] | None:
@@ -57,6 +74,10 @@ def main() -> int:
     if len(sys.argv) < 3:
         _send({"status": "error", "error": "usage: plugin_worker <plugin_path> <entry_point> [capabilities_json]"})
         return 2
+
+    # Capture the RPC pipe and divert plugin stdout before importing the plugin
+    # module — import-time print()/side effects would otherwise corrupt frames.
+    _isolate_stdout()
 
     plugin_path = sys.argv[1]
     entry_point = sys.argv[2]

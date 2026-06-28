@@ -104,7 +104,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="PyPI package",
         status="Stable",
-        notes="`pip install picosentry` — v2.0.15 published",
+        notes="`pip install picosentry` — v2.0.17 published",
     ),
 )
 

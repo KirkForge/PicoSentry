@@ -79,7 +79,9 @@ if [[ "$SUPPORTED_PLATFORMS" != *"linux/arm64"* ]]; then
     exit 1
 fi
 
-TAG=$(python3 -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+# Docker tags carry a leading `v` (e.g. v2.0.17) to match the published
+# kirkforge/picodome history; the pyproject version itself has no `v`.
+TAG="v$(python3 -c "import pathlib, tomllib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")"
 export TAG
 
 if [[ -n "$PUSH_FLAG" ]]; then

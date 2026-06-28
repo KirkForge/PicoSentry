@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import hashlib
 import importlib.util
-import inspect
 import json
 import logging
 import os
@@ -19,6 +20,16 @@ logger = logging.getLogger("picoshogun.Plugins")
 
 VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
+# Capabilities are deny-by-default. A plugin must declare each capability it
+# needs in its manifest; the host enforces the allowed surface area.
+VALID_CAPABILITIES = {
+    "network",       # outbound network access
+    "filesystem",    # read/write outside the plugin's own directory
+    "subprocess",    # spawn child processes
+    "environment",   # receive host environment variables
+    "detection_write",  # returned hook results may modify server detection state
+}
+
 
 REQUIRED_MANIFEST_FIELDS = {"name": str, "entry_point": str}
 OPTIONAL_MANIFEST_FIELDS = {
@@ -28,6 +39,7 @@ OPTIONAL_MANIFEST_FIELDS = {
     "hooks": list,
     "dependencies": list,
     "config": dict,
+    "capabilities": list,
 }
 
 
@@ -43,6 +55,7 @@ class PluginMetadata:
     entry_point: str
     hooks: list[str]
     dependencies: list[str]
+    capabilities: list[str]
     public_key: str | None = None
     signature: str | None = None
     signed: bool = False
@@ -73,10 +86,42 @@ class PluginInterface:
 
 DEFAULT_USER_PLUGIN_DIR = str(Path("~/.picosentry/plugins").expanduser())
 
+# Ed25519 public keys trusted for bundled plugins. The bundled test_plugin
+# manifest is signed with the matching private key. Operators can extend
+# this set via PICOSHOGUN_TRUSTED_PUBLIC_KEYS or PICOSHOGUN_TRUSTED_PUBLIC_KEYS_FILE.
+BUNDLED_TRUSTED_PUBLIC_KEYS: tuple[str, ...] = (
+    "ffdbacc3ef1b141c1b75e4e7f0da291e17e64229fcfb9f959bdb6b694fa3ed02",
+)
+
 
 def _split_plugin_dir_env(raw: str) -> list[str]:
     """Split a comma-separated PICOSHOGUN_PLUGIN_DIR value into a clean list."""
     return [p.strip() for p in (raw or "").split(",") if p.strip()]
+
+
+def _load_trusted_public_keys() -> set[str]:
+    """Return the set of trusted Ed25519 public keys (lowercase hex).
+
+    Sources, in order of precedence:
+    1. Built-in bundled keys.
+    2. PICOSHOGUN_TRUSTED_PUBLIC_KEYS env var (comma-separated hex keys).
+    3. PICOSHOGUN_TRUSTED_PUBLIC_KEYS_FILE env var (one hex key per line).
+    """
+    keys: set[str] = {k.lower() for k in BUNDLED_TRUSTED_PUBLIC_KEYS}
+
+    env_raw = os.environ.get("PICOSHOGUN_TRUSTED_PUBLIC_KEYS", "")
+    if env_raw:
+        keys.update(k.strip().lower() for k in env_raw.split(",") if k.strip())
+
+    key_file = os.environ.get("PICOSHOGUN_TRUSTED_PUBLIC_KEYS_FILE", "")
+    if key_file:
+        try:
+            with Path(key_file).open() as f:
+                keys.update(line.strip().lower() for line in f if line.strip())
+        except OSError as exc:
+            logger.warning("Could not read trusted public keys file %s: %s", key_file, exc)
+
+    return keys
 
 
 class PluginManager:
@@ -194,6 +239,14 @@ class PluginManager:
         if not isinstance(name, str) or not name.strip():
             issues.append("Plugin name must be a non-empty string")
 
+        capabilities = meta.get("capabilities", [])
+        if not isinstance(capabilities, list):
+            issues.append("'capabilities' must be a list")
+        else:
+            unknown = [c for c in capabilities if c not in VALID_CAPABILITIES]
+            if unknown:
+                issues.append(f"Unknown capabilities: {unknown}. Valid: {sorted(VALID_CAPABILITIES)}")
+
         return issues
 
     @staticmethod
@@ -212,7 +265,17 @@ class PluginManager:
         )
 
     @staticmethod
-    def verify_manifest_signature(meta: dict, module_checksum: str, signature_hex: str, public_key_hex: str) -> bool:
+    def verify_manifest_signature(
+        meta: dict,
+        module_checksum: str,
+        signature_hex: str,
+        public_key_hex: str,
+        trusted_public_keys: set[str] | None = None,
+    ) -> bool:
+        if trusted_public_keys is not None and public_key_hex.lower() not in trusted_public_keys:
+            logger.warning("Ed25519 public key %s is not in the trusted set", public_key_hex[:16])
+            return False
+
         if not HAS_NACL:
             logger.warning("pynacl not installed — cannot verify Ed25519 signatures")
             return False
@@ -299,11 +362,19 @@ class PluginManager:
         else:
             logger.warning("Plugin '%s' entry module not found at %s", name, module_file)
 
+        trusted_public_keys = _load_trusted_public_keys()
         require_signed = os.environ.get("PICOSHOGUN_REQUIRE_SIGNED_PLUGINS", "").lower() in ("1", "true", "yes")
         sig_hex = meta.get("signature")
         pub_key_hex = meta.get("public_key")
+        signature_verified = False
 
         if require_signed:
+            if not trusted_public_keys:
+                logger.error(
+                    "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no trusted public keys are configured",
+                    name,
+                )
+                return False
             if not sig_hex or not pub_key_hex:
                 logger.error(
                     "Plugin '%s': PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1 but no signature/public_key in manifest",
@@ -313,83 +384,85 @@ class PluginManager:
             if not module_checksum:
                 logger.error("Plugin '%s': cannot verify signature — entry module not found", name)
                 return False
-            if not self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
+            if not self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex, trusted_public_keys):
                 logger.error("Plugin '%s': Ed25519 signature verification FAILED — refusing to load", name)
                 return False
             logger.info("Plugin '%s': Ed25519 signature verified", name)
-        elif sig_hex and pub_key_hex and module_checksum and HAS_NACL:
-            if self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex):
-                logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
-            else:
+            signature_verified = True
+        elif sig_hex and pub_key_hex:
+            if not module_checksum:
+                logger.error("Plugin '%s': cannot verify optional signature — entry module not found", name)
+                return False
+            if not HAS_NACL:
                 logger.warning(
-                    "Plugin '%s': Ed25519 signature present but INVALID — loading anyway (not required)",
+                    "Plugin '%s': pynacl is not installed — cannot verify Ed25519 signature; loading as unsigned",
                     name,
                 )
+            elif not self.verify_manifest_signature(meta, module_checksum, sig_hex, pub_key_hex, trusted_public_keys):
+                logger.error(
+                    "Plugin '%s': invalid or untrusted Ed25519 signature — refusing to load",
+                    name,
+                )
+                return False
+            else:
+                logger.info("Plugin '%s': Ed25519 signature verified (optional)", name)
+                signature_verified = True
+        else:
+            logger.warning("Plugin '%s': loading unsigned plugin", name)
 
-        sys.path.insert(0, path)
+        # Lazy import to break the circular dependency with plugin_host.
+        from picosentry.serve.services.plugin_host import PluginHost
+
         try:
-            # Drop any cached module of the same name so the freshly
-            # imported module's `PluginInterface` reference matches the
-            # current class object. Without this, re-running discovery
-            # in a fresh manager (or after the module is reloaded)
-            # would find the cached module but `issubclass` against the
-            # new `PluginInterface` would return False.
-            sys.modules.pop(entry, None)
-            module = importlib.import_module(entry)
-
-            plugin_class = None
-            for attr_name in dir(module):
-                attr = getattr(module, attr_name)
-                if inspect.isclass(attr) and issubclass(attr, PluginInterface) and attr != PluginInterface:
-                    plugin_class = attr
-                    break
-
-            if plugin_class is None:
-                logger.error("Plugin '%s': no class implementing PluginInterface found in module '%s'", name, entry)
-                return False
-
-            instance = plugin_class()
-            if not instance.initialize(meta.get("config", {})):
-                logger.warning("Plugin '%s' initialize() returned False — skipped", name)
-                return False
-
-            self.plugins[name] = instance
-            self.metadata[name] = PluginMetadata(
-                name=name,
-                version=meta.get("version", "0.0.1"),
-                author=meta.get("author", "unknown"),
-                description=meta.get("description", ""),
-                entry_point=entry,
-                hooks=meta.get("hooks", []),
-                dependencies=meta.get("dependencies", []),
-                public_key=pub_key_hex if meta.get("public_key") else None,
-                signature=sig_hex if meta.get("signature") else None,
-                signed=require_signed or bool(sig_hex and pub_key_hex),
+            host = PluginHost(
+                plugin_path=path,
+                metadata=PluginMetadata(
+                    name=name,
+                    version=meta.get("version", "0.0.1"),
+                    author=meta.get("author", "unknown"),
+                    description=meta.get("description", ""),
+                    entry_point=entry,
+                    hooks=meta.get("hooks", []),
+                    dependencies=meta.get("dependencies", []),
+                    capabilities=meta.get("capabilities", []),
+                    public_key=pub_key_hex if meta.get("public_key") else None,
+                    signature=sig_hex if meta.get("signature") else None,
+                    signed=signature_verified,
+                ),
+                module_checksum=module_checksum,
             )
+
+            if not host.initialize(meta.get("config", {})):
+                logger.warning("Plugin '%s' initialize() returned False — skipped", name)
+                host.shutdown()
+                return False
+
+            self.plugins[name] = host
+            self.metadata[name] = host.metadata
 
             for hook in meta.get("hooks", []):
                 if hook in self.hooks:
                     self.hooks[hook].append(name)
 
-            logger.info("Plugin loaded: %s v%s", name, self.metadata[name].version)
+            logger.info(
+                "Plugin loaded: %s v%s (capabilities=%s, signed=%s)",
+                name,
+                host.metadata.version,
+                sorted(host.metadata.capabilities),
+                host.metadata.signed,
+            )
             return True
         except Exception:
             logger.exception("Failed to load plugin '%s'", name)
             return False
-        finally:
-            # Also drop the imported module — the plugin owns the
-            # lifecycle of its classes via `self.plugins[name]`, not
-            # via `sys.modules`. Leaving the cached module around
-            # causes stale references when the manager is recreated
-            # (e.g. test fixtures, `--reload`).
-            sys.modules.pop(entry, None)
-            if path in sys.path:
-                sys.path.remove(path)
 
     def dispatch(self, hook: str, **kwargs):
         if hook not in VALID_HOOKS:
             logger.warning("Dispatch called with unknown hook '%s' — ignoring", hook)
             return []
+
+        # Hooks whose returned data is fed back into server-side detection state.
+        WRITE_HOOKS = {"intelligence", "alert"}
 
         results = []
         for plugin_name in self.hooks.get(hook, []):
@@ -397,11 +470,22 @@ class PluginManager:
             if not plugin:
                 continue
 
+            metadata = self.metadata.get(plugin_name)
+            can_write = metadata is not None and "detection_write" in metadata.capabilities
+
             try:
                 method = getattr(plugin, f"on_{hook}", None)
                 if method:
                     result = method(**kwargs)
                     if result:
+                        if hook in WRITE_HOOKS and not can_write:
+                            logger.warning(
+                                "Plugin '%s' returned %s data but lacks 'detection_write' "
+                                "capability — discarding result",
+                                plugin_name,
+                                hook,
+                            )
+                            continue
                         results.append({"plugin": plugin_name, "result": result})
             except Exception:
                 logger.exception("Plugin %s hook %s failed", plugin_name, hook)

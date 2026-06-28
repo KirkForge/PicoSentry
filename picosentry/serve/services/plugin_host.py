@@ -1,0 +1,228 @@
+"""Subprocess plugin host for PicoShogun.
+
+Each plugin is loaded in a separate Python subprocess with a stripped
+environment and a restricted working directory. The host communicates with
+the worker over line-delimited JSON on stdin/stdout.
+
+Capabilities are deny-by-default. The manifest declares which capabilities the
+plugin needs; the host enforces the ones it can enforce directly and records
+the rest for observability/audit.
+"""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import subprocess
+import sys
+import time
+from pathlib import Path
+from typing import Any
+
+from picosentry.serve.services.plugin_manager import PluginMetadata
+
+logger = logging.getLogger("picoshogun.PluginHost")
+
+
+class PluginHost:
+    """Subprocess host for a single plugin.
+
+    The host exposes the same lifecycle methods as a loaded
+    `PluginInterface` instance, but each call is forwarded to the worker
+    process. The worker is spawned with an environment scrubbed of host
+    secrets unless the `environment` capability is granted.
+    """
+
+    # Env vars required for a Python subprocess to function in a minimal,
+    # non-hostile environment. No secrets should be here.
+    _MINIMAL_ENV_VARS = {
+        "PATH",
+        "PYTHONPATH",
+        "PYTHONIOENCODING",
+        "PYTHONUNBUFFERED",
+        "TMPDIR",
+        "TEMP",
+        "TMP",
+        "HOME",
+        "USER",
+        "LANG",
+        "LC_ALL",
+        "LC_CTYPE",
+    }
+
+    def __init__(
+        self,
+        plugin_path: str,
+        metadata: PluginMetadata,
+        module_checksum: str,
+        timeout: float = 10.0,
+    ):
+        self.plugin_path = Path(plugin_path).resolve()
+        self.metadata = metadata
+        self.module_checksum = module_checksum
+        self.timeout = timeout
+        self._proc: subprocess.Popen[str] | None = None
+        self._ready = False
+        self._capabilities = set(metadata.capabilities)
+
+        self._start_worker()
+
+    def _build_env(self) -> dict[str, str]:
+        if "environment" in self._capabilities:
+            # Pass the host environment through, but mark the child as a
+            # plugin worker so it can avoid re-spawning another host.
+            env = dict(os.environ)
+        else:
+            # Deny-by-default: strip all host env vars except a minimal set
+            # needed for Python to run. PYTHONPATH is preserved only if
+            # already set (e.g. in test/dev trees) so the worker can import
+            # picosentry; in production installs the package is on sys.path.
+            env = {
+                k: v
+                for k, v in os.environ.items()
+                if k in self._MINIMAL_ENV_VARS
+            }
+            # Always mark the worker.
+            env["PICOSHOGUN_PLUGIN_WORKER"] = "1"
+            env["PICOSHOGUN_PLUGIN_NAME"] = self.metadata.name
+
+        # Encode capabilities so the worker can also reason about them.
+        env["PICOSHOGUN_PLUGIN_CAPABILITIES"] = json.dumps(sorted(self._capabilities))
+        return env
+
+    def _python_executable(self) -> str:
+        return sys.executable
+
+    def _start_worker(self) -> None:
+        if self._proc is not None:
+            return
+
+        env = self._build_env()
+        capabilities_arg = json.dumps(sorted(self._capabilities))
+        cmd = [
+            self._python_executable(),
+            "-m",
+            "picosentry.serve.services.plugin_worker",
+            str(self.plugin_path),
+            self.metadata.entry_point,
+            capabilities_arg,
+        ]
+
+        logger.info(
+            "Starting plugin worker for '%s' with capabilities %s",
+            self.metadata.name,
+            sorted(self._capabilities),
+        )
+
+        # Restrict working directory to the plugin dir. Without the
+        # `filesystem` capability the worker can still read its own code,
+        # but it starts from its own directory rather than the server cwd.
+        cwd = str(self.plugin_path)
+
+        self._proc = subprocess.Popen(
+            cmd,
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            env=env,
+            cwd=cwd,
+        )
+
+        # Wait for the ready message.
+        ready = self._read_message()
+        if ready is None:
+            self._terminate()
+            raise RuntimeError(f"Plugin worker for '{self.metadata.name}' exited before ready")
+        if ready.get("status") != "ready":
+            self._terminate()
+            raise RuntimeError(f"Plugin worker for '{self.metadata.name}' failed: {ready.get('error')}")
+        self._ready = True
+
+    def _send(self, method: str, *args: Any, **kwargs: Any) -> Any:
+        if self._proc is None or self._proc.poll() is not None:
+            raise RuntimeError(f"Plugin worker for '{self.metadata.name}' is not running")
+
+        message = {"method": method}
+        if args:
+            message["args"] = list(args)
+        if kwargs:
+            message["kwargs"] = dict(kwargs)
+
+        assert self._proc.stdin is not None
+        self._proc.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
+        self._proc.stdin.flush()
+
+        response = self._read_message()
+        if response is None:
+            raise RuntimeError(f"Plugin worker for '{self.metadata.name}' closed stdout unexpectedly")
+        if response.get("status") == "error":
+            raise RuntimeError(response.get("error", "unknown worker error"))
+        return response.get("result")
+
+    def _read_message(self) -> dict[str, Any] | None:
+        if self._proc is None or self._proc.stdout is None:
+            return None
+        try:
+            line = self._proc.stdout.readline()
+            if not line:
+                return None
+            return json.loads(line)
+        except json.JSONDecodeError as exc:
+            logger.error("Invalid JSON from plugin worker: %s", exc)
+            return None
+
+    def _terminate(self) -> None:
+        if self._proc is None:
+            return
+        try:
+            self._proc.stdin.close()
+        except Exception:
+            pass
+        try:
+            self._proc.terminate()
+            self._proc.wait(timeout=2.0)
+        except Exception:
+            try:
+                self._proc.kill()
+                self._proc.wait(timeout=1.0)
+            except Exception:
+                pass
+        self._proc = None
+        self._ready = False
+
+    # PluginInterface-compatible API
+
+    def initialize(self, config: dict[str, Any]) -> bool:
+        return bool(self._send("initialize", config))
+
+    def on_project_start(self, project_id: str, metadata: dict) -> None:
+        self._send("on_project_start", project_id, metadata)
+
+    def on_project_complete(self, project_id: str, result: dict) -> None:
+        self._send("on_project_complete", project_id, result)
+
+    def on_intelligence(self, intel: dict) -> dict | None:
+        return self._send("on_intelligence", intel)
+
+    def on_alert(self, alert: dict) -> dict | None:
+        return self._send("on_alert", alert)
+
+    def health_check(self) -> dict:
+        try:
+            return self._send("health_check") or {"status": "unhealthy"}
+        except Exception as exc:
+            return {"status": "unhealthy", "error": str(exc)}
+
+    def shutdown(self) -> None:
+        try:
+            self._send("shutdown")
+        except Exception:
+            pass
+        finally:
+            self._terminate()
+
+    @property
+    def is_alive(self) -> bool:
+        return self._proc is not None and self._proc.poll() is None and self._ready

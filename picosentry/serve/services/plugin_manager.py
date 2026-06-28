@@ -6,10 +6,12 @@ import json
 import logging
 import os
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from picosentry.serve.services.plugin_host import PluginHost
 
 
 HAS_NACL = importlib.util.find_spec("nacl") is not None
@@ -23,10 +25,10 @@ VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 # Capabilities are deny-by-default. A plugin must declare each capability it
 # needs in its manifest; the host enforces the allowed surface area.
 VALID_CAPABILITIES = {
-    "network",       # outbound network access
-    "filesystem",    # read/write outside the plugin's own directory
-    "subprocess",    # spawn child processes
-    "environment",   # receive host environment variables
+    "network",  # outbound network access
+    "filesystem",  # read/write outside the plugin's own directory
+    "subprocess",  # spawn child processes
+    "environment",  # receive host environment variables
     "detection_write",  # returned hook results may modify server detection state
 }
 
@@ -89,9 +91,7 @@ DEFAULT_USER_PLUGIN_DIR = str(Path("~/.picosentry/plugins").expanduser())
 # Ed25519 public keys trusted for bundled plugins. The bundled test_plugin
 # manifest is signed with the matching private key. Operators can extend
 # this set via PICOSHOGUN_TRUSTED_PUBLIC_KEYS or PICOSHOGUN_TRUSTED_PUBLIC_KEYS_FILE.
-BUNDLED_TRUSTED_PUBLIC_KEYS: tuple[str, ...] = (
-    "ffdbacc3ef1b141c1b75e4e7f0da291e17e64229fcfb9f959bdb6b694fa3ed02",
-)
+BUNDLED_TRUSTED_PUBLIC_KEYS: tuple[str, ...] = ("ffdbacc3ef1b141c1b75e4e7f0da291e17e64229fcfb9f959bdb6b694fa3ed02",)
 
 
 def _split_plugin_dir_env(raw: str) -> list[str]:
@@ -152,7 +152,9 @@ class PluginManager:
             str(Path(p).resolve()) for p in (list(extra_plugin_dirs or []) + env_dirs + user_default)
         ]
 
-        self.plugins: dict[str, PluginInterface] = {}
+        # Values are in-process PluginInterface instances or PluginHost
+        # subprocess proxies (structurally compatible, not a subclass).
+        self.plugins: dict[str, PluginInterface | PluginHost] = {}
         self.metadata: dict[str, PluginMetadata] = {}
         self.hooks: dict[str, list[str]] = {
             "project_start": [],

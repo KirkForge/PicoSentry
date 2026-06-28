@@ -11,18 +11,19 @@ the rest for observability/audit.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
 import select
 import subprocess
 import sys
-import time
 import weakref
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from picosentry.serve.services.plugin_manager import PluginMetadata
+if TYPE_CHECKING:
+    from picosentry.serve.services.plugin_manager import PluginMetadata
 
 logger = logging.getLogger("picoshogun.PluginHost")
 
@@ -41,10 +42,8 @@ def _reap_orphan(proc: subprocess.Popen[str] | None) -> None:
         proc.terminate()
         proc.wait(timeout=2.0)
     except Exception:
-        try:
+        with contextlib.suppress(Exception):
             proc.kill()
-        except Exception:
-            pass
 
 
 class PluginHost:
@@ -58,7 +57,7 @@ class PluginHost:
 
     # Env vars required for a Python subprocess to function in a minimal,
     # non-hostile environment. No secrets should be here.
-    _MINIMAL_ENV_VARS = {
+    _MINIMAL_ENV_VARS: ClassVar[set[str]] = {
         "PATH",
         "PYTHONPATH",
         "PYTHONIOENCODING",
@@ -102,11 +101,7 @@ class PluginHost:
             # needed for Python to run. PYTHONPATH is preserved only if
             # already set (e.g. in test/dev trees) so the worker can import
             # picosentry; in production installs the package is on sys.path.
-            env = {
-                k: v
-                for k, v in os.environ.items()
-                if k in self._MINIMAL_ENV_VARS
-            }
+            env = {k: v for k, v in os.environ.items() if k in self._MINIMAL_ENV_VARS}
             # Always mark the worker.
             env["PICOSHOGUN_PLUGIN_WORKER"] = "1"
             env["PICOSHOGUN_PLUGIN_NAME"] = self.metadata.name
@@ -168,7 +163,7 @@ class PluginHost:
         if self._proc is None or self._proc.poll() is not None:
             raise RuntimeError(f"Plugin worker for '{self.metadata.name}' is not running")
 
-        message = {"method": method}
+        message: dict[str, Any] = {"method": method}
         if args:
             message["args"] = list(args)
         if kwargs:

@@ -13,7 +13,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-NOISY_PLUGIN = '''
+NOISY_PLUGIN = """
 print("noise at import time")  # would corrupt the RPC stream if not diverted
 
 from picosentry.serve.services.plugin_manager import PluginInterface
@@ -23,7 +23,7 @@ class NoisyPlugin(PluginInterface):
     def initialize(self, config):
         print("noise from a hook")
         return True
-'''
+"""
 
 
 def test_plugin_prints_do_not_corrupt_rpc(tmp_path: Path) -> None:

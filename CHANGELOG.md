@@ -19,6 +19,23 @@ All notable changes to PicoSentry will be documented in this file.
 - Wire `--timeout=60` into the pytest `addopts` so a hung test can no longer
   run away unbounded.
 
+### Supply-chain: signed, attested releases (audit gap #4)
+
+- New `.github/workflows/release.yml`: on a `v*` tag, build wheel+sdist,
+  generate a CycloneDX SBOM, produce a SLSA build-provenance attestation, and
+  Sigstore-sign the artifacts (all via the GitHub trusted-builder OIDC), then
+  attach everything to the GitHub Release.
+- `docker-bake.hcl`: corrected `IMAGE_NAME` from the non-existent `picosentry`
+  to the published `picodome` repo; `build_docker_multiarch.sh` now tags with a
+  leading `v` to match Docker Hub history.
+
+### Chore: clear lint/type debt blocking CI
+
+- Resolved the pre-existing ruff (TC001/RUF012/SIM105/B904/F401) and mypy
+  findings in the plugin subprocess files and `benchmark_corpus.py` that had
+  been failing CI's `lint` and `type-check` jobs. No suppressions — real
+  annotations and guards. CI is green.
+
 ## [2.0.16] — 2026-06-21
 
 ### Polish: surface-area narrowing, import guards, and scan-rule reliability

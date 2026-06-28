@@ -82,12 +82,23 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         )
 
     def _load_registry(self):
-        if REGISTRY_PATH.exists():
+        if not REGISTRY_PATH.exists():
+            return
+        try:
             with REGISTRY_PATH.open() as f:
                 data = json.load(f)
-                for pid, pdict in data.items():
-                    self.registry[pid] = ProjectMeta(**pdict)
-            logger.info("Loaded %s projects from registry", len(self.registry))
+        except (OSError, json.JSONDecodeError) as exc:
+            # A corrupt or unreadable registry must fail loudly, not silently
+            # produce an empty project list. Log with the path and continue so
+            # the rest of startup stays visible.
+            logger.error("Failed to read project registry %s: %s", REGISTRY_PATH, exc)
+            return
+        for pid, pdict in data.items():
+            try:
+                self.registry[pid] = ProjectMeta(**pdict)
+            except (TypeError, ValueError) as exc:
+                logger.error("Skipping malformed registry entry %r: %s", pid, exc)
+        logger.info("Loaded %s projects from registry", len(self.registry))
 
     def _init_projects_db(self):
         for pid, meta in self.registry.items():

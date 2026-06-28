@@ -150,7 +150,7 @@ def _parse_datadog_tree_paths(paths: list[str], ecosystem: str) -> list[MalwareR
     name is reconstructed by joining all path segments between the category and
     the version.
     """
-    records: dict[str, MalwareRecord] = {}
+    records: dict[tuple[str, str], MalwareRecord] = {}
     prefix = f"samples/{ecosystem}/"
     for path in paths:
         if not path.startswith(prefix):

@@ -65,9 +65,11 @@ class ImageScanner:
             if os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes"):
                 self._fail_closed = True
             else:
-                self._fail_closed = os.environ.get(
-                    "PICODOME_ADMISSION_FAIL_CLOSED", "true"
-                ).lower() not in ("0", "false", "no")
+                self._fail_closed = os.environ.get("PICODOME_ADMISSION_FAIL_CLOSED", "true").lower() not in (
+                    "0",
+                    "false",
+                    "no",
+                )
         else:
             self._fail_closed = fail_closed
 

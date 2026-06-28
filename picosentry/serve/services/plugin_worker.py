@@ -112,7 +112,21 @@ def main() -> int:
         return 1
 
     # Acknowledge ready with supported methods.
-    _send({"status": "ready", "capabilities": capabilities, "methods": ["initialize", "on_project_start", "on_project_complete", "on_intelligence", "on_alert", "health_check", "shutdown"]})
+    _send(
+        {
+            "status": "ready",
+            "capabilities": capabilities,
+            "methods": [
+                "initialize",
+                "on_project_start",
+                "on_project_complete",
+                "on_intelligence",
+                "on_alert",
+                "health_check",
+                "shutdown",
+            ],
+        }
+    )
 
     while True:
         message = _recv()
@@ -122,6 +136,10 @@ def main() -> int:
         method_name = message.get("method")
         args = message.get("args", [])
         kwargs = message.get("kwargs", {})
+
+        if not isinstance(method_name, str):
+            _send({"status": "error", "error": f"invalid method name: {method_name!r}"})
+            continue
 
         if method_name == "shutdown":
             try:
@@ -151,4 +169,4 @@ if __name__ == "__main__":
         raise SystemExit(main())
     except Exception:
         _send({"status": "error", "error": f"worker crashed: {traceback.format_exc()}"})
-        raise SystemExit(1)
+        raise SystemExit(1) from None

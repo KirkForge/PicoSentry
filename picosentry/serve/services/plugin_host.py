@@ -14,6 +14,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import select
 import subprocess
 import sys
 import time
@@ -164,6 +165,26 @@ class PluginHost:
     def _read_message(self) -> dict[str, Any] | None:
         if self._proc is None or self._proc.stdout is None:
             return None
+        # Enforce a read timeout so a hung or infinite-looping plugin cannot
+        # block the host thread forever. The protocol is strictly
+        # request/response (one _send -> one _read_message), so the worker is
+        # never more than one message ahead and select() on its stdout pipe is
+        # an accurate readiness signal. On POSIX this works for pipes; if
+        # select is unsupported for the fd we fall back to a blocking read.
+        # ponytail: select+readline assumes no message pipelining (true here);
+        # switch to a raw-fd framed reader if the protocol ever batches.
+        try:
+            ready, _, _ = select.select([self._proc.stdout], [], [], self.timeout)
+            if not ready:
+                logger.error(
+                    "Plugin worker for '%s' did not respond within %.1fs; terminating",
+                    self.metadata.name,
+                    self.timeout,
+                )
+                self._terminate()
+                return None
+        except (OSError, ValueError):
+            pass  # select unsupported for this fd — fall back to blocking read
         try:
             line = self._proc.stdout.readline()
             if not line:
@@ -177,9 +198,10 @@ class PluginHost:
         if self._proc is None:
             return
         try:
-            self._proc.stdin.close()
-        except Exception:
-            pass
+            if self._proc.stdin is not None:
+                self._proc.stdin.close()
+        except OSError as exc:
+            logger.debug("closing plugin worker stdin failed: %s", exc)
         try:
             self._proc.terminate()
             self._proc.wait(timeout=2.0)

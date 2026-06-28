@@ -28,10 +28,19 @@ def _send(obj: dict[str, Any]) -> None:
 
 
 def _recv() -> dict[str, Any] | None:
-    line = sys.stdin.readline()
-    if not line:
-        return None
-    return json.loads(line)
+    # Skip malformed request lines instead of letting a JSONDecodeError
+    # propagate up and kill the worker. A partial write, stray log line, or
+    # encoding glitch on the request channel should be reported and skipped,
+    # not crash the plugin host. Returns None only on real EOF.
+    while True:
+        line = sys.stdin.readline()
+        if not line:
+            return None
+        try:
+            return json.loads(line)
+        except json.JSONDecodeError as exc:
+            logger.warning("plugin worker: malformed request JSON, skipping line: %s", exc)
+            _send({"status": "error", "error": f"malformed request JSON: {exc}"})
 
 
 def _find_plugin_class(module: Any) -> Any:

@@ -53,7 +53,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
         status="Beta",
         notes=(
             "K8s admission webhook; pod security validation + optional image scanning; "
-            "live-tested against a kind cluster"
+            "fail-closed by default when image scanning is enabled; live-tested against a kind cluster"
         ),
     ),
     ComponentStatus(
@@ -72,7 +72,11 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Plugin system",
         status="Beta",
-        notes="Loads, validates, dispatches; Ed25519 signature verify; PicoShogun protocol",
+        notes=(
+            "Loads, validates, dispatches; Ed25519 signature verify against a "
+            "configured trusted-key allowlist; unsigned plugins load only when "
+            "signing is not required"
+        ),
     ),
     ComponentStatus(
         name="Postgres backend",

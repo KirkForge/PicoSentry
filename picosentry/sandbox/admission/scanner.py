@@ -1,14 +1,14 @@
 from __future__ import annotations
 
-import ipaddress
 import json
 import logging
 import os
 from urllib.error import URLError
-from urllib.parse import urlparse
 from urllib.request import Request, urlopen
 
 from typing import TYPE_CHECKING
+
+from picosentry.scan._network import assert_url_safe
 
 if TYPE_CHECKING:
     from picosentry.sandbox.admission import AdmissionRequest
@@ -18,39 +18,14 @@ logger = logging.getLogger("picodome.admission.scanner")
 _DEFAULT_DAEMON_URL = "http://127.0.0.1:8443"
 _DEFAULT_MIN_SEVERITY = "high"
 
-# Cloud metadata hostnames that must never be reachable via an
-# operator-misconfigured daemon URL (SSRF to instance credentials).
-_METADATA_HOSTNAMES = frozenset(
-    {
-        "metadata.google.internal",
-        "metadata.goog",
-        "metadata",
-    }
-)
-
 
 def _assert_daemon_url_safe(daemon_url: str) -> None:
-    """Reject daemon URLs that point at link-local / cloud-metadata addresses.
+    """Reject daemon URLs pointing at link-local / cloud-metadata addresses.
 
-    The daemon legitimately runs on loopback (the default) or a
-    cluster-internal address, so RFC1918 is *not* blocked here — only the
-    link-local metadata ranges that have no business being a scan daemon:
-    169.254.0.0/16 (incl. 169.254.169.254 on AWS/GCP/Azure) and fe80::/10,
-    plus the well-known metadata hostnames. Raises ValueError if unsafe.
+    Thin wrapper over the shared SSRF guard (`scan._network.assert_url_safe`),
+    kept for the call site and existing tests. Raises ValueError if unsafe.
     """
-    host = (urlparse(daemon_url).hostname or "").strip().rstrip(".").lower()
-    if not host:
-        raise ValueError(f"daemon URL has no host: {daemon_url!r}")
-    if host in _METADATA_HOSTNAMES:
-        raise ValueError(f"daemon URL points at a cloud-metadata hostname: {daemon_url!r}")
-    try:
-        ip = ipaddress.ip_address(host)
-    except ValueError:
-        return  # not a bare IP; hostname allow-listing beyond metadata names is out of scope
-    if ip.is_link_local:
-        raise ValueError(
-            f"daemon URL points at a link-local/metadata address ({ip}): {daemon_url!r}"
-        )
+    assert_url_safe(daemon_url)
 
 
 SEVERITY_LEVELS = {

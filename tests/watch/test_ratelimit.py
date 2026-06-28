@@ -113,3 +113,25 @@ class TestRateLimiter:
         limiter.reset("5.5.5.5")
         # After reset, should be allowed
         assert limiter.is_allowed("5.5.5.5") is True
+
+    def test_max_clients_caps_table_growth(self) -> None:
+        """A flood of distinct IPs cannot grow the client table past max_clients."""
+        limiter = RateLimiter(max_requests=10, window_seconds=60, max_clients=3)
+        # Three distinct clients fill the table.
+        for i in range(3):
+            assert limiter.is_allowed(f"10.0.0.{i}") is True
+        assert limiter.active_clients == 3
+        # A fourth, brand-new client is denied (table full, all entries fresh).
+        assert limiter.is_allowed("10.0.0.99") is False
+        # The table did not grow.
+        assert limiter.active_clients == 3
+
+    def test_existing_client_not_blocked_by_cap(self) -> None:
+        """Clients already tracked are served even when the table is full."""
+        limiter = RateLimiter(max_requests=10, window_seconds=60, max_clients=2)
+        assert limiter.is_allowed("1.1.1.1") is True
+        assert limiter.is_allowed("2.2.2.2") is True
+        # Table is full, but an existing client still gets served.
+        assert limiter.is_allowed("1.1.1.1") is True
+        # A new client is rejected rather than admitted unbounded.
+        assert limiter.is_allowed("3.3.3.3") is False

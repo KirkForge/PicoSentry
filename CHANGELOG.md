@@ -2,6 +2,23 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [2.0.17] — 2026-06-28
+
+### Fix: plugin worker fork bomb + leaked subprocess reaping
+
+- **Critical:** the module-level `plugin_manager = PluginManager()` singleton
+  ran plugin discovery at import time, and a plugin worker subprocess imports
+  that module for `PluginInterface`. Each worker therefore spawned a worker per
+  bundled plugin, which imported the module again — an exponential subprocess
+  fork bomb that saturated CPU under the test suite. The `PICOSHOGUN_PLUGIN_WORKER`
+  marker was set by the host but never checked; it is now honored, so a worker
+  builds an inert manager that performs no discovery.
+- `PluginHost` now registers a `weakref.finalize` reaper so a host dropped
+  without `shutdown()` (e.g. a test that lets a `PluginManager` go out of scope)
+  still terminates its worker subprocess instead of leaking it.
+- Wire `--timeout=60` into the pytest `addopts` so a hung test can no longer
+  run away unbounded.
+
 ## [2.0.16] — 2026-06-21
 
 ### Polish: surface-area narrowing, import guards, and scan-rule reliability

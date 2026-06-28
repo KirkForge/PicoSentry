@@ -4,7 +4,7 @@ metadata:
   name: picodome
   labels:
     app: picodome
-    version: v2.0.16
+    version: v2.0.17
 spec:
   replicas: 2
   selector:

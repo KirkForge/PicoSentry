@@ -18,12 +18,33 @@ import select
 import subprocess
 import sys
 import time
+import weakref
 from pathlib import Path
 from typing import Any
 
 from picosentry.serve.services.plugin_manager import PluginMetadata
 
 logger = logging.getLogger("picoshogun.PluginHost")
+
+
+def _reap_orphan(proc: subprocess.Popen[str] | None) -> None:
+    """Kill a worker subprocess whose host was dropped without shutdown().
+
+    Registered via weakref.finalize so a caller that forgets to call
+    shutdown() (e.g. a test that builds a PluginManager and lets it go out
+    of scope) still gets its subprocess reaped instead of leaking it. Holds
+    only the Popen, not the host, so it never blocks host GC.
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=2.0)
+    except Exception:
+        try:
+            proc.kill()
+        except Exception:
+            pass
 
 
 class PluginHost:
@@ -68,6 +89,8 @@ class PluginHost:
         self._capabilities = set(metadata.capabilities)
 
         self._start_worker()
+        # Safety net: if this host is GC'd without shutdown(), reap the worker.
+        self._finalizer = weakref.finalize(self, _reap_orphan, self._proc)
 
     def _build_env(self) -> dict[str, str]:
         if "environment" in self._capabilities:
@@ -213,6 +236,9 @@ class PluginHost:
                 pass
         self._proc = None
         self._ready = False
+        fin = getattr(self, "_finalizer", None)
+        if fin is not None:
+            fin.detach()
 
     # PluginInterface-compatible API
 

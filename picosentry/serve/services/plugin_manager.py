@@ -161,6 +161,14 @@ class PluginManager:
             "alert": [],
         }
         self._loaded_plugin_paths: set[str] = set()
+        # Recursion guard: a plugin worker subprocess imports this module only
+        # for PluginInterface/PluginMetadata. Discovering plugins there would
+        # spawn a worker per plugin, each of which imports this module again —
+        # an exponential subprocess fork bomb. Workers are marked by the host
+        # via PICOSHOGUN_PLUGIN_WORKER; in that context stay inert.
+        if os.environ.get("PICOSHOGUN_PLUGIN_WORKER") == "1":
+            logger.debug("plugin worker context: skipping plugin discovery")
+            return
         self._load_plugins()
 
     @property

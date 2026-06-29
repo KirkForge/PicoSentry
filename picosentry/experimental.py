@@ -99,7 +99,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Docker image",
         status="Stable",
-        notes="`kirkforge/picodome:v2.0.15` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
+        notes="`kirkforge/picodome:v2.0.17` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user",
     ),
     ComponentStatus(
         name="PyPI package",

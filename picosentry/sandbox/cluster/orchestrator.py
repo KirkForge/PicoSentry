@@ -103,6 +103,12 @@ class ClusterManager:
             logger.warning("Cluster manager already running")
             return
 
+        logger.warning(
+            "Cluster/gossip features are EXPERIMENTAL: node_id=%s address=%s port=%s",
+            self._node_id,
+            self._address,
+            self._port,
+        )
         self._running = True
 
         self_node = ClusterNode(
@@ -192,6 +198,11 @@ class ClusterManager:
         logger.info("Cluster node %s stopped", self._node_id)
 
     def assign_scan(self, scan_request: ScanRequest) -> ClusterNode | None:
+        logger.warning(
+            "Cluster scan distribution is EXPERIMENTAL: scan_id=%s command=%s",
+            scan_request.scan_id,
+            scan_request.command,
+        )
 
         self._state.add_scan(scan_request)
 

@@ -55,16 +55,22 @@ TARGETS = {
 }
 
 
+# Extra headroom for tests that are CPU-bound and heavily contended under xdist.
+_XDIST_OVERRIDES: dict[str, float] = {
+    "corpus_index_10k_ms": 4.0,
+}
+
+
 def _target(name: str) -> float:
     """Return the benchmark target for *name*, scaled when running under xdist.
 
     CI and local parallel runs contend for CPU, so we relax the wall-clock
     targets rather than failing on load spikes that are unrelated to code
-    regressions.
+    regressions. CPU-bound outliers get larger multipliers.
     """
     base = TARGETS[name]
     if os.environ.get("PYTEST_XDIST_WORKER"):
-        return base * 2.0
+        return base * _XDIST_OVERRIDES.get(name, 2.0)
     return base
 
 

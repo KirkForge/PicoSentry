@@ -111,6 +111,78 @@ jobs:
       - name: Run serve tests
         run: python -m pytest tests/serve/ -v --tb=short
 
+  postgres-live-test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        postgres-version: ['15', '16']
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres-version }}-alpine
+        env:
+          POSTGRES_USER: picoshogun
+          POSTGRES_PASSWORD: picoshogun-test
+          POSTGRES_DB: picoshogun
+        ports:
+          - 15432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Install package with serve deps and psycopg2
+        run: |
+          pip install --no-cache-dir -e ".[dev,serve]"
+          pip install --no-cache-dir psycopg2-binary
+      - name: Run Postgres live integration test
+        env:
+          PICOSHOGUN_DATABASE_BACKEND: postgres
+          PICOSHOGUN_DATABASE_URL: postgresql://picoshogun:picoshogun-test@127.0.0.1:15432/picoshogun
+        run: |
+          python - <<'PY'
+          from picosentry.serve.database.manager import db
+          from picosentry.serve.config.settings import settings
+
+          assert settings.database.backend == "postgres", settings.database.backend
+          print(f"connected: backend={db.backend}, dialect placeholders={db.dialect.placeholder}")
+
+          for table in ("intelligence", "alerts", "metrics", "webhooks", "scheduled_jobs", "project_runs"):
+              rows = db.execute(
+                  "SELECT COUNT(*) as n FROM information_schema.tables WHERE table_name = %s",
+                  (table,),
+              )
+              assert rows[0]["n"] == 1, f"table {table} missing"
+              print(f"  table {table}: present")
+
+          db.execute_insert(
+              "INSERT INTO alerts (severity, message, org_id) VALUES (?, ?, ?)",
+              ("info", "Postgres live test alert", 1),
+          )
+          row = db.execute_one(
+              "SELECT severity, message, org_id FROM alerts WHERE message = ? ORDER BY id DESC",
+              ("Postgres live test alert",),
+          )
+          assert row is not None
+          assert row["severity"] == "info"
+          assert row["org_id"] == 1
+          print("  CRUD round-trip: OK")
+
+          rows = db.execute(
+              "SELECT id FROM alerts WHERE severity IN (?, ?) AND message = ?",
+              ("info", "warning", "Postgres live test alert"),
+          )
+          assert len(rows) >= 1
+          print(f"  placeholder IN clause: OK ({len(rows)} row(s))")
+
+          db.execute("DELETE FROM alerts WHERE message = ?", ("Postgres live test alert",))
+          print("Postgres live integration test: PASSED")
+          PY
+
   test-sandbox:
     runs-on: ubuntu-latest
     steps:

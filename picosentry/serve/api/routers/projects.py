@@ -4,7 +4,7 @@ from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 
-from picosentry.serve.api.deps import get_current_org, get_current_user, require_permission
+from picosentry.serve.api.deps import get_current_org, require_permission
 from picosentry.serve.api.models import (
     AlertResponse,
     BatchRunRequest,
@@ -25,22 +25,20 @@ router = APIRouter()
 async def list_projects(
     category: str | None = Query(None),
     status: str | None = Query(None),
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    projects = orchestrator.list_projects()
-    if category:
-        projects = [p for p in projects if p.get("category") == category]
-    if status:
-        projects = [p for p in projects if p.get("status") == status]
+    projects = orchestrator.list_projects(category=category, status_filter=status, org_id=org["id"])
     return projects
 
 
 @router.get("/projects/{project_id}", response_model=ProjectStatus, tags=["Projects"])
 async def get_project(
     project_id: str,
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    project = orchestrator.get_project(project_id)
+    project = orchestrator.get_project(project_id, org_id=org["id"])
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
     return project
@@ -77,9 +75,10 @@ async def run_batch(
 async def export_project(
     project_id: str,
     format: str = Query("json", pattern="^(json|csv)$"),
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    project = orchestrator.get_project(project_id)
+    project = orchestrator.get_project(project_id, org_id=org["id"])
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
 
@@ -201,7 +200,7 @@ async def get_summary_report(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
 ):
-    projects = orchestrator.list_projects()
+    projects = orchestrator.list_projects(org_id=org["id"])
     total = len(projects)
     active = sum(1 for p in projects if p.get("status") == "active")
     failed = sum(1 for p in projects if p.get("status") == "failed")

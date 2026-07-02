@@ -20,7 +20,7 @@ async def dashboard_summary(
 ):
     status = orchestrator.get_status(org_id=org["id"])
     health = orchestrator.get_health_checks()
-    recent_projects = orchestrator.list_projects(limit=10)
+    recent_projects = orchestrator.list_projects(limit=10, org_id=org["id"])
     recent_intel = db.execute(
         "SELECT id, source_project, intel_type, severity, confidence, created_at "
         "FROM intelligence WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",

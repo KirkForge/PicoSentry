@@ -126,6 +126,38 @@ class Organization:
         return usage.get("runs_today", {}).get("used", 0) < usage.get("runs_today", {}).get("limit", 0)
 
     @staticmethod
+    def add_project(org_id: int, project_id: str) -> None:
+        """Associate a project with an organization.
+
+        Idempotent: duplicate associations are ignored so repeated runs do not
+        inflate usage counts.
+        """
+        db.execute_insert(
+            """
+            INSERT OR IGNORE INTO org_projects (org_id, project_id, added_at)
+            VALUES (?, ?, ?)
+        """,
+            (org_id, project_id, datetime.now(timezone.utc)),
+        )
+
+    @staticmethod
+    def has_project(org_id: int, project_id: str) -> bool:
+        row = db.execute_one(
+            "SELECT id FROM org_projects WHERE org_id = ? AND project_id = ?",
+            (org_id, project_id),
+        )
+        return row is not None
+
+    @staticmethod
+    def list_project_ids(org_id: int) -> set[str]:
+        """Return the set of project IDs associated with an org via org_projects."""
+        rows = db.execute(
+            "SELECT project_id FROM org_projects WHERE org_id = ?",
+            (org_id,),
+        )
+        return {r["project_id"] for r in rows} if rows else set()
+
+    @staticmethod
     def update_tier(org_id: int, new_tier: str) -> bool:
         if new_tier not in Organization.TIERS:
             return False

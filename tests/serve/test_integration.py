@@ -1286,32 +1286,54 @@ class TestTenantDataIsolation:
     """
 
     def test_tenant_cannot_read_other_org_projects(self, client):
-        """Org A creates a project; Org B's member cannot list or see it through org-scoped endpoints."""
+        """Org A runs/claims a project; Org B's member cannot list, read, or export it."""
+        from picosentry.serve.services.orgs import Organization
+
         tag = int(time.time() * 1000)
 
-        # Create user A and org A
+        # Each registration creates exactly one default org; that is the org the
+        # user acts as on org-scoped endpoints (no X-Org-API-Key header needed).
         token_a, _user_a = _register_and_login(client, suffix=tag)
-        slug_a = f"tenant-proj-a-{tag}"
-        resp = client.post("/orgs", json={"name": "Tenant Org A", "slug": slug_a}, headers=_auth_headers(token_a))
-        assert resp.status_code == 200
-        org_a_id = resp.json()["id"]
-
-        # Create user B and org B
         token_b, _ = _register_and_login(client, suffix=tag + 1)
-        slug_b = f"tenant-proj-b-{tag}"
-        resp_b = client.post("/orgs", json={"name": "Tenant Org B", "slug": slug_b}, headers=_auth_headers(token_b))
-        assert resp_b.status_code == 200
-        org_b_id = resp_b.json()["id"]
 
-        # Verify org IDs are different
+        org_a_id = client.get("/orgs", headers=_auth_headers(token_a)).json()["orgs"][0]["id"]
+        org_b_id = client.get("/orgs", headers=_auth_headers(token_b)).json()["orgs"][0]["id"]
         assert org_a_id != org_b_id
 
-        # User B cannot access org A's usage or members
-        resp = client.get(f"/orgs/{org_a_id}/usage", headers=_auth_headers(token_b))
-        assert resp.status_code == 403
+        # Associate a registry project with org A (simulates having run it).
+        project_id = "picosentry"
+        Organization.add_project(org_a_id, project_id)
 
-        resp = client.get(f"/orgs/{org_a_id}/members", headers=_auth_headers(token_b))
-        assert resp.status_code == 403
+        # Org A sees the project; org B does not.
+        resp = client.get("/projects", headers=_auth_headers(token_a))
+        assert resp.status_code == 200
+        assert any(p["id"] == project_id for p in resp.json())
+
+        resp = client.get("/projects", headers=_auth_headers(token_b))
+        assert resp.status_code == 200
+        assert not any(p["id"] == project_id for p in resp.json())
+
+        # Org A can read/export the project; org B gets 404.
+        resp = client.get(f"/projects/{project_id}", headers=_auth_headers(token_a))
+        assert resp.status_code == 200
+
+        resp = client.get(f"/projects/{project_id}/export", headers=_auth_headers(token_a))
+        assert resp.status_code == 200
+
+        resp = client.get(f"/projects/{project_id}", headers=_auth_headers(token_b))
+        assert resp.status_code == 404
+
+        resp = client.get(f"/projects/{project_id}/export", headers=_auth_headers(token_b))
+        assert resp.status_code == 404
+
+        # Reports summary is org-scoped.
+        resp = client.get("/reports/summary", headers=_auth_headers(token_a))
+        assert resp.status_code == 200
+        assert resp.json()["total_projects"] >= 1
+
+        resp = client.get("/reports/summary", headers=_auth_headers(token_b))
+        assert resp.status_code == 200
+        assert resp.json()["total_projects"] == 0
 
     def test_tenant_cannot_upgrade_other_org(self, client):
         """Org A admin cannot upgrade org B's tier even with admin role."""

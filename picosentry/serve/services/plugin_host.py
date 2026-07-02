@@ -15,6 +15,7 @@ import contextlib
 import json
 import logging
 import os
+import re
 import select
 import subprocess
 import sys
@@ -72,6 +73,11 @@ class PluginHost:
         "LC_CTYPE",
     }
 
+    # Plugin metadata used to construct env vars must be plain strings with
+    # no whitespace or shell metacharacters that could leak into the child.
+    _PLUGIN_NAME_RE: ClassVar[re.Pattern[str]] = re.compile(r"^[a-zA-Z0-9_.-]+$")
+    _CAPABILITY_RE: ClassVar[re.Pattern[str]] = re.compile(r"^[a-zA-Z0-9_]+$")
+
     def __init__(
         self,
         plugin_path: str,
@@ -91,7 +97,22 @@ class PluginHost:
         # Safety net: if this host is GC'd without shutdown(), reap the worker.
         self._finalizer = weakref.finalize(self, _reap_orphan, self._proc)
 
+    def _validate_env_values(self) -> None:
+        """Ensure metadata values that become env vars are well-formed.
+
+        This prevents a compromised manifest from injecting arbitrary env vars
+        or shell control characters through the plugin name or capability list.
+        """
+        name = self.metadata.name
+        if not self._PLUGIN_NAME_RE.match(name):
+            raise ValueError(f"Invalid plugin name for env var: {name!r}")
+        for capability in self._capabilities:
+            if not self._CAPABILITY_RE.match(capability):
+                raise ValueError(f"Invalid capability name for env var: {capability!r}")
+
     def _build_env(self) -> dict[str, str]:
+        self._validate_env_values()
+
         if "environment" in self._capabilities:
             # Pass the host environment through, but mark the child as a
             # plugin worker so it can avoid re-spawning another host.

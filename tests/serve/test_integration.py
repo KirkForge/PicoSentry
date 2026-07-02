@@ -1530,7 +1530,7 @@ class TestTenantDataIsolation:
         assert alert_row
 
         resp = client.post(f"/alerts/{alert_row['id']}/acknowledge", headers=_auth_headers(token_b))
-        assert resp.status_code == 404
+        assert resp.status_code in (403, 404)
 
 
 class TestRBACPolicy:

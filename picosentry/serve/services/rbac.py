@@ -25,6 +25,7 @@ class Permission(str, Enum):
     RUN_PROJECTS = "run:projects"
     WRITE_WEBHOOKS = "write:webhooks"
     WRITE_INTELLIGENCE = "write:intelligence"
+    WRITE_ALERTS = "write:alerts"
     WRITE_SCHEDULER = "write:scheduler"
     WRITE_ANOMALY = "write:anomaly"
 
@@ -68,6 +69,7 @@ ROLE_PERMISSIONS: dict[str, set[Permission]] = {
         Permission.RUN_PROJECTS,
         Permission.WRITE_WEBHOOKS,
         Permission.WRITE_INTELLIGENCE,
+        Permission.WRITE_ALERTS,
         Permission.WRITE_SCHEDULER,
         Permission.WRITE_ANOMALY,
     },

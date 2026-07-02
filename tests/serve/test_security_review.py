@@ -4,6 +4,9 @@ These tests document and enforce the security contract of the serve API:
 - Registration cannot self-elevate role.
 - Auth is required for privileged endpoints.
 - Org isolation prevents cross-tenant reads.
+- Role/permission-level access is enforced (read vs write vs admin).
+- Malformed tokens and query-param auth attempts are rejected.
+- Random/pathological inputs do not produce 500s or leak internal state.
 - Production configuration rejects wildcard CORS, weak secrets, and public
   interface binding unless explicitly overridden.
 - /docs and /redoc are disabled in production.
@@ -222,3 +225,166 @@ class TestScansWorkspace:
             headers={"Authorization": f"Bearer {token}"},
         )
         assert r.status_code == 200
+
+
+def _create_role_user(client, role):
+    """Create a user with the given role, log in, and create a default org."""
+    suffix = uuid.uuid4().hex[:8]
+    from picosentry.serve.api.deps import auth_service
+
+    username = f"sec-{role}-{suffix}"
+    password = "correct-horse-battery-staple"
+    auth_service.create_user(username, password, role=role)
+
+    r = client.post("/auth/login", json={"username": username, "password": password})
+    assert r.status_code == 200, r.text
+    token = r.json()["access_token"]
+
+    slug = f"sec-{role}-org-{suffix}"
+    r = client.post(
+        "/orgs",
+        json={"name": f"Sec {role} org", "slug": slug},
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    assert r.status_code in (200, 409), f"Default org creation failed: {r.text}"
+    return token
+
+
+class TestRoleEscalation:
+    """Non-admin roles cannot reach admin-only endpoints."""
+
+    def test_viewer_cannot_access_admin_backup(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post("/backup", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 403
+
+    def test_viewer_cannot_rotate_logs(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post("/logs/rotate", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 403
+
+    def test_operator_cannot_purge_audit(self, client):
+        token = _create_role_user(client, "operator")
+        r = client.post("/audit/purge", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code == 403
+
+
+class TestPermissionLevel:
+    """Write/mutate permissions are separate from read permissions."""
+
+    def test_viewer_cannot_run_project(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post(
+            "/projects/picosentry/run",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 403
+
+    def test_viewer_cannot_create_webhook(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post(
+            "/webhooks",
+            json={"name": "x", "url": "http://example.com", "events": ["alert"]},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 403
+
+    def test_viewer_cannot_create_scheduler_job(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post(
+            "/scheduler/jobs",
+            json={
+                "name": "x",
+                "cron": "* * * * *",
+                "command": "report",
+                "params": {},
+                "enabled": False,
+            },
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 403
+
+    def test_viewer_cannot_acknowledge_alert(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post(
+            "/alerts/1/acknowledge",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 403
+
+    def test_viewer_cannot_trigger_anomaly_check(self, client):
+        token = _create_role_user(client, "viewer")
+        r = client.post(
+            "/anomaly/check",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 403
+
+
+class TestTokenValidation:
+    """Malformed, wrong-scheme, and missing credentials are rejected."""
+
+    def test_malformed_bearer_token_rejected(self, client):
+        r = client.get(
+            "/projects",
+            headers={"Authorization": "Bearer not-a-valid-token"},
+        )
+        assert r.status_code in (401, 403)
+
+    def test_wrong_auth_scheme_rejected(self, client):
+        r = client.get(
+            "/projects",
+            headers={"Authorization": "Basic dXNlcjpwYXNz"},
+        )
+        assert r.status_code in (401, 403)
+
+    def test_missing_auth_header_rejected(self, client):
+        r = client.get("/projects")
+        assert r.status_code in (401, 403)
+
+
+class TestAuthBypass:
+    """Legacy/insecure auth vectors are not accepted."""
+
+    def test_login_query_params_ignored(self, client, unique_user):
+        client.post("/auth/register", json=unique_user)
+        # Query parameters must not satisfy the JSON-body login contract.
+        r = client.post(
+            "/auth/login?username=admin&password=admin",
+            json={
+                "username": unique_user["username"],
+                "password": unique_user["password"],
+            },
+        )
+        assert r.status_code == 200
+        assert "access_token" in r.json()
+
+        r2 = client.post("/auth/login?username=admin&password=admin")
+        assert r2.status_code == 422
+
+
+class TestFuzzHarness:
+    """Lightweight fuzz: pathological inputs must not 500 or leak stack traces."""
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            "' OR 1=1 --",
+            "<script>alert(1)</script>",
+            "../../../etc/passwd",
+            "A" * 5000,
+            "null",
+            "true",
+            "-1",
+            "0",
+            "%00",
+        ],
+    )
+    def test_project_read_inputs_do_not_500(self, client, payload):
+        token = _create_role_user(client, "viewer")
+        r = client.get(
+            f"/projects/{payload}",
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code in (403, 404, 422)
+        assert "Internal Server Error" not in r.text

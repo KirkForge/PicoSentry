@@ -37,6 +37,15 @@ class ScheduledJob:
 
 class JobScheduler:
     ALLOWED_COMMANDS: ClassVar[set[str]] = {"batch", "run", "report", "backup", "cleanup", "health_check"}
+    ALLOWED_CATEGORIES: ClassVar[set[str]] = {
+        "monitoring",
+        "audit",
+        "security",
+        "maintenance",
+        "health",
+        "backup",
+        "report",
+    }
 
     def __init__(self):
         self.scheduler = sched.scheduler(time.time, time.sleep)
@@ -149,6 +158,14 @@ class JobScheduler:
         except Exception:
             return None
 
+    def _validate_category(self, category: str) -> bool:
+        """Return True if *category* is a known-good batch category.
+
+        The allowlist replaces a fragile character blacklist and prevents
+        command-injection through the ``category`` job param.
+        """
+        return category in self.ALLOWED_CATEGORIES
+
     def _execute_job(self, job_id: int):
         job = self.jobs.get(job_id)
         if not job:
@@ -161,14 +178,17 @@ class JobScheduler:
 
             if job.command not in self.ALLOWED_COMMANDS:
                 logger.error("Rejected unknown command: %r", job.command)
+                now = datetime.now()
                 db.execute_insert(
                     """
                     UPDATE scheduled_jobs
                     SET last_run = ?, last_status = 'rejected'
                     WHERE id = ?
                 """,
-                    (datetime.now(), job_id),
+                    (now, job_id),
                 )
+                job.last_run = now
+                job.last_status = "rejected"
                 return
 
             if job.command == "batch":
@@ -176,17 +196,19 @@ class JobScheduler:
 
                 category = str(job.params.get("category", "monitoring"))
 
-                _unsafe_chars = set("/\\;&$`()")
-                if any(c in _unsafe_chars for c in category) or "\n" in category or "\r" in category:
-                    logger.error("Rejected unsafe category param: %r", category)
+                if not self._validate_category(category):
+                    logger.error("Rejected unknown category param: %r", category)
+                    now = datetime.now()
                     db.execute_insert(
                         """
                         UPDATE scheduled_jobs
                         SET last_run = ?, last_status = 'rejected'
                         WHERE id = ?
                     """,
-                        (datetime.now(), job_id),
+                        (now, job_id),
                     )
+                    job.last_run = now
+                    job.last_status = "rejected"
                     return
                 result: subprocess.CompletedProcess = subprocess.run(
                     ["bash", "scripts/run_category.sh", category],

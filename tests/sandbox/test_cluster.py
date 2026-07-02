@@ -1380,3 +1380,40 @@ class TestGossipLoop:
         mgr._gossip_thread.join(timeout=5.0)
 
         assert not mgr._gossip_thread.is_alive()
+
+
+class TestClusterExperimentalWarnings:
+    """Cluster/gossip features must advertise their experimental status."""
+
+    def test_setup_cluster_manager_logs_experimental_warning(self, caplog):
+        import logging
+
+        from picosentry.sandbox.cluster.manager import setup_cluster_manager
+
+        with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
+            setup_cluster_manager(node_id="warn-node", cluster_token="test-token")
+
+        assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+
+    def test_cluster_manager_start_logs_experimental_warning(self, caplog):
+        import logging
+
+        mgr = ClusterManager(node_id="warn-start-node")
+        with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
+            mgr.start()
+            mgr.stop()
+
+        assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+
+    def test_assign_scan_logs_experimental_warning(self, cluster_state, node_a, scan_request, caplog):
+        import logging
+
+        cluster_state.add_node(node_a)
+        mgr = ClusterManager(backend=cluster_state._backend, node_id="warn-scan-node")
+        # manager.start() would spawn threads; just wire state directly.
+        mgr._state = cluster_state
+
+        with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
+            mgr.assign_scan(scan_request)
+
+        assert any("EXPERIMENTAL" in r.message for r in caplog.records)

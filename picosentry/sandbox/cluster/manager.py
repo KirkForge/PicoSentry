@@ -50,6 +50,13 @@ def setup_cluster_manager(
     tls_ca_path: str = "",
 ) -> ClusterManager:
     global _cluster_manager
+
+    import logging
+
+    logging.getLogger("picodome.cluster").warning(
+        "Cluster/gossip configuration is EXPERIMENTAL and not recommended for production use."
+    )
+
     _cluster_manager = ClusterManager(
         address=address,
         port=port,

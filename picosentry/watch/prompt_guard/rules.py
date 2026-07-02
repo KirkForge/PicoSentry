@@ -17,7 +17,7 @@ class RuleEngine:
         self._rules_dir = rules_dir
         self._rules: list[Rule] = []
         self._compiled: dict[str, re.Pattern[str]] = {}
-        self._corpus_hash = ""
+        self._corpus_hash = "no-rules-loaded"
         self._rules_expected: int = 0
         self._load_errors: list[str] = []
         if rules_dir and rules_dir.exists():

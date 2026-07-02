@@ -21,18 +21,15 @@ async def register(request: RegisterRequest):
     # self-elect.  ``RegisterRequest`` rejects a client-supplied ``role``
     # field at the Pydantic layer (``extra="forbid"``), so this is the
     # single source of truth for the new user's role.
-    try:
-        user_id = auth_service.create_user(
-            username=request.username,
-            password=request.password,
-            email=request.email,
-            role="viewer",
-        )
-        if not user_id:
-            raise HTTPException(status_code=409, detail="Username already exists")
-        return {"user_id": user_id, "username": request.username, "role": "viewer"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e)) from None
+    user_id = auth_service.create_user(
+        username=request.username,
+        password=request.password,
+        email=request.email,
+        role="viewer",
+    )
+    if not user_id:
+        raise HTTPException(status_code=409, detail="Username already exists")
+    return {"user_id": user_id, "username": request.username, "role": "viewer"}
 
 
 class _LoginRequest(BaseModel):

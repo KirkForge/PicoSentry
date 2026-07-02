@@ -143,7 +143,7 @@ class AlertHub:
             requests.post(
                 settings.alerts.discord_webhook, json=payload, timeout=5, headers={"Content-Type": "application/json"}
             )
-        except Exception:
+        except requests.RequestException:
             logger.exception("Discord webhook failed")
 
     def _slack_notify(self, project_id: str, severity: str, message: str, metadata: dict | None = None):
@@ -172,7 +172,7 @@ class AlertHub:
 
         try:
             requests.post(settings.alerts.slack_webhook, json=payload, timeout=5)
-        except Exception:
+        except requests.RequestException:
             logger.exception("Slack webhook failed")
 
     def _email_notify(self, project_id: str, severity: str, message: str):
@@ -214,7 +214,7 @@ Time: {datetime.now(timezone.utc).isoformat()}
             server.quit()
             logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
 
-        except Exception:
+        except (smtplib.SMTPException, OSError):
             logger.exception("Email notification failed")
 
     def _syslog_notify(self, project_id: str, severity: str, message: str):

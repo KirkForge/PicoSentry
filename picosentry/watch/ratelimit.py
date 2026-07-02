@@ -34,14 +34,17 @@ class RateLimiter:
                 if len(self._clients) >= self.max_clients:
                     return False
 
-            entry = self._clients[client_ip]
             cutoff = now - self.window_seconds
 
-            entry.timestamps = [ts for ts in entry.timestamps if ts > cutoff]
-
+            # Periodic eviction must run before we create/look up the entry;
+            # otherwise a brand-new empty entry is considered stale and deleted,
+            # and the subsequent append does not re-insert it into the dict.
             if now - self._last_eviction > self.window_seconds:
                 self._evict_stale(now)
                 self._last_eviction = now
+
+            entry = self._clients[client_ip]
+            entry.timestamps = [ts for ts in entry.timestamps if ts > cutoff]
 
             if len(entry.timestamps) >= self.max_requests:
                 return False

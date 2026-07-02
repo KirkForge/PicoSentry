@@ -1,5 +1,4 @@
-"""Tests for the subprocess plugin host (env validation, lifecycle).
-"""
+"""Tests for the subprocess plugin host (env validation, lifecycle)."""
 
 from __future__ import annotations
 

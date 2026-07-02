@@ -82,6 +82,21 @@ class TestRegistration:
         r = client.post("/auth/register", json=payload)
         assert r.status_code == 422
 
+    def test_registration_does_not_swallow_unexpected_errors(self, unique_user, monkeypatch):
+        """The register endpoint must not catch arbitrary exceptions and return 400."""
+        import asyncio
+
+        from picosentry.serve.api.models import RegisterRequest
+        from picosentry.serve.api.routers import auth as auth_router
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("database connection lost")
+
+        monkeypatch.setattr(auth_router.auth_service, "create_user", _boom)
+
+        with pytest.raises(RuntimeError, match="database connection lost"):
+            asyncio.run(auth_router.register(RegisterRequest(**unique_user)))
+
     def test_registration_disabled_by_default_in_production(self, monkeypatch, unique_user):
         s = _reload_settings(
             monkeypatch,

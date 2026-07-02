@@ -183,7 +183,7 @@ async def list_alerts(
 async def acknowledge_alert(
     alert_id: int,
     org: dict = Depends(get_current_org),
-    user: dict = Depends(require_permission(Permission.READ_ALERTS)),
+    user: dict = Depends(require_permission(Permission.WRITE_ALERTS)),
 ):
     alert = db.execute_one(
         "SELECT id FROM alerts WHERE id = ? AND org_id = ?",

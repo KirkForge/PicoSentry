@@ -32,7 +32,7 @@ async def list_anomaly_alerts(
 
 @router.post("/check", tags=["Anomaly"])
 async def trigger_anomaly_check(
-    user: dict = Depends(require_permission(Permission.READ_ANOMALY)),
+    user: dict = Depends(require_permission(Permission.WRITE_ANOMALY)),
 ):
     detector = _get_anomaly_detector()
     alerts = detector.check_rules()

@@ -43,9 +43,8 @@ def _resolve_hostname(hostname: str) -> list[str] | None:
 
 
 def _is_safe_webhook_url(url: str, dns_resolver=None) -> tuple:
-    try:
-        parsed = urlparse(url)
-    except Exception:
+    parsed = urlparse(url)
+    if not parsed.scheme and not parsed.netloc:
         return False, "Invalid URL format"
 
     if parsed.scheme not in ("http", "https"):
@@ -179,7 +178,7 @@ class WebhookManager:
 
                 logger.info("Webhook %s: %s", name, response.status_code)
 
-            except Exception as e:
+            except requests.RequestException as e:
                 logger.exception("Webhook %s failed", name)
                 results.append({"webhook": name, "status": 0, "success": False, "error": str(e)})
 

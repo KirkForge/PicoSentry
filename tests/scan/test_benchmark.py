@@ -57,6 +57,7 @@ TARGETS = {
 
 # Extra headroom for tests that are CPU-bound and heavily contended under xdist.
 _XDIST_OVERRIDES: dict[str, float] = {
+    "cold_start_ms": 3.0,
     "corpus_index_10k_ms": 4.0,
 }
 

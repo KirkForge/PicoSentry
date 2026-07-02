@@ -8,6 +8,8 @@ from urllib.request import Request, urlopen
 
 from typing import TYPE_CHECKING
 
+from picosentry.scan._network import assert_url_safe
+
 if TYPE_CHECKING:
     from picosentry.sandbox.admission import AdmissionRequest
 
@@ -15,6 +17,15 @@ logger = logging.getLogger("picodome.admission.scanner")
 
 _DEFAULT_DAEMON_URL = "http://127.0.0.1:8443"
 _DEFAULT_MIN_SEVERITY = "high"
+
+
+def _assert_daemon_url_safe(daemon_url: str) -> None:
+    """Reject daemon URLs pointing at link-local / cloud-metadata addresses.
+
+    Thin wrapper over the shared SSRF guard (`scan._network.assert_url_safe`),
+    kept for the call site and existing tests. Raises ValueError if unsafe.
+    """
+    assert_url_safe(daemon_url)
 
 
 SEVERITY_LEVELS = {
@@ -40,6 +51,11 @@ class ImageScanner:
         self.enabled = enabled
         self.min_severity = min_severity
         self.daemon_url = daemon_url or os.environ.get("PICODOME_ADMISSION_DAEMON_URL", _DEFAULT_DAEMON_URL)
+        # SSRF guard: a misconfigured daemon URL pointing at the cloud
+        # metadata endpoint would exfiltrate instance credentials. Validate
+        # when scanning is active so a bad config fails closed at startup.
+        if self.enabled:
+            _assert_daemon_url_safe(self.daemon_url)
         self.timeout = timeout
         self._min_level = SEVERITY_LEVELS.get(min_severity, 3)
 
@@ -49,9 +65,11 @@ class ImageScanner:
             if os.environ.get("PICODOME_ENTERPRISE_MODE", "").lower() in ("1", "true", "yes"):
                 self._fail_closed = True
             else:
-                self._fail_closed = os.environ.get(
-                    "PICODOME_ADMISSION_FAIL_CLOSED", "true"
-                ).lower() not in ("0", "false", "no")
+                self._fail_closed = os.environ.get("PICODOME_ADMISSION_FAIL_CLOSED", "true").lower() not in (
+                    "0",
+                    "false",
+                    "no",
+                )
         else:
             self._fail_closed = fail_closed
 

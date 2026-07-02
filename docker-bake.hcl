@@ -23,7 +23,7 @@ variable "REGISTRY" {
 }
 
 variable "IMAGE_NAME" {
-    default = "picosentry"
+    default = "picodome"
 }
 
 group "default" {

@@ -1,0 +1,77 @@
+name: Release
+
+# Cut a release by pushing a version tag, e.g.:
+#   git tag v2.0.17 && git push origin v2.0.17
+#
+# This produces the supply-chain evidence PicoSentry's own audit (gap #4)
+# asks for: a CycloneDX SBOM, SLSA build-provenance attestation (via the
+# GitHub trusted builder's OIDC identity), and Sigstore signatures on the
+# wheel + sdist. These cannot be produced faithfully on a developer laptop —
+# the provenance is only meaningful when it attests the GitHub-hosted build.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write       # create the GitHub Release + upload assets
+  id-token: write       # keyless Sigstore signing + SLSA provenance OIDC
+  attestations: write   # actions/attest-build-provenance
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Verify tag matches package version
+        run: |
+          PKG=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          TAG="${GITHUB_REF_NAME#v}"
+          test "$PKG" = "$TAG" || { echo "tag $GITHUB_REF_NAME != pyproject $PKG"; exit 1; }
+
+      - name: Build wheel + sdist
+        run: |
+          pip install --no-cache-dir build
+          python -m build
+
+      - name: Generate CycloneDX SBOM
+        run: |
+          pip install --no-cache-dir cyclonedx-bom
+          cyclonedx-py environment "$(which python)" --of JSON --output-reproducible \
+            -o "dist/picosentry-${GITHUB_REF_NAME#v}.sbom.cdx.json"
+
+      - name: Checksums
+        run: cd dist && sha256sum * > "picosentry-${GITHUB_REF_NAME#v}.SHA256SUMS"
+
+      - name: SLSA build-provenance attestation
+        uses: actions/attest-build-provenance@v1
+        with:
+          subject-path: 'dist/picosentry-*.whl,dist/picosentry-*.tar.gz'
+
+      - name: Sigstore sign artifacts (keyless, OIDC)
+        uses: sigstore/gh-action-sigstore-python@v3.0.0
+        with:
+          inputs: dist/picosentry-*.whl dist/picosentry-*.tar.gz
+
+      - name: Create GitHub Release with all evidence
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/picosentry-*.whl
+            dist/picosentry-*.tar.gz
+            dist/*.sbom.cdx.json
+            dist/*.SHA256SUMS
+            dist/*.sigstore*
+          generate_release_notes: true
+
+      # Optional: publish to PyPI via Trusted Publishing (configure the
+      # publisher on PyPI first). Left disabled because 2.0.x was published
+      # manually; enable once the trusted publisher is set up.
+      # - name: Publish to PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1

@@ -11,18 +11,40 @@ the rest for observability/audit.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import os
+import re
+import select
 import subprocess
 import sys
-import time
+import weakref
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any, ClassVar
 
-from picosentry.serve.services.plugin_manager import PluginMetadata
+if TYPE_CHECKING:
+    from picosentry.serve.services.plugin_manager import PluginMetadata
 
 logger = logging.getLogger("picoshogun.PluginHost")
+
+
+def _reap_orphan(proc: subprocess.Popen[str] | None) -> None:
+    """Kill a worker subprocess whose host was dropped without shutdown().
+
+    Registered via weakref.finalize so a caller that forgets to call
+    shutdown() (e.g. a test that builds a PluginManager and lets it go out
+    of scope) still gets its subprocess reaped instead of leaking it. Holds
+    only the Popen, not the host, so it never blocks host GC.
+    """
+    if proc is None or proc.poll() is not None:
+        return
+    try:
+        proc.terminate()
+        proc.wait(timeout=2.0)
+    except Exception:
+        with contextlib.suppress(Exception):
+            proc.kill()
 
 
 class PluginHost:
@@ -36,7 +58,7 @@ class PluginHost:
 
     # Env vars required for a Python subprocess to function in a minimal,
     # non-hostile environment. No secrets should be here.
-    _MINIMAL_ENV_VARS = {
+    _MINIMAL_ENV_VARS: ClassVar[set[str]] = {
         "PATH",
         "PYTHONPATH",
         "PYTHONIOENCODING",
@@ -50,6 +72,11 @@ class PluginHost:
         "LC_ALL",
         "LC_CTYPE",
     }
+
+    # Plugin metadata used to construct env vars must be plain strings with
+    # no whitespace or shell metacharacters that could leak into the child.
+    _PLUGIN_NAME_RE: ClassVar[re.Pattern[str]] = re.compile(r"^[a-zA-Z0-9_.-]+$")
+    _CAPABILITY_RE: ClassVar[re.Pattern[str]] = re.compile(r"^[a-zA-Z0-9_]+$")
 
     def __init__(
         self,
@@ -67,8 +94,25 @@ class PluginHost:
         self._capabilities = set(metadata.capabilities)
 
         self._start_worker()
+        # Safety net: if this host is GC'd without shutdown(), reap the worker.
+        self._finalizer = weakref.finalize(self, _reap_orphan, self._proc)
+
+    def _validate_env_values(self) -> None:
+        """Ensure metadata values that become env vars are well-formed.
+
+        This prevents a compromised manifest from injecting arbitrary env vars
+        or shell control characters through the plugin name or capability list.
+        """
+        name = self.metadata.name
+        if not self._PLUGIN_NAME_RE.match(name):
+            raise ValueError(f"Invalid plugin name for env var: {name!r}")
+        for capability in self._capabilities:
+            if not self._CAPABILITY_RE.match(capability):
+                raise ValueError(f"Invalid capability name for env var: {capability!r}")
 
     def _build_env(self) -> dict[str, str]:
+        self._validate_env_values()
+
         if "environment" in self._capabilities:
             # Pass the host environment through, but mark the child as a
             # plugin worker so it can avoid re-spawning another host.
@@ -78,11 +122,7 @@ class PluginHost:
             # needed for Python to run. PYTHONPATH is preserved only if
             # already set (e.g. in test/dev trees) so the worker can import
             # picosentry; in production installs the package is on sys.path.
-            env = {
-                k: v
-                for k, v in os.environ.items()
-                if k in self._MINIMAL_ENV_VARS
-            }
+            env = {k: v for k, v in os.environ.items() if k in self._MINIMAL_ENV_VARS}
             # Always mark the worker.
             env["PICOSHOGUN_PLUGIN_WORKER"] = "1"
             env["PICOSHOGUN_PLUGIN_NAME"] = self.metadata.name
@@ -144,7 +184,7 @@ class PluginHost:
         if self._proc is None or self._proc.poll() is not None:
             raise RuntimeError(f"Plugin worker for '{self.metadata.name}' is not running")
 
-        message = {"method": method}
+        message: dict[str, Any] = {"method": method}
         if args:
             message["args"] = list(args)
         if kwargs:
@@ -164,6 +204,26 @@ class PluginHost:
     def _read_message(self) -> dict[str, Any] | None:
         if self._proc is None or self._proc.stdout is None:
             return None
+        # Enforce a read timeout so a hung or infinite-looping plugin cannot
+        # block the host thread forever. The protocol is strictly
+        # request/response (one _send -> one _read_message), so the worker is
+        # never more than one message ahead and select() on its stdout pipe is
+        # an accurate readiness signal. On POSIX this works for pipes; if
+        # select is unsupported for the fd we fall back to a blocking read.
+        # ponytail: select+readline assumes no message pipelining (true here);
+        # switch to a raw-fd framed reader if the protocol ever batches.
+        try:
+            ready, _, _ = select.select([self._proc.stdout], [], [], self.timeout)
+            if not ready:
+                logger.error(
+                    "Plugin worker for '%s' did not respond within %.1fs; terminating",
+                    self.metadata.name,
+                    self.timeout,
+                )
+                self._terminate()
+                return None
+        except (OSError, ValueError):
+            pass  # select unsupported for this fd — fall back to blocking read
         try:
             line = self._proc.stdout.readline()
             if not line:
@@ -177,9 +237,10 @@ class PluginHost:
         if self._proc is None:
             return
         try:
-            self._proc.stdin.close()
-        except Exception:
-            pass
+            if self._proc.stdin is not None:
+                self._proc.stdin.close()
+        except OSError as exc:
+            logger.debug("closing plugin worker stdin failed: %s", exc)
         try:
             self._proc.terminate()
             self._proc.wait(timeout=2.0)
@@ -191,6 +252,9 @@ class PluginHost:
                 pass
         self._proc = None
         self._ready = False
+        fin = getattr(self, "_finalizer", None)
+        if fin is not None:
+            fin.detach()
 
     # PluginInterface-compatible API
 

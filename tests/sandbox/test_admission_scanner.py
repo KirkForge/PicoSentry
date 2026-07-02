@@ -25,7 +25,11 @@ from unittest import mock
 import pytest
 
 from picosentry.sandbox.admission import AdmissionRequest
-from picosentry.sandbox.admission.scanner import SEVERITY_LEVELS, ImageScanner
+from picosentry.sandbox.admission.scanner import (
+    SEVERITY_LEVELS,
+    ImageScanner,
+    _assert_daemon_url_safe,
+)
 from picosentry.sandbox.cli_commands.admission import add_arguments
 
 
@@ -244,3 +248,41 @@ class TestAdmissionCLIFailClosed:
             ]
         )
         assert args.scan_fail_closed is False
+
+
+class TestDaemonURLSSRFGuard:
+    """B-gap #7: a misconfigured daemon URL must not reach a metadata endpoint."""
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://127.0.0.1:8443",  # loopback default — legitimate
+            "http://localhost:8443",
+            "http://10.0.0.5:8443",  # cluster-internal — legitimate
+            "http://picodome-daemon.svc:8443",  # k8s service DNS
+            "https://mydaemon.example.com",
+        ],
+    )
+    def test_safe_urls_allowed(self, url):
+        _assert_daemon_url_safe(url)  # must not raise
+
+    @pytest.mark.parametrize(
+        "url",
+        [
+            "http://169.254.169.254/latest/meta-data/",  # AWS/GCP/Azure metadata
+            "http://169.254.170.2/",  # ECS task metadata
+            "http://metadata.google.internal/computeMetadata/v1/",
+            "http://[fe80::1]:80/",  # IPv6 link-local
+        ],
+    )
+    def test_metadata_urls_rejected(self, url):
+        with pytest.raises(ValueError):
+            _assert_daemon_url_safe(url)
+
+    def test_enabled_scanner_rejects_metadata_daemon(self):
+        with pytest.raises(ValueError):
+            ImageScanner(enabled=True, daemon_url="http://169.254.169.254/")
+
+    def test_disabled_scanner_skips_validation(self):
+        # Validation only fires when scanning is active.
+        ImageScanner(enabled=False, daemon_url="http://169.254.169.254/")

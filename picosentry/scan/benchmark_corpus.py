@@ -150,7 +150,7 @@ def _parse_datadog_tree_paths(paths: list[str], ecosystem: str) -> list[MalwareR
     name is reconstructed by joining all path segments between the category and
     the version.
     """
-    records: dict[str, MalwareRecord] = {}
+    records: dict[tuple[str, str], MalwareRecord] = {}
     prefix = f"samples/{ecosystem}/"
     for path in paths:
         if not path.startswith(prefix):
@@ -170,7 +170,7 @@ def _parse_datadog_tree_paths(paths: list[str], ecosystem: str) -> list[MalwareR
             pkg_name = pkg_name[:idx] + "/" + pkg_name[idx + 1 :]
         if not pkg_name or not version:
             continue
-        key = f"{ecosystem}:{pkg_name}"
+        key = (ecosystem, pkg_name)
         existing = records.get(key)
         versions = existing.versions if existing else ()
         if version not in versions:

@@ -156,37 +156,53 @@ class ScanEngine:
         self._warn_if_corpus_stale()
         return h.hexdigest()[:12]
 
-    def _warn_if_corpus_stale(self) -> None:
+    def is_corpus_stale(self, max_age_days: int = 30) -> tuple[bool, list[str]]:
+        """Return (is_stale, list of stale ecosystem names) based on corpus.json.
+
+        If no corpus.json manifest exists, the corpus is considered stale so that
+        CI surfaces a missing freshness record rather than silently accepting it.
+        """
         manifest_path = self._corpus_dir / "corpus.json"
+        stale: list[str] = []
         if not manifest_path.is_file():
-            return
+            return True, stale
         try:
             data = json.loads(manifest_path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError):
-            return
+            return True, stale
 
         ecosystems = data.get("ecosystems", {})
         if not isinstance(ecosystems, dict):
-            return
+            return True, stale
 
         now = datetime.now(timezone.utc)
         for ecosystem, entry in ecosystems.items():
             fetched_at = entry.get("fetched_at")
             if not isinstance(fetched_at, str):
+                stale.append(ecosystem)
                 continue
             try:
                 fetched = datetime.fromisoformat(fetched_at)
                 if fetched.tzinfo is None:
                     fetched = fetched.replace(tzinfo=timezone.utc)
             except ValueError:
+                stale.append(ecosystem)
                 continue
-            if now - fetched > timedelta(days=30):
-                logger.warning(
-                    "Corpus '%s' was last fetched on %s. Run 'picosentry update --ecosystem %s' to refresh it.",
-                    ecosystem,
-                    fetched.date().isoformat(),
-                    ecosystem,
-                )
+            if now - fetched > timedelta(days=max_age_days):
+                stale.append(ecosystem)
+
+        return bool(stale), stale
+
+    def _warn_if_corpus_stale(self) -> None:
+        is_stale, stale = self.is_corpus_stale()
+        if not is_stale:
+            return
+        for ecosystem in stale:
+            logger.warning(
+                "Corpus '%s' is stale. Run 'picosentry update --ecosystem %s' to refresh it.",
+                ecosystem,
+                ecosystem,
+            )
 
     def register(self, rule_id: str, rule: DetectorRule) -> ScanEngine:
         self._rules[rule_id] = rule
@@ -205,7 +221,16 @@ class ScanEngine:
         advisory_db_path: str | Path | None = None,
         rule_timeout: float | None = None,
     ) -> ScanResult:
-        target_path = Path(target).resolve()
+        raw_target = Path(target)
+        if raw_target.is_symlink():
+            logger.error("Scan target is a symlink and will not be followed: %s", raw_target)
+            return ScanResult(target=str(raw_target))
+
+        try:
+            target_path = raw_target.resolve()
+        except (OSError, RuntimeError) as exc:
+            logger.error("Scan target path resolution failed: %s", exc)
+            return ScanResult(target=str(raw_target))
 
         if advisory_db_path is not None:
             advisory_db_path = str(advisory_db_path)

@@ -26,6 +26,15 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument("--enterprise", action="store_true", help="Enable enterprise mode.")
     parser.add_argument("--advisory-db", type=str, default=None, help="Path to OSV-format advisory database")
+    parser.add_argument(
+        "--check-corpus-age",
+        type=int,
+        nargs="?",
+        const=30,
+        default=None,
+        metavar="DAYS",
+        help="Exit with code 5 if the corpus is older than DAYS (default: 30).",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:
@@ -37,6 +46,18 @@ def cmd(args: argparse.Namespace) -> int:
 
     advisory_db = getattr(args, "advisory_db", None)
     engine = create_default_engine(advisory_db_path=advisory_db)
+
+    corpus_age_days = getattr(args, "check_corpus_age", None)
+    if corpus_age_days is not None:
+        is_stale, stale = engine.is_corpus_stale(max_age_days=corpus_age_days)
+        if is_stale:
+            print(
+                f"picosentry check: corpus is stale "
+                f"(older than {corpus_age_days} day(s); stale ecosystems: {', '.join(stale) or 'unknown'})",
+                file=sys.stderr,
+            )
+            return 5
+
     result = engine.scan(str(target), rules=args.rules, advisory_db_path=advisory_db)
 
     from picosentry.scan.models import SEVERITY_ORDER

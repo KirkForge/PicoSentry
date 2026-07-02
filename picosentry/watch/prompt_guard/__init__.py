@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import time
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ from picosentry.watch.prompt_guard.normalize import Normalizer
 from picosentry.watch.prompt_guard.rules import RuleEngine
 from picosentry.watch.prompt_guard.scorer import Scorer
 from picosentry.watch.types import PromptScanResult, Rule
+
+logger = logging.getLogger("picowatch.guard")
 
 __all__ = ["Normalizer", "PromptClassifier", "PromptGuard", "RuleEngine", "Scorer"]
 
@@ -57,6 +60,20 @@ class PromptGuard:
     def check(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
         start = time.perf_counter()
 
+        # Fail-closed: if the rule corpus failed to load entirely, treat the
+        # request as blocked rather than allowing everything through.
+        if self._config.fail_closed and self._engine.rules_expected > 0 and self._engine.rules_loaded == 0:
+            return PromptScanResult(
+                blocked=True,
+                score=1.0,
+                rules_matched=["fail_closed_no_rules"],
+                corpus_hash=self.corpus_hash,
+                corpus_version=self.corpus_version,
+                duration_ms=0.0,
+                normalized_input=None,
+                details={"error": "All rules failed to load; fail-closed mode is active"},
+            )
+
         if len(text) > self._config.max_prompt_size:
             return PromptScanResult(
                 blocked=True,
@@ -69,48 +86,63 @@ class PromptGuard:
                 details={"error": f"Input exceeds maximum size ({self._config.max_prompt_size} bytes)"},
             )
 
-        normalized = self._normalizer.normalize(text)
+        try:
+            normalized = self._normalizer.normalize(text)
 
-        matches = self._engine.evaluate(normalized)
+            matches = self._engine.evaluate(normalized)
 
-        decoded_texts = self._normalizer.decode_and_rescan(text)
-        for decoded in decoded_texts:
-            decoded_normalized = self._normalizer.normalize(decoded)
-            decoded_matches = self._engine.evaluate(decoded_normalized)
-            matches.extend(decoded_matches)
-
-        regex_score, matched_ids = self._scorer.score(matches)
-
-        classifier_score = 0.0
-        classifier_features: dict[str, float] = {}
-        if self._classifier_enabled and regex_score < self._config.threshold_block:
-            matched_categories = {rule.category for rule, _ in matches}
-            classifier_score, classifier_features = self._classifier.classify(normalized, matched_categories)
+            decoded_texts = self._normalizer.decode_and_rescan(text)
             for decoded in decoded_texts:
-                decoded_score, decoded_features = self._classifier.classify(decoded, matched_categories)
-                if decoded_score > classifier_score:
-                    classifier_score = decoded_score
-                    classifier_features = decoded_features
+                decoded_normalized = self._normalizer.normalize(decoded)
+                decoded_matches = self._engine.evaluate(decoded_normalized)
+                matches.extend(decoded_matches)
 
-        final_score = self._classifier.blend(regex_score, classifier_score)
+            regex_score, matched_ids = self._scorer.score(matches)
 
-        duration_ms = round((time.perf_counter() - start) * 1000, 3)
+            classifier_score = 0.0
+            classifier_features: dict[str, float] = {}
+            if self._classifier_enabled and regex_score < self._config.threshold_block:
+                matched_categories = {rule.category for rule, _ in matches}
+                classifier_score, classifier_features = self._classifier.classify(normalized, matched_categories)
+                for decoded in decoded_texts:
+                    decoded_score, decoded_features = self._classifier.classify(decoded, matched_categories)
+                    if decoded_score > classifier_score:
+                        classifier_score = decoded_score
+                        classifier_features = decoded_features
 
-        details: dict[str, Any] = dict(context or {})
-        if self._classifier_enabled:
-            details["regex_score"] = regex_score
-            details["classifier_score"] = classifier_score
-            details["classifier_features"] = classifier_features
+            final_score = self._classifier.blend(regex_score, classifier_score)
 
-        return PromptScanResult(
-            blocked=final_score >= self._config.threshold_block,
-            score=final_score,
-            rules_matched=matched_ids,
-            corpus_hash=self.corpus_hash,
-            corpus_version=self.corpus_version,
-            duration_ms=duration_ms,
-            normalized_input=normalized,
-            details=details,
-            threshold_block=self._config.threshold_block,
-            threshold_warn=self._config.threshold_warn,
-        )
+            duration_ms = round((time.perf_counter() - start) * 1000, 3)
+
+            details: dict[str, Any] = dict(context or {})
+            if self._classifier_enabled:
+                details["regex_score"] = regex_score
+                details["classifier_score"] = classifier_score
+                details["classifier_features"] = classifier_features
+
+            return PromptScanResult(
+                blocked=final_score >= self._config.threshold_block,
+                score=final_score,
+                rules_matched=matched_ids,
+                corpus_hash=self.corpus_hash,
+                corpus_version=self.corpus_version,
+                duration_ms=duration_ms,
+                normalized_input=normalized,
+                details=details,
+                threshold_block=self._config.threshold_block,
+                threshold_warn=self._config.threshold_warn,
+            )
+        except Exception as exc:
+            if not self._config.fail_closed:
+                raise
+            logger.exception("PromptGuard.check failed in fail-closed mode")
+            return PromptScanResult(
+                blocked=True,
+                score=1.0,
+                rules_matched=["fail_closed_error"],
+                corpus_hash=self.corpus_hash,
+                corpus_version=self.corpus_version,
+                duration_ms=round((time.perf_counter() - start) * 1000, 3),
+                normalized_input=None,
+                details={"error": f"Evaluation failed and fail-closed mode is active: {exc}"},
+            )

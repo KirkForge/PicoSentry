@@ -113,3 +113,67 @@ class TestRateLimiter:
         limiter.reset("5.5.5.5")
         # After reset, should be allowed
         assert limiter.is_allowed("5.5.5.5") is True
+
+    def test_max_clients_caps_table_growth(self) -> None:
+        """A flood of distinct IPs cannot grow the client table past max_clients."""
+        limiter = RateLimiter(max_requests=10, window_seconds=60, max_clients=3)
+        # Three distinct clients fill the table.
+        for i in range(3):
+            assert limiter.is_allowed(f"10.0.0.{i}") is True
+        assert limiter.active_clients == 3
+        # A fourth, brand-new client is denied (table full, all entries fresh).
+        assert limiter.is_allowed("10.0.0.99") is False
+        # The table did not grow.
+        assert limiter.active_clients == 3
+
+    def test_existing_client_not_blocked_by_cap(self) -> None:
+        """Clients already tracked are served even when the table is full."""
+        limiter = RateLimiter(max_requests=10, window_seconds=60, max_clients=2)
+        assert limiter.is_allowed("1.1.1.1") is True
+        assert limiter.is_allowed("2.2.2.2") is True
+        # Table is full, but an existing client still gets served.
+        assert limiter.is_allowed("1.1.1.1") is True
+        # A new client is rejected rather than admitted unbounded.
+        assert limiter.is_allowed("3.3.3.3") is False
+
+    def test_periodic_eviction_removes_stale_clients(self, monkeypatch) -> None:
+        """The periodic eviction path removes clients with only old timestamps."""
+        timestamps = [0.0]
+
+        def fake_monotonic() -> float:
+            return timestamps[-1]
+
+        monkeypatch.setattr("picosentry.watch.ratelimit.time.monotonic", fake_monotonic)
+
+        limiter = RateLimiter(max_requests=2, window_seconds=10, max_clients=10)
+        assert limiter.is_allowed("1.1.1.1") is True
+
+        # Advance past the eviction grace period (window_seconds * 2)
+        timestamps.append(25.0)
+        assert limiter.is_allowed("2.2.2.2") is True
+        # The periodic eviction should have cleared the stale first client.
+        assert limiter.active_clients == 1
+
+    def test_eviction_frees_slot_for_new_client(self, monkeypatch) -> None:
+        """Eviction can make room for a new client that would otherwise be denied."""
+        timestamps = [0.0]
+
+        def fake_monotonic() -> float:
+            return timestamps[-1]
+
+        monkeypatch.setattr("picosentry.watch.ratelimit.time.monotonic", fake_monotonic)
+
+        limiter = RateLimiter(max_requests=2, window_seconds=10, max_clients=2)
+        assert limiter.is_allowed("old") is True
+
+        # Second request is still inside the rate window.
+        timestamps.append(12.0)
+        assert limiter.is_allowed("fresh") is True
+
+        # Advance past the grace period for "old" but not "fresh".
+        timestamps.append(21.0)
+        # At capacity gate, eviction should remove "old" and admit "new".
+        assert limiter.is_allowed("new") is True
+        assert "old" not in limiter._clients
+        assert "fresh" in limiter._clients
+        assert limiter.active_clients == 2

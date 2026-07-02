@@ -23,14 +23,28 @@ class RateLimiter:
     def is_allowed(self, client_ip: str) -> bool:
         now = time.monotonic()
         with self._lock:
-            entry = self._clients[client_ip]
+            # Bound the client table: a flood of distinct source IPs must not
+            # grow it without limit (memory-exhaustion DoS). For a NEW client
+            # at capacity, evict stale entries first; if still full, deny it
+            # rather than admit an unbounded entry. Existing clients are never
+            # blocked by this gate. `in` on a defaultdict does not create a key.
+            if client_ip not in self._clients and len(self._clients) >= self.max_clients:
+                self._evict_stale(now)
+                self._last_eviction = now
+                if len(self._clients) >= self.max_clients:
+                    return False
+
             cutoff = now - self.window_seconds
 
-            entry.timestamps = [ts for ts in entry.timestamps if ts > cutoff]
-
+            # Periodic eviction must run before we create/look up the entry;
+            # otherwise a brand-new empty entry is considered stale and deleted,
+            # and the subsequent append does not re-insert it into the dict.
             if now - self._last_eviction > self.window_seconds:
                 self._evict_stale(now)
                 self._last_eviction = now
+
+            entry = self._clients[client_ip]
+            entry.timestamps = [ts for ts in entry.timestamps if ts > cutoff]
 
             if len(entry.timestamps) >= self.max_requests:
                 return False

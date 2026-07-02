@@ -229,10 +229,59 @@ class TestCmdCheckDirect:
         args.fail_on = "high"
         args.rules = None
         args.advisory_db = None
+        args.check_corpus_age = None
         rc = _cmd_check(args)
         assert rc == 1
         err = capsys.readouterr().err
         assert "finding" in err.lower() or "pinch" in err.lower() or "check" in err.lower()
+
+    def test_check_corpus_age_fresh_passes(self, tmp_path, capsys):
+        """--check-corpus-age exits 0 when the corpus manifest is fresh."""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "package.json").write_text(json.dumps({"name": "fresh", "version": "1.0.0"}))
+        corpus_dir = tmp_path / "corpus"
+        corpus_dir.mkdir()
+        (corpus_dir / "npm_top_packages.json").write_text("[]")
+        from datetime import datetime, timezone
+
+        today = datetime.now(timezone.utc).isoformat()
+        (corpus_dir / "corpus.json").write_text(json.dumps({"ecosystems": {"npm": {"fetched_at": today}}}))
+
+        args = MagicMock()
+        args.target = str(project)
+        args.fail_on = "high"
+        args.rules = None
+        args.advisory_db = None
+        args.check_corpus_age = 30
+        with patch.dict(os.environ, {"PICOSENTRY_CORPUS_DIR": str(corpus_dir)}):
+            rc = _cmd_check(args)
+        assert rc == 0
+
+    def test_check_corpus_age_stale_fails(self, tmp_path, capsys):
+        """--check-corpus-age exits 5 when the corpus manifest is stale."""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "package.json").write_text(json.dumps({"name": "stale", "version": "1.0.0"}))
+        corpus_dir = tmp_path / "corpus"
+        corpus_dir.mkdir()
+        (corpus_dir / "npm_top_packages.json").write_text("[]")
+        from datetime import datetime, timedelta, timezone
+
+        old = (datetime.now(timezone.utc) - timedelta(days=60)).isoformat()
+        (corpus_dir / "corpus.json").write_text(json.dumps({"ecosystems": {"npm": {"fetched_at": old}}}))
+
+        args = MagicMock()
+        args.target = str(project)
+        args.fail_on = "high"
+        args.rules = None
+        args.advisory_db = None
+        args.check_corpus_age = 30
+        with patch.dict(os.environ, {"PICOSENTRY_CORPUS_DIR": str(corpus_dir)}):
+            rc = _cmd_check(args)
+        assert rc == 5
+        err = capsys.readouterr().err
+        assert "stale" in err.lower()
 
 
 class TestRunScan:

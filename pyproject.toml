@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.16"
+version = "2.0.17"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
 license = {text = "BUSL-1.1"}
@@ -158,7 +158,7 @@ pythonpath = ["picosentry", "tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto"]
+addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto", "--timeout=60"]
 norecursedirs = ["scripts", "plugins"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

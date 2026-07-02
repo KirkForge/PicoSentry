@@ -125,9 +125,11 @@ class TestAdmissionHandler:
         finally:
             server.shutdown()
 
-    def test_validate_allows_with_no_validator(self):
+    def test_validate_denies_with_no_validator(self):
+        """A webhook with no configured validator must fail closed."""
         result = self._make_request("/validate", SAMPLE_ADMISSION_REVIEW)
-        assert result["response"]["allowed"] is True
+        assert result["response"]["allowed"] is False
+        assert "no validator configured" in result["response"]["status"]["message"]
 
     def test_validate_denies_with_validator(self):
         def deny_all(req):

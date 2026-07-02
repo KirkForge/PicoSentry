@@ -17,7 +17,7 @@ class RuleEngine:
         self._rules_dir = rules_dir
         self._rules: list[Rule] = []
         self._compiled: dict[str, re.Pattern[str]] = {}
-        self._corpus_hash = ""
+        self._corpus_hash = "no-rules-loaded"
         self._rules_expected: int = 0
         self._load_errors: list[str] = []
         if rules_dir and rules_dir.exists():
@@ -88,7 +88,20 @@ class RuleEngine:
                 continue
 
         raw_rules.sort(key=lambda r: r.id)
-        self._rules = raw_rules
+        # Drop duplicate ids: _compiled is keyed by rule.id, so a collision
+        # would make every rule sharing that id evaluate with the last-compiled
+        # pattern (silent misfire). Keep the first, record the rest as errors.
+        deduped: list[Rule] = []
+        seen: set[str] = set()
+        for rule in raw_rules:
+            if rule.id in seen:
+                msg = f"Duplicate rule id {rule.id!r} ignored (first definition wins)"
+                logger.warning(msg)
+                self._load_errors.append(msg)
+                continue
+            seen.add(rule.id)
+            deduped.append(rule)
+        self._rules = deduped
         self._rules_expected = expected_count
 
         for rule in self._rules:

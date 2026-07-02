@@ -18,6 +18,7 @@ DEFAULT_MAX_OUTPUT_SIZE = 1_000_000  # 1MB
 DEFAULT_MAX_JSON_SCHEMA_NODES = 1_000
 DEFAULT_MAX_JSON_SCHEMA_DEPTH = 32
 DEFAULT_AUDIT_RETENTION_DAYS = 30
+DEFAULT_FAIL_CLOSED = False
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_ADMIN_HOST = "127.0.0.1"
 DEFAULT_PORT = 8766
@@ -67,6 +68,7 @@ class PromptGuardConfig:  # rationale: L5 prompt guard config, extracted from Pi
     max_prompt_size: int = DEFAULT_MAX_PROMPT_SIZE
     max_output_size: int = DEFAULT_MAX_OUTPUT_SIZE
     corpus_version: str = DEFAULT_CORPUS_VERSION
+    fail_closed: bool = DEFAULT_FAIL_CLOSED
 
 
 @dataclass
@@ -168,6 +170,14 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     @corpus_version.setter
     def corpus_version(self, value: str) -> None:
         self.prompt_guard.corpus_version = value
+
+    @property
+    def fail_closed(self) -> bool:
+        return self.prompt_guard.fail_closed
+
+    @fail_closed.setter
+    def fail_closed(self, value: bool) -> None:
+        self.prompt_guard.fail_closed = value
 
     @property
     def schema_dir(self) -> Path | None:
@@ -395,6 +405,7 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 ),
                 corpus_version=os.environ.get("PICOWATCH_CORPUS_VERSION")
                 or picowatch_conf.get("corpus_version", DEFAULT_CORPUS_VERSION),
+                fail_closed=_env_or_file("fail_closed", "PICOSENTRY_WATCH_FAIL_CLOSED", DEFAULT_FAIL_CLOSED, bool),
             ),
             output_guard=OutputGuardConfig(
                 schema_dir=Path(schema_dir_str) if schema_dir_str else None,

@@ -105,7 +105,9 @@ class AdmissionHandler(BaseHTTPRequestHandler):
         if validator:
             allowed, reason = validator(req)
         else:
-            allowed, reason = True, ""
+            # Fail-closed: a webhook with no policy validator must not admit pods.
+            logger.warning("Admission request received with no validator configured; denying")
+            allowed, reason = False, "no validator configured"
 
         response = AdmissionResponse(
             uid=req.uid,

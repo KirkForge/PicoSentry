@@ -205,7 +205,16 @@ class ScanEngine:
         advisory_db_path: str | Path | None = None,
         rule_timeout: float | None = None,
     ) -> ScanResult:
-        target_path = Path(target).resolve()
+        raw_target = Path(target)
+        if raw_target.is_symlink():
+            logger.error("Scan target is a symlink and will not be followed: %s", raw_target)
+            return ScanResult(target=str(raw_target))
+
+        try:
+            target_path = raw_target.resolve()
+        except (OSError, RuntimeError) as exc:
+            logger.error("Scan target path resolution failed: %s", exc)
+            return ScanResult(target=str(raw_target))
 
         if advisory_db_path is not None:
             advisory_db_path = str(advisory_db_path)

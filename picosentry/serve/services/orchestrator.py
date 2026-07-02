@@ -19,6 +19,7 @@ from picosentry.serve.services.correlation import (
 from picosentry.serve.services.event_bus import event_bus
 from picosentry.serve.services.intelligence import IntelligenceEngine
 from picosentry.serve.services.metrics import metrics
+from picosentry.serve.services.orgs import Organization
 from picosentry.serve.services.plugin_manager import plugin_manager
 
 logger = logging.getLogger("picoshogun.Orchestrator")
@@ -173,27 +174,52 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         }
 
     def list_projects(
-        self, category: str | None = None, status_filter: str | None = None, limit: int = 100, offset: int = 0
+        self,
+        category: str | None = None,
+        status_filter: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+        org_id: int | None = None,
     ) -> list[dict]:
-        query = "SELECT * FROM projects WHERE 1=1"
-        params: list[str | int] = []
+        if org_id is not None:
+            # Tenant-scoped view: only projects this org has run or claimed.
+            org_project_ids = Organization.list_project_ids(org_id)
+            if not org_project_ids:
+                return []
+            placeholders = ", ".join("?" for _ in org_project_ids)
+            query = f"SELECT * FROM projects WHERE id IN ({placeholders})"
+            params: list[Any] = list(org_project_ids)
+            if category:
+                query += " AND category = ?"
+                params.append(category)
+            if status_filter:
+                query += " AND status = ?"
+                params.append(status_filter)
+            query += " ORDER BY priority DESC, name LIMIT ? OFFSET ?"
+            params.extend([limit, offset])
+            rows = db.execute(query, tuple(params))
+            return [dict(row) for row in rows]
 
+        query = "SELECT * FROM projects WHERE 1=1"
+        params = []
         if category:
             query += " AND category = ?"
             params.append(category)
         if status_filter:
             query += " AND status = ?"
             params.append(status_filter)
-
         query += " ORDER BY priority DESC, name LIMIT ? OFFSET ?"
         params.extend([limit, offset])
-
         rows = db.execute(query, tuple(params))
         return [dict(row) for row in rows]
 
-    def get_project(self, project_id: str) -> dict | None:
+    def get_project(self, project_id: str, org_id: int | None = None) -> dict | None:
         row = db.execute_one("SELECT * FROM projects WHERE id = ?", (project_id,))
-        return dict(row) if row else None
+        if not row:
+            return None
+        if org_id is not None and not Organization.has_project(org_id, project_id):
+            return None
+        return dict(row)
 
     def run_project(self, project_id: str, timeout: int | None = None, org_id: int | None = None) -> dict[str, Any]:
         meta = self.registry.get(project_id)
@@ -352,6 +378,9 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
             logger.info("%s: %s in %.1fs", project_id, status, duration)
 
+            if org_id is not None:
+                Organization.add_project(org_id, project_id)
+
             return {
                 "success": result.returncode == 0,
                 "duration": duration,
@@ -389,6 +418,8 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 priority="critical",
             )
 
+            if org_id is not None:
+                Organization.add_project(org_id, project_id)
             return {"error": "timeout", "duration": duration}
 
         except Exception as e:
@@ -420,6 +451,8 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 priority="critical",
             )
 
+            if org_id is not None:
+                Organization.add_project(org_id, project_id)
             return {"error": str(e), "duration": duration}
 
     def _update_project_stats(self, project_id: str):

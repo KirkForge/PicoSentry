@@ -2,7 +2,7 @@
 
 ---
 
-## Current session: 2026-07-02 — dev hardening: test doctor, forward P1/P2 items, code audit follow-up
+## Current session: 2026-07-02 — dev hardening: test doctor, exception-narrowing slices, CI mypy fix, state.md cleanup
 
 ### Done this session (on `dev`)
 - **Test doctor.** Added `scripts/test_doctor.py`: unified local CI-quality runner
@@ -241,20 +241,43 @@
   alert, daemon route-handler, serve middleware/server, watch, cluster +
   policy_versioned, serve services, plugin host/manager, correlation engine,
   serve/api middleware/server/rate_limit/DB manager, serve routers, backup
-  service). Reduced remaining site count to ~191.
+  service). Reduced remaining site count to ~186.
+- **state.md cleanup.** Reconciled the current session header, "Still open"
+  list, Gap Audit #22, and the 2026-06-24 GPT-5 review roadmap so all sections
+  agree that security-relevant exception narrowing is closed, ~186 broad
+  safety-net sites remain, and the only repo-admin action is marking
+  `postgres-live-test` as a required status check.
 
 ### Still open (from `picosentry-gaps-plan.md`)
-- **P1:** all public-beta blockers closed this session.
-- **P4:** tenant project isolation closed this session.
-- **P4 #10 broad exception audit — PARTIAL.** Security-relevant slices audited
-  and tested; remaining ~191 broad `except Exception` sites are intentional
-  safety nets or lower-risk boundaries. Hardening continues on feature branches.
+- **P1:** all public-beta blockers closed.
+- **P4:** tenant project isolation closed.
+- **P4 #10 broad exception audit — SECURITY-RELEVANT SLICES CLOSED.** All
+  security-relevant `except Exception` sites in auth, webhook/alert, daemon
+  route-handler, serve middleware/server, watch, cluster + policy_versioned,
+  serve services, plugin host/manager, correlation engine, serve/api
+  middleware/server/rate_limit/DB manager, serve routers, and backup service
+  have been narrowed to specific exception types with regression tests.
+  **Remaining:** ~186 broad `except Exception` sites across the codebase are
+  intentional safety nets or lower-risk boundaries; opportunistic narrowing
+  continues on `no-ci/*` feature branches.
 - **P4 #12 Postgres live-test required status check — REQUIRES REPO ADMIN.** The
-  `postgres-live-test` CI job runs on every push; it needs to be marked required
-  in GitHub branch protection to fully close this item.
-- **P5 enterprise GA:** all numbered items in this bucket are now closed.
-  Remaining hardening is opportunistic (test coverage, exception narrowing,
-  docs polish) and not gated by the gaps plan.
+  `postgres-live-test` CI job runs on every push and passes; it needs to be
+  marked required in GitHub branch protection to fully close this item. No
+  code change remaining.
+- **P5 enterprise GA:** all numbered items in the gaps plan are closed.
+  Remaining work is opportunistic (test coverage, exception narrowing,
+  docs polish) and not gated by the plan.
+
+### Forward-facing action items
+1. **Repo admin:** mark `postgres-live-test` as a required status check for
+   `main` (and optionally `dev`) in GitHub branch protection.
+2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
+   remaining ~186 broad `except Exception` sites, prioritizing request-boundary,
+   persistence, and plugin/daemon paths.
+3. **Keep test doctor current** — add CI-equivalent / auto-fix modes so
+   contributors run the same commands that gate CI.
+4. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
+   accurate.
 
 ---
 
@@ -426,26 +449,30 @@ can work through them one by one.
 
 ### Remaining PicoSentry-only gaps from the GPT-5 review
 
+> **STATUS: ALL CLOSED as of 2026-07-02.** The original GPT-5 review gaps have
+> been implemented, tested, and merged to `main`. The per-item plans below are
+> preserved for historical context; see the Gap Audit section for verification.
+
 | # | Gap | Concrete goal | Type | Verdict |
 |---|-----|---------------|------|---------|
-| 1 | **Plugin capability restrictions / sandboxing** | Plugins must not run as in-process Python with host privileges. Add a capability model + optional subprocess sandbox (no network/files/env unless declared). | Code + tests | **Start here** — follows signature work; biggest trust-boundary win |
-| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | High-value, can run in parallel with #1 |
-| 3 | **SBOM + dependency vulnerability scanning** | Add `picosentry scan --sbom` or a self-scan command that generates CycloneDX/SPDX SBOM and checks dependencies against OSV/pysec. | Code + CLI | Supports "trust the scanner" narrative |
-| 4 | **Detection quality / adversarial mutation testing** | Add mutation harness that takes malicious fixtures and creates variants (base64, unicode escapes, string concat, dynamic import, compression) and measures recall degradation. | Tests + data | Directly addresses Gap 2 |
-| 5 | **Operational hardening tests** | Add auth-bypass tests, rate-limit bypass tests, API contract tests, multi-tenant isolation tests for `serve` endpoints. | Tests | Gap 6; some overlap with #2 |
-| 6 | **Sandbox / runtime trust validation docs** | Write threat model doc + attack-surface review for seccomp/Landlock/daemon/plugin interfaces. | Docs | Gap 1; not code, but blocks enterprise claims |
-| 7 | **Signed releases + provenance** | Add SLSA/Sigstore provenance generation to release CI; verify artifacts in CI. | CI | Gap 3; depends on Sigstore fix already done |
-| 8 | **Sandbox claims precision in README/product** | Separate "enforcement" vs "observability" claims; avoid overclaiming containment. | Docs | Gap 5; low effort |
+| 1 | **Plugin capability restrictions / sandboxing** | Plugins must not run as in-process Python with host privileges. Add a capability model + optional subprocess sandbox (no network/files/env unless declared). | Code + tests | **CLOSED** — plugin manager routes all dispatch through `PluginHost` subprocess; deny-by-default capability model in `docs/PLUGIN_DEVELOPMENT.md`. |
+| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | **CLOSED for security-relevant slices** — auth, webhook/alert, daemon route-handler, serve middleware/server, watch, cluster + policy_versioned, serve services, plugin host/manager, correlation engine, serve/api middleware/server/rate_limit/DB manager, serve routers, backup service narrowed with tests. ~186 intentional/lower-risk safety-net sites remain. |
+| 3 | **SBOM + dependency vulnerability scanning** | Add `picosentry scan --sbom` or a self-scan command that generates CycloneDX/SPDX SBOM and checks dependencies against OSV/pysec. | Code + CLI | **CLOSED** — release CI generates CycloneDX SBOM; `scripts/verify_release.py` parses it in post-release verification. |
+| 4 | **Detection quality / adversarial mutation testing** | Add mutation harness that takes malicious fixtures and creates variants (base64, unicode escapes, string concat, dynamic import, compression) and measures recall degradation. | Tests + data | **CLOSED** — `adversarial_mutations.py` + `mutation_benchmark.py` + `tests/scan/test_mutation_benchmark.py` assert recall ≥85% and precision ≥95% under mutation. |
+| 5 | **Operational hardening tests** | Add auth-bypass tests, rate-limit bypass tests, API contract tests, multi-tenant isolation tests for `serve` endpoints. | Tests | **CLOSED** — role escalation, permission-level enforcement, malformed tokens, query-param auth bypass, pathological-input fuzz, rate-limit bypass, tenant A↔B negative tests merged. |
+| 6 | **Sandbox / runtime trust validation docs** | Write threat model doc + attack-surface review for seccomp/Landlock/daemon/plugin interfaces. | Docs | **CLOSED** — `docs/THREAT_MODEL.md`, `docs/ARCHITECTURE.md`, and `docs/ops/runbook.md` cover trust boundaries, attack surface, and operations. |
+| 7 | **Signed releases + provenance** | Add SLSA/Sigstore provenance generation to release CI; verify artifacts in CI. | CI | **CLOSED** — `.github/workflows/release.yml` attaches SBOM + Sigstore signatures + SLSA provenance; `.github/workflows/verify-release.yml` verifies after each release. |
+| 8 | **Sandbox claims precision in README/product** | Separate "enforcement" vs "observability" claims; avoid overclaiming containment. | Docs | **CLOSED** — `docs/ARCHITECTURE.md`, `docs/PLUGIN_DEVELOPMENT.md`, and `README.md` distinguish seccomp enforcement from behavioral observation. |
 
-### Proposed implementation order
+### Proposed implementation order (historical — all items closed)
 
-1. **#1 Plugin sandboxing / capability model** — biggest code-level security gap; builds on trusted-key signing.
-2. **#2 Fail-open / silent-fallback audit** — hardens the rest of the attack surface.
-3. **#3 SBOM + self-dependency scanning** — makes PicoSentry eat its own dog food.
-4. **#4 Adversarial mutation testing** — closes the detection-quality gap with data.
-5. **#5 Operational hardening tests** — locks in serve/daemon security behavior.
-6. **#7 Signed releases / provenance** — CI-only, can happen anytime after #3.
-7. **#6 Threat model / attack-surface docs** and **#8 README precision** — docs, parallel.
+1. **#1 Plugin sandboxing / capability model** — done.
+2. **#2 Fail-open / silent-fallback audit** — security-relevant slices done.
+3. **#3 SBOM + self-dependency scanning** — done.
+4. **#4 Adversarial mutation testing** — done.
+5. **#5 Operational hardening tests** — done.
+6. **#7 Signed releases / provenance** — done.
+7. **#6 Threat model / attack-surface docs** and **#8 README precision** — done.
 
 ### Per-item plan
 
@@ -1543,14 +1570,16 @@ against PG15/16 service container exercising migrations/CRUD/placeholder
 translation. **Remaining:** mark `postgres-live-test` as a required
 branch-protection check (repo-admin action, not code). Code side done.
 
-### 22. P4 #10 broad exception audit — FIXED
+### 22. P4 #10 broad exception audit — SECURITY-RELEVANT SLICES FIXED
 Per state.md session log: auth.py, webhook/alert, daemon route-handler,
 serve middleware/server, watch, cluster + policy_versioned, serve
 services, plugin host/manager, correlation engine, serve/api
 middleware/server/rate_limit/DB manager, serve routers, and backup
 service slices all narrowed to specific exception types + logged.
 Only intentional boundaries remain (`plugin_worker.py` RPC loop,
-`database/pools.py` deliberate rollback+re-raise).
+`database/pools.py` deliberate rollback+re-raise). **Live count:** ~186
+broad `except Exception` sites remain as safety nets or lower-risk
+boundaries; opportunistic narrowing continues.
 
 ### 23. P4 #14 SLOs — FIXED
 `deploy/monitoring/picodome-alerts.yaml` PrometheusRule alerts define P95

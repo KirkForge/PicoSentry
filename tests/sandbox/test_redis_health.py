@@ -123,3 +123,47 @@ class TestHealthEndpointIntegration:
         redis_health = check_redis_health()
         expected_keys = {"connected", "latency_ms", "version", "error", "mode"}
         assert expected_keys.issubset(set(redis_health.keys()))
+
+
+class TestRedisHealthExceptionNarrowing:
+    """Redis health probe must tolerate expected failures and propagate bugs."""
+
+    def test_expected_connection_error_returns_in_memory(self, monkeypatch):
+        from picosentry.sandbox import redis_health
+
+        config = RedisConfig(url="redis://localhost:1/0")
+
+        if redis_health._redis is None:
+
+            class _FakeRedis:
+                @staticmethod
+                def from_url(_url, **_kwargs):
+                    raise OSError("connection refused")
+
+            monkeypatch.setattr(redis_health, "_redis", _FakeRedis())
+        else:
+
+            def _boom(*_args, **_kwargs):
+                raise redis_health._redis.ConnectionError("connection refused")
+
+            monkeypatch.setattr(redis_health._redis, "from_url", _boom)
+
+        result = check_redis_health(config)
+        assert result["connected"] is False
+        assert result["mode"] == "in-memory"
+        assert "connection refused" in result["error"]
+
+    def test_unexpected_error_propagates(self, monkeypatch):
+        from picosentry.sandbox import redis_health
+
+        config = RedisConfig(url="redis://localhost:1/0")
+
+        class _FakeRedis:
+            @staticmethod
+            def from_url(_url, **_kwargs):
+                raise NameError("programmer mistake")
+
+        monkeypatch.setattr(redis_health, "_redis", _FakeRedis())
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            check_redis_health(config)

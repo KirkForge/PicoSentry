@@ -16,6 +16,17 @@ from typing import Any
 
 logger = logging.getLogger("picodome.audit")
 
+# Operational errors that can be raised by optional audit plugins (notary,
+# external sinks). We log these and continue so a misbehaving integration does
+# not block the core audit log; unexpected programmer errors must propagate.
+_AUDIT_PLUGIN_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    AttributeError,
+)
+
 
 class AuditEventType(str, Enum):
     SCAN_START = "scan_start"
@@ -139,13 +150,13 @@ class AuditLogger:
             try:
                 notary_uuid = self._notary.submit_entry(event.to_dict())
                 logger.debug("Notarized event %s as %s", event.event_id[:8], notary_uuid[:8])
-            except Exception as exc:
+            except _AUDIT_PLUGIN_ERRORS as exc:
                 logger.warning("Notary submission failed for %s: %s", event.event_id[:8], exc)
 
         for sink in self._sinks:
             try:
                 sink.send(event)
-            except Exception as exc:
+            except _AUDIT_PLUGIN_ERRORS as exc:
                 logger.warning("Sink %s failed for event %s: %s", sink.name, event.event_id[:8], exc)
 
         logger.debug(
@@ -295,7 +306,7 @@ class AuditLogger:
 
     def remove_sink(self, sink: Any) -> None:
         if sink in self._sinks:
-            with contextlib.suppress(Exception):
+            with contextlib.suppress(*_AUDIT_PLUGIN_ERRORS):
                 sink.stop()
             self._sinks.remove(sink)
 
@@ -378,6 +389,6 @@ def setup_audit_logger(
     for sink in _audit_logger._sinks:
         try:
             sink.start()
-        except Exception as exc:
+        except _AUDIT_PLUGIN_ERRORS as exc:
             logger.warning("Failed to start sink %s: %s", sink.name, exc)
     return _audit_logger

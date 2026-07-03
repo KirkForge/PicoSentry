@@ -57,7 +57,10 @@ TARGETS = {
 
 # Extra headroom for tests that are CPU-bound and heavily contended under xdist.
 _XDIST_OVERRIDES: dict[str, float] = {
-    "cold_start_ms": 3.0,
+    # Engine creation loads the whole rule corpus and is CPU-bound; under the
+    # test-doctor's full parallel load (lint + type-check + all areas) cold
+    # start can spike well above the isolated-CI figure, so give it extra headroom.
+    "cold_start_ms": 6.0,
     "corpus_index_10k_ms": 4.0,
 }
 

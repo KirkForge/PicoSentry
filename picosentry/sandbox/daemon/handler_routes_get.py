@@ -37,7 +37,7 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
                 target=self.path,
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
         self._send_error(403, "cluster token mismatch")
         return False
     return True
@@ -144,6 +144,7 @@ class PicoDomeGetRoutesMixin:
 
             redis_health = check_redis_health()
         except Exception:
+            logger.debug("Redis health check failed, using in-memory fallback", exc_info=True)
             redis_health = {"connected": False, "mode": "in-memory"}
 
         health_data: dict[str, Any] = {
@@ -184,8 +185,9 @@ class PicoDomeGetRoutesMixin:
                 response["degraded"] = True
                 response["warning"] = "Running in observational-only mode — no real syscall enforcement"
             self._send_json(response)
-        except Exception as e:
-            self._send_error(ErrorCodes.NOT_READY, detail=str(e))
+        except (ImportError, OSError, RuntimeError):
+            logger.exception("Ready check failed")
+            self._send_error(ErrorCodes.NOT_READY, detail="backend detection failed")
 
     def _handle_metrics(self: PicoDomeHandler) -> None:
         uptime = int(time.time() - self._start_time)

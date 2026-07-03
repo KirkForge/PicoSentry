@@ -363,6 +363,7 @@ examples/
 docs/
     rules/          per-rule documentation (see picosentry/scan/docs/rules/)
     strategic/      design docs and architecture
+    PLUGIN_DEVELOPMENT.md  how to write, sign, and deploy PicoShogun plugins
 tests/             test suite
 ```
 

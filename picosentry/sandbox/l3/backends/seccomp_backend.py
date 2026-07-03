@@ -271,6 +271,27 @@ class SeccompBackend(SandboxBackend):
             logger.error("seccomp_init failed")
             return None, blocked
 
+        # The backend loads the seccomp filter and then execve's the target
+        # command, so execve/execveat must remain allowed regardless of policy.
+        launch_syscalls: set[str] = {"execve", "execveat"}
+
+        # Collect every syscall that the policy explicitly denies. We must not
+        # blindly add these to the safe allowlist, or libseccomp would reject
+        # the later DENY rule as redundant.
+        explicitly_blocked: set[str] = set()
+        for rule in policy.rules:
+            if rule.action in (SyscallAction.DENY, SyscallAction.KILL):
+                explicitly_blocked.update(self._target_to_syscalls(rule.target))
+
+        # Never block the syscalls required to launch the child.
+        explicitly_blocked -= launch_syscalls
+
+        # Baseline safe allowlist, minus anything the policy wants to block.
+        for name in SAFE_SYSCALLS - explicitly_blocked:
+            num = self._resolve(lib, name)
+            if num >= 0:
+                add_rule_safely(lib, ctx, SCMP_ACT_ALLOW, num, name)
+
         for rule in policy.rules:
             if rule.action == SyscallAction.ALLOW:
                 syscalls = self._target_to_syscalls(rule.target)
@@ -281,15 +302,13 @@ class SeccompBackend(SandboxBackend):
             elif rule.action in (SyscallAction.DENY, SyscallAction.KILL):
                 syscalls = self._target_to_syscalls(rule.target)
                 for name in syscalls:
+                    if name in launch_syscalls:
+                        continue
                     num = self._resolve(lib, name)
                     if num >= 0:
-                        add_rule_safely(lib, ctx, SCMP_ACT_KILL_PROCESS, num, name)
-                        blocked.add(name)
-
-        for name in SAFE_SYSCALLS:
-            num = self._resolve(lib, name)
-            if num >= 0:
-                add_rule_safely(lib, ctx, SCMP_ACT_ALLOW, num, name)
+                        added = add_rule_safely(lib, ctx, SCMP_ACT_KILL_PROCESS, num, name)
+                        if added or default_action == SCMP_ACT_KILL_PROCESS:
+                            blocked.add(name)
 
         return ctx, blocked
 

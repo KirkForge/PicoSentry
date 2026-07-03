@@ -1417,3 +1417,44 @@ class TestClusterExperimentalWarnings:
             mgr.assign_scan(scan_request)
 
         assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+
+
+class TestClusterManagerAuditHardening:
+    """Cluster manager must log audit failures instead of swallowing them."""
+
+    def test_start_audit_failure_is_logged(self, manager, caplog, monkeypatch):
+        import logging
+
+        class _BoomAudit:
+            def record(self, **kwargs):
+                raise RuntimeError("audit disk full")
+
+        with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
+            monkeypatch.setattr("picosentry.sandbox.cluster.orchestrator.get_audit_logger", lambda: _BoomAudit())
+            manager.start()
+            try:
+                assert any("Audit record failed" in r.message for r in caplog.records)
+            finally:
+                monkeypatch.undo()
+                manager.stop()
+
+    def test_assign_scan_audit_failure_is_logged(self, manager, caplog, monkeypatch):
+        import logging
+
+        from picosentry.sandbox.cluster.manager import ScanRequest
+
+        class _BoomAudit:
+            def record(self, **kwargs):
+                raise RuntimeError("audit disk full")
+
+        manager.start()
+        try:
+            with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
+                monkeypatch.setattr("picosentry.sandbox.cluster.orchestrator.get_audit_logger", lambda: _BoomAudit())
+                request = ScanRequest(scan_id="scan-1", command=["echo", "hi"])
+                manager.assign_scan(request)
+
+            assert any("Audit record failed" in r.message for r in caplog.records)
+        finally:
+            monkeypatch.undo()
+            manager.stop()

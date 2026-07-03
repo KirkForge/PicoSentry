@@ -34,8 +34,8 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.17` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.0.17 published |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
 
 The scanner is the stable product. Everything else is beta or experimental —
 read the notes column honestly. "Beta" means it works but hasn't been

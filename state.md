@@ -2,6 +2,79 @@
 
 ---
 
+## Current session: 2026-07-04 — post-2.0.18 release gap review + docs hygiene + secret-incident cleanup
+
+### Done this session (on `main`)
+- **Version-string sync.** README.md status table and `picosentry/experimental.py`
+  still claimed Docker/PyPI were at v2.0.17 after the 2.0.18 bump. Updated both to
+  v2.0.18; `tests/test_experimental_status.py` and `tests/test_public_api.py` still
+  pass.
+- **Plugin2 secret leak remediated.** In `KirkForge-Plugin2` an Atlassian API token
+  was embedded in a compiled `.so` artifact under `target/` and pushed to GitHub
+  (secret-scanning alert, commit `52d3b83b`). Ran `git-filter-repo --path target/
+  --invert-paths` to remove the entire `target/` directory from all commits,
+  force-pushed rewritten `main` to `KirkForge/KirkForge-Plugin2`, and flagged the
+  token for rotation/revocation in Atlassian.
+
+### Open gaps / missing work identified (PicoSentry)
+1. **Stale feature branch: `feat/prompt-guard-classifier-tier`.** Contains a
+   deterministic lexical-classifier tier for `picosentry watch` (commits
+   `626dcc4`–`95ef5c8`). It is based on an *old* point in history; diff against
+   current `main` shows ~936k deletions because `datasets/malware/` and many
+   landed files are missing from its base. **Action: rebase onto current `main`,**
+   not merge.
+2. **Stale P4 branch: `no-ci/p4-exception-config-loader`.** Contains the config-
+   loader exception-narrowing slice for P4 #10. Diff against `main` is small but
+   conflicts with the auth-isolation changes in `tests/serve/conftest.py` and the
+   fixture files. **Action: rebase and resolve, then merge to `dev`.**
+3. **Empty hardening branches.** `harden/backup-service`,
+   `harden/except-narrowing`, and `harden/serve-routers` report zero commits ahead
+   of `main`. They may have been fast-forwarded or abandoned. **Action: verify
+   and delete if truly empty.**
+4. **State-only branches.** `docs/state-forward-items` and
+   `docs/state-forward-refresh` exist but are merged; they may still be useful
+   forward-planning records or just dead branches. **Action: review and prune.**
+5. **GitNexus index stale.** AGENTS.md notes the code index is stale and
+   incremental rebuilds fail with missing FTS indexes / `Resource temporarily
+   unavailable`. This blocks the impact-analysis workflow the project expects.
+   **Action: run a clean `npx gitnexus analyze` (or `node .gitnexus/run.cjs
+   analyze`) from a fresh clone/index directory.**
+6. **CI Node.js 20 deprecation warnings.** The `PicoSentry CI`, `Release`, and
+   `verify-release` workflows use `actions/checkout@v4`, `actions/setup-python@v5`,
+   `sigstore/cosign-installer@v3`, and GitHub attestation actions that target
+   Node.js 20. GitHub is forcing them onto Node.js 24 and emitting annotations.
+   Non-blocking today, but will become blocking. **Action: bump actions to their
+   Node.js 24-compatible versions and re-run CI.**
+7. **`PicoSentry CI` did not auto-trigger on the 2.0.18 merge.** The first push
+   of the v2.0.18 tag triggered the Release workflow, but the `main` branch
+   `PicoSentry CI` run did not appear until an additional `workflow_dispatch`
+   trigger was added and a fresh commit pushed. Possible causes: GitHub
+   deduplication because the tag pointed to the same commit, or a transient
+   webhook delay. **Action: monitor the next merge; if it recurs, remove
+   `paths-ignore` or add `workflow_dispatch` permanently.**
+8. **Missing `docs/DEEP_REVIEW.md`.** `picosentry/scan/detection_quality.py`
+   references `tracked_in="DEEP_REVIEW.md"` in 9 places, but the file does not
+   exist. **Action: create `docs/DEEP_REVIEW.md` or change the tracker reference
+   to a real document (e.g., `docs/BENCHMARKS.md`).**
+9. **Unimplemented corpus-pack signing.** `picosentry/scan/corpus_share.py:71`
+   raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
+   and asserts this, but real users cannot sign exported IoC packs. **Action:
+   decide whether to implement signing or remove the API surface.**
+10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
+    in CI but are not yet required branch-protection checks (admin action pending,
+    already noted in state.md but still open). **Action: enable in repo settings.**
+11. **Docker Hub image tag mismatch.** README and `experimental.py` now say
+    `v2.0.18`, but the Docker Hub build is part of the GitHub release workflow.
+    **Action: confirm `kirkforge/picodome:v2.0.18` was published by the release
+    workflow; if not, the bake/push step needs investigation.**
+12. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
+    artifacts can embed secrets from the build environment. **Action: add
+    `target/` to `.gitignore` audit checks across all Rust repos and consider a
+    pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
+    KirkForge repositories.**
+
+---
+
 ## Current session: 2026-07-02/03 — CI green push: flaky test fix, test doctor upgrade, state.md cleanup
 
 ### Done this session (on `dev`)

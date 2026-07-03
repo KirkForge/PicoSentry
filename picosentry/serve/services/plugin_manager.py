@@ -91,7 +91,7 @@ DEFAULT_USER_PLUGIN_DIR = str(Path("~/.picosentry/plugins").expanduser())
 # Ed25519 public keys trusted for bundled plugins. The bundled test_plugin
 # manifest is signed with the matching private key. Operators can extend
 # this set via PICOSHOGUN_TRUSTED_PUBLIC_KEYS or PICOSHOGUN_TRUSTED_PUBLIC_KEYS_FILE.
-BUNDLED_TRUSTED_PUBLIC_KEYS: tuple[str, ...] = ("ffdbacc3ef1b141c1b75e4e7f0da291e17e64229fcfb9f959bdb6b694fa3ed02",)
+BUNDLED_TRUSTED_PUBLIC_KEYS: tuple[str, ...] = ("2e1465899528ab0db936b104efaea43dd5bfafcd27dceed6334f4418b751abe7",)
 
 
 def _split_plugin_dir_env(raw: str) -> list[str]:

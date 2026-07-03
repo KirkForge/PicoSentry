@@ -277,6 +277,16 @@
   creation unexpected errors, cluster snapshot merge). Added regression tests
   in `tests/sandbox/test_daemon_handler.py` verifying sanitized error details
   and fail-safe behavior.
+- **P4 #10 exception audit (daemon POST handler safety-net slice).** Narrowed
+  the remaining broad `except Exception` guards in
+  `picosentry/sandbox/daemon/handler_routes_post.py` for audit-record failures
+  (cluster-token mismatch, command-denied, scan-start, scan-complete) and the
+  outer scan execution catch to `(OSError, RuntimeError)`. Expected failures are
+  logged and sanitized; unexpected programmer errors propagate. Added five
+  regression tests covering audit failure logging, scan continuation, and
+  unexpected exception propagation. Verified with `python3 scripts/test_doctor.py`
+  and `python3 -m pytest tests/ -x --tb=short -q` before updating
+  `CHANGELOG.md`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

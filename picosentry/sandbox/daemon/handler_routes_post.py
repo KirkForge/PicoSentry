@@ -46,7 +46,7 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
                 detail="Cluster token mismatch",
                 target=self.path,
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
         self._send_error(403, "cluster token mismatch")
         return False
@@ -136,7 +136,7 @@ class PicoDomePostRoutesMixin:
                     target=command[0] if command else "",
                     metadata={"command": command},
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
             self._send_error(ErrorCodes.COMMAND_DENIED, detail=deny_error)
             return
@@ -159,7 +159,7 @@ class PicoDomePostRoutesMixin:
                 target=command[0] if command else "",
                 metadata={"job_id": job_id, "timeout": timeout, "tenant_id": str(tenant_id)},
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
 
         policy_name = data.get("policy")
@@ -252,7 +252,7 @@ class PicoDomePostRoutesMixin:
                     target=command[0] if command else "",
                     metadata={"job_id": job_id, "findings": len(analysis_result.findings)},
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
 
             try:
@@ -266,7 +266,7 @@ class PicoDomePostRoutesMixin:
 
             self._send_json(result, status=201)
 
-        except Exception:
+        except (OSError, RuntimeError):
             self.job_store.update(
                 job_id,
                 status="failed",

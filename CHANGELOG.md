@@ -59,6 +59,14 @@ All notable changes to PicoSentry will be documented in this file.
 - **Mutation benchmark CI robustness.** Adversarial mutation benchmark
   auto-detects the bundled `_advisories` directory so CI recall floors
   stay stable.
+- **Daemon POST handler exception safety nets.** Narrowed the remaining
+  broad `except Exception` guards in
+  `picosentry/sandbox/daemon/handler_routes_post.py` — audit-record failures
+  for cluster-token mismatch, command-denied, scan-start, and scan-complete,
+  plus the outer scan execution catch — to `(OSError, RuntimeError)`. Expected
+  operational failures are still logged and return sanitized detail strings;
+  unexpected programmer errors now propagate instead of being masked as a
+  generic scan failure. Added regression tests for each boundary.
 
 ## [2.0.16] — 2026-06-21
 

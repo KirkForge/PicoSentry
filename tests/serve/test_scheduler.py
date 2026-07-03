@@ -54,3 +54,16 @@ class TestCategoryAllowlist:
         job = scheduler.jobs[job_id]
         assert job.last_status == "failed"
         scheduler.remove_job(job_id)
+
+
+class TestSchedulerHardening:
+    """Scheduler must log parse failures instead of silently returning None."""
+
+    def test_invalid_cron_expression_logs_and_returns_none(self, caplog):
+        import logging
+
+        with caplog.at_level(logging.WARNING, logger="picoshogun.scheduler"):
+            result = scheduler._get_next_run("not-a-cron")
+
+        assert result is None
+        assert any("Invalid cron expression" in r.message for r in caplog.records)

@@ -626,6 +626,7 @@ class DatabaseManager:
                 cursor.execute("SELECT lastval()")
                 return cursor.fetchone()[0]
             except Exception:
+                logger.debug("lastval() not available for this table; returning 0")
                 return 0
 
     def _migrate_orgs_api_key_hash(self):

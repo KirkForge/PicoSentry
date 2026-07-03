@@ -54,14 +54,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     payload = auth_svc.validate_token(token)
                     if payload:
                         _user_id = payload.get("user_id")
-                except Exception:
+                except (ValueError, KeyError, TypeError, RuntimeError):
                     logger.exception("Token validation failed in audit middleware")
             elif api_key:
                 try:
                     key_info = auth_svc.validate_api_key(api_key)
                     if key_info:
                         _user_id = key_info.get("user_id")
-                except Exception:
+                except (ValueError, KeyError, TypeError, RuntimeError):
                     logger.exception("API key validation failed in audit middleware")
 
         if _user_id is None:
@@ -102,7 +102,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         user_agent,
                     ),
                 )
-            except Exception:
+            except (OSError, ValueError):
                 logger.exception("Audit DB insert failed")
 
         logger.info("API %s %s - %s (%.3fs) user=%s", method, path, status_code, duration, _user_id)

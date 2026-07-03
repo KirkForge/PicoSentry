@@ -112,7 +112,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                             "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
                             ("org", key, ",".join(str(t) for t in timestamps)),
                         )
-            except Exception as exc:
+            except (OSError, ValueError) as exc:
                 logger.warning("Rate limit persistence flush failed: %s", exc)
 
     def _evict_if_needed(self, now: float):

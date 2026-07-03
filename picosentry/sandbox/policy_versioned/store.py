@@ -18,7 +18,12 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picodome.policy_versioned")
 
-_DEFAULT_STORE_DIR = Path.home() / ".picodome" / "policies"
+
+def _default_store_dir() -> Path:
+    return Path(os.environ.get("PICODOME_POLICY_STORE_DIR", Path.home() / ".picodome" / "policies"))
+
+
+_DEFAULT_STORE_DIR = _default_store_dir()
 
 
 @dataclass(frozen=True)
@@ -56,7 +61,7 @@ class PolicyVersion:
 
 class VersionedPolicyStore:
     def __init__(self, store_dir: Path | None = None) -> None:
-        self._store_dir = store_dir or _DEFAULT_STORE_DIR
+        self._store_dir = store_dir or _default_store_dir()
         self._store_dir.mkdir(parents=True, exist_ok=True)
 
     def save(

@@ -501,3 +501,87 @@ class TestDaemonExceptionHandling:
         detail = handler._send_error.call_args[1].get("detail", "")
         assert "database corruption secret" not in detail
         assert "RuntimeError" not in detail
+
+
+class TestHandlerPolicySignatureVerify:
+    """Daemon must verify custom policy signatures when a verification key is configured."""
+
+    def _policy_body(self, name: str) -> str:
+        import json
+
+        return json.dumps(
+            {
+                "name": name,
+                "version": "1.0",
+                "default_action": "deny",
+                "rules": [
+                    {"rule_id": "DAEMON-001", "target": "file_read", "action": "allow", "paths": ["/tmp/**"]},
+                ],
+            }
+        )
+
+    def test_create_policy_auto_signs_when_key_configured(self, tmp_path, monkeypatch):
+        from picosentry.sandbox.policy_versioned import store as store_mod
+        from picosentry.sandbox.policy_versioned.signing import generate_key, key_to_hex
+
+        key = generate_key()
+        monkeypatch.setenv("PICODOME_POLICY_KEY", key_to_hex(key))
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+        monkeypatch.setattr(store_mod, "_policy_store", None)
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = self._policy_body("auto-signed")
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        handler._handle_create_policy("test-token-32-chars-long-for-perm")
+
+        handler._send_json.assert_called_once()
+        sig_path = tmp_path / "auto-signed" / "latest.json.sig"
+        assert sig_path.is_file()
+
+    def test_submit_scan_rejects_unsigned_custom_policy_when_key_configured(self, tmp_path, monkeypatch):
+        import json
+
+        from picosentry.sandbox import l3
+        from picosentry.sandbox.errors import ErrorCodes
+        from picosentry.sandbox.policy_versioned import store as store_mod
+        from picosentry.sandbox.policy_versioned.signing import generate_key, key_to_hex
+        from picosentry.sandbox.policy_versioned.store import VersionedPolicyStore
+
+        key = generate_key()
+        monkeypatch.setenv("PICODOME_POLICY_KEY", key_to_hex(key))
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+        monkeypatch.setattr(store_mod, "_policy_store", None)
+
+        # Pre-create an unsigned custom policy in the store.
+        store = VersionedPolicyStore(store_dir=tmp_path)
+        body_data = json.loads(self._policy_body("unsigned-custom"))
+        from picosentry.sandbox.l3.policy import _policy_from_dict
+
+        store.save(_policy_from_dict(body_data), author="pytest", change_description="test")
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        scan_body = json.dumps({"command": ["echo", "hi"], "policy": "unsigned-custom"})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(scan_body)),
+        }
+        handler.rfile = io.BytesIO(scan_body.encode())
+
+        # Avoid actually running a sandbox; the policy verification should fail first.
+        def _no_run(*args, **kwargs):
+            raise AssertionError("sandbox_run should not be called")
+
+        monkeypatch.setattr(l3.engine, "sandbox_run", _no_run)
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.INVALID_POLICY

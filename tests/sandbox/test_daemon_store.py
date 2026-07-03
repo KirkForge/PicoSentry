@@ -1,6 +1,7 @@
 """Tests for picodome.daemon.store — persistent scan job store."""
 
 import json
+import logging
 
 import pytest
 
@@ -114,3 +115,32 @@ class TestPersistentScanJobStore:
         store = PersistentScanJobStore(store_dir=new_dir)
         store.add("auto-dir", ["echo"], "admin")
         assert new_dir.exists()
+
+
+class TestPersistentScanJobStoreExceptionNarrowing:
+    """Load failures must log expected errors and propagate bugs."""
+
+    def test_load_expected_oserror_starts_fresh(self, store_dir, caplog, monkeypatch):
+        store = PersistentScanJobStore(store_dir=store_dir)
+
+        def _boom():
+            raise OSError("disk unavailable")
+
+        monkeypatch.setattr(store, "_load_from_disk", _boom)
+
+        with caplog.at_level(logging.WARNING, logger="picodome.daemon.store"):
+            store.add("job-1", ["echo"], "admin")
+
+        assert store.get("job-1") is not None
+        assert any("Failed to load job store from disk" in r.message for r in caplog.records)
+
+    def test_load_unexpected_error_propagates(self, store_dir, monkeypatch):
+        store = PersistentScanJobStore(store_dir=store_dir)
+
+        def _boom():
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(store, "_load_from_disk", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            store.add("job-1", ["echo"], "admin")

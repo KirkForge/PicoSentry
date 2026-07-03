@@ -160,3 +160,51 @@ class TestConfigPermissions:
             assert any("world-readable" in w for w in warnings)
         finally:
             cfg_module.CONFIG_SEARCH_PATHS = original_paths
+
+
+class TestConfigHardening:
+    """Security regression tests for config loading and permission checks."""
+
+    def test_malformed_toml_logs_and_uses_defaults(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        from picosentry.watch.config import _load_toml_config
+
+        path = tmp_path / "bad.toml"
+        path.write_text("[picowatch\nthreshold_block = 0.1\n", encoding="utf-8")
+
+        with caplog.at_level(logging.WARNING, logger="picowatch.config"):
+            data = _load_toml_config(path)
+
+        assert data == {}
+        assert any("Failed to load watch config" in r.message for r in caplog.records)
+
+    def test_permission_check_tolerates_unreadable_file(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        from picosentry.watch import config as config_mod
+
+        path = tmp_path / "secrets.toml"
+        path.write_text("api_key = super-secret\n", encoding="utf-8")
+
+        class _BoomPath:
+            def exists(self):
+                return True
+
+            def stat(self):
+                import stat
+
+                class _Stat:
+                    st_mode = stat.S_IFREG | 0o600
+
+                return _Stat()
+
+            def read_text(self, **kwargs):
+                raise RuntimeError("permission denied secret")
+
+        with caplog.at_level(logging.WARNING, logger="picowatch.config"):
+            monkeypatch.setattr(config_mod, "CONFIG_SEARCH_PATHS", [_BoomPath()])
+            warnings = config_mod.check_config_permissions()
+
+        assert warnings == []
+        assert any("Permission check failed" in r.message for r in caplog.records)

@@ -287,6 +287,14 @@
   unexpected exception propagation. Verified with `python3 scripts/test_doctor.py`
   and `python3 -m pytest tests/ -x --tb=short -q` before updating
   `CHANGELOG.md`.
+- **Websocket auth test isolation / main CI hotfix.** The merge to `main`
+  surfaced a rare `pytest-xdist` auth flake in
+  `tests/serve/test_websocket_auth.py::test_valid_token_query_string_authenticates`
+  (invalid password during `fresh_user` setup). Added a module-scoped fixture
+  that gives the websocket auth suite its own SQLite DB instead of the shared
+  global `picoshogun.db`, removing cross-test DB noise. Verified the fix with
+  `python3 scripts/test_doctor.py` and the CI-shaped pytest command; `main`
+  CI returned to green after the follow-up merge.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

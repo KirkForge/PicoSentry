@@ -26,7 +26,31 @@ import pytest
 from fastapi.testclient import TestClient
 
 from picosentry.serve.api.server import app
+from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.websocket_manager import ws_manager
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _isolated_auth_db(tmp_path_factory):
+    """Use a per-module SQLite DB for auth state.
+
+    The default global ``picoshogun.db`` is shared with the rest of the
+    suite; under pytest-xdist that creates cross-test noise and rare auth
+    flakes.  Isolating the websocket auth tests to their own DB removes
+    that source of nondeterminism.
+    """
+    import picosentry.serve.database.manager as db_mod
+    import picosentry.serve.services.auth as auth_mod
+
+    original_db = db_mod.db
+    db_path = tmp_path_factory.mktemp("ws_auth") / "auth.db"
+    isolated = DatabaseManager(db_path=db_path)
+    db_mod.db = isolated
+    auth_mod.db = isolated
+    yield
+    db_mod.db = original_db
+    auth_mod.db = original_db
+    isolated.close()
 
 
 @pytest.fixture

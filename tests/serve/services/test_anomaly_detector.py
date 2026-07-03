@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.anomaly_detector import AnomalyDetector
 
@@ -52,3 +54,48 @@ class TestAnomalyDetectorHardening:
 
         assert alerts == []
         assert any("Failed to load anomaly alerts" in r.message for r in caplog.records)
+
+    def test_health_value_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        detector = AnomalyDetector(db=db)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db, "execute", _boom)
+        with pytest.raises(NameError, match="programmer mistake"):
+            detector._get_health_value()
+
+    def test_get_alerts_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        detector = AnomalyDetector(db=db)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db, "execute", _boom)
+        with pytest.raises(NameError, match="programmer mistake"):
+            detector.get_alerts()
+
+    def test_fire_alert_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        from picosentry.serve.services.anomaly_detector import AnomalyAlert
+
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        detector = AnomalyDetector(db=db)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db, "execute_insert", _boom)
+        alert = AnomalyAlert(
+            rule_id="test",
+            metric_name="health_status",
+            value=1.0,
+            threshold=1.0,
+            comparison="gte",
+            timestamp="2026-07-02T00:00:00+00:00",
+            description="test",
+            severity="warning",
+        )
+        with pytest.raises(NameError, match="programmer mistake"):
+            detector._fire_alert(alert)

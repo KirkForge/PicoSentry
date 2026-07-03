@@ -38,8 +38,10 @@ class DatabaseConfig:
     timeout: int = 30
     backup_retention_days: int = 30
     audit_retention_days: int = 90
-    journal_mode: str = "WAL"  # WAL | DELETE | TRUNCATE | PERSIST | MEMORY
-    synchronous: str = "NORMAL"  # OFF | NORMAL | FULL
+    # WAL | DELETE | TRUNCATE | PERSIST | MEMORY
+    journal_mode: str = field(default_factory=lambda: _env("JOURNAL_MODE", "WAL"))
+    # OFF | NORMAL | FULL
+    synchronous: str = field(default_factory=lambda: _env("SYNCHRONOUS", "NORMAL"))
     wal_checkpoint_threshold: int = 1000  # pages before auto-checkpoint
 
     @classmethod

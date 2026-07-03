@@ -12,9 +12,11 @@ from typing import Any
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.pools import SQLitePool, create_pool
 
-psycopg2: Any = None
+psycopg2: Any
 if importlib.util.find_spec("psycopg2") is not None:
     import psycopg2
+else:
+    psycopg2 = None
 
 
 def _adapt_datetime(dt):

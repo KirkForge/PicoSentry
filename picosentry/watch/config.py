@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -7,6 +8,8 @@ from typing import Any
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
+
+_logger = logging.getLogger("picowatch.config")
 
 DEFAULT_RULES_DIR = Path(__file__).parent / "rules"
 DEFAULT_THRESHOLD_BLOCK = 0.7
@@ -55,6 +58,7 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
             data: dict[str, Any] = tomllib.load(f)
             return data
     except Exception:
+        _logger.warning("Failed to load watch config from %s", path, exc_info=True)
         return {}
 
 
@@ -587,6 +591,6 @@ def check_config_permissions() -> list[str]:
                     warnings.append(msg)
                     logger.error(msg)
             except Exception:
-                pass
+                logger.warning("Permission check failed for %s", path, exc_info=True)
 
     return warnings

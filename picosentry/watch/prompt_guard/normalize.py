@@ -157,7 +157,7 @@ class Normalizer:
                     decoded.append(payload)
                     # Recursively decode nested base64 layers.
                     decoded.extend(self.decode_base64(payload, max_depth=max_depth, _depth=_depth + 1))
-            except Exception:
+            except (ValueError, UnicodeDecodeError):
                 continue
         return decoded
 

@@ -65,6 +65,12 @@ class TestNormalizer:
         result = self.norm.normalize("  hello   world  ")
         assert result == "hello world"
 
+    def test_decode_base64_skips_invalid_payloads(self) -> None:
+        """Malformed base64 segments are skipped without crashing the pipeline."""
+        # Not valid base64 (length and characters are wrong).
+        result = self.norm.decode_base64("!!!not-base64!!!")
+        assert result == []
+
 
 class TestRuleEngine:
     """Test rule loading and evaluation."""

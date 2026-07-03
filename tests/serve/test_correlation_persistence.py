@@ -177,3 +177,101 @@ class TestCorrelationBackpressure:
         fake_time["now"] += 60.0
         engine.ingest_many(events[2:])
         assert engine.stats()["events"] == 4
+
+
+class TestCorrelationPersistenceExceptionNarrowing:
+    """DB persistence boundaries must log expected errors and propagate bugs."""
+
+    def test_persist_events_expected_db_error_is_skipped(self, engine, sample_event, monkeypatch):
+        import sqlite3
+
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+        calls = {"raise": True}
+
+        orig_execute_insert = db_module.db.execute_insert
+
+        def _failing_insert(sql, params):
+            if calls["raise"]:
+                calls["raise"] = False
+                raise sqlite3.OperationalError("disk I/O error")
+            return orig_execute_insert(sql, params)
+
+        monkeypatch.setattr(db_module.db, "execute_insert", _failing_insert)
+        # First event skipped, retry next event (none) not exercised; no exception.
+        assert engine.persist_events() == 0
+
+    def test_persist_events_unexpected_error_propagates(self, engine, sample_event, monkeypatch):
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db_module.db, "execute_insert", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            engine.persist_events()
+
+    def test_load_events_expected_db_error_returns_zero(self, engine, sample_event, caplog, monkeypatch):
+        import logging
+        import sqlite3
+
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+        engine.persist_events()
+
+        def _boom(*args, **kwargs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        monkeypatch.setattr(db_module.db, "execute", _boom)
+
+        with caplog.at_level(logging.WARNING, logger="picosentry.correlation"):
+            assert engine.load_events() == 0
+        assert any("Failed to load correlation events" in r.message for r in caplog.records)
+
+    def test_load_events_unexpected_error_propagates(self, engine, sample_event, monkeypatch):
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+        engine.persist_events()
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db_module.db, "execute", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            engine.load_events()
+
+    def test_persist_chains_expected_db_error_is_skipped(self, engine, sample_event, monkeypatch):
+        import sqlite3
+
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+        engine.kill_chain("pkg@1.0.0")
+
+        def _boom(*args, **kwargs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        monkeypatch.setattr(db_module.db, "execute_insert", _boom)
+
+        assert engine.persist_chains_cache() == 0
+
+    def test_persist_chains_unexpected_error_propagates(self, engine, sample_event, monkeypatch):
+        from picosentry.serve.database import manager as db_module
+
+        engine.ingest(sample_event)
+        engine.kill_chain("pkg@1.0.0")
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(db_module.db, "execute_insert", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            engine.persist_chains_cache()

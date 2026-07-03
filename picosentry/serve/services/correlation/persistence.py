@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import logging
+import sqlite3
 from hashlib import sha256
+from typing import Any, cast
 
 from picosentry.serve.services.correlation.helpers import (
     _confidence_from_str,
@@ -10,6 +12,24 @@ from picosentry.serve.services.correlation.helpers import (
 from picosentry.serve.services.correlation.models import CorrelatedEvent
 
 logger = logging.getLogger("picosentry.correlation")
+
+try:
+    import psycopg2
+except ImportError:  # pragma: no cover - psycopg2 optional in [serve] installs
+    psycopg2 = cast("Any", None)
+
+# Operational errors that can occur when reading/writing correlation data to the
+# DB. We log these per-event/per-chain and continue; unexpected programmer
+# errors must propagate so tests and monitoring can catch them.
+_PERSIST_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    sqlite3.Error,
+)
+if psycopg2 is not None:
+    _PERSIST_ERRORS = (*_PERSIST_ERRORS, psycopg2.Error)
 
 
 def _db():
@@ -81,7 +101,7 @@ def _persist_events_impl(engine) -> int:
                     after = _count_events(db)
                     if after > before:
                         count += 1
-                except Exception as e:
+                except _PERSIST_ERRORS as e:
                     logger.debug("Persist skip for %s/%s: %s", event.artifact_id, event.rule_id, e)
 
     if count:
@@ -123,7 +143,7 @@ def _load_events_impl(engine) -> int:
 
         engine._chains.clear()
         logger.info("Loaded %d correlation event(s) from DB", count)
-    except Exception as e:
+    except _PERSIST_ERRORS as e:
         logger.warning("Failed to load correlation events: %s", e)
 
     return count
@@ -210,7 +230,7 @@ def _persist_chains_cache_impl(engine) -> int:
                             ),
                         )
                 count += 1
-            except Exception as e:
+            except _PERSIST_ERRORS as e:
                 logger.debug("Chain persist skip for %s: %s", artifact_id, e)
 
     if count:

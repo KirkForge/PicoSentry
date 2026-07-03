@@ -158,7 +158,7 @@ pythonpath = ["picosentry", "tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto", "--timeout=60"]
+addopts = ["-ra", "--strict-markers", "--tb=short", "-n", "auto", "--dist=loadfile", "--timeout=60"]
 norecursedirs = ["scripts", "plugins"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",

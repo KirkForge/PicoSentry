@@ -41,4 +41,5 @@ jobs:
       - name: Run admission live test
         run: |
           export PICOSENTRY_KIND_CLUSTER="picosentry-admission-${{ matrix.k8s-version }}"
+          export PICOSENTRY_KIND_SKIP_CREATE=1
           bash scripts/live_test_admission.sh

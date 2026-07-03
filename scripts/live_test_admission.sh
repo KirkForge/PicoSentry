@@ -12,6 +12,7 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CLUSTER_NAME="${PICOSENTRY_KIND_CLUSTER:-picosentry-admission-test}"
 NAMESPACE="picosentry"
 WEBHOOK_SVC="admission-webhook"
+SKIP_CREATE="${PICOSENTRY_KIND_SKIP_CREATE:-0}"
 
 # Allow callers to override the image under test (e.g. a released tag). When
 # not overridden we build the local Dockerfile so CI always tests the code in
@@ -28,8 +29,15 @@ command -v docker >/dev/null 2>&1 || { echo "docker not found in PATH"; exit 1; 
 command -v openssl >/dev/null 2>&1 || { echo "openssl not found in PATH"; exit 1; }
 
 CERT_DIR="$(mktemp -d)"
-KUBECONFIG="${CERT_DIR}/kubeconfig"
-export KUBECONFIG
+
+# When an external step (e.g. helm/kind-action in CI) provisions the cluster,
+# we reuse its kubeconfig instead of creating our own.
+if [[ "${SKIP_CREATE}" == "1" ]]; then
+    : "# use default kubeconfig"
+else
+    KUBECONFIG="${CERT_DIR}/kubeconfig"
+    export KUBECONFIG
+fi
 
 dump_logs() {
     echo "--- webhook logs ---"
@@ -41,7 +49,9 @@ dump_logs() {
 cleanup() {
     dump_logs || true
     echo "Cleaning up..."
-    kind delete cluster --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1 || true
+    if [[ "${SKIP_CREATE}" != "1" ]]; then
+        kind delete cluster --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}" >/dev/null 2>&1 || true
+    fi
     rm -rf "${CERT_DIR}"
 }
 trap cleanup EXIT
@@ -49,8 +59,11 @@ trap cleanup EXIT
 # ---------------------------------------------------------------------------
 # 1. Cluster
 # ---------------------------------------------------------------------------
-echo "Creating kind cluster '${CLUSTER_NAME}'..."
-cat > "${CERT_DIR}/kind-config.yaml" <<EOF
+if [[ "${SKIP_CREATE}" == "1" ]]; then
+    echo "Reusing existing kind cluster '${CLUSTER_NAME}'..."
+else
+    echo "Creating kind cluster '${CLUSTER_NAME}'..."
+    cat > "${CERT_DIR}/kind-config.yaml" <<EOF
 kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 nodes:
@@ -60,7 +73,8 @@ nodes:
         hostPort: 8443
         listenAddress: 127.0.0.1
 EOF
-kind create cluster --name "${CLUSTER_NAME}" --config "${CERT_DIR}/kind-config.yaml" --kubeconfig "${KUBECONFIG}" --wait 2m
+    kind create cluster --name "${CLUSTER_NAME}" --config "${CERT_DIR}/kind-config.yaml" --kubeconfig "${KUBECONFIG}" --wait 2m
+fi
 
 # ---------------------------------------------------------------------------
 # 2. TLS certificates
@@ -91,7 +105,11 @@ if [[ "${IMAGE}" == picosentry:local ]]; then
 fi
 
 echo "Loading ${IMAGE} into kind..."
-kind load docker-image "${IMAGE}" --name "${CLUSTER_NAME}"
+if [[ "${SKIP_CREATE}" == "1" ]]; then
+    kind load docker-image "${IMAGE}" --name "${CLUSTER_NAME}"
+else
+    kind load docker-image "${IMAGE}" --name "${CLUSTER_NAME}" --kubeconfig "${KUBECONFIG}"
+fi
 
 # ---------------------------------------------------------------------------
 # 4. Deploy webhook

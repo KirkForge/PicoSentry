@@ -5,6 +5,8 @@ from __future__ import annotations
 import os
 from unittest.mock import patch
 
+import pytest
+
 from picosentry.sandbox.config import (
     PicoDomeConfig,
     _find_config,
@@ -365,3 +367,54 @@ class TestValidateConfigKeys:
             _validate_config_keys({"format": "json", "unknown_key": "val"}, tmp_path / "test.yml")
         assert len(caplog.records) == 1
         assert "unknown_key" in caplog.records[0].message.lower()
+
+
+class TestLoadConfigExceptionNarrowing:
+    """Config parse failures must return defaults for expected errors and propagate bugs."""
+
+    def test_expected_yaml_error_returns_defaults(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        (tmp_path / ".picodome.yml").write_text("not: valid: yaml: [")
+        from picosentry.sandbox import config as config_mod
+
+        if config_mod._yaml is None:
+
+            class _FakeYaml:
+                class YAMLError(Exception):
+                    pass
+
+                @staticmethod
+                def safe_load(_stream):
+                    raise OSError("read failed")
+
+            monkeypatch.setattr(config_mod, "_yaml", _FakeYaml())
+        else:
+
+            def _boom(*_args, **_kwargs):
+                raise config_mod._yaml.YAMLError("parse failed")
+
+            monkeypatch.setattr(config_mod._yaml, "safe_load", _boom)
+
+        with caplog.at_level(logging.WARNING, logger="picodome.config"):
+            cfg = load_config(tmp_path)
+
+        assert cfg.format == "table"  # defaults preserved
+        assert any("Failed to parse config file" in r.message for r in caplog.records)
+
+    def test_unexpected_yaml_error_propagates(self, tmp_path, monkeypatch):
+        (tmp_path / ".picodome.yml").write_text("format: json\n")
+        from picosentry.sandbox import config as config_mod
+
+        class _FakeYaml:
+            class YAMLError(Exception):
+                pass
+
+            @staticmethod
+            def safe_load(_stream):
+                raise NameError("programmer mistake")
+
+        monkeypatch.setattr(config_mod, "_yaml", _FakeYaml())
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            load_config(tmp_path)

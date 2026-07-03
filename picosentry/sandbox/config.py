@@ -3,12 +3,29 @@ from __future__ import annotations
 import logging
 import os
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
 
 logger = logging.getLogger("picodome.config")
+
+try:
+    import yaml as _yaml
+except ImportError:  # pragma: no cover - PyYAML optional unless extra installed
+    _yaml = cast("Any", None)
+
+# Operational errors that can occur while parsing a YAML/JSON config file.
+# ImportError is handled separately (PyYAML not installed → JSON fallback);
+# these are the parse/read failures we expect and tolerate by returning defaults.
+_CONFIG_PARSE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if cast("Any", _yaml) is not None:
+    _CONFIG_PARSE_ERRORS = (*_CONFIG_PARSE_ERRORS, _yaml.YAMLError)
 
 
 CONFIG_NAMES = [".picodome.yml", ".picodome.yaml"]
@@ -283,11 +300,7 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
 
     logger.info("Loading config from %s", config_path)
 
-    try:
-        import yaml
-
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    except ImportError:
+    if cast("Any", _yaml) is None:
         try:
             import json
 
@@ -295,9 +308,12 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to parse config file %s: %s", config_path, e)
             return config
-    except Exception as e:
-        logger.warning("Failed to parse config file %s: %s", config_path, e)
-        return config
+    else:
+        try:
+            data = _yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        except _CONFIG_PARSE_ERRORS as e:
+            logger.warning("Failed to parse config file %s: %s", config_path, e)
+            return config
 
     if not isinstance(data, dict):
         logger.warning("Config file %s is not a mapping, ignoring", config_path)

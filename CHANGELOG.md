@@ -68,8 +68,9 @@ All notable changes to PicoSentry will be documented in this file.
   daemon scan job store load (`PersistentScanJobStore._ensure_loaded`), audit
   logger plugin boundaries (notary submission, sink send/start/stop), scheduler
   job execution (`JobScheduler._execute_job`), Redis job store client probe
-  (`RedisScanJobStore._get_client`), and Redis health probe
-  (`check_redis_health`). Regression tests added for every changed behavior.
+  (`RedisScanJobStore._get_client`), Redis health probe
+  (`check_redis_health`), and sandbox config loader (`load_config`).
+  Regression tests added for every changed behavior.
 - **Local test runner upgrade.** `scripts/test_doctor.py` now runs ruff,
   mypy, and the per-area pytest suites concurrently with capped xdist
   workers; documented in `CONTRIBUTING.md` as the recommended local CI

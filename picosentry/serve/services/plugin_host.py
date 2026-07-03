@@ -42,8 +42,8 @@ def _reap_orphan(proc: subprocess.Popen[str] | None) -> None:
     try:
         proc.terminate()
         proc.wait(timeout=2.0)
-    except Exception:
-        with contextlib.suppress(Exception):
+    except (OSError, subprocess.TimeoutExpired):
+        with contextlib.suppress(OSError):
             proc.kill()
 
 
@@ -244,12 +244,12 @@ class PluginHost:
         try:
             self._proc.terminate()
             self._proc.wait(timeout=2.0)
-        except Exception:
+        except (OSError, subprocess.TimeoutExpired):
             try:
                 self._proc.kill()
                 self._proc.wait(timeout=1.0)
-            except Exception:
-                pass
+            except (OSError, subprocess.TimeoutExpired):
+                logger.warning("Failed to terminate plugin worker %s", self._proc.pid)
         self._proc = None
         self._ready = False
         fin = getattr(self, "_finalizer", None)
@@ -276,14 +276,15 @@ class PluginHost:
     def health_check(self) -> dict:
         try:
             return self._send("health_check") or {"status": "unhealthy"}
-        except Exception as exc:
-            return {"status": "unhealthy", "error": str(exc)}
+        except Exception:
+            logger.warning("Plugin health check failed", exc_info=True)
+            return {"status": "unhealthy", "error": "health check failed"}
 
     def shutdown(self) -> None:
         try:
             self._send("shutdown")
         except Exception:
-            pass
+            logger.debug("Shutdown request failed", exc_info=True)
         finally:
             self._terminate()
 

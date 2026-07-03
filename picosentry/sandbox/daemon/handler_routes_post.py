@@ -43,7 +43,7 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
                 target=self.path,
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
         self._send_error(403, "cluster token mismatch")
         return False
     return True
@@ -133,7 +133,7 @@ class PicoDomePostRoutesMixin:
                     metadata={"command": command},
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
             self._send_error(ErrorCodes.COMMAND_DENIED, detail=deny_error)
             return
 
@@ -156,14 +156,14 @@ class PicoDomePostRoutesMixin:
                 metadata={"job_id": job_id, "timeout": timeout, "tenant_id": str(tenant_id)},
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
 
         try:
             policy_name = data.get("policy")
             if policy_name:
                 try:
                     policy = load_policy(name=policy_name)
-                except Exception:
+                except (FileNotFoundError, ValueError, KeyError):
                     logger.warning("Policy '%s' not found, using default", policy_name)
                     policy = default_policy()
             else:
@@ -191,8 +191,9 @@ class PicoDomePostRoutesMixin:
                     if not backend.is_available():
                         self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
                         return
-                except Exception as e:
-                    self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=str(e))
+                except (ImportError, AttributeError, ValueError):
+                    logger.exception("Backend instantiation failed for %s", backend_name)
+                    self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
                     return
 
             sandbox_result = sandbox_run(
@@ -243,7 +244,7 @@ class PicoDomePostRoutesMixin:
                     metadata={"job_id": job_id, "findings": len(analysis_result.findings)},
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
 
             try:
                 rm = get_retention_manager()
@@ -252,19 +253,19 @@ class PicoDomePostRoutesMixin:
                     package_name=command[0] if command else "unknown",
                 )
             except Exception:
-                pass
+                logger.exception("Retention save failed")
 
             self._send_json(result, status=201)
 
-        except Exception as e:
+        except Exception:
             self.job_store.update(
                 job_id,
                 status="failed",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                error=str(e),
+                error="scan execution failed",
             )
-            logger.exception("Scan job")
-            self._send_error(ErrorCodes.SCAN_FAILED, detail=str(e))
+            logger.exception("Scan job failed")
+            self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
 
     def _handle_create_policy(self: PicoDomeHandler, token: str) -> None:
         try:
@@ -289,8 +290,11 @@ class PicoDomePostRoutesMixin:
             description = data.get("change_description", "")
             pv = store.save(policy, author=author, change_description=description)
             self._send_json(pv.to_dict(), status=201)
-        except Exception as e:
+        except (ValueError, KeyError, TypeError) as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
+        except Exception:
+            logger.exception("Policy creation failed")
+            self._send_error(ErrorCodes.INVALID_POLICY, detail="policy creation failed")
 
     def _handle_cluster_merge_snapshot(self: PicoDomeHandler) -> None:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.

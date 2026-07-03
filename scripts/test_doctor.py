@@ -66,6 +66,21 @@ def _python() -> str:
     return sys.executable
 
 
+def _pytest_xdist_workers(args: argparse.Namespace) -> str:
+    """Choose pytest-xdist workers for each area.
+
+    When the doctor runs many areas concurrently we can easily oversubscribe
+    the machine and make timing-sensitive tests flaky. Cap each pytest
+    process to a fair slice of the CPU count so the total pytest worker
+    count stays close to the available cores.
+    """
+    if args.workers <= 1:
+        return "auto"
+    cores = os.cpu_count() or 4
+    # Reserve a little headroom for the main thread and non-pytest checks.
+    return str(max(1, cores // args.workers))
+
+
 def build_checks(args: argparse.Namespace) -> list[Check]:
     checks: list[Check] = []
 
@@ -75,6 +90,8 @@ def build_checks(args: argparse.Namespace) -> list[Check]:
         checks.append(Check("ruff format", ["ruff", "format", "--check", "picosentry/", "tests/", "scripts/"]))
 
     checks.append(Check("mypy", ["mypy", "picosentry/", "--ignore-missing-imports"], timeout=300))
+
+    xdist = _pytest_xdist_workers(args)
 
     areas = args.areas or ["scan", "watch", "serve", "sandbox", "integration"]
     for area in areas:
@@ -86,7 +103,18 @@ def build_checks(args: argparse.Namespace) -> list[Check]:
         checks.append(
             Check(
                 f"pytest tests/{area}",
-                [_python(), "-m", "pytest", str(path), "-v", "--tb=short", "--timeout=120"],
+                [
+                    _python(),
+                    "-m",
+                    "pytest",
+                    str(path),
+                    "-v",
+                    "--tb=short",
+                    "--timeout=120",
+                    "-n",
+                    xdist,
+                    "--dist=loadfile",
+                ],
                 timeout=900,
             )
         )
@@ -98,7 +126,9 @@ def build_checks(args: argparse.Namespace) -> list[Check]:
             checks.append(
                 Check(
                     "pytest top-level",
-                    [_python(), "-m", "pytest"] + [str(p) for p in top_level] + ["-v", "--tb=short", "--timeout=120"],
+                    [_python(), "-m", "pytest"]
+                    + [str(p) for p in top_level]
+                    + ["-v", "--tb=short", "--timeout=120", "-n", xdist, "--dist=loadfile"],
                     timeout=600,
                 )
             )

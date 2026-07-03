@@ -237,7 +237,7 @@ class PicoDomeAuthMixin:
                         detail="No auth configured in enterprise mode — rejecting",
                     )
                 except Exception:
-                    pass
+                    logger.exception("Audit record failed")
                 self._send_error(ErrorCodes.UNAUTHORIZED)
                 return None
             return "no-auth-dev-mode"
@@ -251,7 +251,7 @@ class PicoDomeAuthMixin:
                     detail="No Authorization header provided",
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
             self._send_error(ErrorCodes.UNAUTHORIZED)
             return None
 
@@ -265,7 +265,7 @@ class PicoDomeAuthMixin:
                     detail="Invalid token",
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
             self._send_error(ErrorCodes.UNAUTHORIZED)
             return None
 
@@ -279,7 +279,7 @@ class PicoDomeAuthMixin:
                     detail="Request rate limit exceeded",
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
             self._send_error(ErrorCodes.RATE_LIMITED)
             return None
 
@@ -291,7 +291,7 @@ class PicoDomeAuthMixin:
                 detail="Token authenticated",
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
 
         return token
 
@@ -310,7 +310,7 @@ class PicoDomeAuthMixin:
                     detail=f"Insufficient permissions ({permission})",
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
             self._send_error(ErrorCodes.FORBIDDEN, detail=f"Insufficient permissions ({permission})")
             return None
 

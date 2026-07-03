@@ -366,3 +366,138 @@ class TestDaemonBackendMap:
             assert issubclass(backend_cls, SandboxBackend), (
                 f"{backend_name} backend {cls_path} is not a SandboxBackend subclass"
             )
+
+
+class TestDaemonExceptionHandling:
+    """Security regression tests for daemon exception handling."""
+
+    def test_audit_failure_is_logged_not_swallowed(self, tmp_path, caplog):
+        import logging
+
+        from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token as get_check
+
+        _make_handler(tmp_path)
+        handler = _new_handler()
+        handler.path = "/api/v1/cluster/snapshot"
+        handler.headers = {}
+        handler._send_error = MagicMock()
+
+        class _BoomAudit:
+            def record(self, **kwargs):
+                raise RuntimeError("audit disk full")
+
+        with (
+            caplog.at_level(logging.WARNING, logger="picodome.daemon"),
+            patch("picosentry.sandbox.daemon.handler_routes_get.get_audit_logger", return_value=_BoomAudit()),
+        ):
+            mgr = MagicMock()
+            mgr.state.cluster_token = "secret"
+            get_check(handler, mgr)
+
+        assert any("Audit record failed" in r.message for r in caplog.records)
+        handler._send_error.assert_called_once()
+
+    def test_scan_failure_does_not_leak_internal_details(self, tmp_path, monkeypatch):
+        import json
+
+        from picosentry.sandbox.daemon import handler_routes_post
+        from picosentry.sandbox.errors import ErrorCodes
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(json.dumps({"command": ["echo", "hi"]}))),
+        }
+        handler.rfile = io.BytesIO(json.dumps({"command": ["echo", "hi"]}).encode())
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("internal secret details")
+
+        monkeypatch.setattr(handler_routes_post, "sandbox_run", _boom)
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.SCAN_FAILED
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "internal secret details" not in detail
+        assert "RuntimeError" not in detail
+
+    def test_invalid_backend_does_not_leak_import_error(self, tmp_path, monkeypatch):
+        import json
+
+        from picosentry.sandbox.daemon import handler_routes_post
+        from picosentry.sandbox.errors import ErrorCodes
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(json.dumps({"command": ["echo", "hi"], "backend": "seccomp-bpf"}))),
+        }
+        handler.rfile = io.BytesIO(json.dumps({"command": ["echo", "hi"], "backend": "seccomp-bpf"}).encode())
+
+        def _boom(*args, **kwargs):
+            raise ImportError("cannot import seccomp module")
+
+        monkeypatch.setattr(handler_routes_post, "import_module", _boom)
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.BACKEND_UNAVAILABLE
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "cannot import seccomp module" not in detail
+        assert "ImportError" not in detail
+
+    def test_invalid_policy_returns_validation_detail(self, tmp_path):
+        import json
+
+        from picosentry.sandbox.errors import ErrorCodes
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"default_action": "invalid"})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        handler._handle_create_policy("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.INVALID_POLICY
+
+    def test_policy_creation_unexpected_error_is_sanitized(self, tmp_path, monkeypatch):
+        import json
+
+        from picosentry.sandbox.l3 import policy as policy_mod
+        from picosentry.sandbox.errors import ErrorCodes
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"name": "test"})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("database corruption secret")
+
+        monkeypatch.setattr(policy_mod, "_policy_from_dict", _boom)
+
+        handler._handle_create_policy("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.INVALID_POLICY
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "database corruption secret" not in detail
+        assert "RuntimeError" not in detail

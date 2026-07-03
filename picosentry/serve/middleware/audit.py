@@ -1,6 +1,7 @@
 import json
 import logging
 import sqlite3
+from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -8,7 +9,7 @@ from starlette.requests import Request
 try:
     import psycopg2
 except ImportError:
-    psycopg2 = None  # type: ignore[assignment]
+    psycopg2 = cast("Any", None)
 
 logger = logging.getLogger("picoshogun.Audit")
 

@@ -16,6 +16,15 @@ python scripts/test_doctor.py --workers 4
 
 # Run only a subset of areas
 python scripts/test_doctor.py --areas scan sandbox
+
+# Reproduce a CI failure exactly (no pytest-xdist, same commands as CI)
+python scripts/test_doctor.py --ci --areas serve
+
+# Auto-fix lint/format issues before committing
+python scripts/test_doctor.py --fix
+
+# Save a JSON report for CI artifacts or debugging
+python scripts/test_doctor.py --workers 4 --report doctor.json
 ```
 
 ## What we need help with

@@ -1,10 +1,26 @@
 import json
 import logging
+import sqlite3
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None  # type: ignore[assignment]
+
 logger = logging.getLogger("picoshogun.Audit")
+
+_AUDIT_DB_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    sqlite3.Error,
+)
+if psycopg2 is not None:
+    _AUDIT_DB_ERRORS = (*_AUDIT_DB_ERRORS, psycopg2.Error)
 
 
 _auth_svc = None
@@ -102,7 +118,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         user_agent,
                     ),
                 )
-            except (OSError, ValueError):
+            except _AUDIT_DB_ERRORS:
                 logger.exception("Audit DB insert failed")
 
         logger.info("API %s %s - %s (%.3fs) user=%s", method, path, status_code, duration, _user_id)

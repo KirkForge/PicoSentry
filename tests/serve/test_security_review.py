@@ -446,6 +446,24 @@ class TestAuditMiddlewareHardening:
         assert r.status_code == 200
         assert any("API key validation failed in audit middleware" in r.message for r in caplog.records)
 
+    def test_db_insert_exception_is_logged_and_request_succeeds(self, client, caplog, monkeypatch):
+        import logging
+        import sqlite3
+
+        from picosentry.serve.middleware import audit as audit_mod
+
+        db = audit_mod._get_db()
+
+        def _boom(*args, **kwargs):
+            raise sqlite3.OperationalError("disk I/O error")
+
+        with caplog.at_level(logging.ERROR, logger="picoshogun.Audit"):
+            monkeypatch.setattr(db, "execute_insert", _boom)
+            r = client.get("/health/live")
+
+        assert r.status_code == 200
+        assert any("Audit DB insert failed" in r.message for r in caplog.records)
+
 
 class TestHealthHardening:
     """Health endpoints must fail safely and not leak internal details."""

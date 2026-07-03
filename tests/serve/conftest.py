@@ -1,8 +1,11 @@
 """Shared pytest fixtures and configuration for PicoShogun tests."""
 
+import atexit
 import os
+import shutil
 import sys
 import tempfile
+import uuid
 from pathlib import Path
 
 import pytest
@@ -25,11 +28,16 @@ os.environ.setdefault("PICOSHOGUN_ALLOW_REGISTRATION", "true")
 os.environ.setdefault("PICOSHOGUN_SCANS_WORKSPACE_ROOT", "/tmp")
 # SQLite tests must not share the default on-disk database.  When pytest-xdist
 # runs workers in parallel, concurrent access to the same ``picoshogun.db`` file
-# produces OperationalError (database is locked / table already exists).  Route
-# each worker to its own temp DB so in-process tests remain sequential and
-# cross-process collisions disappear.
+# produces OperationalError (database is locked / table already exists).  Give
+# every process its own fresh temp directory so each worker starts from a clean
+# DB and cannot inherit stale schema/data left behind by a previous CI run or
+# an overlapping test invocation.
 _worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
-os.environ["PICOSHOGUN_DATABASE_PATH"] = str(Path(tempfile.gettempdir()) / f"picoshogun-test-{_worker}.db")
+_run_id = uuid.uuid4().hex[:8]
+_db_dir = Path(tempfile.mkdtemp(prefix=f"picoshogun-test-{_run_id}-{_worker}-"))
+_db_path = _db_dir / "picoshogun.db"
+os.environ["PICOSHOGUN_DATABASE_PATH"] = str(_db_path)
+atexit.register(shutil.rmtree, _db_dir, ignore_errors=True)
 # WAL mode on CI runners can produce disk I/O errors under pytest-xdist
 # contention.  Use a classic rollback journal for the test DB; concurrency is
 # serialized per worker anyway.  Synchronous=OFF keeps the test DB fast and

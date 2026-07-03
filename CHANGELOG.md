@@ -109,6 +109,13 @@ All notable changes to PicoSentry will be documented in this file.
   additionally set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
   `DELETE` journal mode to reduce temp-storage contention under
   `pytest-xdist`. Added a regression test for audit DB insert failures.
+- **Scans workspace auth flake hotfix.** `tests/serve/conftest.py` now routes
+  each pytest worker process to its own fresh `tempfile.mkdtemp` directory for
+  the SQLite test database and registers cleanup on process exit. This removes
+  stale-DB inheritance across CI runs or overlapping invocations, fixing the
+  rare `Auth failed: invalid password` failure in
+  `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403` under
+  `test-matrix (3.10)`.
 - **P4 #10 exception audit (plugin manager slice).** Narrowed broad
   `except Exception` in plugin loading boundaries to expected operational
   exceptions: `verify_manifest_signature`, the `_load_plugins` discovery loop,

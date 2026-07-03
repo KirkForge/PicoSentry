@@ -5,6 +5,13 @@
 ## Current session: 2026-07-02/03 — CI green push: flaky test fix, test doctor upgrade, state.md cleanup
 
 ### Done this session (on `dev`)
+- **Scans workspace auth flake hotfix.** `tests/serve/test_scans_workspace.py`
+  occasionally failed under `test-matrix (3.10)` with `Auth failed: invalid
+  password` during `fresh_viewer` setup. `tests/serve/conftest.py` now gives each
+  pytest worker process a fresh `tempfile.mkdtemp` directory for its SQLite DB
+  (cleaned up on exit) instead of reusing a fixed `/tmp/picoshogun-test-<worker>.db`
+  path, eliminating stale DB inheritance across CI runs or overlapping test
+  invocations. Verified with `python3 scripts/test_doctor.py --workers 4`.
 - **`main` CI green.** The flaky `tests/scan/test_daemon_extended.py::TestRateLimiting`
   tests were driven by wall-clock `time.monotonic()` bursts. Froze the clock at
   `1000.0` and reset `HealthHandler` class-level defaults in `setUp`; fix pushed
@@ -477,7 +484,7 @@
 1. **Repo admin:** mark `postgres-live-test` as a required status check for
    `main` (and optionally `dev`) in GitHub branch protection.
 2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
-   remaining ~151 broad `except Exception` sites, prioritizing request-boundary,
+   remaining ~144 broad `except Exception` sites, prioritizing request-boundary,
    persistence, and plugin/daemon paths.
 3. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
    accurate.

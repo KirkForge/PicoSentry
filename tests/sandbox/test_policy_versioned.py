@@ -117,3 +117,29 @@ class TestVersionedPolicyStore:
         pv1 = store.save(sample_policy, author="admin", change_description="v1")
         pv2 = store.save(sample_policy, author="admin", change_description="v2")
         assert pv1.content_hash == pv2.content_hash  # same policy = same hash
+
+
+class TestVersionedPolicyStoreHardening:
+    """Security regression tests for versioned policy store resilience."""
+
+    def test_temp_file_cleaned_up_on_write_failure(self, store, sample_policy, monkeypatch, tmp_path):
+        """Atomic write failures must not leave temp files behind."""
+        import os
+
+        controlled_path = tmp_path / "controlled-temp.json"
+
+        def _controlled_mkstemp(*args, **kwargs):
+            fd = os.open(str(controlled_path), os.O_CREAT | os.O_RDWR, 0o600)
+            return fd, str(controlled_path)
+
+        monkeypatch.setattr("picosentry.sandbox.policy_versioned.store.tempfile.mkstemp", _controlled_mkstemp)
+
+        def _boom_fdopen(*args, **kwargs):
+            raise RuntimeError("disk full")
+
+        monkeypatch.setattr("picosentry.sandbox.policy_versioned.store.os.fdopen", _boom_fdopen)
+
+        with pytest.raises(RuntimeError, match="disk full"):
+            store.save(sample_policy, author="admin", change_description="boom")
+
+        assert not controlled_path.exists()

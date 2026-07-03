@@ -84,25 +84,21 @@ class VersionedPolicyStore:
             content_hash=content_hash,
         )
 
-        path = policy_dir / f"v{next_version}.json"
-        tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", dir=policy_dir)
-        try:
-            with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                f.write(json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str))
-            Path(tmp_path).replace(path)
-        except Exception:
-            Path(tmp_path).unlink()
-            raise
+        def _atomic_write(path: Path, content: str) -> None:
+            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", dir=path.parent)
+            try:
+                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                    f.write(content)
+                Path(tmp_path).replace(path)
+            finally:
+                try:
+                    Path(tmp_path).unlink(missing_ok=True)
+                except OSError:
+                    logger.warning("Failed to remove temp policy file %s", tmp_path)
 
-        latest_path = policy_dir / "latest.json"
-        tmp_fd2, tmp_path2 = tempfile.mkstemp(suffix=".json", dir=policy_dir)
-        try:
-            with os.fdopen(tmp_fd2, "w", encoding="utf-8") as f:
-                f.write(json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str))
-            Path(tmp_path2).replace(latest_path)
-        except Exception:
-            Path(tmp_path2).unlink()
-            raise
+        serialized = json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str)
+        _atomic_write(policy_dir / f"v{next_version}.json", serialized)
+        _atomic_write(policy_dir / "latest.json", serialized)
 
         logger.info(
             "Policy '%s' v%d saved by %s: %s",

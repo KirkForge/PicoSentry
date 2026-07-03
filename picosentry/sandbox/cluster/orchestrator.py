@@ -153,7 +153,7 @@ class ClusterManager:
                 detail=f"Cluster node started at {self._address}:{self._port}",
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
 
         logger.info("Cluster node %s started at %s:%d", self._node_id, self._address, self._port)
 
@@ -193,7 +193,7 @@ class ClusterManager:
                 detail="Cluster node stopped",
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
 
         logger.info("Cluster node %s stopped", self._node_id)
 
@@ -219,7 +219,7 @@ class ClusterManager:
                     metadata={"command": scan_request.command, "assigned_node": node.node_id},
                 )
             except Exception:
-                pass
+                logger.exception("Audit record failed")
 
         return node
 
@@ -279,7 +279,7 @@ class ClusterManager:
                 metadata={"redistributed_scans": redistributed},
             )
         except Exception:
-            pass
+            logger.exception("Audit record failed")
 
         logger.info("Node %s failed: %d scans redistributed", node_id, len(redistributed))
         return redistributed

@@ -335,3 +335,58 @@ class TestAuditLoggerSinks:
             event_type=AuditEventType.SCAN_START,
             actor="test",
         )
+
+
+class TestAuditLoggerExceptionNarrowing:
+    """Audit plugin boundaries must log expected errors and propagate bugs."""
+
+    def test_notary_expected_error_is_logged(self, tmp_path, caplog):
+        import logging
+
+        class _Notary:
+            name = "FakeNotary"
+
+            def submit_entry(self, entry):
+                raise RuntimeError("notary down")
+
+        logger = AuditLogger(log_dir=tmp_path, notary=_Notary())
+
+        with caplog.at_level(logging.WARNING, logger="picodome.audit"):
+            event = logger.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="test",
+            )
+
+        assert event.event_type == AuditEventType.SCAN_START
+        assert any("Notary submission failed" in r.message for r in caplog.records)
+
+    def test_notary_unexpected_error_propagates(self, tmp_path):
+        class _Notary:
+            name = "FakeNotary"
+
+            def submit_entry(self, entry):
+                raise NameError("programmer mistake")
+
+        logger = AuditLogger(log_dir=tmp_path, notary=_Notary())
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            logger.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="test",
+            )
+
+    def test_sink_unexpected_error_propagates(self, tmp_path):
+        class _NameErrorSink(AuditSink):
+            name = "NameErrorSink"
+
+            def send(self, event):
+                raise NameError("programmer mistake")
+
+        logger = AuditLogger(log_dir=tmp_path)
+        logger.add_sink(_NameErrorSink())
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            logger.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="test",
+            )

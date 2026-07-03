@@ -1,8 +1,14 @@
 import logging
+import sqlite3
 import threading
 from collections import defaultdict
 from datetime import datetime, timezone
-from typing import Any
+from typing import Any, cast
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = cast("Any", None)
 
 try:
     import requests
@@ -13,6 +19,18 @@ except ImportError:
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
+
+# Expected operational failures when delivering an alert through a channel.
+# One channel failing must not abort delivery to the remaining channels.
+_ALERT_CHANNEL_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    sqlite3.Error,
+)
+if psycopg2 is not None:
+    _ALERT_CHANNEL_ERRORS = (*_ALERT_CHANNEL_ERRORS, psycopg2.Error)
 
 logger = logging.getLogger("picoshogun.Alerts")
 
@@ -83,7 +101,7 @@ class AlertHub:
                     (alert_ids[i],),
                 )
                 success = True
-            except Exception:
+            except _ALERT_CHANNEL_ERRORS:
                 logger.exception("Alert delivery failed (%s)", channel)
 
                 db.execute(

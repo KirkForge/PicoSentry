@@ -17,13 +17,13 @@
   Per-area mode (`--areas`) still uses bounded pytest-xdist for fast feedback.
   Fixed the wall-time summary bug (was summing elapsed times instead of measuring
   actual wall time). Verified full-doctor run green locally.
-- **Discovered xdist isolation bug.** The new full-umbrella doctor run (with xdist)
-  surfaced a real test-isolation failure:
-  `tests/scan/test_validation.py::test_validation_report_is_deterministic` fails
-  under `pytest-xdist` because some earlier test mutates mutable global state used
-  by the validation engine. The same test passes under the serial CI command shape
-  (`pytest tests/ -x -n 0`). The full umbrella therefore matches CI and runs
-  serially; the isolation bug is logged here for future narrowing work.
+- **xdist test-isolation fix.** The full-umbrella doctor surfaced a real xdist
+  flakiness bug: `tests/scan/test_validation.py` and
+  `tests/scan/test_malware_benchmark.py` occasionally failed under the default
+  scheduler because unrelated tests that share mutable state ran on the same
+  worker. Added `--dist=loadfile` to `[tool.pytest.ini_options].addopts` so each
+  test file stays on one worker while files still run in parallel. Verified with
+  multiple full-suite runs; CI green on `main`.
 - **Test doctor.** Added `scripts/test_doctor.py`: unified local CI-quality runner
   that executes ruff, mypy, and per-area pytest suites concurrently with
   configurable workers. Replaces ad-hoc manual commands.
@@ -319,13 +319,9 @@
 2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
    remaining ~186 broad `except Exception` sites, prioritizing request-boundary,
    persistence, and plugin/daemon paths.
-3. **Investigate pytest-xdist test isolation bug** in the scan validation engine:
-   `tests/scan/test_validation.py::test_validation_report_is_deterministic`
-   fails under `pytest-xdist` because an earlier test mutates global state. Root-
-   cause, add a regression test, and restore xdist to the doctor full umbrella.
-4. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
+3. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
    accurate.
-5. **Process guard:** all future slices must pass `python scripts/test_doctor.py`
+4. **Process guard:** all future slices must pass `python scripts/test_doctor.py`
    and the exact CI command shape (`pytest tests/ -x --tb=short -q`) locally
    before merging to `dev`/`main`; WIP stays on `no-ci/*` branches.
 

@@ -1,4 +1,3 @@
-import importlib.util
 import logging
 import re
 import sqlite3
@@ -7,16 +6,14 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.pools import SQLitePool, create_pool
 
-psycopg2: Any
-if importlib.util.find_spec("psycopg2") is not None:
+try:
     import psycopg2
-else:
-    psycopg2 = None
+except ImportError:
+    psycopg2 = None  # type: ignore[assignment]
 
 
 def _adapt_datetime(dt):

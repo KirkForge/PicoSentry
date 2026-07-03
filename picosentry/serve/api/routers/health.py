@@ -76,14 +76,15 @@ async def liveness_probe():
 
 @router.get("/health/ready", tags=["Health"])
 async def readiness_probe():
+    from fastapi.responses import JSONResponse
+
     try:
         from picosentry.serve.database.manager import db
 
         db.execute_one("SELECT 1")
         return {"status": "ready"}
     except Exception:
-        from fastapi.responses import JSONResponse
-
+        logger.exception("Readiness probe failed")
         return JSONResponse(status_code=503, content={"status": "not ready", "detail": "database unavailable"})
 
 

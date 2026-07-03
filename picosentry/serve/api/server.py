@@ -323,7 +323,7 @@ try:
     if _front.is_dir():
         app.mount("/static", StaticFiles(directory=str(_front)), name="static")
 except Exception:
-    pass
+    logger.warning("Static files directory could not be mounted", exc_info=True)
 
 
 def main() -> None:

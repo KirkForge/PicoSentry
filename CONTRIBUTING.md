@@ -11,8 +11,11 @@ python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev,scan,serve]"
 
-# Run the test suite
-python -m pytest
+# Run the full CI-quality test suite in parallel
+python scripts/test_doctor.py --workers 4
+
+# Run only a subset of areas
+python scripts/test_doctor.py --areas scan sandbox
 ```
 
 ## What we need help with

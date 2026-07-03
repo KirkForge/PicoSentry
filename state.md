@@ -377,6 +377,13 @@
   Operational failures are logged every 60 seconds; programmer errors such as
   `NameError` propagate so the background thread fails loudly. Added
   regression tests in `tests/serve/services/test_anomaly_detector.py`.
+- **P4 #10 exception audit (plugin host call-boundary slice).**
+  `PluginHost.health_check()` and `shutdown()` in
+  `picosentry/serve/services/plugin_host.py` now catch only
+  `(OSError, RuntimeError, ValueError, TypeError)` instead of swallowing all
+  exceptions. Operational failures return sanitized health status or log a
+  debug shutdown failure; programmer errors such as `NameError` propagate. Added
+  regression tests in `tests/serve/services/test_plugin_host.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -389,9 +396,9 @@
   serve log/alert services, serve execution/observability, plugin manager
   loading paths, sandbox health/readiness probes, baseline hardening
   audit logging, the serve event bus subscriber dispatch, and the anomaly
-  detector background loop have been narrowed to specific exception types
-  with regression tests.
-  **Remaining:** ~151 broad `except Exception` sites across the codebase are
+  detector background loop, and plugin host call boundaries have been narrowed
+  to specific exception types with regression tests.
+  **Remaining:** ~150 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

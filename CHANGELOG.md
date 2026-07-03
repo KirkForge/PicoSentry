@@ -51,9 +51,10 @@ All notable changes to PicoSentry will be documented in this file.
   (`health_check`, `shutdown`), correlation persistence
   (`_persist_events_impl`, `_load_events_impl`, `_persist_chains_cache_impl`),
   daemon scan job store load (`PersistentScanJobStore._ensure_loaded`), audit
-  logger plugin boundaries (notary submission, sink send/start/stop), and
-  scheduler job execution (`JobScheduler._execute_job`). Regression tests
-  added for every changed behavior.
+  logger plugin boundaries (notary submission, sink send/start/stop), scheduler
+  job execution (`JobScheduler._execute_job`), and Redis job store client
+  probe (`RedisScanJobStore._get_client`). Regression tests added for every
+  changed behavior.
 - **Local test runner upgrade.** `scripts/test_doctor.py` now runs ruff,
   mypy, and the per-area pytest suites concurrently with capped xdist
   workers; documented in `CONTRIBUTING.md` as the recommended local CI

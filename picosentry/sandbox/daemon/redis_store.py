@@ -5,9 +5,27 @@ import json
 import logging
 import os
 import time
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger("picodome.daemon.redis_store")
+
+try:
+    import redis as _redis
+except ImportError:  # pragma: no cover - redis optional unless extra installed
+    _redis = cast("Any", None)
+
+# Operational errors that can occur when probing/lazily-connecting to Redis.
+# ImportError is handled separately (redis package not installed); these are
+# the runtime connection failures we expect and tolerate by marking the store
+# unavailable.
+_REDIS_CLIENT_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if _redis is not None:
+    _REDIS_CLIENT_ERRORS = (*_REDIS_CLIENT_ERRORS, _redis.RedisError)
 
 _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 _JOB_KEY_PREFIX = "picodome:job:"
@@ -44,18 +62,18 @@ class RedisScanJobStore:
         if self._client is not None:
             return self._client
 
-        try:
-            import redis
+        if _redis is None:
+            logger.warning("Redis package not installed, RedisScanJobStore unavailable")
+            self._available = False
+            return None
 
-            self._client = redis.from_url(self._redis_url, decode_responses=True)
+        try:
+            self._client = _redis.from_url(self._redis_url, decode_responses=True)
 
             self._client.ping()
             self._available = True
             logger.info("Redis connected: %s", self._redis_url)
-        except ImportError:
-            logger.warning("Redis package not installed, RedisScanJobStore unavailable")
-            self._available = False
-        except Exception as exc:
+        except _REDIS_CLIENT_ERRORS as exc:
             logger.warning("Redis connection failed: %s", exc)
             self._available = False
             self._client = None

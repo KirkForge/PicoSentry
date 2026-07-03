@@ -218,12 +218,20 @@
   left for the global handler.
 - **Full `test_doctor` green.** Verified `python scripts/test_doctor.py --workers 4`
   passes (9/9 checks) before committing this slice.
+- **P4 #10 exception audit (backup service slice).** Narrowed broad
+  `except Exception` in `picosentry/serve/services/backup.py` for both
+  `create_backup` and `restore_backup` to
+  `(OSError, ValueError, TypeError, tarfile.TarError)`. Added
+  `tests/serve/services/test_backup.py` covering happy path, expected failure
+  logging, and propagation of unexpected programmer errors.
+- **Full `test_doctor` green.** Verified `python scripts/test_doctor.py --workers 4`
+  passes (9/9 checks) before committing this slice.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed this session.
 - **P4:** tenant project isolation closed this session.
 - **P4 #10 broad exception audit — PARTIAL.** Security-relevant slices audited
-  and tested; remaining ~193 broad `except Exception` sites are intentional
+  and tested; remaining ~191 broad `except Exception` sites are intentional
   safety nets or lower-risk boundaries. Hardening continues on feature branches.
 - **P4 #12 Postgres live-test required status check — REQUIRES REPO ADMIN.** The
   `postgres-live-test` CI job runs on every push; it needs to be marked required

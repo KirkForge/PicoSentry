@@ -58,7 +58,7 @@ class BackupManager:
 
             return {"path": str(backup_path), "name": name, "size": backup_size, "metadata": meta}
 
-        except Exception:
+        except (OSError, ValueError, TypeError, tarfile.TarError):
             logger.exception("Backup failed")
             return None
 
@@ -113,7 +113,7 @@ class BackupManager:
 
             return True
 
-        except Exception:
+        except (OSError, ValueError, TypeError, tarfile.TarError):
             logger.exception("Restore failed")
             return False
 

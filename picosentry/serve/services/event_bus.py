@@ -9,6 +9,17 @@ from typing import Any
 
 logger = logging.getLogger("picoshogun.EventBus")
 
+# Exceptions a subscriber callback is expected to raise for operational
+# problems.  Programmer errors such as NameError or AssertionError should
+# propagate so they are noticed.
+_HANDLER_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    AttributeError,
+)
+
 
 @dataclass
 class Event:
@@ -75,7 +86,7 @@ class EventBus:
         for callback in callbacks:
             try:
                 callback(event)
-            except Exception:
+            except _HANDLER_ERRORS:
                 logger.exception("Event handler failed for %s", event_type)
 
         logger.debug("Event published: %s (%s)", event_type, event.id)

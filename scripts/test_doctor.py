@@ -1,16 +1,19 @@
 #!/usr/bin/env python3
-"""PicoSentry test doctor — run all CI-quality checks in parallel.
+"""PicoSentry test doctor — run all CI-quality checks concurrently.
 
-This is the local equivalent of the GitHub Actions matrix. It executes the
-lint, type-check and per-area pytest suites concurrently, then prints a
-unified pass/fail summary.
+This is the local equivalent of the GitHub Actions matrix. It executes lint,
+type-check and pytest suites concurrently, streams output as checks finish,
+and fails fast so regressions surface immediately.
 
 Usage:
-    python scripts/test_doctor.py
-    python scripts/test_doctor.py --no-format   # skip ruff format check
-    python scripts/test_doctor.py --areas scan watch serve  # run only listed areas
-    python scripts/test_doctor.py --fix         # auto-fix ruff issues and format
+    python scripts/test_doctor.py              # lint + type + full pytest umbrella
+    python scripts/test_doctor.py --full       # same as default
+    python scripts/test_doctor.py --areas      # per-area suites in parallel
+    python scripts/test_doctor.py --areas scan watch serve
+    python scripts/test_doctor.py --no-format  # skip ruff format check
+    python scripts/test_doctor.py --fix        # auto-fix ruff issues and format
     python scripts/test_doctor.py --ci          # exact CI commands (no xdist)
+    python scripts/test_doctor.py --no-fail-fast  # run every check even after a failure
     python scripts/test_doctor.py --report doctor.json
 """
 
@@ -21,6 +24,7 @@ import json
 import os
 import subprocess
 import sys
+import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -49,10 +53,12 @@ class Result:
 
 @dataclass
 class DoctorConfig:
+    full: bool = False
     areas: list[str] | None = None
     format: bool = True
     fix: bool = False
     ci: bool = False
+    fail_fast: bool = True
     verbose: bool = False
     workers: int = 4
     report: str = ""
@@ -60,33 +66,50 @@ class DoctorConfig:
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> DoctorConfig:
         return cls(
+            full=args.full,
             areas=list(args.areas) if args.areas else None,
             format=args.format,
             fix=args.fix,
             ci=args.ci,
+            fail_fast=args.fail_fast,
             verbose=args.verbose,
             workers=args.workers,
             report=args.report or "",
         )
 
 
-def _run_check(check: Check) -> Result:
+def _run_check(check: Check, abort: threading.Event) -> Result:
+    """Run a single check, terminating early if abort is set."""
     start = time.monotonic()
-    proc = subprocess.run(
+    if abort.is_set():
+        return Result(
+            check=check,
+            returncode=-1,
+            stdout="",
+            stderr="Aborted (fail-fast).",
+            elapsed=0.0,
+        )
+
+    proc = subprocess.Popen(
         check.command,
-        capture_output=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
         text=True,
-        timeout=check.timeout,
         cwd=ROOT,
         env={**os.environ, "PYTEST_TIMEOUT": "120"},
-        check=False,
     )
+    try:
+        stdout, stderr = proc.communicate(timeout=check.timeout)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        stdout, stderr = proc.communicate()
+        stderr = f"{stderr}\n[doctor] timed out after {check.timeout}s".strip()
     elapsed = time.monotonic() - start
     return Result(
         check=check,
         returncode=proc.returncode,
-        stdout=proc.stdout,
-        stderr=proc.stderr,
+        stdout=stdout,
+        stderr=stderr,
         elapsed=elapsed,
     )
 
@@ -96,7 +119,7 @@ def _python() -> str:
 
 
 def _pytest_xdist_workers(config: DoctorConfig) -> str:
-    """Choose pytest-xdist workers for each area.
+    """Choose pytest-xdist workers for each pytest process.
 
     When the doctor runs many areas concurrently we can easily oversubscribe
     the machine and make timing-sensitive tests flaky. Cap each pytest
@@ -118,6 +141,16 @@ def _pytest_common_args(_config: DoctorConfig, xdist: str) -> list[str]:
     if xdist != "0":
         args.extend(["-n", xdist, "--dist=loadfile"])
     return args
+
+
+def _full_pytest_args(_config: DoctorConfig) -> list[str]:
+    """Command that mirrors the CI test-core / test-matrix job.
+
+    The CI matrix runs this serially (no xdist) so the doctor's full
+    umbrella matches that exactly. xdist can expose test-isolation bugs
+    that are not CI failures; per-area mode still offers xdist for speed.
+    """
+    return [_python(), "-m", "pytest", "tests/", "-x", "--tb=short", "-q"]
 
 
 def build_checks(config: DoctorConfig) -> list[Check]:
@@ -164,29 +197,40 @@ def build_checks(config: DoctorConfig) -> list[Check]:
         )
     )
 
-    xdist = _pytest_xdist_workers(config)
-
-    areas = config.areas or ["scan", "watch", "serve", "sandbox", "integration"]
-    for area in areas:
-        path = ROOT / "tests" / area
-        if area == "integration":
-            path = ROOT / "tests" / "integration"
-        if not path.exists():
-            continue
-        cmd = [*_pytest_common_args(config, xdist), str(path)]
+    if config.full or (not config.areas and not config.full):
+        # Default / --full: single umbrella run matching CI test-core/test-matrix.
         checks.append(
             Check(
-                f"pytest tests/{area}",
-                cmd,
-                timeout=900,
-                ci_equivalent=f"python -m pytest tests/{area}/ -v --tb=short",
+                "pytest tests/ (full umbrella)",
+                _full_pytest_args(config),
+                timeout=1200,
+                ci_equivalent="python -m pytest tests/ -x --tb=short -q",
             )
         )
 
+    if config.areas:
+        xdist = _pytest_xdist_workers(config)
+        for area in config.areas:
+            path = ROOT / "tests" / area
+            if area == "integration":
+                path = ROOT / "tests" / "integration"
+            if not path.exists():
+                continue
+            cmd = [*_pytest_common_args(config, xdist), str(path)]
+            checks.append(
+                Check(
+                    f"pytest tests/{area}",
+                    cmd,
+                    timeout=900,
+                    ci_equivalent=f"python -m pytest tests/{area}/ -v --tb=short",
+                )
+            )
+
     # Top-level repository tests that live outside the per-area folders.
-    if not config.areas:
+    if config.areas and not config.full:
         top_level = list((ROOT / "tests").glob("test_*.py"))
         if top_level:
+            xdist = _pytest_xdist_workers(config)
             cmd = _pytest_common_args(config, xdist) + [str(p) for p in top_level]
             checks.append(
                 Check(
@@ -212,14 +256,16 @@ def _short_output(result: Result) -> str:
     return f"{head}\n... ({len(lines) - 40} lines omitted) ...\n{tail}"
 
 
-def _write_report(path: str, results: list[Result], config: DoctorConfig) -> None:
+def _write_report(path: str, results: list[Result], config: DoctorConfig, wall_time: float) -> None:
     payload: dict[str, Any] = {
         "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "config": {
+            "full": config.full,
             "areas": config.areas,
             "format": config.format,
             "fix": config.fix,
             "ci": config.ci,
+            "fail_fast": config.fail_fast,
             "verbose": config.verbose,
             "workers": config.workers,
         },
@@ -240,7 +286,8 @@ def _write_report(path: str, results: list[Result], config: DoctorConfig) -> Non
             "total": len(results),
             "passed": sum(1 for r in results if r.returncode == 0),
             "failed": sum(1 for r in results if r.returncode != 0),
-            "wall_time": round(sum(r.elapsed for r in results), 3),
+            "aborted": sum(1 for r in results if r.returncode == -1),
+            "wall_time": round(wall_time, 3),
         },
     }
     out = Path(path)
@@ -250,10 +297,18 @@ def _write_report(path: str, results: list[Result], config: DoctorConfig) -> Non
 
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run PicoSentry CI checks in parallel")
-    parser.add_argument("--areas", nargs="+", help="Limit to these test areas")
+    parser.add_argument("--full", action="store_true", help="Run the full CI-equivalent umbrella (default)")
+    parser.add_argument("--areas", nargs="+", help="Run per-area test suites concurrently instead of the umbrella")
     parser.add_argument("--no-format", dest="format", action="store_false", default=True, help="Skip ruff format check")
     parser.add_argument("--fix", action="store_true", help="Auto-fix ruff issues and apply ruff format")
     parser.add_argument("--ci", action="store_true", help="Run CI-equivalent commands (no pytest-xdist)")
+    parser.add_argument(
+        "--no-fail-fast",
+        dest="fail_fast",
+        action="store_false",
+        default=True,
+        help="Run all checks even if one fails",
+    )
     parser.add_argument("--verbose", "-v", action="store_true", help="Show full output for passing checks too")
     parser.add_argument("--workers", type=int, default=min(8, (os.cpu_count() or 4)), help="Parallel workers")
     parser.add_argument("--report", help="Write a JSON report to this path")
@@ -266,25 +321,39 @@ def main() -> int:
         return 0
 
     mode = "CI-equivalent" if config.ci else "local-parallel"
-    print(f"Running {len(checks)} checks with up to {config.workers} workers ({mode}) ...\n")
+    run_type = "full umbrella"
+    if config.areas:
+        run_type = f"areas: {', '.join(config.areas)}"
+    print(f"Running {len(checks)} checks with up to {config.workers} workers ({mode}, {run_type}) ...\n")
 
+    abort = threading.Event()
     results: list[Result] = []
-    with ThreadPoolExecutor(max_workers=config.workers) as pool:
-        futures = {pool.submit(_run_check, c): c for c in checks}
-        for future in as_completed(futures):
-            results.append(future.result())
+    failed: list[Result] = []
+    wall_start = time.monotonic()
 
+    with ThreadPoolExecutor(max_workers=config.workers) as pool:
+        futures = {pool.submit(_run_check, c, abort): c for c in checks}
+        for future in as_completed(futures):
+            result = future.result()
+            results.append(result)
+            status = "PASS" if result.returncode == 0 else "FAIL"
+            symbol = "✓" if result.returncode == 0 else "✗"
+            print(f"{symbol} {status:4} {result.check.name:40} ({result.elapsed:.1f}s)")
+            if result.returncode != 0:
+                failed.append(result)
+                if config.fail_fast and not abort.is_set():
+                    abort.set()
+                    print("\n! fail-fast: cancelling remaining checks ...\n")
+
+    wall_time = time.monotonic() - wall_start
     results.sort(key=lambda r: r.check.name)
 
-    failed: list[Result] = []
     print("=" * 70)
     for result in results:
         status = "PASS" if result.returncode == 0 else "FAIL"
         symbol = "✓" if result.returncode == 0 else "✗"
-        print(f"{symbol} {status:4} {result.check.name:30} ({result.elapsed:.1f}s)")
-        if result.returncode != 0:
-            failed.append(result)
-        elif config.verbose:
+        print(f"{symbol} {status:4} {result.check.name:40} ({result.elapsed:.1f}s)")
+        if result.returncode == 0 and config.verbose:
             short = _short_output(result)
             if short:
                 print(f"       {short[:200].replace(chr(10), ' ')}")
@@ -296,13 +365,14 @@ def main() -> int:
             print(f"--- {result.check.name} ---")
             print(_short_output(result))
             print()
+        if config.report:
+            _write_report(config.report, results, config, wall_time)
         return 1
 
-    total = sum(r.elapsed for r in results)
-    print(f"\nAll checks passed in {total:.1f}s (wall time).")
+    print(f"\nAll checks passed in {wall_time:.1f}s wall time.")
 
     if config.report:
-        _write_report(config.report, results, config)
+        _write_report(config.report, results, config, wall_time)
 
     return 0
 

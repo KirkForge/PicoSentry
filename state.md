@@ -2,9 +2,28 @@
 
 ---
 
-## Current session: 2026-07-02 — dev hardening: test doctor, exception-narrowing slices, CI mypy fix, state.md cleanup
+## Current session: 2026-07-02/03 — CI green push: flaky test fix, test doctor upgrade, state.md cleanup
 
 ### Done this session (on `dev`)
+- **`main` CI green.** The flaky `tests/scan/test_daemon_extended.py::TestRateLimiting`
+  tests were driven by wall-clock `time.monotonic()` bursts. Froze the clock at
+  `1000.0` and reset `HealthHandler` class-level defaults in `setUp`; fix pushed
+  via `no-ci/fix-rate-limit-flake`, merged to `dev` then `main`. Latest `PicoSentry
+  CI` run on `main` is **success**.
+- **Test doctor upgrade v2.** `scripts/test_doctor.py` now defaults to a full CI-
+  equivalent umbrella (`pytest tests/ -x --tb=short -q`) matching the
+  `test-core`/`test-matrix` jobs, runs checks concurrently, streams per-check
+  results as they finish, and fails fast by default (`--no-fail-fast` to disable).
+  Per-area mode (`--areas`) still uses bounded pytest-xdist for fast feedback.
+  Fixed the wall-time summary bug (was summing elapsed times instead of measuring
+  actual wall time). Verified full-doctor run green locally.
+- **Discovered xdist isolation bug.** The new full-umbrella doctor run (with xdist)
+  surfaced a real test-isolation failure:
+  `tests/scan/test_validation.py::test_validation_report_is_deterministic` fails
+  under `pytest-xdist` because some earlier test mutates mutable global state used
+  by the validation engine. The same test passes under the serial CI command shape
+  (`pytest tests/ -x -n 0`). The full umbrella therefore matches CI and runs
+  serially; the isolation bug is logged here for future narrowing work.
 - **Test doctor.** Added `scripts/test_doctor.py`: unified local CI-quality runner
   that executes ruff, mypy, and per-area pytest suites concurrently with
   configurable workers. Replaces ad-hoc manual commands.
@@ -300,10 +319,15 @@
 2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
    remaining ~186 broad `except Exception` sites, prioritizing request-boundary,
    persistence, and plugin/daemon paths.
-3. **Keep test doctor current** — add CI-equivalent / auto-fix modes so
-   contributors run the same commands that gate CI.
+3. **Investigate pytest-xdist test isolation bug** in the scan validation engine:
+   `tests/scan/test_validation.py::test_validation_report_is_deterministic`
+   fails under `pytest-xdist` because an earlier test mutates global state. Root-
+   cause, add a regression test, and restore xdist to the doctor full umbrella.
 4. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
    accurate.
+5. **Process guard:** all future slices must pass `python scripts/test_doctor.py`
+   and the exact CI command shape (`pytest tests/ -x --tb=short -q`) locally
+   before merging to `dev`/`main`; WIP stays on `no-ci/*` branches.
 
 ---
 

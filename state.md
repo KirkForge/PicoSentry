@@ -251,6 +251,13 @@
   auto-fix + format), `--ci` (CI-equivalent commands without pytest-xdist),
   `--verbose`/`-v` (output snippets for passing checks), and `--report`
   (JSON summary). Verified full local-parallel and CI-equivalent runs green.
+- **P4 #10 exception audit (daemon route-handler continuation).** Narrowed
+  broad `except Exception` in `picosentry/sandbox/daemon/handler_routes_get.py`
+  (Redis health fallback, cluster snapshot GET) and
+  `picosentry/sandbox/daemon/handler_routes_post.py` (retention save, policy
+  creation unexpected errors, cluster snapshot merge). Added regression tests
+  in `tests/sandbox/test_daemon_handler.py` verifying sanitized error details
+  and fail-safe behavior.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

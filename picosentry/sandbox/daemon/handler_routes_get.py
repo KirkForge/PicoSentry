@@ -143,7 +143,7 @@ class PicoDomeGetRoutesMixin:
             from picosentry.sandbox.redis_health import check_redis_health
 
             redis_health = check_redis_health()
-        except Exception:
+        except (ImportError, OSError, RuntimeError):
             logger.debug("Redis health check failed, using in-memory fallback", exc_info=True)
             redis_health = {"connected": False, "mode": "in-memory"}
 
@@ -362,7 +362,7 @@ class PicoDomeGetRoutesMixin:
 
             snapshot = mgr.state.get_state_snapshot()
             self._send_json(snapshot)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError):
             logger.exception("Failed to get cluster snapshot")
             self._send_error(500, "cluster snapshot unavailable")
 

@@ -502,6 +502,153 @@ class TestDaemonExceptionHandling:
         assert "database corruption secret" not in detail
         assert "RuntimeError" not in detail
 
+    def test_redis_health_failure_uses_in_memory_fallback(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        import picosentry.sandbox.redis_health as redis_health_mod
+
+        _make_handler(tmp_path)
+        handler = _new_handler()
+
+        def _boom():
+            raise OSError("redis unreachable")
+
+        monkeypatch.setattr(redis_health_mod, "check_redis_health", _boom)
+
+        with caplog.at_level(logging.DEBUG, logger="picodome.daemon"):
+            handler._handle_health()
+
+        handler._send_json.assert_called_once()
+        data = handler._send_json.call_args[0][0]
+        assert data["status"] == "healthy"
+        assert data["redis"]["connected"] is False
+        assert data["redis"]["mode"] == "in-memory"
+        assert any("Redis health check failed" in r.message for r in caplog.records)
+
+    def test_cluster_snapshot_get_failure_is_sanitized(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        import picosentry.sandbox.cluster.manager as cluster_manager_mod
+
+        _make_handler(tmp_path)
+        handler = _new_handler()
+        handler.path = "/api/v1/cluster/snapshot"
+        handler.headers = {}
+
+        class _BoomState:
+            cluster_token = ""
+
+            def get_state_snapshot(self):
+                raise RuntimeError("internal cluster state secret")
+
+        class _BoomMgr:
+            is_running = True
+            state = _BoomState()
+
+        monkeypatch.setattr(cluster_manager_mod, "get_cluster_manager", lambda: _BoomMgr())
+
+        with caplog.at_level(logging.WARNING, logger="picodome.daemon"):
+            handler._handle_cluster_snapshot()
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == 500
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "internal cluster state secret" not in detail
+        assert "RuntimeError" not in detail
+        assert any("Failed to get cluster snapshot" in r.message for r in caplog.records)
+
+    def test_retention_save_failure_does_not_fail_scan(self, tmp_path, monkeypatch):
+        import json
+
+        from picosentry.sandbox.daemon import handler_routes_post
+        from picosentry.sandbox.l3.engine import SandboxResult
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(json.dumps({"command": ["echo", "hi"]}))),
+        }
+        handler.rfile = io.BytesIO(json.dumps({"command": ["echo", "hi"]}).encode())
+
+        result = SandboxResult(
+            command=["echo", "hi"],
+            exit_code=0,
+            stdout="hi",
+            stderr="",
+            duration_ms=1,
+            backend_name="subprocess",
+            isolation_level="observational_only",
+            enforcement_guarantee="none",
+            degraded=True,
+        )
+
+        class _BoomRetention:
+            def save_scan_result(self, *args, **kwargs):
+                raise OSError("retention disk full")
+
+        analysis = MagicMock()
+        analysis.to_dict.return_value = {}
+        analysis.overall_verdict.value = "ALLOW"
+        analysis.findings = []
+
+        engine = MagicMock()
+        engine.analyze.return_value = analysis
+
+        monkeypatch.setattr(handler_routes_post, "sandbox_run", lambda **kwargs: result)
+        monkeypatch.setattr(handler_routes_post, "create_default_engine", lambda: engine)
+        monkeypatch.setattr(handler_routes_post, "get_retention_manager", _BoomRetention)
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_json.assert_called_once()
+        assert handler._send_json.call_args.kwargs.get("status") == 201
+
+    def test_cluster_merge_failure_is_sanitized(self, tmp_path, monkeypatch, caplog):
+        import json
+        import logging
+
+        import picosentry.sandbox.cluster.manager as cluster_manager_mod
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"nodes": {}})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        class _BoomState:
+            cluster_token = ""
+
+            def list_nodes(self):
+                return []
+
+            def merge_state(self, snapshot):
+                raise RuntimeError("merge secret failure")
+
+            def get_leader_id(self):
+                return "leader"
+
+        class _BoomMgr:
+            is_running = True
+            state = _BoomState()
+
+        monkeypatch.setattr(cluster_manager_mod, "get_cluster_manager", lambda: _BoomMgr())
+
+        with caplog.at_level(logging.WARNING, logger="picodome.daemon"):
+            handler._handle_cluster_merge_snapshot()
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == 500
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "merge secret failure" not in detail
+        assert "RuntimeError" not in detail
+        assert any("Cluster snapshot merge failed" in r.message for r in caplog.records)
+
 
 class TestHandlerPolicySignatureVerify:
     """Daemon must verify custom policy signatures when a verification key is configured."""

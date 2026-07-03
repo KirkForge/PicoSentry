@@ -82,6 +82,27 @@ All notable changes to PicoSentry will be documented in this file.
   catches a targeted channel-error tuple instead of `except Exception`, so one
   failed notification channel no longer masks programmer errors. Added
   regression tests for both services.
+- **Serve execution/observability exception narrowing.** Health probes in
+  `EnhancedOrchestrator.get_health_checks()` now catch specific exception
+  families (`_HEALTH_PROBE_ERRORS` for DB, `OSError` for disk,
+  `(OSError, smtplib.SMTPException)` for SMTP). `JobScheduler._get_next_run()`
+  narrowed the croniter catch to `(ValueError, TypeError, KeyError)`. OTel
+  init/shutdown and FastAPI instrumentation in `observability.py` now catch
+  `(OSError, RuntimeError, ValueError, TypeError)` instead of `Exception`.
+  Added regression tests for all three surfaces.
+- **CI observability test fixture.** The observability exception-narrowing
+  regression tests inject fake `opentelemetry.*` modules so they exercise the
+  intended code paths even when `test-serve`/`test-core` CI jobs install only
+  `[serve]` extras and opentelemetry is absent. The fixture now injects the
+  parent `opentelemetry` and `opentelemetry.sdk` namespace packages so the
+  narrowed-exception tests no longer silently hit the `ImportError` path.
+- **SQLite I/O error flake hardening.** `AuditMiddleware` now catches
+  `sqlite3.Error` (and `psycopg2.Error` when installed) in addition to the
+  existing `OSError`/`RuntimeError`/`ValueError`/`TypeError` tuple, ensuring a
+  transient DB hiccup never fails an API request. The `serve` test fixtures
+  additionally set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
+  `DELETE` journal mode to reduce temp-storage contention under
+  `pytest-xdist`. Added a regression test for audit DB insert failures.
 
 ## [2.0.16] — 2026-06-21
 

@@ -314,6 +314,34 @@
   errors propagate. Added `tests/serve/services/test_alert_hub.py` and
   `tests/serve/services/test_log_manager.py` regression tests. Verified with
   `python3 scripts/test_doctor.py --workers 4` before merge.
+- **P4 #10 exception audit (serve execution/observability slice).**
+  `EnhancedOrchestrator.get_health_checks()` narrowed its database/disk/SMTP
+  probe catches to expected operational exceptions (`_HEALTH_PROBE_ERRORS` for
+  DB, `OSError` for disk, `(OSError, smtplib.SMTPException)` for SMTP).
+  `JobScheduler._get_next_run()` narrowed the croniter catch to
+  `(ValueError, TypeError, KeyError)`. `observability.py` narrowed OTel
+  init/shutdown and FastAPI instrumentation catches to
+  `(OSError, RuntimeError, ValueError, TypeError)`, while leaving the
+  `trace_span` re-raise patterns untouched. Added regression tests in
+  `tests/serve/services/test_orchestrator.py`,
+  `tests/serve/test_scheduler.py`, and
+  `tests/serve/services/test_observability.py`. Verified with
+  `python3 scripts/test_doctor.py --workers 4` before merge.
+- **CI observability fixture fix.** `tests/serve/services/test_observability.py`
+  injects fake `opentelemetry.*` modules so the narrowed-exception tests reach
+  the exporter-setup code paths even when `test-serve`/`test-core` install only
+  `[serve]` extras. The fixture now injects the parent `opentelemetry` and
+  `opentelemetry.sdk` namespace packages; without them `from opentelemetry import
+  metrics` raised `ImportError` and the tests silently hit the disabled-tracing
+  branch. Verified by blocking real opentelemetry imports locally.
+- **SQLite I/O error flake hardening.** `test-core (3.10)` repeatedly flaked
+  with `sqlite3.OperationalError: disk I/O error` inside `AuditMiddleware`.
+  `AuditMiddleware` now catches `sqlite3.Error` (and `psycopg2.Error` when
+  installed) in addition to `(OSError, RuntimeError, ValueError, TypeError)`,
+  so a transient DB hiccup never fails an API request. The `serve` test fixtures
+  also set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
+  `DELETE` journal mode to reduce temp-storage contention under `pytest-xdist`.
+  Added a regression test for audit DB insert failures.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -322,9 +350,10 @@
   security-relevant `except Exception` sites in auth, webhook/alert, daemon
   route-handler, serve middleware/server, watch, cluster + policy_versioned,
   serve services, plugin host/manager, correlation engine, serve/api
-  middleware/server/rate_limit/DB manager, serve routers, and backup service
-  have been narrowed to specific exception types with regression tests.
-  **Remaining:** ~186 broad `except Exception` sites across the codebase are
+  middleware/server/rate_limit/DB manager, serve routers, backup service,
+  serve log/alert services, and serve execution/observability have been
+  narrowed to specific exception types with regression tests.
+  **Remaining:** ~162 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

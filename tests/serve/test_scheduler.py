@@ -6,6 +6,8 @@ through the HTTP API alone (e.g. batch category allowlist enforcement).
 
 import time
 
+import pytest
+
 from picosentry.serve.services.scheduler import JobScheduler, scheduler
 
 
@@ -67,3 +69,16 @@ class TestSchedulerHardening:
 
         assert result is None
         assert any("Invalid cron expression" in r.message for r in caplog.records)
+
+    def test_unexpected_cron_error_propagates(self, monkeypatch):
+        from picosentry.serve.services import scheduler as sched_mod
+
+        def _buggy(*args, **kwargs):
+            raise AttributeError("programmer bug")
+
+        monkeypatch.setattr(sched_mod, "HAS_CRONITER", True)
+        monkeypatch.setattr(sched_mod.croniter, "__init__", lambda *args, **kwargs: None)
+        monkeypatch.setattr(sched_mod.croniter, "get_next", _buggy)
+
+        with pytest.raises(AttributeError, match="programmer bug"):
+            scheduler._get_next_run("* * * * *")

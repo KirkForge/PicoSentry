@@ -31,15 +31,32 @@ from fastapi.testclient import TestClient
 
 from picosentry.serve.api.server import app
 from picosentry.serve.config.settings import settings
+from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.auth import AuthService
 
 
 @pytest.fixture
-def fresh_admin() -> dict[str, Any]:
+def _isolated_auth(tmp_path_factory):
+    """Fresh SQLite DB + AuthService for tests that provision users.
+
+    The global ``picoshogun.db`` singleton is shared across the serve suite
+    and can be rebound by other module-scoped fixtures under pytest-xdist.
+    Giving each user-provisioning test its own DB removes any possibility that
+    a create/authenticate round-trip reads stale or swapped state.
+    """
+    db_path = tmp_path_factory.mktemp("scans_auth") / "auth.db"
+    manager = DatabaseManager(db_path=db_path, backend="sqlite")
+    auth = AuthService(db=manager)
+    yield manager, auth
+    manager.close()
+
+
+@pytest.fixture
+def fresh_admin(_isolated_auth) -> dict[str, Any]:
     """Operator account via the service layer.  The registration
     endpoint only creates viewers (P0 fix); elevated roles are
     provisioned here."""
-    auth = AuthService()
+    _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"scan_admin_{suffix}"
     password = "TestPassword123!"
@@ -51,9 +68,9 @@ def fresh_admin() -> dict[str, Any]:
 
 
 @pytest.fixture
-def fresh_viewer() -> dict[str, Any]:
+def fresh_viewer(_isolated_auth) -> dict[str, Any]:
     """Viewer account via the (now viewer-only) registration endpoint."""
-    auth = AuthService()
+    _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"scan_viewer_{suffix}"
     password = "TestPassword123!"

@@ -73,6 +73,14 @@ All notable changes to PicoSentry will be documented in this file.
   operational failures are still logged and return sanitized detail strings;
   unexpected programmer errors now propagate instead of being masked as a
   generic scan failure. Added regression tests for each boundary.
+- **Scans/sandbox/websocket auth test isolation (P0 flake fix).**
+  `AuthService` now accepts an optional `db` parameter and falls back to
+  the global singleton; scans-workspace, sandbox-router, and websocket
+  auth fixtures each create a per-test SQLite `DatabaseManager` and pass
+  it explicitly. This eliminates the cross-test DB singleton contamination
+  under `pytest-xdist` that produced the `Auth failed: invalid password`
+  flake in `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403`
+  (`test-matrix (3.10)` runs `28676461763` and `28677912736`).
 - **Websocket auth test isolation.** Moved the websocket auth regression
   suite to its own per-module SQLite database so `fresh_user` setup is not
   affected by shared global DB state under `pytest-xdist`. This removes the

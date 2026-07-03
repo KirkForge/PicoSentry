@@ -16,12 +16,28 @@ import pytest
 from fastapi.testclient import TestClient
 
 from picosentry.serve.api.server import app
+from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.auth import AuthService
 
 
 @pytest.fixture
-def fresh_operator() -> dict[str, Any]:
-    auth = AuthService()
+def _isolated_auth(tmp_path_factory):
+    """Fresh SQLite DB + AuthService for tests that provision users.
+
+    Mirrors the isolation in ``tests/serve/test_scans_workspace.py`` so
+    the sandbox router auth fixtures cannot be affected by the shared
+    global DB singleton under pytest-xdist.
+    """
+    db_path = tmp_path_factory.mktemp("sandbox_auth") / "auth.db"
+    manager = DatabaseManager(db_path=db_path, backend="sqlite")
+    auth = AuthService(db=manager)
+    yield manager, auth
+    manager.close()
+
+
+@pytest.fixture
+def fresh_operator(_isolated_auth) -> dict[str, Any]:
+    _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"sandbox_op_{suffix}"
     password = "TestPassword123!"

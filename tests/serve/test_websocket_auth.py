@@ -47,14 +47,14 @@ def _isolated_auth_db(tmp_path_factory):
     isolated = DatabaseManager(db_path=db_path)
     db_mod.db = isolated
     auth_mod.db = isolated
-    yield
+    yield isolated
     db_mod.db = original_db
     auth_mod.db = original_db
     isolated.close()
 
 
 @pytest.fixture
-def fresh_user() -> dict[str, Any]:
+def fresh_user(_isolated_auth_db) -> dict[str, Any]:
     """Create a fresh viewer user via the service layer and return their
     id, username, password, and a valid JWT — bypassing the registration
     endpoint, which (correctly) only creates viewers and is exercised by
@@ -65,7 +65,7 @@ def fresh_user() -> dict[str, Any]:
     """
     from picosentry.serve.services.auth import AuthService
 
-    auth = AuthService()
+    auth = AuthService(db=_isolated_auth_db)
     suffix = int(time.time() * 1000)
     username = f"wstest_{suffix}_{uuid.uuid4().hex[:8]}"
     password = "testpassword123"

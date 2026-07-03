@@ -342,6 +342,14 @@
   also set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
   `DELETE` journal mode to reduce temp-storage contention under `pytest-xdist`.
   Added a regression test for audit DB insert failures.
+- **P4 #10 exception audit (plugin manager slice).** `PluginManager` loading
+  boundaries now narrow broad `except Exception` to expected operational
+  exceptions: `verify_manifest_signature`, `_load_plugins` discovery loop, and
+  `_load_plugin` host instantiation catch
+  `(OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError)`.
+  Plugin hook dispatch, health checks, and shutdown remain broad safety nets
+  so a single misbehaving plugin cannot crash the manager. Added regression
+  tests in `tests/serve/services/test_plugin_manager.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -351,9 +359,10 @@
   route-handler, serve middleware/server, watch, cluster + policy_versioned,
   serve services, plugin host/manager, correlation engine, serve/api
   middleware/server/rate_limit/DB manager, serve routers, backup service,
-  serve log/alert services, and serve execution/observability have been
-  narrowed to specific exception types with regression tests.
-  **Remaining:** ~162 broad `except Exception` sites across the codebase are
+  serve log/alert services, serve execution/observability, and plugin manager
+  loading paths have been narrowed to specific exception types with regression
+  tests.
+  **Remaining:** ~159 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

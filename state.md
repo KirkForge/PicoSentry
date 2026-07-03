@@ -314,6 +314,19 @@
   errors propagate. Added `tests/serve/services/test_alert_hub.py` and
   `tests/serve/services/test_log_manager.py` regression tests. Verified with
   `python3 scripts/test_doctor.py --workers 4` before merge.
+- **P4 #10 exception audit (serve execution/observability slice).**
+  `EnhancedOrchestrator.get_health_checks()` narrowed its database/disk/SMTP
+  probe catches to expected operational exceptions (`_HEALTH_PROBE_ERRORS` for
+  DB, `OSError` for disk, `(OSError, smtplib.SMTPException)` for SMTP).
+  `JobScheduler._get_next_run()` narrowed the croniter catch to
+  `(ValueError, TypeError, KeyError)`. `observability.py` narrowed OTel
+  init/shutdown and FastAPI instrumentation catches to
+  `(OSError, RuntimeError, ValueError, TypeError)`, while leaving the
+  `trace_span` re-raise patterns untouched. Added regression tests in
+  `tests/serve/services/test_orchestrator.py`,
+  `tests/serve/test_scheduler.py`, and
+  `tests/serve/services/test_observability.py`. Verified with
+  `python3 scripts/test_doctor.py --workers 4` before merge.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -322,9 +335,10 @@
   security-relevant `except Exception` sites in auth, webhook/alert, daemon
   route-handler, serve middleware/server, watch, cluster + policy_versioned,
   serve services, plugin host/manager, correlation engine, serve/api
-  middleware/server/rate_limit/DB manager, serve routers, and backup service
-  have been narrowed to specific exception types with regression tests.
-  **Remaining:** ~186 broad `except Exception` sites across the codebase are
+  middleware/server/rate_limit/DB manager, serve routers, backup service,
+  serve log/alert services, and serve execution/observability have been
+  narrowed to specific exception types with regression tests.
+  **Remaining:** ~162 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

@@ -82,6 +82,14 @@ All notable changes to PicoSentry will be documented in this file.
   catches a targeted channel-error tuple instead of `except Exception`, so one
   failed notification channel no longer masks programmer errors. Added
   regression tests for both services.
+- **Serve execution/observability exception narrowing.** Health probes in
+  `EnhancedOrchestrator.get_health_checks()` now catch specific exception
+  families (`_HEALTH_PROBE_ERRORS` for DB, `OSError` for disk,
+  `(OSError, smtplib.SMTPException)` for SMTP). `JobScheduler._get_next_run()`
+  narrowed the croniter catch to `(ValueError, TypeError, KeyError)`. OTel
+  init/shutdown and FastAPI instrumentation in `observability.py` now catch
+  `(OSError, RuntimeError, ValueError, TypeError)` instead of `Exception`.
+  Added regression tests for all three surfaces.
 
 ## [2.0.16] — 2026-06-21
 

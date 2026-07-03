@@ -1,13 +1,15 @@
 import json
 import logging
 import os
+import smtplib
+import sqlite3
 import subprocess
 import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
@@ -23,6 +25,23 @@ from picosentry.serve.services.orgs import Organization
 from picosentry.serve.services.plugin_manager import plugin_manager
 
 logger = logging.getLogger("picoshogun.Orchestrator")
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = cast("Any", None)
+
+# Expected failures when probing external dependencies in health checks.
+# A probe failure must be reported as degraded, not crash the health endpoint.
+_HEALTH_PROBE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    sqlite3.Error,
+)
+if psycopg2 is not None:
+    _HEALTH_PROBE_ERRORS = (*_HEALTH_PROBE_ERRORS, psycopg2.Error)
 
 BASE_DIR = Path(__file__).parent.parent
 REGISTRY_PATH = BASE_DIR / "config" / "project_registry.json"
@@ -630,7 +649,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
-        except Exception as e:
+        except _HEALTH_PROBE_ERRORS as e:
             checks.append(
                 {
                     "component": "database",
@@ -657,7 +676,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 }
             )
-        except Exception as e:
+        except OSError as e:
             checks.append(
                 {
                     "component": "disk_space",
@@ -688,8 +707,6 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 (check["component"], check["status"], check["message"], check["latency_ms"]),
             )
 
-        import smtplib
-
         start = time.time()
         try:
             if settings.alerts.email_smtp_host:
@@ -718,7 +735,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
-        except Exception as e:
+        except (OSError, smtplib.SMTPException) as e:
             checks.append(
                 {
                     "component": "smtp",

@@ -70,3 +70,61 @@ class TestExecuteProjectExceptionHandling:
 
         with pytest.raises(NameError, match="programmer bug"):
             orchestrator.run_project("test-project")
+
+
+class TestHealthCheckHardening:
+    """Health probes must report degraded status for expected failures but surface programmer errors."""
+
+    def test_database_probe_failure_reported_critical(self, orchestrator, monkeypatch):
+        def _boom(*args, **kwargs):
+            raise RuntimeError("db connection lost")
+
+        monkeypatch.setattr(orchestrator, "registry", {"test-project": MagicMock()})
+        monkeypatch.setattr(orchestrator.alerts, "send", MagicMock())
+        monkeypatch.setattr("picosentry.serve.services.orchestrator.db.execute", _boom)
+
+        checks = orchestrator.get_health_checks()
+        db_check = next(c for c in checks if c["component"] == "database")
+        assert db_check["status"] == "critical"
+        assert "db connection lost" in db_check["message"]
+
+    def test_disk_space_probe_failure_reported_unknown(self, orchestrator, monkeypatch):
+        import os
+
+        monkeypatch.setattr(orchestrator, "registry", {"test-project": MagicMock()})
+        monkeypatch.setattr(orchestrator.alerts, "send", MagicMock())
+        monkeypatch.setattr(os, "statvfs", lambda *args, **kwargs: (_ for _ in ()).throw(PermissionError("denied")))
+
+        checks = orchestrator.get_health_checks()
+        disk_check = next(c for c in checks if c["component"] == "disk_space")
+        assert disk_check["status"] == "unknown"
+
+    def test_smtp_probe_failure_reported_critical(self, orchestrator, monkeypatch):
+        import smtplib
+
+        monkeypatch.setattr(orchestrator, "registry", {"test-project": MagicMock()})
+        monkeypatch.setattr(orchestrator.alerts, "send", MagicMock())
+        monkeypatch.setattr(
+            "picosentry.serve.services.orchestrator.settings.alerts.email_smtp_host", "smtp.example.com"
+        )
+        monkeypatch.setattr("picosentry.serve.services.orchestrator.settings.alerts.email_smtp_port", 587)
+        monkeypatch.setattr(
+            smtplib,
+            "SMTP",
+            lambda *args, **kwargs: (_ for _ in ()).throw(smtplib.SMTPConnectError(421, "cannot connect")),
+        )
+
+        checks = orchestrator.get_health_checks()
+        smtp_check = next(c for c in checks if c["component"] == "smtp")
+        assert smtp_check["status"] == "critical"
+
+    def test_unexpected_health_probe_error_propagates(self, orchestrator, monkeypatch):
+        def _buggy(*args, **kwargs):
+            raise NameError("programmer bug")
+
+        monkeypatch.setattr(orchestrator, "registry", {"test-project": MagicMock()})
+        monkeypatch.setattr(orchestrator.alerts, "send", MagicMock())
+        monkeypatch.setattr("picosentry.serve.services.orchestrator.db.execute", _buggy)
+
+        with pytest.raises(NameError, match="programmer bug"):
+            orchestrator.get_health_checks()

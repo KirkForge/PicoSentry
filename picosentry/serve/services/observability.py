@@ -64,7 +64,7 @@ def init_telemetry(service_name: str = "picoshogun", endpoint: str | None = None
     except ImportError:
         logger.info("opentelemetry packages not installed — tracing disabled")
         return False
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning("Failed to initialize OTEL: %s", e)
         return False
 
@@ -80,13 +80,13 @@ def shutdown_telemetry() -> None:
     try:
         if _tracer_provider is not None and hasattr(_tracer_provider, "shutdown"):
             _tracer_provider.shutdown()
-    except Exception:
+    except (OSError, RuntimeError):
         logger.debug("Tracer provider shutdown failed", exc_info=True)
 
     try:
         if _meter_provider is not None and hasattr(_meter_provider, "shutdown"):
             _meter_provider.shutdown()
-    except Exception:
+    except (OSError, RuntimeError):
         logger.debug("Meter provider shutdown failed", exc_info=True)
 
     _tracer_provider = None
@@ -196,7 +196,7 @@ def setup_fastapi_instrumentation(app):
     except ImportError:
         logger.info("FastAPIInstrumentor not available — skipping auto-instrumentation")
         return False
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError) as e:
         logger.warning("FastAPI instrumentation failed: %s", e)
         return False
 

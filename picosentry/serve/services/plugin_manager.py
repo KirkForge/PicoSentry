@@ -511,9 +511,10 @@ class PluginManager:
                     "metadata": dict(self.metadata[name].__dict__.items()),
                     "health": health,
                 }
-            except Exception as e:
+            except Exception:
+                logger.exception("Plugin %s health check failed", name)
                 status[name] = {
-                    "error": str(e),
+                    "error": "health check failed",
                     "health": {"status": "unhealthy"},
                 }
         return status

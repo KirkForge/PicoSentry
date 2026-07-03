@@ -56,3 +56,56 @@ class TestEnvValidation:
         host = _make_host(tmp_path, capabilities=["network", "file system"])
         with pytest.raises(ValueError, match="Invalid capability name"):
             host._validate_env_values()
+
+
+class TestPluginHostHardening:
+    """PluginHost must not leak internal errors or silently swallow shutdown failures."""
+
+    def test_health_check_returns_sanitized_error(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        host = _make_host(tmp_path)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("secret internal failure")
+
+        monkeypatch.setattr(host, "_send", _boom)
+
+        with caplog.at_level(logging.WARNING, logger="picoshogun.PluginHost"):
+            result = host.health_check()
+
+        assert result["status"] == "unhealthy"
+        assert "secret internal failure" not in result.get("error", "")
+        assert "RuntimeError" not in result.get("error", "")
+        assert any("Plugin health check failed" in r.message for r in caplog.records)
+
+    def test_shutdown_send_failure_is_logged(self, tmp_path, caplog, monkeypatch):
+        import logging
+
+        host = _make_host(tmp_path)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("worker gone")
+
+        monkeypatch.setattr(host, "_send", _boom)
+        # _terminate needs a proc; provide a minimal fake so the test exercises
+        # the except block and then returns cleanly.
+        fake_proc = type(
+            "_FakeProc",
+            (),
+            {
+                "poll": lambda self: 1,
+                "terminate": lambda self: None,
+                "wait": lambda self, **kw: None,
+                "kill": lambda self: None,
+                "stdin": None,
+                "pid": 12345,
+            },
+        )()
+        host._proc = fake_proc
+        host._ready = True
+
+        with caplog.at_level(logging.DEBUG, logger="picoshogun.PluginHost"):
+            host.shutdown()
+
+        assert any("Shutdown request failed" in r.message for r in caplog.records)

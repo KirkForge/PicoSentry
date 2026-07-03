@@ -2,10 +2,28 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, cast
 
 logger = logging.getLogger("picodome.redis")
+
+try:
+    import redis as _redis
+except ImportError:  # pragma: no cover - redis optional unless extra installed
+    _redis = cast("Any", None)
+
+# Operational errors that can occur when probing Redis for health. ImportError
+# is handled separately (redis package not installed); these are the runtime
+# connection failures we expect and report as in-memory fallback.
+_REDIS_HEALTH_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if cast("Any", _redis) is not None:
+    _REDIS_HEALTH_ERRORS = (*_REDIS_HEALTH_ERRORS, _redis.RedisError)
 
 _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 
@@ -40,17 +58,23 @@ class RedisConfig:
 def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
     config = config or RedisConfig.from_env()
 
-    try:
-        import redis
+    if cast("Any", _redis) is None:
+        return {
+            "connected": False,
+            "latency_ms": 0,
+            "version": "",
+            "error": "redis package not installed",
+            "mode": "in-memory",
+            "url": "",
+        }
 
-        client = redis.from_url(
+    try:
+        client = _redis.from_url(
             config.url,
             socket_timeout=config.socket_timeout,
             socket_connect_timeout=config.socket_connect_timeout,
             decode_responses=True,
         )
-
-        import time
 
         start = time.monotonic()
         client.ping()
@@ -70,16 +94,7 @@ def check_redis_health(config: RedisConfig | None = None) -> dict[str, Any]:
             "url": config.url.split("@")[-1] if "@" in config.url else config.url,
         }
 
-    except ImportError:
-        return {
-            "connected": False,
-            "latency_ms": 0,
-            "version": "",
-            "error": "redis package not installed",
-            "mode": "in-memory",
-            "url": "",
-        }
-    except Exception as exc:
+    except _REDIS_HEALTH_ERRORS as exc:
         return {
             "connected": False,
             "latency_ms": 0,

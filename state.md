@@ -413,6 +413,15 @@
   `subprocess.SubprocessError`) instead of swallowing all exceptions. Expected
   operational failures log and mark the job failed; unexpected programmer
   errors propagate. Added regression tests in `tests/serve/test_scheduler.py`.
+- **P4 #10 exception audit (Redis job store slice).**
+  `RedisScanJobStore._get_client()` in
+  `picosentry/sandbox/daemon/redis_store.py` now conditionally imports `redis`
+  at module load and narrows the lazy connection-probe catch to
+  `_REDIS_CLIENT_ERRORS` (`OSError`, `RuntimeError`, `ValueError`, `TypeError`,
+  and `redis.RedisError` when installed). ImportError remains a separate,
+  explicit "package not installed" path. Expected connection failures mark the
+  store unavailable and log a warning; unexpected programmer errors propagate.
+  Added regression tests in `tests/sandbox/test_redis_store.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -427,9 +436,9 @@
   audit logging, the serve event bus subscriber dispatch, and the anomaly
   detector background loop, plugin host call boundaries, correlation
   persistence, daemon scan job store load, audit logger plugin boundaries,
-  and scheduler job execution have been narrowed to specific exception types
-  with regression tests.
-  **Remaining:** ~146 broad `except Exception` sites across the codebase are
+  scheduler job execution, and Redis job store client probe have been narrowed
+  to specific exception types with regression tests.
+  **Remaining:** ~145 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

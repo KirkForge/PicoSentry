@@ -295,6 +295,15 @@
   global `picoshogun.db`, removing cross-test DB noise. Verified the fix with
   `python3 scripts/test_doctor.py` and the CI-shaped pytest command; `main`
   CI returned to green after the follow-up merge.
+- **SQLite WAL/disk I/O test hardening.** After the websocket-auth fix, the
+  next `main` CI flake was `sqlite3.OperationalError: disk I/O error` in
+  `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403`.
+  Made SQLite `journal_mode` and `synchronous` configurable via environment in
+  `picosentry/serve/config/settings.py` (`PICOSHOGUN_DATABASE_JOURNAL_MODE`,
+  `PICOSHOGUN_DATABASE_SYNCHRONOUS`) and set `tests/serve/conftest.py` to use
+  `DELETE` journal mode. Verified with
+  `python3 -m pytest tests/ -x --tb=short -q` and
+  `python3 scripts/test_doctor.py --workers 4` (all checks green).
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

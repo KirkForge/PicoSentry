@@ -71,6 +71,12 @@ All notable changes to PicoSentry will be documented in this file.
   suite to its own per-module SQLite database so `fresh_user` setup is not
   affected by shared global DB state under `pytest-xdist`. This removes the
   rare auth flake that broke `test-matrix (3.10)` on the first main merge.
+- **SQLite WAL test hardening.** Made SQLite `journal_mode` and `synchronous`
+  configurable via environment variables (`PICOSHOGUN_DATABASE_JOURNAL_MODE`,
+  `PICOSHOGUN_DATABASE_SYNCHRONOUS`) and forced the `serve` test fixtures to
+  `DELETE` journal mode. This fixes the `sqlite3.OperationalError: disk I/O error`
+  flakiness under `pytest-xdist` that appeared once the websocket-auth flake was
+  removed.
 
 ## [2.0.16] — 2026-06-21
 

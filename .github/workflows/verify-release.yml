@@ -1,0 +1,75 @@
+name: Verify release artifacts
+
+# Run after a release is published and exercise the verification paths a
+# consumer would use: checksums, Sigstore signatures, and SLSA provenance.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Tag to verify (e.g. v2.0.17)"
+        required: true
+        type: string
+
+permissions:
+  contents: read       # download release assets
+  id-token: write      # verify Sigstore signatures / OIDC
+  attestations: read   # read SLSA build-provenance attestations
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "TAG=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Verify release bundle
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          python scripts/verify_release.py "${{ steps.tag.outputs.TAG }}"
+
+      - name: Download artifacts for cryptographic verification
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          mkdir -p dist
+          gh release download "${{ steps.tag.outputs.TAG }}" \
+            --repo "${{ github.repository }}" \
+            --dir dist \
+            --pattern "picosentry-*"
+
+      - name: Verify SLSA build-provenance attestations
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh attestation verify dist/picosentry-*.whl dist/picosentry-*.tar.gz \
+            --repo "${{ github.repository }}" \
+            --predicate-type https://slsa.dev/provenance/v1
+
+      - name: Verify Sigstore signatures
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          pip install --no-cache-dir sigstore
+          for artifact in dist/picosentry-*.whl dist/picosentry-*.tar.gz; do
+            sigstore verify identity "$artifact" \
+              --bundle "${artifact}.sigstore.json" \
+              --cert-identity "https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/tags/${{ steps.tag.outputs.TAG }}" \
+              --cert-oidc-issuer "https://token.actions.githubusercontent.com"
+          done

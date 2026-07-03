@@ -125,6 +125,12 @@ All notable changes to PicoSentry will be documented in this file.
   instead of silently swallowing all exceptions.  The baseline update still
   succeeds when audit logging fails, but unexpected programmer errors now
   propagate. Added regression tests in `tests/sandbox/test_baseline_hardening.py`.
+- **P4 #10 exception audit (event bus slice).** `EventBus.publish()` in
+  `picosentry/serve/services/event_bus.py` now catches only
+  `(OSError, RuntimeError, ValueError, TypeError, AttributeError)` around
+  subscriber callbacks. One misbehaving subscriber still cannot crash the bus,
+  but programmer errors such as `NameError` now propagate. Added regression
+  tests in `tests/serve/services/test_event_bus.py`.
 
 ## [2.0.16] — 2026-06-21
 

@@ -304,6 +304,16 @@
   `DELETE` journal mode. Verified with
   `python3 -m pytest tests/ -x --tb=short -q` and
   `python3 scripts/test_doctor.py --workers 4` (all checks green).
+- **P4 #10 exception audit (serve log/alert services slice).**
+  `picosentry/serve/services/log_manager.py` narrowed the per-file read catch
+  in `query()` to `(OSError, UnicodeDecodeError)`. `alert_hub.py` replaced the
+  broad `except Exception` around channel delivery with a targeted
+  `_ALERT_CHANNEL_ERRORS` tuple (`OSError`, `RuntimeError`, `ValueError`,
+  `TypeError`, `sqlite3.Error`, and `psycopg2.Error` when available) so one
+  channel failing still allows the others to run, while unexpected programmer
+  errors propagate. Added `tests/serve/services/test_alert_hub.py` and
+  `tests/serve/services/test_log_manager.py` regression tests. Verified with
+  `python3 scripts/test_doctor.py --workers 4` before merge.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

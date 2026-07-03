@@ -103,6 +103,15 @@ All notable changes to PicoSentry will be documented in this file.
   additionally set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
   `DELETE` journal mode to reduce temp-storage contention under
   `pytest-xdist`. Added a regression test for audit DB insert failures.
+- **P4 #10 exception audit (plugin manager slice).** Narrowed broad
+  `except Exception` in plugin loading boundaries to expected operational
+  exceptions: `verify_manifest_signature`, the `_load_plugins` discovery loop,
+  and `_load_plugin` host instantiation now catch
+  `(OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError)` (with
+  `BadSignatureError` still handled explicitly for signatures). Plugin hook
+  dispatch, health checks, and shutdown remain broad safety nets so a single
+  misbehaving plugin cannot crash the manager. Added regression tests in
+  `tests/serve/services/test_plugin_manager.py`.
 
 ## [2.0.16] — 2026-06-21
 

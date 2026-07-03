@@ -82,3 +82,49 @@ class TestSchedulerHardening:
 
         with pytest.raises(AttributeError, match="programmer bug"):
             scheduler._get_next_run("* * * * *")
+
+
+class TestSchedulerExecuteExceptionNarrowing:
+    """Scheduled job execution must log expected failures and propagate bugs."""
+
+    def test_execute_job_expected_oserror_is_logged(self, caplog, monkeypatch):
+        import logging
+
+        job_id = scheduler.add_job(
+            name=f"expected_error_job_{time.time_ns()}",
+            cron="* * * * *",
+            command="batch",
+            params={"category": "monitoring"},
+            enabled=False,
+        )
+
+        def _boom(*args, **kwargs):
+            raise PermissionError("denied")
+
+        monkeypatch.setattr("subprocess.run", _boom)
+
+        with caplog.at_level(logging.ERROR, logger="picoshogun.Scheduler"):
+            scheduler._execute_job(job_id)
+
+        assert scheduler.jobs[job_id].last_status == "failed"
+        assert any("Job" in r.message and "failed" in r.message for r in caplog.records)
+        scheduler.remove_job(job_id)
+
+    def test_execute_job_unexpected_error_propagates(self, monkeypatch):
+        job_id = scheduler.add_job(
+            name=f"unexpected_error_job_{time.time_ns()}",
+            cron="* * * * *",
+            command="batch",
+            params={"category": "monitoring"},
+            enabled=False,
+        )
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr("subprocess.run", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            scheduler._execute_job(job_id)
+
+        scheduler.remove_job(job_id)

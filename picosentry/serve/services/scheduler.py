@@ -2,6 +2,8 @@ import json
 import logging
 import re
 import sched
+import sqlite3
+import subprocess
 import threading
 import time
 from dataclasses import dataclass
@@ -12,6 +14,19 @@ from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Scheduler")
+
+# Operational errors that can occur while executing a scheduled job. We log
+# these, mark the job failed, and continue; unexpected programmer errors must
+# propagate so tests and monitoring can catch them.
+_JOB_EXECUTE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    ImportError,
+    sqlite3.Error,
+    subprocess.SubprocessError,
+)
 
 try:
     from croniter import croniter
@@ -273,7 +288,7 @@ class JobScheduler:
 
             logger.info("Job %s completed: %s", job.name, status)
 
-        except Exception:
+        except _JOB_EXECUTE_ERRORS:
             logger.exception("Job %s failed", job.name)
             db.execute_insert(
                 """

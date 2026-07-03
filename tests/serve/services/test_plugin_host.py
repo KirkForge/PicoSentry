@@ -109,3 +109,44 @@ class TestPluginHostHardening:
             host.shutdown()
 
         assert any("Shutdown request failed" in r.message for r in caplog.records)
+
+
+class TestPluginHostExceptionNarrowing:
+    """Unexpected programmer errors must propagate from host call sites."""
+
+    def test_health_check_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        host = _make_host(tmp_path)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(host, "_send", _boom)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            host.health_check()
+
+    def test_shutdown_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        host = _make_host(tmp_path)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(host, "_send", _boom)
+
+        fake_proc = type(
+            "_FakeProc",
+            (),
+            {
+                "poll": lambda self: 1,
+                "terminate": lambda self: None,
+                "wait": lambda self, **kw: None,
+                "kill": lambda self: None,
+                "stdin": None,
+                "pid": 12345,
+            },
+        )()
+        host._proc = fake_proc
+        host._ready = True
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            host.shutdown()

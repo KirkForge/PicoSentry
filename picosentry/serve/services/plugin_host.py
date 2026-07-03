@@ -28,6 +28,17 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picoshogun.PluginHost")
 
+# Operational errors that can be raised by worker communication and should be
+# treated as "plugin call failed, keep the host stable". Programmer errors such
+# as NameError/AttributeError must not be swallowed so tests and monitoring can
+# catch regressions.
+_HOST_CALL_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+
 
 def _reap_orphan(proc: subprocess.Popen[str] | None) -> None:
     """Kill a worker subprocess whose host was dropped without shutdown().
@@ -276,14 +287,14 @@ class PluginHost:
     def health_check(self) -> dict:
         try:
             return self._send("health_check") or {"status": "unhealthy"}
-        except Exception:
+        except _HOST_CALL_ERRORS:
             logger.warning("Plugin health check failed", exc_info=True)
             return {"status": "unhealthy", "error": "health check failed"}
 
     def shutdown(self) -> None:
         try:
             self._send("shutdown")
-        except Exception:
+        except _HOST_CALL_ERRORS:
             logger.debug("Shutdown request failed", exc_info=True)
         finally:
             self._terminate()

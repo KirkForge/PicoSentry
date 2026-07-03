@@ -5,13 +5,15 @@
 ## Current session: 2026-07-02/03 — CI green push: flaky test fix, test doctor upgrade, state.md cleanup
 
 ### Done this session (on `dev`)
-- **Scans workspace auth flake hotfix.** `tests/serve/test_scans_workspace.py`
-  occasionally failed under `test-matrix (3.10)` with `Auth failed: invalid
-  password` during `fresh_viewer` setup. `tests/serve/conftest.py` now gives each
-  pytest worker process a fresh `tempfile.mkdtemp` directory for its SQLite DB
-  (cleaned up on exit) instead of reusing a fixed `/tmp/picoshogun-test-<worker>.db`
-  path, eliminating stale DB inheritance across CI runs or overlapping test
-  invocations. Verified with `python3 scripts/test_doctor.py --workers 4`.
+- **Scans workspace auth flake — attempted hotfix, root cause NOT found.**
+  `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403` failed
+  on `main` after the redis-health merge (`test-matrix (3.10)`, run
+  `28676461763`) with `Auth failed: invalid password` during `fresh_viewer` setup.
+  First hypothesis was stale per-worker SQLite DB, so `tests/serve/conftest.py`
+  was switched to a fresh `tempfile.mkdtemp` directory per process. Pushed to
+  `no-ci/p4-ci-hotfix-scans-db-isolation`, merged to `dev`; `dev` CI run
+  `28677912736` still failed with the same error. Stale DB is therefore ruled
+  out. Do **not** merge this hotfix to `main` until the real cause is found.
 - **`main` CI green.** The flaky `tests/scan/test_daemon_extended.py::TestRateLimiting`
   tests were driven by wall-clock `time.monotonic()` bursts. Froze the clock at
   `1000.0` and reset `HealthHandler` class-level defaults in `setUp`; fix pushed
@@ -490,7 +492,15 @@
    accurate.
 4. **Process guard:** all future slices must pass `python scripts/test_doctor.py`
    and the exact CI command shape (`pytest tests/ -x --tb=short -q`) locally
-   before merging to `dev`/`main`; WIP stays on `no-ci/*` branches.
+   before merging to `dev`/`main`; WIP stays on `no-ci/*` branches. **No more**
+   speculative CI pushes for untested hypotheses — local reasoning/artifacts
+   first, then one deliberate push.
+5. **Blocker: `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403`
+   flake on `test-matrix (3.10)`.** The stale-DB hypothesis was disproven. Next
+   leads: bcrypt/passlib behavior on Python 3.10, pytest-xdist loadfile ordering,
+   or a shared mutable dependency that gets poisoned during the full umbrella run.
+   Fix this before merging the config-loader slice (`no-ci/p4-exception-config-loader`
+   is committed locally and waiting for a green `main`).
 
 ---
 

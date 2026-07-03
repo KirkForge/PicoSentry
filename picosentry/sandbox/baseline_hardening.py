@@ -144,8 +144,8 @@ class HardenedBaselineManager:
                 detail=f"Baseline '{name}' updated",
                 target=name,
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError):
+            logger.exception("Baseline update audit record failed")
 
     @staticmethod
     def _compute_drift(old: Baseline, new: Baseline) -> float:

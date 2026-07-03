@@ -75,6 +75,14 @@ Specifically:
      [Backstabber's Knife Collection](https://github.com/dasfreak/Backstabbers-Knife-Collection)
      is supported via `--backstabber` if you obtain the dataset directly from the authors.
 
+7. **Adversarial mutation benchmark added.** v2.0.17 adds an adversarial robustness
+   suite in `tests/scan/test_mutation_benchmark.py` that copies every validation
+   fixture, applies deterministic source-level mutations (whitespace, comments,
+   quote swaps, identifier renaming, dead-code insertion, line reordering), and
+   re-runs the scanner. It asserts aggregate recall ≥ 85% and aggregate precision
+   ≥ 95% on the mutated corpus. Run it with `pytest tests/scan/test_mutation_benchmark.py -m slow`
+   or via `python scripts/mutation_benchmark.py`.
+
 The 100% floor exists so a *regression* breaks the build. It is not a claim that
 the scanner is 100% accurate in production. If you find a package that PicoSentry
 misses or over-matches on, please open an issue with the package URL and a

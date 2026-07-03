@@ -87,7 +87,8 @@ async def run_sandbox(
 ):
     try:
         result = _sandbox_run(request.command, timeout=request.timeout)
-    except Exception as exc:
+    except (RuntimeError, OSError, ValueError, TypeError) as exc:
+        logger.warning("Sandbox execution failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Sandbox execution failed: {exc}") from exc
 
     return SandboxRunResponse(

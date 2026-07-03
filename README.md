@@ -63,8 +63,9 @@ security review — don't expose it to untrusted networks.
 - **Postgres backend is Beta.** It includes a live integration test for
   connection pooling, runtime placeholder translation, and DDL
   auto-translation, but it has not been battle-tested at scale.
-- **Admission controller is not tested against a real K8s cluster.** The code
-  exists and the CLI works, but it hasn't seen a real API server.
+- **Admission controller is live-tested against kind.** The real-cluster matrix
+  in `.github/workflows/admission-kind.yml` exercises pod admission decisions
+  across K8s v1.28–v1.30.
 - **Has published detection-benchmark data** in
   [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.15 corpus is 188
   fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids

@@ -77,6 +77,11 @@ All notable changes to PicoSentry will be documented in this file.
   `DELETE` journal mode. This fixes the `sqlite3.OperationalError: disk I/O error`
   flakiness under `pytest-xdist` that appeared once the websocket-auth flake was
   removed.
+- **Serve log/alert service exception narrowing.** `LogManager.query()` now
+  catches only `(OSError, UnicodeDecodeError)` per log file; `AlertHub.send()`
+  catches a targeted channel-error tuple instead of `except Exception`, so one
+  failed notification channel no longer masks programmer errors. Added
+  regression tests for both services.
 
 ## [2.0.16] — 2026-06-21
 

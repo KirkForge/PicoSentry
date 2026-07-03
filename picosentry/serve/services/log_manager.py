@@ -140,7 +140,7 @@ class LogManager:
                         entries.append({"file": log_file.name, "line": line})
                         if len(entries) >= limit:
                             return entries
-            except Exception:
+            except (OSError, UnicodeDecodeError):
                 logger.warning("Failed to read log file %s", log_file, exc_info=True)
                 continue
         return entries

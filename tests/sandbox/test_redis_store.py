@@ -208,3 +208,50 @@ class TestRedisStoreConfig:
         with mock.patch.dict(os.environ, {"PICODOME_REDIS_URL": "redis://custom:6379/2"}):
             store = RedisScanJobStore()
             assert store.redis_url == "redis://custom:6379/2"
+
+
+class TestRedisStoreExceptionNarrowing:
+    """Redis client probe must tolerate expected failures and propagate bugs."""
+
+    def test_expected_connection_error_marks_unavailable(self, caplog, monkeypatch):
+        import logging
+        from picosentry.sandbox.daemon import redis_store
+
+        store = RedisScanJobStore(redis_url="redis://localhost:1/0")
+
+        if redis_store._redis is None:
+            # No redis package installed: inject a minimal fake that raises an
+            # operational error covered by the base _REDIS_CLIENT_ERRORS tuple.
+            class _FakeRedis:
+                @staticmethod
+                def from_url(_url, **_kwargs):
+                    raise OSError("connection refused")
+
+            monkeypatch.setattr(redis_store, "_redis", _FakeRedis())
+        else:
+
+            def _boom(*_args, **_kwargs):
+                raise redis_store._redis.ConnectionError("connection refused")
+
+            monkeypatch.setattr(redis_store._redis, "from_url", _boom)
+
+        with caplog.at_level(logging.WARNING, logger="picodome.daemon.redis_store"):
+            assert not store.available
+
+        assert not store._available
+        assert any("Redis connection failed" in r.message for r in caplog.records)
+
+    def test_unexpected_error_propagates(self, monkeypatch):
+        from picosentry.sandbox.daemon import redis_store
+
+        store = RedisScanJobStore(redis_url="redis://localhost:1/0")
+
+        class _FakeRedis:
+            @staticmethod
+            def from_url(_url, **_kwargs):
+                raise NameError("programmer mistake")
+
+        monkeypatch.setattr(redis_store, "_redis", _FakeRedis())
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            store._get_client()

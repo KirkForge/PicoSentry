@@ -392,6 +392,13 @@
   `ValueError`, `TypeError`). Expected DB failures are logged per event/chain;
   unexpected programmer errors propagate. Added regression tests in
   `tests/serve/test_correlation_persistence.py`.
+- **P4 #10 exception audit (daemon scan job store slice).**
+  `PersistentScanJobStore._ensure_loaded()` in
+  `picosentry/sandbox/daemon/store.py` now catches only
+  `(OSError, RuntimeError, ValueError, TypeError, json.JSONDecodeError)` when
+  loading the on-disk job store. Expected failures log a warning and start with
+  an empty in-memory store; unexpected programmer errors propagate. Added
+  regression tests in `tests/sandbox/test_daemon_store.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -404,10 +411,10 @@
   serve log/alert services, serve execution/observability, plugin manager
   loading paths, sandbox health/readiness probes, baseline hardening
   audit logging, the serve event bus subscriber dispatch, and the anomaly
-  detector background loop, plugin host call boundaries, and correlation
-  persistence have been narrowed to specific exception types with regression
-  tests.
-  **Remaining:** ~149 broad `except Exception` sites across the codebase are
+  detector background loop, plugin host call boundaries, correlation
+  persistence, and daemon scan job store load have been narrowed to specific
+  exception types with regression tests.
+  **Remaining:** ~148 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

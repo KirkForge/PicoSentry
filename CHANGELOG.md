@@ -48,8 +48,9 @@ All notable changes to PicoSentry will be documented in this file.
   plugin host/manager, correlation engine, serve/api middleware/
   server/rate_limiter/DB manager, serve routers (`/sandboxes`,
   `/health/ready`), backup service, plugin host call boundaries
-  (`health_check`, `shutdown`), and correlation persistence
-  (`_persist_events_impl`, `_load_events_impl`, `_persist_chains_cache_impl`).
+  (`health_check`, `shutdown`), correlation persistence
+  (`_persist_events_impl`, `_load_events_impl`, `_persist_chains_cache_impl`),
+  and daemon scan job store load (`PersistentScanJobStore._ensure_loaded`).
   Regression tests added for every changed behavior.
 - **Local test runner upgrade.** `scripts/test_doctor.py` now runs ruff,
   mypy, and the per-area pytest suites concurrently with capped xdist

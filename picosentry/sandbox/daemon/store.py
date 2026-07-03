@@ -10,6 +10,17 @@ from typing import Any
 
 logger = logging.getLogger("picodome.daemon.store")
 
+# Operational errors that can occur while loading the on-disk job store. We
+# log these and start with an empty in-memory store; unexpected programmer
+# errors must propagate so tests and monitoring can catch them.
+_STORE_LOAD_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    json.JSONDecodeError,
+)
+
 
 JOB_STORE_SCHEMA_VERSION = 2  # v2: adds schema_version field to every job
 
@@ -44,8 +55,8 @@ class PersistentScanJobStore:
                 return  # type: ignore[unreachable]
             try:
                 self._load_from_disk()
-            except Exception:
-                logger.warning("Failed to load job store from disk, starting fresh")
+            except _STORE_LOAD_ERRORS:
+                logger.warning("Failed to load job store from disk, starting fresh", exc_info=True)
             self._loaded = True
 
     def _load_from_disk(self) -> None:

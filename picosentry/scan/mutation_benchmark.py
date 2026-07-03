@@ -270,7 +270,18 @@ def run_mutation_benchmark(
     config = config or MutationBenchmarkConfig()
     fixtures = discover_fixtures(config.validation_root)
 
-    engine = create_default_engine()
+    # Auto-detect the bundled advisory database from the validation root so CI
+    # and local runs use the same data without requiring callers to pass a path.
+    advisory_db_path = config.advisory_db_path
+    if advisory_db_path is None:
+        validation_root = config.validation_root
+        if validation_root is None:
+            validation_root = Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
+        auto_path = validation_root / "_advisories"
+        if auto_path.is_dir():
+            advisory_db_path = str(auto_path)
+
+    engine = create_default_engine(advisory_db_path=str(advisory_db_path) if advisory_db_path is not None else None)
     metrics: dict[str, RuleMetrics] = {}
     fixture_results: list[MutationFixtureResult] = []
 
@@ -300,7 +311,7 @@ def run_mutation_benchmark(
                 spec,
                 mutated_path,
                 engine,
-                config.advisory_db_path,
+                advisory_db_path,
             )
             outcome = MutationFixtureResult(
                 fixture_name=outcome.fixture_name,

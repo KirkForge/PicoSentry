@@ -155,7 +155,7 @@ class JobScheduler:
         try:
             itr = croniter(cron_expression, datetime.now())
             return itr.get_next(datetime)
-        except Exception:
+        except (ValueError, TypeError, KeyError):
             logger.warning("Invalid cron expression '%s'; cannot compute next run", cron_expression)
             return None
 

@@ -10,7 +10,8 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import picosentry.sandbox.audit.logger as audit_logger_mod
-from picosentry.sandbox.audit import AuditLogger
+import picosentry.sandbox.daemon.handler_routes_post as handler_routes_post
+from picosentry.sandbox.audit import AuditEventType, AuditLogger
 from picosentry.sandbox.auth import RBAC, TokenAuth
 from picosentry.sandbox.daemon.server import PicoDomeDaemon, PicoDomeHandler, create_app
 from picosentry.sandbox.ratelimit import RateLimitConfig, TokenBucketLimiter
@@ -78,6 +79,28 @@ def _new_handler():
     handler._alert_count = 0
     handler._start_time = 0
     return handler
+
+
+class _BoomAudit:
+    """Audit logger that always raises on record()."""
+
+    def __init__(self, exc: Exception = RuntimeError("audit disk full")):
+        self.exc = exc
+
+    def record(self, **kwargs):
+        raise self.exc
+
+
+class _BoomAuditOnEvent:
+    """Audit logger that raises only for a specific event type."""
+
+    def __init__(self, event_type: AuditEventType, exc: Exception = RuntimeError("audit disk full")):
+        self.event_type = event_type
+        self.exc = exc
+
+    def record(self, **kwargs):
+        if kwargs.get("event_type") == self.event_type:
+            raise self.exc
 
 
 # ─── Handler method tests ───────────────────────────────────────────
@@ -648,6 +671,195 @@ class TestDaemonExceptionHandling:
         assert "merge secret failure" not in detail
         assert "RuntimeError" not in detail
         assert any("Cluster snapshot merge failed" in r.message for r in caplog.records)
+
+    def test_cluster_token_audit_failure_is_logged_post(self, tmp_path, caplog):
+        import logging
+
+        from picosentry.sandbox.daemon.handler_routes_post import _check_cluster_token
+
+        _make_handler(tmp_path)
+        handler = _new_handler()
+        handler.path = "/api/v1/cluster/snapshot"
+        handler.headers = {}
+        handler._send_error = MagicMock()
+
+        mgr = MagicMock()
+        mgr.state.cluster_token = "secret"
+
+        with (
+            caplog.at_level(logging.WARNING, logger="picodome.daemon"),
+            patch("picosentry.sandbox.daemon.handler_routes_post.get_audit_logger", return_value=_BoomAudit()),
+        ):
+            _check_cluster_token(handler, mgr)
+
+        assert any("Audit record failed" in r.message for r in caplog.records)
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == 403
+
+    def test_command_denied_audit_failure_is_logged(self, tmp_path, caplog, monkeypatch):
+        import json
+        import logging
+
+        from picosentry.sandbox.errors import ErrorCodes
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"command": ["bash", "-c", "echo pwned"]})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        monkeypatch.setattr(handler, "_validate_command", lambda cmd: "bash is denied")
+
+        with (
+            caplog.at_level(logging.WARNING, logger="picodome.daemon"),
+            patch("picosentry.sandbox.daemon.handler_routes_post.get_audit_logger", return_value=_BoomAudit()),
+        ):
+            handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.COMMAND_DENIED
+        detail = handler._send_error.call_args[1].get("detail", "")
+        assert "bash is denied" in detail
+        assert any("Audit record failed" in r.message for r in caplog.records)
+
+    def test_scan_start_audit_failure_continues(self, tmp_path, monkeypatch, caplog):
+        import json
+        import logging
+
+        from picosentry.sandbox.l3.engine import SandboxResult
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"command": ["echo", "hi"]})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        result = SandboxResult(
+            command=["echo", "hi"],
+            exit_code=0,
+            stdout="hi",
+            stderr="",
+            duration_ms=1,
+            backend_name="subprocess",
+            isolation_level="observational_only",
+            enforcement_guarantee="none",
+            degraded=True,
+        )
+
+        analysis = MagicMock()
+        analysis.to_dict.return_value = {}
+        analysis.overall_verdict.value = "ALLOW"
+        analysis.findings = []
+
+        engine = MagicMock()
+        engine.analyze.return_value = analysis
+
+        class _NoOpRetention:
+            def save_scan_result(self, *args, **kwargs):
+                pass
+
+        monkeypatch.setattr(handler_routes_post, "sandbox_run", lambda **kwargs: result)
+        monkeypatch.setattr(handler_routes_post, "create_default_engine", lambda: engine)
+        monkeypatch.setattr(handler_routes_post, "get_retention_manager", lambda: _NoOpRetention())
+
+        with (
+            caplog.at_level(logging.WARNING, logger="picodome.daemon"),
+            patch(
+                "picosentry.sandbox.daemon.handler_routes_post.get_audit_logger",
+                return_value=_BoomAuditOnEvent(AuditEventType.SCAN_START),
+            ),
+        ):
+            handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_json.assert_called_once()
+        assert handler._send_json.call_args.kwargs.get("status") == 201
+        assert any("Audit record failed" in r.message for r in caplog.records)
+
+    def test_scan_complete_audit_failure_continues(self, tmp_path, monkeypatch, caplog):
+        import json
+        import logging
+
+        from picosentry.sandbox.l3.engine import SandboxResult
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"command": ["echo", "hi"]})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        result = SandboxResult(
+            command=["echo", "hi"],
+            exit_code=0,
+            stdout="hi",
+            stderr="",
+            duration_ms=1,
+            backend_name="subprocess",
+            isolation_level="observational_only",
+            enforcement_guarantee="none",
+            degraded=True,
+        )
+
+        analysis = MagicMock()
+        analysis.to_dict.return_value = {}
+        analysis.overall_verdict.value = "ALLOW"
+        analysis.findings = []
+
+        engine = MagicMock()
+        engine.analyze.return_value = analysis
+
+        class _NoOpRetention:
+            def save_scan_result(self, *args, **kwargs):
+                pass
+
+        monkeypatch.setattr(handler_routes_post, "sandbox_run", lambda **kwargs: result)
+        monkeypatch.setattr(handler_routes_post, "create_default_engine", lambda: engine)
+        monkeypatch.setattr(handler_routes_post, "get_retention_manager", lambda: _NoOpRetention())
+
+        with (
+            caplog.at_level(logging.WARNING, logger="picodome.daemon"),
+            patch(
+                "picosentry.sandbox.daemon.handler_routes_post.get_audit_logger",
+                return_value=_BoomAuditOnEvent(AuditEventType.SCAN_COMPLETE),
+            ),
+        ):
+            handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_json.assert_called_once()
+        assert handler._send_json.call_args.kwargs.get("status") == 201
+        assert any("Audit record failed" in r.message for r in caplog.records)
+
+    def test_unexpected_scan_exception_propagates(self, tmp_path, monkeypatch):
+        import json
+
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        body = json.dumps({"command": ["echo", "hi"]})
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+
+        def _boom(*args, **kwargs):
+            raise AttributeError("programmer bug")
+
+        monkeypatch.setattr(handler_routes_post, "sandbox_run", _boom)
+
+        with pytest.raises(AttributeError, match="programmer bug"):
+            handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_not_called()
 
 
 class TestHandlerPolicySignatureVerify:

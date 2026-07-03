@@ -277,6 +277,15 @@
   error, alert, and event-bus payloads to "project execution failed"; full
   exception details are logged via `logger.exception`. Added regression tests
   in `tests/serve/services/test_orchestrator.py`.
+- **P4 #10 exception audit (anomaly detector DB-boundary slice).** Replaced the
+  broad `except Exception` guards in `AnomalyDetector._get_health_value`,
+  `_fire_alert`, and `get_alerts` with a targeted `_DB_BOUNDARY_ERRORS` tuple
+  (`sqlite3.Error`, `psycopg2.Error` when available, `OSError`, `RuntimeError`,
+  `ValueError`, `TypeError`) so transient database problems are handled but
+  programmer errors propagate. Fixed a real bug: `_get_health_value` used tuple
+  indexing (`r[0]`, `r[1]`) on rows returned as dicts by `DatabaseManager`,
+  which the previous broad catch masked. Added regression tests in
+  `tests/serve/services/test_anomaly_detector.py`.
 - **P4 #12 Postgres live-test required status check — REQUIRES REPO ADMIN.** The
   `postgres-live-test` CI job runs on every push and passes; it needs to be
   marked required in GitHub branch protection to fully close this item. No

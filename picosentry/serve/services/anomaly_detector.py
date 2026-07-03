@@ -1,14 +1,34 @@
 import json
 import logging
+import sqlite3
 import threading
 import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.metrics import metrics
+
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = cast("Any", None)
+
+
+# Expected DB-related exceptions that the detector catches at read boundaries so
+# a transient database problem does not crash the background loop or the API
+# caller, while unexpected programmer errors still propagate.
+_DB_BOUNDARY_ERRORS: tuple[type[BaseException], ...] = (
+    sqlite3.Error,
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if psycopg2 is not None:
+    _DB_BOUNDARY_ERRORS = (*_DB_BOUNDARY_ERRORS, psycopg2.Error)
 
 logger = logging.getLogger("picoshogun.Anomaly")
 
@@ -175,7 +195,7 @@ class AnomalyDetector:
 
             latest_by_component: dict[str, str] = {}
             for r in rows:
-                component, status = r[0], r[1]
+                component, status = r["component"], r["status"]
                 if component not in latest_by_component:
                     latest_by_component[component] = status
 
@@ -185,7 +205,7 @@ class AnomalyDetector:
             if any(s in ("warning", "degraded", "disabled") for s in statuses):
                 return 1.0
             return 0.0
-        except Exception:
+        except _DB_BOUNDARY_ERRORS:
             logger.warning("Health value lookup failed; using neutral health score", exc_info=True)
             return 0.0
 
@@ -254,7 +274,7 @@ class AnomalyDetector:
                     alert.timestamp,
                 ),
             )
-        except Exception:
+        except _DB_BOUNDARY_ERRORS:
             logger.warning("anomaly_alerts table missing; creating schema", exc_info=True)
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS anomaly_alerts (
@@ -346,7 +366,7 @@ class AnomalyDetector:
                 }
                 for r in rows
             ]
-        except Exception:
+        except _DB_BOUNDARY_ERRORS:
             logger.warning("Failed to load anomaly alerts; returning empty list", exc_info=True)
             return []
 

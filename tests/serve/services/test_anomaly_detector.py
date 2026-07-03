@@ -99,3 +99,41 @@ class TestAnomalyDetectorHardening:
         )
         with pytest.raises(NameError, match="programmer mistake"):
             detector._fire_alert(alert)
+
+    def test_background_cycle_expected_error_is_logged(self, tmp_path, caplog, monkeypatch):
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        detector = AnomalyDetector(db=db)
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("cycle problem")
+
+        monkeypatch.setattr(detector, "_run_check_cycle", _boom)
+        detector._running = True
+
+        def _break_after_one(*args, **kwargs):
+            detector._running = False
+
+        monkeypatch.setattr("time.sleep", _break_after_one)
+
+        with caplog.at_level(logging.ERROR, logger="picoshogun.Anomaly"):
+            detector._background_loop()
+
+        assert any("Anomaly detection cycle failed" in r.message for r in caplog.records)
+
+    def test_background_cycle_unexpected_error_propagates(self, tmp_path, monkeypatch):
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        detector = AnomalyDetector(db=db)
+
+        def _boom(*args, **kwargs):
+            raise NameError("programmer mistake")
+
+        monkeypatch.setattr(detector, "_run_check_cycle", _boom)
+        detector._running = True
+
+        def _break_after_one(*args, **kwargs):
+            detector._running = False
+
+        monkeypatch.setattr("time.sleep", _break_after_one)
+
+        with pytest.raises(NameError, match="programmer mistake"):
+            detector._background_loop()

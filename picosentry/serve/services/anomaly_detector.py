@@ -30,6 +30,16 @@ _DB_BOUNDARY_ERRORS: tuple[type[BaseException], ...] = (
 if psycopg2 is not None:
     _DB_BOUNDARY_ERRORS = (*_DB_BOUNDARY_ERRORS, psycopg2.Error)
 
+# Expected exceptions inside the background check cycle.  Programmer errors
+# such as NameError or AssertionError should propagate so the thread dies and
+# the bug is noticed instead of being silently swallowed every 60 seconds.
+_CYCLE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+
 logger = logging.getLogger("picoshogun.Anomaly")
 
 CONFIG_PATH = Path(__file__).parent.parent / "config" / "anomaly_rules.json"
@@ -326,7 +336,7 @@ class AnomalyDetector:
         while self._running:
             try:
                 self._run_check_cycle()
-            except Exception:
+            except _CYCLE_ERRORS:
                 logger.exception("Anomaly detection cycle failed")
             time.sleep(self._check_interval)
 

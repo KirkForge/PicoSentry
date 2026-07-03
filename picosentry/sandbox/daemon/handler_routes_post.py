@@ -261,7 +261,7 @@ class PicoDomePostRoutesMixin:
                     json.dumps(result, sort_keys=True, default=str),
                     package_name=command[0] if command else "unknown",
                 )
-            except Exception:
+            except (OSError, ValueError, TypeError):
                 logger.exception("Retention save failed")
 
             self._send_json(result, status=201)
@@ -308,7 +308,7 @@ class PicoDomePostRoutesMixin:
             self._send_json(pv.to_dict(), status=201)
         except (ValueError, KeyError, TypeError) as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Policy creation failed")
             self._send_error(ErrorCodes.INVALID_POLICY, detail="policy creation failed")
 
@@ -363,7 +363,7 @@ class PicoDomePostRoutesMixin:
             )
         except json.JSONDecodeError:
             self._send_error(400, "invalid JSON body")
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError):
             logger.exception("Cluster snapshot merge failed")
             self._send_error(500, "cluster merge failed")
 

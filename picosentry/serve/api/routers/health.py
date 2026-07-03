@@ -83,7 +83,7 @@ async def readiness_probe():
 
         db.execute_one("SELECT 1")
         return {"status": "ready"}
-    except Exception:
+    except (OSError, ValueError, RuntimeError):
         logger.exception("Readiness probe failed")
         return JSONResponse(status_code=503, content={"status": "not ready", "detail": "database unavailable"})
 

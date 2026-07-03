@@ -208,12 +208,22 @@
   Updated regression tests so the narrowed exception tuples stay correct.
 - **Merge to main.** `dev` merged into `main` at `e631b20`; full
   `test_doctor` suite verified green on the feature branch before push.
+- **P4 #10 exception audit (serve routers slice).** Narrowed broad
+  `except Exception` in `picosentry/serve/api/routers/scans.py`
+  (`POST /sandboxes`) to `(RuntimeError, OSError, ValueError, TypeError)`
+  with logged warning, and in `picosentry/serve/api/routers/health.py`
+  (`/health/ready`) to `(OSError, ValueError, RuntimeError)`. Added
+  `tests/serve/test_sandbox_router.py` and `tests/serve/test_health_router.py`
+  to verify expected failures return sanitized 5xx and unexpected errors are
+  left for the global handler.
+- **Full `test_doctor` green.** Verified `python scripts/test_doctor.py --workers 4`
+  passes (9/9 checks) before committing this slice.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed this session.
 - **P4:** tenant project isolation closed this session.
 - **P4 #10 broad exception audit — PARTIAL.** Security-relevant slices audited
-  and tested; remaining ~195 broad `except Exception` sites are intentional
+  and tested; remaining ~193 broad `except Exception` sites are intentional
   safety nets or lower-risk boundaries. Hardening continues on feature branches.
 - **P4 #12 Postgres live-test required status check — REQUIRES REPO ADMIN.** The
   `postgres-live-test` CI job runs on every push; it needs to be marked required

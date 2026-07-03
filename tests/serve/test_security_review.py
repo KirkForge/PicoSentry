@@ -403,3 +403,67 @@ class TestFuzzHarness:
         )
         assert r.status_code in (403, 404, 422)
         assert "Internal Server Error" not in r.text
+
+
+class TestAuditMiddlewareHardening:
+    """Audit middleware must not swallow validation or persistence failures."""
+
+    def test_token_validation_exception_is_logged(self, client, caplog, monkeypatch):
+        import logging
+
+        from picosentry.serve.middleware import audit as audit_mod
+
+        class _BoomAuth:
+            def validate_token(self, token):
+                raise RuntimeError("token validator crashed")
+
+            def validate_api_key(self, api_key):
+                return None
+
+        with caplog.at_level(logging.WARNING, logger="picoshogun.Audit"):
+            monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
+            r = client.get("/health/live", headers={"Authorization": "Bearer bad-token"})
+
+        assert r.status_code == 200
+        assert any("Token validation failed in audit middleware" in r.message for r in caplog.records)
+
+    def test_api_key_validation_exception_is_logged(self, client, caplog, monkeypatch):
+        import logging
+
+        from picosentry.serve.middleware import audit as audit_mod
+
+        class _BoomAuth:
+            def validate_token(self, token):
+                return None
+
+            def validate_api_key(self, api_key):
+                raise RuntimeError("api key validator crashed")
+
+        with caplog.at_level(logging.WARNING, logger="picoshogun.Audit"):
+            monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
+            r = client.get("/health/live", headers={"X-Api-Key": "bad-key"})
+
+        assert r.status_code == 200
+        assert any("API key validation failed in audit middleware" in r.message for r in caplog.records)
+
+
+class TestHealthHardening:
+    """Health endpoints must fail safely and not leak internal details."""
+
+    def test_readiness_returns_503_on_db_failure(self, client, monkeypatch, caplog):
+        import logging
+
+        from picosentry.serve.database import manager as db_mod
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("secret db failure")
+
+        with caplog.at_level(logging.WARNING, logger="picoshogun.health"):
+            monkeypatch.setattr(db_mod.db, "execute_one", _boom)
+            r = client.get("/health/ready")
+
+        assert r.status_code == 503
+        body = r.json()
+        assert body["status"] == "not ready"
+        assert "secret db failure" not in body.get("detail", "")
+        assert "RuntimeError" not in body.get("detail", "")

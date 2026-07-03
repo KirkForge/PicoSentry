@@ -55,14 +55,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     if payload:
                         _user_id = payload.get("user_id")
                 except Exception:
-                    pass
+                    logger.exception("Token validation failed in audit middleware")
             elif api_key:
                 try:
                     key_info = auth_svc.validate_api_key(api_key)
                     if key_info:
                         _user_id = key_info.get("user_id")
                 except Exception:
-                    pass
+                    logger.exception("API key validation failed in audit middleware")
 
         if _user_id is None:
             auth_header = request.headers.get("authorization", "")

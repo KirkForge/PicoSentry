@@ -6,6 +6,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
+from typing import Any, cast
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.pools import SQLitePool, create_pool
@@ -13,7 +14,7 @@ from picosentry.serve.database.pools import SQLitePool, create_pool
 try:
     import psycopg2
 except ImportError:
-    psycopg2 = None  # type: ignore[assignment]
+    psycopg2 = cast("Any", None)
 
 
 def _adapt_datetime(dt):

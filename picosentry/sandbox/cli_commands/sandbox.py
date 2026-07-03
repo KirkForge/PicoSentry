@@ -74,7 +74,7 @@ def cmd(args: argparse.Namespace) -> int:
         )
         if policy_path is None:
             return 2
-        policy = load_policy(policy_path)
+        policy = load_policy(policy_path, verify_signature=True)
     elif getattr(args, "allow_runtime", None):
         from picosentry.sandbox.l3.policy import load_policy as _lp
 

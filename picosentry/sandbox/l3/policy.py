@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from pathlib import Path
 
 from picosentry.sandbox.l3.models import Policy, PolicyRule, RuleTarget, SyscallAction
@@ -250,6 +251,10 @@ def _rules_from_list(rules_data: list) -> list[PolicyRule]:
     ]
 
 
+def _default_policy_store_dir() -> Path:
+    return Path(os.environ.get("PICODOME_POLICY_STORE_DIR", Path.home() / ".picodome" / "policies"))
+
+
 def load_policy(
     path: Path | None = None,
     name: str | None = None,
@@ -272,6 +277,13 @@ def load_policy(
             rules=_rules_from_list(rules_data),
         )
 
+    if name is not None:
+        # Custom policy stored in the versioned policy store.
+        store_path = _default_policy_store_dir() / name / "latest.json"
+        if not store_path.is_file():
+            raise FileNotFoundError(f"Policy not found: {name!r}")
+        path = store_path
+
     if path is not None:
         if verify_signature:
             from picosentry.sandbox.policy_versioned.signing import (
@@ -285,6 +297,11 @@ def load_policy(
         else:
             with path.open() as f:
                 data = json.load(f)
+
+        # The versioned policy store wraps the policy in a "policy" key.
+        if isinstance(data, dict) and "policy" in data and isinstance(data["policy"], dict):
+            data = data["policy"]
+
         return _policy_from_dict(data)
 
     return default_policy()

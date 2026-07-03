@@ -440,3 +440,113 @@ class TestLoadPolicy:
 
         policy = load_policy()
         assert policy.name == "picodome-default"
+
+
+class TestLoadPolicyByStoreName:
+    """Custom policies saved to the versioned store can be loaded by name."""
+
+    def test_load_custom_policy_by_name(self, tmp_path, monkeypatch):
+        from picosentry.sandbox.l3.policy import load_policy
+        from picosentry.sandbox.policy_versioned.store import VersionedPolicyStore
+
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+        store = VersionedPolicyStore(store_dir=tmp_path)
+
+        policy = Policy(
+            name="custom-by-name",
+            version="1.0",
+            default_action=SyscallAction.DENY,
+            rules=[
+                PolicyRule(
+                    rule_id="CUST-001",
+                    target=RuleTarget.FILE_READ,
+                    action=SyscallAction.ALLOW,
+                    paths=["/tmp/**"],
+                    description="",
+                ),
+            ],
+        )
+        store.save(policy, author="pytest", change_description="test")
+
+        loaded = load_policy(name="custom-by-name")
+        assert loaded.name == "custom-by-name"
+
+    def test_load_missing_custom_policy_by_name_raises(self, tmp_path, monkeypatch):
+        from picosentry.sandbox.l3.policy import load_policy
+
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+
+        with pytest.raises(FileNotFoundError, match="Policy not found"):
+            load_policy(name="does-not-exist")
+
+    def test_load_custom_policy_by_name_verifies_signature(self, tmp_path, monkeypatch):
+        from picosentry.sandbox.l3.policy import load_policy
+        from picosentry.sandbox.policy_versioned.signing import (
+            generate_key,
+            key_to_hex,
+            sign_policy_companion,
+        )
+        from picosentry.sandbox.policy_versioned.store import VersionedPolicyStore
+
+        key = generate_key()
+        monkeypatch.setenv("PICODOME_POLICY_KEY", key_to_hex(key))
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+        store = VersionedPolicyStore(store_dir=tmp_path)
+
+        policy = Policy(
+            name="signed-custom",
+            version="1.0",
+            default_action=SyscallAction.DENY,
+            rules=[
+                PolicyRule(
+                    rule_id="SIGNED-001",
+                    target=RuleTarget.FILE_READ,
+                    action=SyscallAction.ALLOW,
+                    paths=["/tmp/**"],
+                    description="",
+                ),
+            ],
+        )
+        store.save(policy, author="pytest", change_description="test")
+        sign_policy_companion(tmp_path / "signed-custom" / "latest.json", key)
+
+        loaded = load_policy(name="signed-custom", verify_signature=True)
+        assert loaded.name == "signed-custom"
+
+    def test_load_custom_policy_by_name_rejects_bad_signature(self, tmp_path, monkeypatch):
+        from picosentry.sandbox.l3.policy import load_policy
+        from picosentry.sandbox.policy_versioned.signing import (
+            generate_key,
+            key_to_hex,
+            sign_policy_companion,
+        )
+        from picosentry.sandbox.policy_versioned.store import VersionedPolicyStore
+
+        key = generate_key()
+        monkeypatch.setenv("PICODOME_POLICY_KEY", key_to_hex(key))
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(tmp_path))
+        store = VersionedPolicyStore(store_dir=tmp_path)
+
+        policy = Policy(
+            name="tampered-custom",
+            version="1.0",
+            default_action=SyscallAction.DENY,
+            rules=[
+                PolicyRule(
+                    rule_id="TAMPER-001",
+                    target=RuleTarget.FILE_READ,
+                    action=SyscallAction.ALLOW,
+                    paths=["/tmp/**"],
+                    description="",
+                ),
+            ],
+        )
+        store.save(policy, author="pytest", change_description="test")
+        sign_policy_companion(tmp_path / "tampered-custom" / "latest.json", key)
+
+        # Tamper with the policy file after signing.
+        latest = tmp_path / "tampered-custom" / "latest.json"
+        latest.write_text(latest.read_text().replace("tampered-custom", "hacked"))
+
+        with pytest.raises(ValueError, match="signature verification failed"):
+            load_policy(name="tampered-custom", verify_signature=True)

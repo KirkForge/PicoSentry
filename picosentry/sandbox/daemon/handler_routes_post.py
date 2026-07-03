@@ -15,6 +15,10 @@ from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
+from picosentry.sandbox.policy_versioned.signing import (
+    load_key,
+    sign_policy_companion,
+)
 from picosentry.sandbox.l4.engine import create_default_engine
 from picosentry.sandbox.l4.profiler import profile_from_sandbox_result
 from picosentry.sandbox.retention import get_retention_manager
@@ -158,17 +162,22 @@ class PicoDomePostRoutesMixin:
         except Exception:
             logger.exception("Audit record failed")
 
-        try:
-            policy_name = data.get("policy")
-            if policy_name:
-                try:
-                    policy = load_policy(name=policy_name)
-                except (FileNotFoundError, ValueError, KeyError):
-                    logger.warning("Policy '%s' not found, using default", policy_name)
-                    policy = default_policy()
-            else:
-                policy = default_policy()
+        policy_name = data.get("policy")
+        if policy_name:
+            try:
+                policy = load_policy(name=policy_name, verify_signature=True)
+            except FileNotFoundError:
+                logger.warning("Policy '%s' not found", policy_name)
+                self._send_error(ErrorCodes.INVALID_POLICY, detail=f"policy '{policy_name}' not found")
+                return
+            except ValueError as exc:
+                logger.warning("Policy '%s' could not be loaded: %s", policy_name, exc)
+                self._send_error(ErrorCodes.INVALID_POLICY, detail="policy signature verification failed")
+                return
+        else:
+            policy = default_policy()
 
+        try:
             backend_name = data.get("backend", "auto")
             backend: SandboxBackend | None = None
 
@@ -289,6 +298,13 @@ class PicoDomePostRoutesMixin:
             author = data.get("author", hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown")
             description = data.get("change_description", "")
             pv = store.save(policy, author=author, change_description=description)
+            key = load_key()
+            if key is not None:
+                latest_path = store._store_dir / policy.name / "latest.json"
+                try:
+                    sign_policy_companion(latest_path, key)
+                except OSError:
+                    logger.exception("Failed to sign policy companion for %s", policy.name)
             self._send_json(pv.to_dict(), status=201)
         except (ValueError, KeyError, TypeError) as e:
             self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))

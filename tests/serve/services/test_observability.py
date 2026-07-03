@@ -22,6 +22,9 @@ def _make_stub_shutdown(exc: BaseException):
 @pytest.fixture
 def fake_opentelemetry(monkeypatch):
     """Inject minimal fake opentelemetry modules so init_telemetry reaches exporter setup."""
+    otel = types.ModuleType("opentelemetry")
+    otel.__path__ = []  # type: ignore[assignment]
+
     metrics_module = types.ModuleType("opentelemetry.metrics")
     metrics_module.set_meter_provider = lambda p: None
     metrics_module.get_meter = lambda *args, **kwargs: _NoOpMeter()
@@ -29,6 +32,9 @@ def fake_opentelemetry(monkeypatch):
     trace_module = types.ModuleType("opentelemetry.trace")
     trace_module.set_tracer_provider = lambda p: None
     trace_module.get_tracer = lambda *args, **kwargs: _NoOpTracer()
+
+    sdk = types.ModuleType("opentelemetry.sdk")
+    sdk.__path__ = []  # type: ignore[assignment]
 
     sdk_metrics = types.ModuleType("opentelemetry.sdk.metrics")
     sdk_metrics.MeterProvider = _FakeProvider
@@ -46,8 +52,10 @@ def fake_opentelemetry(monkeypatch):
     sdk_metrics_export.PeriodicExportingMetricReader = _FakePeriodicReader
 
     for name, mod in [
+        ("opentelemetry", otel),
         ("opentelemetry.metrics", metrics_module),
         ("opentelemetry.trace", trace_module),
+        ("opentelemetry.sdk", sdk),
         ("opentelemetry.sdk.metrics", sdk_metrics),
         ("opentelemetry.sdk.metrics.export", sdk_metrics_export),
         ("opentelemetry.sdk.resources", sdk_resources),

@@ -112,6 +112,12 @@ All notable changes to PicoSentry will be documented in this file.
   dispatch, health checks, and shutdown remain broad safety nets so a single
   misbehaving plugin cannot crash the manager. Added regression tests in
   `tests/serve/services/test_plugin_manager.py`.
+- **P4 #10 exception audit (sandbox health slice).** `check_health()` and
+  `check_readiness()` in `picosentry/sandbox/health.py` now catch only
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError)` for their
+  individual probes. Operational failures are logged and reported as unhealthy;
+  unexpected programmer errors propagate instead of being masked as a healthy
+  `error:` detail. Added regression tests in `tests/sandbox/test_health.py`.
 
 ## [2.0.16] — 2026-06-21
 

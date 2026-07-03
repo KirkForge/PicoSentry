@@ -10,6 +10,17 @@ from picosentry.sandbox.l3.engine import get_backend
 
 logger = logging.getLogger("picodome.health")
 
+# Operational exceptions that a health probe is expected to hit when a
+# component is unavailable or misconfigured.  Programmer errors (e.g.
+# NameError, AttributeError) should propagate so they are noticed.
+_HEALTH_PROBE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    ImportError,
+)
+
 
 @dataclass(frozen=True)
 class HealthStatus:
@@ -51,12 +62,13 @@ def check_health() -> list[HealthStatus]:
                 timestamp=now,
             )
         )
-    except Exception as e:
+    except _HEALTH_PROBE_ERRORS as exc:
+        logger.warning("sandbox_backend health probe failed", exc_info=True)
         checks.append(
             HealthStatus(
                 healthy=False,
                 component="sandbox_backend",
-                detail=f"error: {e}",
+                detail=f"error: {exc}",
                 timestamp=now,
             )
         )
@@ -75,12 +87,13 @@ def check_health() -> list[HealthStatus]:
                 timestamp=now,
             )
         )
-    except Exception as e:
+    except _HEALTH_PROBE_ERRORS as exc:
+        logger.warning("audit_log health probe failed", exc_info=True)
         checks.append(
             HealthStatus(
                 healthy=False,
                 component="audit_log",
-                detail=f"error: {e}",
+                detail=f"error: {exc}",
                 timestamp=now,
             )
         )
@@ -99,12 +112,13 @@ def check_health() -> list[HealthStatus]:
                 timestamp=now,
             )
         )
-    except Exception as e:
+    except _HEALTH_PROBE_ERRORS as exc:
+        logger.warning("storage health probe failed", exc_info=True)
         checks.append(
             HealthStatus(
                 healthy=False,
                 component="storage",
-                detail=f"error: {e}",
+                detail=f"error: {exc}",
                 timestamp=now,
             )
         )
@@ -135,12 +149,13 @@ def check_health() -> list[HealthStatus]:
                     timestamp=now,
                 )
             )
-    except Exception as e:
+    except _HEALTH_PROBE_ERRORS as exc:
+        logger.warning("store_backend health probe failed", exc_info=True)
         checks.append(
             HealthStatus(
                 healthy=False,
                 component="store_backend",
-                detail=f"error: {e}",
+                detail=f"error: {exc}",
                 timestamp=now,
             )
         )
@@ -166,10 +181,11 @@ def check_readiness() -> HealthStatus:
             detail=f"Backend {backend.name} ready",
             timestamp=now,
         )
-    except Exception as e:
+    except _HEALTH_PROBE_ERRORS as exc:
+        logger.warning("readiness probe failed", exc_info=True)
         return HealthStatus(
             healthy=False,
             component="readiness",
-            detail=f"Error: {e}",
+            detail=f"Error: {exc}",
             timestamp=now,
         )

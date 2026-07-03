@@ -118,6 +118,13 @@ All notable changes to PicoSentry will be documented in this file.
   individual probes. Operational failures are logged and reported as unhealthy;
   unexpected programmer errors propagate instead of being masked as a healthy
   `error:` detail. Added regression tests in `tests/sandbox/test_health.py`.
+- **P4 #10 exception audit (baseline hardening slice).**
+  `HardenedBaselineManager.apply_update()` in
+  `picosentry/sandbox/baseline_hardening.py` now catches
+  `(OSError, RuntimeError, ValueError, TypeError)` around the audit-log write
+  instead of silently swallowing all exceptions.  The baseline update still
+  succeeds when audit logging fails, but unexpected programmer errors now
+  propagate. Added regression tests in `tests/sandbox/test_baseline_hardening.py`.
 
 ## [2.0.16] — 2026-06-21
 

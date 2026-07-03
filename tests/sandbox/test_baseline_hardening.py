@@ -109,3 +109,19 @@ class TestHardenedBaselineManager:
         )
         check = manager.check_update_allowed("npm-install", extreme)
         assert check.allowed is False
+
+    def test_apply_update_succeeds_when_audit_fails(self, manager, npm_baseline, monkeypatch):
+        def _boom(*args, **kwargs):
+            raise RuntimeError("audit logger unavailable")
+
+        monkeypatch.setattr("picosentry.sandbox.baseline_hardening.get_audit_logger", _boom)
+        manager.apply_update("npm-install", npm_baseline)
+        assert manager._last_baselines["npm-install"] is npm_baseline
+
+    def test_apply_update_unexpected_error_propagates(self, manager, npm_baseline, monkeypatch):
+        def _boom(*args, **kwargs):
+            raise NameError("programmer bug")
+
+        monkeypatch.setattr("picosentry.sandbox.baseline_hardening.get_audit_logger", _boom)
+        with pytest.raises(NameError, match="programmer bug"):
+            manager.apply_update("npm-install", npm_baseline)

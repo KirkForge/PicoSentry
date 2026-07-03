@@ -141,6 +141,7 @@ class LogManager:
                         if len(entries) >= limit:
                             return entries
             except Exception:
+                logger.warning("Failed to read log file %s", log_file, exc_info=True)
                 continue
         return entries
 

@@ -120,8 +120,8 @@ class AnomalyDetector:
                     for r in rule_dicts
                 ]
                 return
-            except Exception:
-                pass
+            except (json.JSONDecodeError, OSError, ValueError, TypeError):
+                logger.warning("Failed to load anomaly rules from %s", CONFIG_PATH, exc_info=True)
 
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
         with CONFIG_PATH.open("w") as f:
@@ -186,6 +186,7 @@ class AnomalyDetector:
                 return 1.0
             return 0.0
         except Exception:
+            logger.warning("Health value lookup failed; using neutral health score", exc_info=True)
             return 0.0
 
     def check_rules(self) -> list[AnomalyAlert]:
@@ -254,6 +255,7 @@ class AnomalyDetector:
                 ),
             )
         except Exception:
+            logger.warning("anomaly_alerts table missing; creating schema", exc_info=True)
             self.db.execute("""
                 CREATE TABLE IF NOT EXISTS anomaly_alerts (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -345,6 +347,7 @@ class AnomalyDetector:
                 for r in rows
             ]
         except Exception:
+            logger.warning("Failed to load anomaly alerts; returning empty list", exc_info=True)
             return []
 
     def get_rules(self) -> list[dict[str, Any]]:

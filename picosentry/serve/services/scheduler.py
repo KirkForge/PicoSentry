@@ -156,6 +156,7 @@ class JobScheduler:
             itr = croniter(cron_expression, datetime.now())
             return itr.get_next(datetime)
         except Exception:
+            logger.warning("Invalid cron expression '%s'; cannot compute next run", cron_expression)
             return None
 
     def _validate_category(self, category: str) -> bool:

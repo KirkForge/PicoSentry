@@ -271,6 +271,12 @@
   **Remaining:** ~186 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
+- **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad
+  `except Exception` in `EnhancedOrchestrator._execute_project` to
+  `(RuntimeError, OSError, ValueError, TypeError)` and sanitized the returned
+  error, alert, and event-bus payloads to "project execution failed"; full
+  exception details are logged via `logger.exception`. Added regression tests
+  in `tests/serve/services/test_orchestrator.py`.
 - **P4 #12 Postgres live-test required status check — REQUIRES REPO ADMIN.** The
   `postgres-live-test` CI job runs on every push and passes; it needs to be
   marked required in GitHub branch protection to fully close this item. No

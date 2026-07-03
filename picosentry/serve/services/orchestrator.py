@@ -422,7 +422,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 Organization.add_project(org_id, project_id)
             return {"error": "timeout", "duration": duration}
 
-        except Exception as e:
+        except (RuntimeError, OSError, ValueError, TypeError):
             duration = time.time() - start_time
             db.execute_insert(
                 """
@@ -433,27 +433,36 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 (datetime.now(timezone.utc), "failed", duration, run_id),
             )
 
-            self.alerts.send(project_id, "execution_error", "high", str(e), org_id=org_id)
+            logger.exception("Project execution failed: %s", project_id)
+            sanitized = "project execution failed"
+
+            self.alerts.send(
+                project_id,
+                "execution_error",
+                "high",
+                f"Project {project_id} execution failed",
+                org_id=org_id,
+            )
 
             plugin_manager.dispatch(
                 "alert",
                 alert={
                     "project_id": project_id,
                     "severity": "high",
-                    "message": f"Project {project_id} failed with exception: {e!s}",
+                    "message": f"Project {project_id} execution failed",
                 },
             )
 
             event_bus.publish(
                 "project.run.failed",
-                {"project_id": project_id, "run_id": run_id, "reason": "exception", "error": str(e)},
+                {"project_id": project_id, "run_id": run_id, "reason": "exception", "error": sanitized},
                 source="orchestrator",
                 priority="critical",
             )
 
             if org_id is not None:
                 Organization.add_project(org_id, project_id)
-            return {"error": str(e), "duration": duration}
+            return {"error": sanitized, "duration": duration}
 
     def _update_project_stats(self, project_id: str):
         stats = db.execute_one(

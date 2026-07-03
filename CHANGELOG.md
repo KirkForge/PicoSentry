@@ -67,6 +67,10 @@ All notable changes to PicoSentry will be documented in this file.
   operational failures are still logged and return sanitized detail strings;
   unexpected programmer errors now propagate instead of being masked as a
   generic scan failure. Added regression tests for each boundary.
+- **Websocket auth test isolation.** Moved the websocket auth regression
+  suite to its own per-module SQLite database so `fresh_user` setup is not
+  affected by shared global DB state under `pytest-xdist`. This removes the
+  rare auth flake that broke `test-matrix (3.10)` on the first main merge.
 
 ## [2.0.16] — 2026-06-21
 

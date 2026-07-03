@@ -9,15 +9,23 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-CLUSTER_NAME="picosentry-admission-test"
+CLUSTER_NAME="${PICOSENTRY_KIND_CLUSTER:-picosentry-admission-test}"
 NAMESPACE="picosentry"
 WEBHOOK_SVC="admission-webhook"
-IMAGE="kirkforge/picosentry:2.0.14"
+
+# Allow callers to override the image under test (e.g. a released tag). When
+# not overridden we build the local Dockerfile so CI always tests the code in
+# the current commit.
+IMAGE="${PICOSENTRY_IMAGE:-}"
+if [[ -z "${IMAGE}" ]]; then
+    IMAGE="picosentry:local"
+fi
 
 # Ensure tools are available.
 command -v kind >/dev/null 2>&1 || { echo "kind not found in PATH"; exit 1; }
 command -v kubectl >/dev/null 2>&1 || { echo "kubectl not found in PATH"; exit 1; }
 command -v docker >/dev/null 2>&1 || { echo "docker not found in PATH"; exit 1; }
+command -v openssl >/dev/null 2>&1 || { echo "openssl not found in PATH"; exit 1; }
 
 CERT_DIR="$(mktemp -d)"
 KUBECONFIG="${CERT_DIR}/kubeconfig"
@@ -75,8 +83,13 @@ openssl x509 -req -in "${CERT_DIR}/tls.csr" -CA "${CERT_DIR}/ca.crt" -CAkey "${C
 CA_BUNDLE="$(base64 -w 0 "${CERT_DIR}/ca.crt")"
 
 # ---------------------------------------------------------------------------
-# 3. Load local image into kind
+# 3. Build (if needed) and load local image into kind
 # ---------------------------------------------------------------------------
+if [[ "${IMAGE}" == picosentry:local ]]; then
+    echo "Building local PicoSentry image..."
+    docker build -t "${IMAGE}" "${REPO_ROOT}"
+fi
+
 echo "Loading ${IMAGE} into kind..."
 kind load docker-image "${IMAGE}" --name "${CLUSTER_NAME}"
 

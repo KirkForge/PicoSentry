@@ -20,6 +20,18 @@ HAS_NACL = importlib.util.find_spec("nacl") is not None
 logger = logging.getLogger("picoshogun.Plugins")
 
 
+# Expected operational exceptions inside plugin loading/dispatch boundaries.
+# Programmer errors (NameError, AttributeError, etc.) propagate so tests catch
+# regressions instead of being masked as a generic "plugin failed".
+_PLUGIN_LOAD_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+    json.JSONDecodeError,
+)
+
+
 VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
 # Capabilities are deny-by-default. A plugin must declare each capability it
@@ -301,8 +313,8 @@ class PluginManager:
         except BadSignatureError:
             logger.warning("Ed25519 signature verification failed: BadSignatureError")
             return False
-        except Exception as e:
-            logger.warning("Ed25519 signature verification failed: %s", e)
+        except (OSError, RuntimeError, ValueError, TypeError) as exc:
+            logger.warning("Ed25519 signature verification failed: %s", exc)
             return False
 
     def _load_plugins(self):
@@ -346,7 +358,7 @@ class PluginManager:
                     if self._load_plugin(str(plugin_path), meta):
                         self._loaded_plugin_paths.add(real_plugin_path)
                         loaded_count += 1
-                except Exception:
+                except _PLUGIN_LOAD_ERRORS:
                     logger.exception("Failed to load plugin %s", plugin_path.name)
 
         logger.info(
@@ -462,7 +474,7 @@ class PluginManager:
                 host.metadata.signed,
             )
             return True
-        except Exception:
+        except _PLUGIN_LOAD_ERRORS:
             logger.exception("Failed to load plugin '%s'", name)
             return False
 

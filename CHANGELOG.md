@@ -47,9 +47,10 @@ All notable changes to PicoSentry will be documented in this file.
   serve services (anomaly_detector, scheduler, log_manager, DB manager),
   plugin host/manager, correlation engine, serve/api middleware/
   server/rate_limiter/DB manager, serve routers (`/sandboxes`,
-  `/health/ready`), backup service, and plugin host call boundaries
-  (`health_check`, `shutdown`). Regression tests added for every changed
-  behavior.
+  `/health/ready`), backup service, plugin host call boundaries
+  (`health_check`, `shutdown`), and correlation persistence
+  (`_persist_events_impl`, `_load_events_impl`, `_persist_chains_cache_impl`).
+  Regression tests added for every changed behavior.
 - **Local test runner upgrade.** `scripts/test_doctor.py` now runs ruff,
   mypy, and the per-area pytest suites concurrently with capped xdist
   workers; documented in `CONTRIBUTING.md` as the recommended local CI

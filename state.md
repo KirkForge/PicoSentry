@@ -327,6 +327,21 @@
   `tests/serve/test_scheduler.py`, and
   `tests/serve/services/test_observability.py`. Verified with
   `python3 scripts/test_doctor.py --workers 4` before merge.
+- **CI observability fixture fix.** `tests/serve/services/test_observability.py`
+  injects fake `opentelemetry.*` modules so the narrowed-exception tests reach
+  the exporter-setup code paths even when `test-serve`/`test-core` install only
+  `[serve]` extras. The fixture now injects the parent `opentelemetry` and
+  `opentelemetry.sdk` namespace packages; without them `from opentelemetry import
+  metrics` raised `ImportError` and the tests silently hit the disabled-tracing
+  branch. Verified by blocking real opentelemetry imports locally.
+- **SQLite I/O error flake hardening.** `test-core (3.10)` repeatedly flaked
+  with `sqlite3.OperationalError: disk I/O error` inside `AuditMiddleware`.
+  `AuditMiddleware` now catches `sqlite3.Error` (and `psycopg2.Error` when
+  installed) in addition to `(OSError, RuntimeError, ValueError, TypeError)`,
+  so a transient DB hiccup never fails an API request. The `serve` test fixtures
+  also set `PICOSHOGUN_DATABASE_SYNCHRONOUS=OFF` alongside the existing
+  `DELETE` journal mode to reduce temp-storage contention under `pytest-xdist`.
+  Added a regression test for audit DB insert failures.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

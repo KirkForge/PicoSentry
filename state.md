@@ -208,6 +208,14 @@
   Updated regression tests so the narrowed exception tuples stay correct.
 - **Merge to main.** `dev` merged into `main` at `e631b20`; full
   `test_doctor` suite verified green on the feature branch before push.
+- **CI mypy fix.** `picosentry/serve/database/manager.py` now uses
+  `importlib.util.find_spec("psycopg2")` for the optional dependency probe
+  instead of `try/except ImportError`. This removes the stale `# type: ignore`
+  that CI's `--ignore-missing-imports` mypy flagged as unused (and which
+  caused the post-merge CI failures / mailbox spam). Verified with the exact
+  CI commands (`mypy picosentry/ --ignore-missing-imports`, `ruff check
+  picosentry/ tests/ scripts/`, `ruff format --check picosentry/ tests/
+  scripts/`).
 - **P4 #10 exception audit (serve routers slice).** Narrowed broad
   `except Exception` in `picosentry/serve/api/routers/scans.py`
   (`POST /sandboxes`) to `(RuntimeError, OSError, ValueError, TypeError)`

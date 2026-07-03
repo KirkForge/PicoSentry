@@ -260,10 +260,10 @@
   alert, daemon route-handler, serve middleware/server, watch, cluster +
   policy_versioned, serve services, plugin host/manager, correlation engine,
   serve/api middleware/server/rate_limit/DB manager, serve routers, backup
-  service). Reduced remaining site count to ~152.
+  service). Reduced remaining site count to ~151.
 - **state.md cleanup.** Reconciled the current session header, "Still open"
   list, Gap Audit #22, and the 2026-06-24 GPT-5 review roadmap so all sections
-  agree that security-relevant exception narrowing is closed, ~152 broad
+  agree that security-relevant exception narrowing is closed, ~151 broad
   safety-net sites remain, and the only repo-admin action is marking
   `postgres-live-test` as a required status check.
 - **Test doctor upgrade.** `scripts/test_doctor.py` gained `--fix` (ruff
@@ -371,6 +371,12 @@
   subscriber callbacks. One misbehaving subscriber still cannot crash the bus,
   but programmer errors such as `NameError` now propagate. Added regression
   tests in `tests/serve/services/test_event_bus.py`.
+- **P4 #10 exception audit (anomaly detector background loop slice).**
+  `AnomalyDetector._background_loop()` now catches only
+  `(OSError, RuntimeError, ValueError, TypeError)` around each check cycle.
+  Operational failures are logged every 60 seconds; programmer errors such as
+  `NameError` propagate so the background thread fails loudly. Added
+  regression tests in `tests/serve/services/test_anomaly_detector.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -382,9 +388,10 @@
   middleware/server/rate_limit/DB manager, serve routers, backup service,
   serve log/alert services, serve execution/observability, plugin manager
   loading paths, sandbox health/readiness probes, baseline hardening
-  audit logging, and the serve event bus subscriber dispatch have been
-  narrowed to specific exception types with regression tests.
-  **Remaining:** ~152 broad `except Exception` sites across the codebase are
+  audit logging, the serve event bus subscriber dispatch, and the anomaly
+  detector background loop have been narrowed to specific exception types
+  with regression tests.
+  **Remaining:** ~151 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad
@@ -414,7 +421,7 @@
 1. **Repo admin:** mark `postgres-live-test` as a required status check for
    `main` (and optionally `dev`) in GitHub branch protection.
 2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
-   remaining ~152 broad `except Exception` sites, prioritizing request-boundary,
+   remaining ~151 broad `except Exception` sites, prioritizing request-boundary,
    persistence, and plugin/daemon paths.
 3. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
    accurate.
@@ -599,7 +606,7 @@ can work through them one by one.
 | # | Gap | Concrete goal | Type | Verdict |
 |---|-----|---------------|------|---------|
 | 1 | **Plugin capability restrictions / sandboxing** | Plugins must not run as in-process Python with host privileges. Add a capability model + optional subprocess sandbox (no network/files/env unless declared). | Code + tests | **CLOSED** — plugin manager routes all dispatch through `PluginHost` subprocess; deny-by-default capability model in `docs/PLUGIN_DEVELOPMENT.md`. |
-| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | **CLOSED for security-relevant slices** — auth, webhook/alert, daemon route-handler, serve middleware/server, watch, cluster + policy_versioned, serve services, plugin host/manager, correlation engine, serve/api middleware/server/rate_limit/DB manager, serve routers, backup service narrowed with tests. ~152 intentional/lower-risk safety-net sites remain. |
+| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | **CLOSED for security-relevant slices** — auth, webhook/alert, daemon route-handler, serve middleware/server, watch, cluster + policy_versioned, serve services, plugin host/manager, correlation engine, serve/api middleware/server/rate_limit/DB manager, serve routers, backup service narrowed with tests. ~151 intentional/lower-risk safety-net sites remain. |
 | 3 | **SBOM + dependency vulnerability scanning** | Add `picosentry scan --sbom` or a self-scan command that generates CycloneDX/SPDX SBOM and checks dependencies against OSV/pysec. | Code + CLI | **CLOSED** — release CI generates CycloneDX SBOM; `scripts/verify_release.py` parses it in post-release verification. |
 | 4 | **Detection quality / adversarial mutation testing** | Add mutation harness that takes malicious fixtures and creates variants (base64, unicode escapes, string concat, dynamic import, compression) and measures recall degradation. | Tests + data | **CLOSED** — `adversarial_mutations.py` + `mutation_benchmark.py` + `tests/scan/test_mutation_benchmark.py` assert recall ≥85% and precision ≥95% under mutation. |
 | 5 | **Operational hardening tests** | Add auth-bypass tests, rate-limit bypass tests, API contract tests, multi-tenant isolation tests for `serve` endpoints. | Tests | **CLOSED** — role escalation, permission-level enforcement, malformed tokens, query-param auth bypass, pathological-input fuzz, rate-limit bypass, tenant A↔B negative tests merged. |
@@ -1723,7 +1730,7 @@ loading paths, sandbox health/readiness, baseline hardening audit
 logging, and the serve event bus subscriber dispatch slices all narrowed
 to specific exception types + logged. Only intentional boundaries remain
 (`plugin_worker.py` RPC loop, `database/pools.py` deliberate
-rollback+re-raise). **Live count:** ~152 broad `except Exception` sites
+rollback+re-raise). **Live count:** ~151 broad `except Exception` sites
 remain as safety nets or lower-risk boundaries; opportunistic narrowing
 continues.
 

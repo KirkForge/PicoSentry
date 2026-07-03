@@ -59,7 +59,10 @@ class CorrelationEngine:
             return True
         except Exception:
             cls.PERSIST_ENABLED = False
-            logger.debug("Correlation persistence not available (run migrations first)")
+            logger.debug(
+                "Correlation persistence not available (run migrations first)",
+                exc_info=True,
+            )
             return False
 
     def _allowed_by_backpressure(self, event_count: int) -> int:

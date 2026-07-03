@@ -131,6 +131,13 @@ All notable changes to PicoSentry will be documented in this file.
   subscriber callbacks. One misbehaving subscriber still cannot crash the bus,
   but programmer errors such as `NameError` now propagate. Added regression
   tests in `tests/serve/services/test_event_bus.py`.
+- **P4 #10 exception audit (anomaly detector background loop slice).**
+  `AnomalyDetector._background_loop()` now catches only
+  `(OSError, RuntimeError, ValueError, TypeError)` around each check cycle
+  instead of swallowing all exceptions. Operational failures are logged every
+  60 seconds; programmer errors such as `NameError` propagate so the
+  background thread fails loudly. Added regression tests in
+  `tests/serve/services/test_anomaly_detector.py`.
 
 ## [2.0.16] — 2026-06-21
 

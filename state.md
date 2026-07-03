@@ -226,6 +226,15 @@
   logging, and propagation of unexpected programmer errors.
 - **Full `test_doctor` green.** Verified `python scripts/test_doctor.py --workers 4`
   passes (9/9 checks) before committing this slice.
+- **CHANGELOG.md forward-facing update.** Reviewed and refreshed `CHANGELOG.md`
+  so the latest v2.0.17 security fixes and CI additions are summarized for
+  users reading the release notes (not duplicated in detail here).
+- **P4 #10 status refresh in Gap Audit.** Updated the broad-exception audit
+  summary to reflect all narrowed slices shipped this session (auth, webhook/
+  alert, daemon route-handler, serve middleware/server, watch, cluster +
+  policy_versioned, serve services, plugin host/manager, correlation engine,
+  serve/api middleware/server/rate_limit/DB manager, serve routers, backup
+  service). Reduced remaining site count to ~191.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed this session.
@@ -1527,13 +1536,14 @@ against PG15/16 service container exercising migrations/CRUD/placeholder
 translation. **Remaining:** mark `postgres-live-test` as a required
 branch-protection check (repo-admin action, not code). Code side done.
 
-### 22. P4 #10 broad exception audit (116 `except` sites) — FIXED
+### 22. P4 #10 broad exception audit — FIXED
 Per state.md session log: auth.py, webhook/alert, daemon route-handler,
 serve middleware/server, watch, cluster + policy_versioned, serve
-services, plugin host/manager, correlation engine slices all narrowed
-to specific types + logged. Only intentional boundaries remain
-(`plugin_worker.py` RPC loop, `database/pools.py` deliberate
-rollback+re-raise).
+services, plugin host/manager, correlation engine, serve/api
+middleware/server/rate_limit/DB manager, serve routers, and backup
+service slices all narrowed to specific exception types + logged.
+Only intentional boundaries remain (`plugin_worker.py` RPC loop,
+`database/pools.py` deliberate rollback+re-raise).
 
 ### 23. P4 #14 SLOs — FIXED
 `deploy/monitoring/picodome-alerts.yaml` PrometheusRule alerts define P95

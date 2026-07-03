@@ -36,6 +36,30 @@ All notable changes to PicoSentry will be documented in this file.
   been failing CI's `lint` and `type-check` jobs. No suppressions — real
   annotations and guards. CI is green.
 
+### Post-release hardening (2.0.17.x follow-ups, 2026-07-02)
+
+- **Exception-narrowing sweep across serve/sandbox paths.** Broad
+  `except Exception` handlers in security-relevant paths were narrowed to
+  specific, expected exception tuples so unexpected failures surface
+  instead of being silently swallowed. Slices completed: auth register,
+  webhook/alert dispatch, daemon route handlers, serve middleware/server,
+  watch config/normalizer, cluster orchestrator, policy_versioned store,
+  serve services (anomaly_detector, scheduler, log_manager, DB manager),
+  plugin host/manager, correlation engine, serve/api middleware/
+  server/rate_limiter/DB manager, serve routers (`/sandboxes`,
+  `/health/ready`), and backup service. Regression tests added for every
+  changed behavior.
+- **Local test runner upgrade.** `scripts/test_doctor.py` now runs ruff,
+  mypy, and the per-area pytest suites concurrently with capped xdist
+  workers; documented in `CONTRIBUTING.md` as the recommended local CI
+  runner.
+- **K8s admission real-cluster matrix.** Added
+  `.github/workflows/admission-kind.yml` exercising the webhook against
+  kind clusters running K8s v1.28/v1.29/v1.30.
+- **Mutation benchmark CI robustness.** Adversarial mutation benchmark
+  auto-detects the bundled `_advisories` directory so CI recall floors
+  stay stable.
+
 ## [2.0.16] — 2026-06-21
 
 ### Polish: surface-area narrowing, import guards, and scan-rule reliability

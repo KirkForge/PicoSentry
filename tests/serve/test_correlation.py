@@ -675,3 +675,48 @@ class TestEdgeCases:
         chain = engine.kill_chain("malicious-pkg@1.0.0")
         assert chain is not None
         assert chain.to_dict()["event_count"] > 0
+
+
+class TestCorrelationEngineHardening:
+    """Broad-exception sites must log the underlying reason, not silently swallow."""
+
+    def test_failing_escalation_callback_is_logged(self, engine, caplog):
+        import logging
+
+        def failing_callback(chain):
+            raise RuntimeError("callback boom")
+
+        engine.on_chain_escalated(failing_callback)
+        chain = KillChainTimeline(
+            artifact_id="test-pkg",
+            chain_score=0.9,
+            severity=Severity.CRITICAL,
+            confidence=Confidence.HIGH,
+        )
+
+        with caplog.at_level(logging.ERROR, logger="picosentry.correlation"):
+            engine._notify_escalated(chain)
+
+        assert any("Escalation callback failed" in r.message for r in caplog.records)
+        assert any(
+            "callback boom" in r.message or (r.exc_info and "callback boom" in str(r.exc_info[1]))
+            for r in caplog.records
+        )
+
+    def test_persistence_probe_failure_is_logged(self, monkeypatch, caplog):
+        import logging
+        from picosentry.serve.services.correlation import engine as engine_mod
+
+        def _boom(*args, **kwargs):
+            raise RuntimeError("no such table")
+
+        monkeypatch.setattr(engine_mod.db, "execute", _boom)
+        CorrelationEngine.PERSIST_ENABLED = True  # ensure flip to False is exercised
+
+        with caplog.at_level(logging.DEBUG, logger="picosentry.correlation"):
+            result = CorrelationEngine.enable_persistence_if_supported()
+
+        assert result is False
+        assert CorrelationEngine.PERSIST_ENABLED is False
+        assert any("Correlation persistence not available" in r.message for r in caplog.records)
+        assert any(r.exc_info is not None for r in caplog.records)

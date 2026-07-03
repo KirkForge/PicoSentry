@@ -406,6 +406,13 @@
   `TypeError`, `AttributeError`). A misbehaving notary or sink still cannot
   crash the core audit log, but programmer errors such as `NameError` now
   propagate. Added regression tests in `tests/sandbox/test_audit_sinks.py`.
+- **P4 #10 exception audit (scheduler job execution slice).**
+  `JobScheduler._execute_job()` in `picosentry/serve/services/scheduler.py`
+  now catches only the `_JOB_EXECUTE_ERRORS` tuple (`OSError`, `RuntimeError`,
+  `ValueError`, `TypeError`, `ImportError`, `sqlite3.Error`,
+  `subprocess.SubprocessError`) instead of swallowing all exceptions. Expected
+  operational failures log and mark the job failed; unexpected programmer
+  errors propagate. Added regression tests in `tests/serve/test_scheduler.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -419,9 +426,10 @@
   loading paths, sandbox health/readiness probes, baseline hardening
   audit logging, the serve event bus subscriber dispatch, and the anomaly
   detector background loop, plugin host call boundaries, correlation
-  persistence, daemon scan job store load, and audit logger plugin boundaries
-  have been narrowed to specific exception types with regression tests.
-  **Remaining:** ~147 broad `except Exception` sites across the codebase are
+  persistence, daemon scan job store load, audit logger plugin boundaries,
+  and scheduler job execution have been narrowed to specific exception types
+  with regression tests.
+  **Remaining:** ~146 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

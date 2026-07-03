@@ -124,7 +124,7 @@ async def lifespan(app: FastAPI):
                     "event_count": sum(len(e) for e in chain.phases.values()),
                 },
             )
-        except Exception:
+        except (OSError, ValueError):
             logger.exception("Chain escalation alert failed")
 
     def _chain_escalated_webhook(chain):
@@ -138,7 +138,7 @@ async def lifespan(app: FastAPI):
                     "chain": chain.to_dict(),
                 },
             )
-        except Exception:
+        except (OSError, ValueError):
             logger.exception("Chain escalation webhook failed")
 
     correlation_engine.on_chain_escalated(_chain_escalated_alert)
@@ -322,7 +322,7 @@ try:
         _front = _base
     if _front.is_dir():
         app.mount("/static", StaticFiles(directory=str(_front)), name="static")
-except Exception:
+except (OSError, ImportError):
     logger.warning("Static files directory could not be mounted", exc_info=True)
 
 

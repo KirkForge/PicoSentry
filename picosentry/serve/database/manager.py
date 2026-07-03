@@ -10,6 +10,11 @@ from pathlib import Path
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.pools import SQLitePool, create_pool
 
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None  # type: ignore
+
 
 def _adapt_datetime(dt):
     return dt.isoformat()
@@ -626,8 +631,13 @@ class DatabaseManager:
                 cursor.execute("SELECT lastval()")
                 return cursor.fetchone()[0]
             except Exception:
-                logger.debug("lastval() not available for this table; returning 0")
-                return 0
+                # If psycopg2 is installed we can distinguish real DB errors from
+                # the expected "no lastval" case; if it is missing we are in a
+                # SQLite-only install and the only caller path is unreachable.
+                if psycopg2 is not None:
+                    logger.debug("lastval() not available for this table; returning 0")
+                    return 0
+                raise
 
     def _migrate_orgs_api_key_hash(self):
 
@@ -648,7 +658,7 @@ class DatabaseManager:
                 logger.info("Renamed orgs.api_key → orgs.api_key_hash")
             elif "api_key" in col_names and "api_key_hash" in col_names:
                 logger.warning("Both api_key and api_key_hash exist in orgs — skipping rename")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             logger.debug("orgs migration check skipped: %s", e)
 
     def _init_migrations(self):
@@ -672,7 +682,7 @@ class DatabaseManager:
                     if stmt:
                         try:
                             self.execute(stmt + ";")
-                        except Exception as e:
+                        except (OSError, ValueError) as e:
                             err_str = str(e).lower()
                             if "duplicate column" in err_str or "already exists" in err_str:
                                 logger.debug("Migration idempotent skip: %s", e)

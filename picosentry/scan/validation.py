@@ -126,6 +126,16 @@ class RuleMetrics:
             return 0.0
         return self.true_positives / denom
 
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "rule_id": self.rule_id,
+            "true_positives": self.true_positives,
+            "false_positives": self.false_positives,
+            "false_negatives": self.false_negatives,
+            "precision": round(self.precision, 4),
+            "recall": round(self.recall, 4),
+        }
+
 
 @dataclass(frozen=True)
 class ValidationReport:

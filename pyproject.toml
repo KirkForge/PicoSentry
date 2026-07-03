@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "picosentry"
-version = "2.0.17"
+version = "2.0.18"
 description = "Unified supply-chain security suite — scanner, sandbox, LLM defense, and orchestration"
 readme = "README.md"
 license = {text = "BUSL-1.1"}

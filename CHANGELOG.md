@@ -2,6 +2,21 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## [Unreleased]
+
+### Fix: scans/sandbox/websocket auth test isolation
+
+- `AuthService` now accepts an optional `db` parameter and resolves
+  operations through an internal `_db` property that defaults to the
+  global singleton. This is backward compatible for all existing callers.
+- `tests/serve/test_scans_workspace.py`, `tests/serve/test_sandbox_router.py`,
+  and `tests/serve/test_websocket_auth.py` now provision users through
+  per-test (or per-module) isolated SQLite databases, eliminating the
+  global `picoshogun.db` singleton contamination under `pytest-xdist` that
+  caused the `Auth failed: invalid password` flake in
+  `tests/serve/test_scans_workspace.py::test_viewer_is_rejected_with_403`
+  (`test-matrix (3.10)` runs `28676461763` and `28677912736`).
+
 ## [2.0.17] — 2026-06-28
 
 ### Fix: plugin worker fork bomb + leaked subprocess reaping

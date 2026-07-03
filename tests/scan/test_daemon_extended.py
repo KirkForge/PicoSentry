@@ -258,18 +258,21 @@ class TestRateLimiting(unittest.TestCase):
     """Test rate limiting per client IP."""
 
     def setUp(self):
+        _reset_handler_defaults()
         HealthHandler.auth_config = AuthConfig(mode="off")
 
+    @patch("picosentry.scan.auth.time.monotonic", return_value=1000.0)
     @patch("picosentry.scan.logging.clear_request_context")
-    def test_rate_limit_allows_within_burst(self, mock_clear):
+    def test_rate_limit_allows_within_burst(self, mock_clear, mock_time):
         HealthHandler.rate_limiter = RateLimiter(rps=5, burst=3)
         handler = _make_handler(path="/health")
         handler.do_GET()
         data = _read_json_body(handler)
         self.assertEqual(data["status"], "healthy")
 
+    @patch("picosentry.scan.auth.time.monotonic", return_value=1000.0)
     @patch("picosentry.scan.logging.clear_request_context")
-    def test_rate_limit_rejects_over_burst(self, mock_clear):
+    def test_rate_limit_rejects_over_burst(self, mock_clear, mock_time):
         HealthHandler.rate_limiter = RateLimiter(rps=5, burst=2)
         for _ in range(2):
             HealthHandler.rate_limiter.check("127.0.0.1")
@@ -277,8 +280,9 @@ class TestRateLimiting(unittest.TestCase):
         handler.do_GET()
         handler.send_response.assert_called_with(429)
 
+    @patch("picosentry.scan.auth.time.monotonic", return_value=1000.0)
     @patch("picosentry.scan.logging.clear_request_context")
-    def test_rate_limit_429_includes_retry_after(self, mock_clear):
+    def test_rate_limit_429_includes_retry_after(self, mock_clear, mock_time):
         HealthHandler.rate_limiter = RateLimiter(rps=5, burst=1)
         HealthHandler.rate_limiter.check("127.0.0.1")
         handler = _make_handler(path="/health")
@@ -287,8 +291,9 @@ class TestRateLimiting(unittest.TestCase):
         retry_calls = [c for c in header_calls if c[0][0] == "Retry-After"]
         self.assertTrue(len(retry_calls) > 0)
 
+    @patch("picosentry.scan.auth.time.monotonic", return_value=1000.0)
     @patch("picosentry.scan.logging.clear_request_context")
-    def test_rate_limit_429_body(self, mock_clear):
+    def test_rate_limit_429_body(self, mock_clear, mock_time):
         HealthHandler.rate_limiter = RateLimiter(rps=5, burst=1)
         HealthHandler.rate_limiter.check("127.0.0.1")
         handler = _make_handler(path="/health")
@@ -303,8 +308,9 @@ class TestRateLimiting(unittest.TestCase):
         result = handler._check_rate_limit("127.0.0.1", "req-1")
         self.assertTrue(result)
 
+    @patch("picosentry.scan.auth.time.monotonic", return_value=1000.0)
     @patch("picosentry.scan.logging.clear_request_context")
-    def test_do_get_returns_early_on_rate_limit(self, mock_clear):
+    def test_do_get_returns_early_on_rate_limit(self, mock_clear, mock_time):
         HealthHandler.rate_limiter = RateLimiter(rps=5, burst=1)
         HealthHandler.rate_limiter.check("127.0.0.1")
         handler = _make_handler(path="/health")

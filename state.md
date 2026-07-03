@@ -247,6 +247,10 @@
   agree that security-relevant exception narrowing is closed, ~186 broad
   safety-net sites remain, and the only repo-admin action is marking
   `postgres-live-test` as a required status check.
+- **Test doctor upgrade.** `scripts/test_doctor.py` gained `--fix` (ruff
+  auto-fix + format), `--ci` (CI-equivalent commands without pytest-xdist),
+  `--verbose`/`-v` (output snippets for passing checks), and `--report`
+  (JSON summary). Verified full local-parallel and CI-equivalent runs green.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.

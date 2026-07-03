@@ -260,10 +260,10 @@
   alert, daemon route-handler, serve middleware/server, watch, cluster +
   policy_versioned, serve services, plugin host/manager, correlation engine,
   serve/api middleware/server/rate_limit/DB manager, serve routers, backup
-  service). Reduced remaining site count to ~186.
+  service). Reduced remaining site count to ~154.
 - **state.md cleanup.** Reconciled the current session header, "Still open"
   list, Gap Audit #22, and the 2026-06-24 GPT-5 review roadmap so all sections
-  agree that security-relevant exception narrowing is closed, ~186 broad
+  agree that security-relevant exception narrowing is closed, ~154 broad
   safety-net sites remain, and the only repo-admin action is marking
   `postgres-live-test` as a required status check.
 - **Test doctor upgrade.** `scripts/test_doctor.py` gained `--fix` (ruff
@@ -350,6 +350,14 @@
   Plugin hook dispatch, health checks, and shutdown remain broad safety nets
   so a single misbehaving plugin cannot crash the manager. Added regression
   tests in `tests/serve/services/test_plugin_manager.py`.
+- **P4 #10 exception audit (sandbox health slice).** `picosentry/sandbox/health.py`
+  now narrows each health/readiness probe catch to
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError)`. Operational
+  failures are logged and reported as `healthy=False`; unexpected programmer
+  errors propagate. Added regression tests in `tests/sandbox/test_health.py`.
+- **CHANGELOG.md / state.md forward-facing updates.** Recorded the plugin
+  manager and sandbox health exception-narrowing slices and refreshed the
+  remaining broad `except Exception` count.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -359,10 +367,10 @@
   route-handler, serve middleware/server, watch, cluster + policy_versioned,
   serve services, plugin host/manager, correlation engine, serve/api
   middleware/server/rate_limit/DB manager, serve routers, backup service,
-  serve log/alert services, serve execution/observability, and plugin manager
-  loading paths have been narrowed to specific exception types with regression
-  tests.
-  **Remaining:** ~159 broad `except Exception` sites across the codebase are
+  serve log/alert services, serve execution/observability, plugin manager
+  loading paths, and sandbox health/readiness probes have been narrowed to
+  specific exception types with regression tests.
+  **Remaining:** ~154 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad
@@ -392,7 +400,7 @@
 1. **Repo admin:** mark `postgres-live-test` as a required status check for
    `main` (and optionally `dev`) in GitHub branch protection.
 2. **Continue opportunistic P4 #10 narrowing** on `no-ci/*` branches for the
-   remaining ~186 broad `except Exception` sites, prioritizing request-boundary,
+   remaining ~154 broad `except Exception` sites, prioritizing request-boundary,
    persistence, and plugin/daemon paths.
 3. **Refresh `CHANGELOG.md`** on each user-visible slice so release notes stay
    accurate.
@@ -577,7 +585,7 @@ can work through them one by one.
 | # | Gap | Concrete goal | Type | Verdict |
 |---|-----|---------------|------|---------|
 | 1 | **Plugin capability restrictions / sandboxing** | Plugins must not run as in-process Python with host privileges. Add a capability model + optional subprocess sandbox (no network/files/env unless declared). | Code + tests | **CLOSED** — plugin manager routes all dispatch through `PluginHost` subprocess; deny-by-default capability model in `docs/PLUGIN_DEVELOPMENT.md`. |
-| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | **CLOSED for security-relevant slices** — auth, webhook/alert, daemon route-handler, serve middleware/server, watch, cluster + policy_versioned, serve services, plugin host/manager, correlation engine, serve/api middleware/server/rate_limit/DB manager, serve routers, backup service narrowed with tests. ~186 intentional/lower-risk safety-net sites remain. |
+| 2 | **Broader fail-open / silent-fallback audit** | Audit all `except Exception:` sites and security-relevant defaults in `serve`, `daemon`, `cluster`, `sandbox`, `watch` for fail-open behavior. Convert swallow sites to specific exceptions or structured logging. | Code + tests | **CLOSED for security-relevant slices** — auth, webhook/alert, daemon route-handler, serve middleware/server, watch, cluster + policy_versioned, serve services, plugin host/manager, correlation engine, serve/api middleware/server/rate_limit/DB manager, serve routers, backup service narrowed with tests. ~154 intentional/lower-risk safety-net sites remain. |
 | 3 | **SBOM + dependency vulnerability scanning** | Add `picosentry scan --sbom` or a self-scan command that generates CycloneDX/SPDX SBOM and checks dependencies against OSV/pysec. | Code + CLI | **CLOSED** — release CI generates CycloneDX SBOM; `scripts/verify_release.py` parses it in post-release verification. |
 | 4 | **Detection quality / adversarial mutation testing** | Add mutation harness that takes malicious fixtures and creates variants (base64, unicode escapes, string concat, dynamic import, compression) and measures recall degradation. | Tests + data | **CLOSED** — `adversarial_mutations.py` + `mutation_benchmark.py` + `tests/scan/test_mutation_benchmark.py` assert recall ≥85% and precision ≥95% under mutation. |
 | 5 | **Operational hardening tests** | Add auth-bypass tests, rate-limit bypass tests, API contract tests, multi-tenant isolation tests for `serve` endpoints. | Tests | **CLOSED** — role escalation, permission-level enforcement, malformed tokens, query-param auth bypass, pathological-input fuzz, rate-limit bypass, tenant A↔B negative tests merged. |
@@ -1695,12 +1703,14 @@ branch-protection check (repo-admin action, not code). Code side done.
 Per state.md session log: auth.py, webhook/alert, daemon route-handler,
 serve middleware/server, watch, cluster + policy_versioned, serve
 services, plugin host/manager, correlation engine, serve/api
-middleware/server/rate_limit/DB manager, serve routers, and backup
-service slices all narrowed to specific exception types + logged.
-Only intentional boundaries remain (`plugin_worker.py` RPC loop,
-`database/pools.py` deliberate rollback+re-raise). **Live count:** ~186
-broad `except Exception` sites remain as safety nets or lower-risk
-boundaries; opportunistic narrowing continues.
+middleware/server/rate_limit/DB manager, serve routers, backup service,
+serve log/alert services, serve execution/observability, plugin manager
+loading paths, and sandbox health/readiness slices all narrowed to
+specific exception types + logged. Only intentional boundaries remain
+(`plugin_worker.py` RPC loop, `database/pools.py` deliberate
+rollback+re-raise). **Live count:** ~154 broad `except Exception` sites
+remain as safety nets or lower-risk boundaries; opportunistic narrowing
+continues.
 
 ### 23. P4 #14 SLOs — FIXED
 `deploy/monitoring/picodome-alerts.yaml` PrometheusRule alerts define P95

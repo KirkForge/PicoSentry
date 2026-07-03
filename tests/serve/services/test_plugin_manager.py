@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import sys
+import types
 from pathlib import Path
 from typing import Any
 
@@ -26,10 +28,40 @@ def _write_manifest(plugin_dir: Path, name: str = "boom_plugin", **extra: Any) -
     return plugin_dir
 
 
+@pytest.fixture
+def fake_nacl(monkeypatch):
+    """Inject a minimal fake nacl so signature tests run whether or not pynacl is installed."""
+    nacl = types.ModuleType("nacl")
+    nacl.__path__ = []  # type: ignore[assignment]
+
+    nacl_exceptions = types.ModuleType("nacl.exceptions")
+    nacl_exceptions.BadSignatureError = RuntimeError
+
+    nacl_signing = types.ModuleType("nacl.signing")
+
+    class _FakeVerifyKey:
+        def __init__(self, key_bytes: bytes):
+            self._key = key_bytes
+
+        def verify(self, message: bytes, signature: bytes) -> None:
+            return None
+
+    nacl_signing.VerifyKey = _FakeVerifyKey
+
+    for name, mod in [
+        ("nacl", nacl),
+        ("nacl.exceptions", nacl_exceptions),
+        ("nacl.signing", nacl_signing),
+    ]:
+        monkeypatch.setitem(sys.modules, name, mod)
+
+    monkeypatch.setattr("picosentry.serve.services.plugin_manager.HAS_NACL", True)
+
+
 class TestPluginManagerExceptionNarrowing:
     """Unexpected programmer errors in plugin loading must propagate."""
 
-    def test_signature_verify_unexpected_error_propagates(self, monkeypatch):
+    def test_signature_verify_unexpected_error_propagates(self, monkeypatch, fake_nacl):
         """A NameError inside signature verification must not be swallowed."""
 
         def _boom(*args, **kwargs):

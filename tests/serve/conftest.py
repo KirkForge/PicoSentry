@@ -32,8 +32,10 @@ _worker = os.environ.get("PYTEST_XDIST_WORKER", "master")
 os.environ["PICOSHOGUN_DATABASE_PATH"] = str(Path(tempfile.gettempdir()) / f"picoshogun-test-{_worker}.db")
 # WAL mode on CI runners can produce disk I/O errors under pytest-xdist
 # contention.  Use a classic rollback journal for the test DB; concurrency is
-# serialized per worker anyway.
+# serialized per worker anyway.  Synchronous=OFF keeps the test DB fast and
+# avoids spurious I/O errors on over-contended CI temp storage.
 os.environ["PICOSHOGUN_DATABASE_JOURNAL_MODE"] = "DELETE"
+os.environ["PICOSHOGUN_DATABASE_SYNCHRONOUS"] = "OFF"
 
 
 def _find_and_clear_rate_limiter(app):

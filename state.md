@@ -399,6 +399,13 @@
   loading the on-disk job store. Expected failures log a warning and start with
   an empty in-memory store; unexpected programmer errors propagate. Added
   regression tests in `tests/sandbox/test_daemon_store.py`.
+- **P4 #10 exception audit (audit logger plugin boundary slice).**
+  `picosentry/sandbox/audit/logger.py` now narrows broad `except Exception`
+  around notary submission, sink send, sink start, and sink stop to the
+  `_AUDIT_PLUGIN_ERRORS` tuple (`OSError`, `RuntimeError`, `ValueError`,
+  `TypeError`, `AttributeError`). A misbehaving notary or sink still cannot
+  crash the core audit log, but programmer errors such as `NameError` now
+  propagate. Added regression tests in `tests/sandbox/test_audit_sinks.py`.
 
 ### Still open (from `picosentry-gaps-plan.md`)
 - **P1:** all public-beta blockers closed.
@@ -412,9 +419,9 @@
   loading paths, sandbox health/readiness probes, baseline hardening
   audit logging, the serve event bus subscriber dispatch, and the anomaly
   detector background loop, plugin host call boundaries, correlation
-  persistence, and daemon scan job store load have been narrowed to specific
-  exception types with regression tests.
-  **Remaining:** ~148 broad `except Exception` sites across the codebase are
+  persistence, daemon scan job store load, and audit logger plugin boundaries
+  have been narrowed to specific exception types with regression tests.
+  **Remaining:** ~147 broad `except Exception` sites across the codebase are
   intentional safety nets or lower-risk boundaries; opportunistic narrowing
   continues on `no-ci/*` feature branches.
 - **P4 #10 exception audit (orchestrator execution slice).** Narrowed broad

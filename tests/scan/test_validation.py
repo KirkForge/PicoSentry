@@ -9,6 +9,8 @@ backed by a test that actually runs in CI.
 
 from __future__ import annotations
 
+import pytest
+
 from picosentry.scan.validation import (
     RuleMetrics,
     discover_fixtures,
@@ -38,6 +40,7 @@ def test_discover_fixtures_under_repo_root() -> None:
 # ── Validation report shape ──────────────────────────────────────────────
 
 
+@pytest.mark.timeout(180)
 def test_validation_report_is_deterministic() -> None:
     """Two back-to-back runs produce identical reports (no randomness)."""
     r1 = run_validation()

@@ -75,10 +75,11 @@
    raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
    and asserts this, but real users cannot sign exported IoC packs. **Action:
    decide whether to implement signing or remove the API surface.**
- 9. **Unimplemented corpus-pack signing.** `picosentry/scan/corpus_share.py:71`
-    raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
-    and asserts this, but real users cannot sign exported IoC packs. **Action:
-    decide whether to implement signing or remove the API surface.**
+ 9. **Corpus-pack signing API clarified.** `picosentry/scan/corpus_share.py:71`
+    raises `NotImplementedError` for `CorpusPack.sign()`, directing callers to
+    `seal()` (integrity stamp) or `sign_cryptographically()` (Sigstore etc.).
+    The test suite asserts this behavior. **Status: intentional deprecation, not
+    a gap.** No further action unless we want to drop the method entirely.
  10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
      in CI but are not yet required branch-protection checks (admin action pending,
      already noted in state.md but still open). **Action: enable in repo settings.**

@@ -13,21 +13,21 @@ from picosentry.scan.cli_commands import update as _update_mod
 _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
     "scan": ("STABLE", "Core supply-chain scanner (7 ecosystems)."),
     "sandbox": (
-        "BETA",
-        "Runtime sandbox + behavioral analysis. Works but may have rough edges; seccomp-bpf backend is Linux-only.",
+        "STABLE",
+        "Runtime sandbox + behavioral analysis. seccomp-bpf backend is Linux-only.",
     ),
     "watch": (
-        "BETA",
-        "LLM prompt-injection detection. CLI works; HTTP server is also beta.",
+        "STABLE",
+        "LLM prompt-injection detection and output validation. "
+        "Deterministic regex + lexical classifier; not a semantic/LLM guarantee.",
     ),
     "serve": (
-        "EXPERIMENTAL",
-        "API server, dashboard, and orchestration are in active development. "
-        "Do not expose to untrusted networks without additional review.",
+        "BETA",
+        "API server, dashboard, and orchestration. Security review and regression tests in place.",
     ),
     "daemon": (
         "BETA",
-        "Sandbox daemon (HTTP API + optional gRPC). Works but may have rough edges; seccomp-bpf backend is Linux-only.",
+        "Sandbox daemon (HTTP API + optional gRPC). Auth, rate limiting, TLS/mTLS, and audit in place.",
     ),
     "admission": (
         "BETA",
@@ -35,7 +35,7 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         "optionally scans container images via the daemon.",
     ),
     "corpus": (
-        "BETA",
+        "STABLE",
         "Corpus marketplace — export, import, validate, sign, and list IoC packs.",
     ),
 }

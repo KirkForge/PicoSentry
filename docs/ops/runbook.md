@@ -22,6 +22,74 @@ Run with the local venv Python if your system Python is missing dependencies:
 .venv/bin/python scripts/test_doctor.py --workers 4
 ```
 
+## Database backend
+
+`picosentry serve` can use SQLite (default, single-node) or PostgreSQL
+(production). The backend is selected at startup with environment variables:
+
+```bash
+# SQLite (default)
+export PICOSHOGUN_DATABASE_BACKEND=sqlite
+export PICOSHOGUN_DATABASE_PATH=/var/lib/picoshogun/picoshogun.db
+
+# PostgreSQL
+export PICOSHOGUN_DATABASE_BACKEND=postgres
+export PICOSHOGUN_DATABASE_URL=postgresql://user:pass@host:5432/picoshogun
+```
+
+### Switching from SQLite to Postgres
+
+1. Start a Postgres 15+ instance and create the database.
+2. Set `PICOSHOGUN_DATABASE_BACKEND=postgres` and `PICOSHOGUN_DATABASE_URL`.
+3. Start `picosentry serve`. Migrations run automatically via
+   `picosentry.serve.database.manager`.
+4. Validate the schema:
+   ```bash
+   psql $PICOSHOGUN_DATABASE_URL -c "\dt"
+   ```
+
+### Backup
+
+- **SQLite** (single-node default): create a backup via the admin API
+  (requires an admin token) or use the Python helper directly while the
+  service is stopped:
+  ```bash
+  # via API
+  curl -s -X POST "https://picoshogun.example.com/backup" \
+    -H "Authorization: Bearer $ADMIN_TOKEN" \
+    -H "Content-Type: application/json"
+
+  # via Python helper, service stopped
+  python3 -c "
+from pathlib import Path
+from shutil import copy2
+copy2('/var/lib/picoshogun/picoshogun.db',
+      '/backups/picoshogun-$(date +%F).db')
+"
+  ```
+- **PostgreSQL** (production): use standard Postgres tooling:
+  ```bash
+  pg_dump $PICOSHOGUN_DATABASE_URL > /backups/picoshogun-$(date +%F).sql
+  ```
+
+### Restore
+
+- **SQLite**: stop the server, replace the database file, then restart.
+  If a `.tar.gz` backup was created by the admin API, extract it first and
+  copy `database.sqlite3` into place.
+- **PostgreSQL**: restore the dump into a fresh Postgres database and point
+  `PICOSHOGUN_DATABASE_URL` at it.
+
+### Upgrade
+
+Application migrations run automatically on startup. For major version
+upgrades, back up first, then restart the service and verify with:
+
+```bash
+picosentry health
+python scripts/test_doctor.py --areas pytest-serve
+```
+
 ## Stale corpus
 
 ### Detect

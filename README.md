@@ -2,13 +2,13 @@
 
 ![PicoSentry Banner](docs/banner.png)
 
-**Local supply-chain scanner with offline, deterministic detection across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet. Kernel-sandbox enforcement is included as a beta capability for runtime containment.**
+**Local supply-chain scanner with offline, deterministic detection across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet. Kernel-sandbox enforcement and prompt/output guards are included as stable capabilities.**
 
 > PicoSentry scans a candidate package for malicious-behavior patterns — obfuscation,
 > typosquatting, dependency confusion, post-install exfiltration, known IOCs, and CVEs —
 > using a fully offline rule catalog. A kernel-sandbox (`seccomp-bpf` + `landlock`) is
-> available to enforce syscalls at install time; full per-syscall tracing from the kernel
-> is tracked as future work.
+> available to enforce syscalls at install time. Full per-syscall tracing from the kernel
+> is opt-in and records syscall numbers but not yet path/address arguments.
 
 [![PyPI](https://img.shields.io/pypi/v/picosentry)](https://pypi.org/project/picosentry/)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13-blue)](https://pypi.org/project/picosentry/)
@@ -23,15 +23,15 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Component | Status | Notes |
 |-----------|--------|-------|
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
-| `picosentry sandbox` | **Beta** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis |
-| `picosentry watch` | **Beta** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
-| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant — security review + regression tests in place |
+| `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
+| `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
-| `picosentry corpus` | **Beta** | Export/import/validate/list/sign IoC packs; 3 built-in packs |
-| Cross-layer correlation | **Beta** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested |
-| Plugin system | **Beta** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
-| Postgres backend | **Beta** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers |
+| `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
+| Cross-layer correlation | **Stable** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested in CI |
+| Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
+| Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
@@ -60,12 +60,9 @@ security review — don't expose it to untrusted networks.
   and supports optional mTLS; a 3-node integration test exercises leader election,
   token enforcement, and scan redistribution. It has not been battle-tested in a
   real multi-host deployment.
-- **Postgres backend is Beta.** It includes a live integration test for
-  connection pooling, runtime placeholder translation, and DDL
-  auto-translation, but it has not been battle-tested at scale.
-- **Admission controller is live-tested against kind.** The real-cluster matrix
-  in `.github/workflows/admission-kind.yml` exercises pod admission decisions
-  across K8s v1.28–v1.30.
+- **Admission controller is beta.** It is live-tested against kind; the
+  real-cluster matrix in `.github/workflows/admission-kind.yml` exercises pod
+  admission decisions across K8s v1.28–v1.30.
 - **Has published detection-benchmark data** in
   [`docs/BENCHMARKS.md`](docs/BENCHMARKS.md). The v2.0.15 corpus is 188
   fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids
@@ -154,8 +151,8 @@ supported ecosystems).
 | Deterministic output (bit-identical runs) | yes | no | no | no | no |
 | Malicious-behavior detection (not just CVEs) | yes | no | no | partial | partial |
 | Multi-ecosystem (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet) | yes | partial | yes | yes | partial |
-| Runtime sandbox enforcement (kernel-level) | beta | no | no | no | no |
-| Runtime syscall observation from kernel | no | no | no | no | no |
+| Runtime sandbox enforcement (kernel-level) | yes | no | no | no | no |
+| Runtime syscall observation from kernel | partial (no path/address args) | no | no | no | no |
 | Source-available license | yes (BUSL-1.1) | yes (Apache-2.0) | yes (Apache-2.0) | yes (Apache-2.0) | no |
 
 Where PicoSentry is weaker: pip-audit and osv-scanner have wider and more frequently
@@ -353,8 +350,8 @@ discovery worked without checking the logs.
 picosentry/
     _core/          shared primitives
     scan/           supply-chain scanner (CLI: `picosentry scan`)
-    sandbox/        runtime kernel-sandbox (CLI: `picosentry sandbox`, beta)
-    watch/          LLM prompt/output guard (CLI: `picosentry watch`, beta)
+    sandbox/        runtime kernel-sandbox (CLI: `picosentry sandbox`, stable)
+    watch/          LLM prompt/output guard (CLI: `picosentry watch`, stable)
     serve/          API server + dashboard (CLI: `picosentry serve`, beta)
     experimental.py feature-maturity tracking
 examples/

@@ -2,10 +2,10 @@
 
 ---
 
-## Current session: 2026-07-04 — GitNexus index unblocked + full post-cleanup review
+## Current session: 2026-07-04 — GitNexus index restored + CI green + gap closure
 
 ### Done this session (on `main`)
-- **GitNexus analyzer diagnosed as broken.** `gitnexus analyze` and `npx gitnexus analyze` (GitNexus v1.6.8, Node v22.23.1, linux-x64) hang indefinitely on PicoSentry; `gitnexus analyze --skip-git <subdir>` aborts with a native `Napi::Error` in `lbugjs.node`. A full global reinstall (`npm uninstall -g gitnexus && npm install -g gitnexus@latest`), npm cache clean, and deleting `.gitnexus/` did not fix it. The same installation indexes smaller repos (e.g., KirkForge) successfully in ~9 s. Updated `AGENTS.md` to record the outage and instruct agents to fall back to `grep`/`read` and skip GitNexus `impact`/`detect_changes` requirements until the index is healthy again.
+- **GitNexus index restored.** Host-installed `gitnexus` (GitNexus 1.6.8/1.6.9, Node v22.23.1) repeatedly failed on PicoSentry with native `lbugjs.node` SQLite contention (`Resource temporarily unavailable`) and worker crashes. The root cause was a host native-binding mismatch. Rebuilt the index successfully inside a clean `node:22.12.0` Docker container with `libssl3` installed; index built in ~160 s and contains **14,266 nodes, 30,048 edges, 618 clusters, 300 flows**. Updated `AGENTS.md` with the working Docker fallback command and restored the GitNexus workflow instructions.
 - **Branch hygiene completed.** `dev` fast-forwarded to `main` and pushed. All 49 merged local branches and all 49 stale remote branches deleted; only `main` and `dev` remain locally and on `origin`.
 - **Full review performed with direct tooling.**
   - `ruff check picosentry/ tests/ scripts/` passes.
@@ -18,9 +18,10 @@
   - Isolated the SQLite audit DB in `tests/watch/test_server_integration.py` by injecting a `TelemetrySink` backed by a per-test temporary DB, fixing `sqlite3.OperationalError: database is locked` under xdist.
 - **Branch protection enabled on GitHub.** `main` and `dev` now require `postgres-live-test (15)`, `postgres-live-test (16)`, and `PicoDome Admission Real-Cluster Matrix` status checks.
 - **Cross-repo secret hygiene applied.** Added `.pre-commit-config.yaml` with TruffleHog secret scanning to `KirkForge-Plugin2`, `KirkForge-Plugin3`, `KirkForge-Cli` (on `dev`), and `KirkForge-Draw`. Verified all four Rust repos already exclude `target/` / `/target` in `.gitignore`.
+- **PicoSentry CI is green on latest `main`.** Both `PicoSentry CI` and `PicoDome Admission Real-Cluster Matrix` workflows passed after the watch audit-DB fix.
 
 ### Open gaps / missing work identified (PicoSentry)
-1. **GitNexus index restoration.** GitNexus native worker crashes/hangs on this repository. Continue monitoring GitNexus releases or try a different Node version. Until fixed, use direct code exploration.
+_None remaining from this review cycle._
 
 ---
 

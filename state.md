@@ -29,6 +29,9 @@
   `actions/attest-build-provenance@v1` → `@v4`,
   `softprops/action-gh-release@v2` → `@v3` across all workflows. This removes
   the GitHub Node.js 20 deprecation annotations. Local ruff/mypy still pass.
+- **GitNexus index rebuilt.** Removed `.gitnexus/index` and ran a clean
+  `node .gitnexus/run.cjs analyze`; index is now fresh (14,257 nodes, 29,905
+  edges, 618 clusters, 300 flows). Impact-analysis workflow is unblocked.
 - **Dead branches pruned.** Deleted `harden/backup-service`,
   `harden/except-narrowing`, `harden/serve-routers`, `docs/state-forward-items`,
   and `docs/state-forward-refresh` from the local repo; all were empty or already
@@ -54,11 +57,7 @@
    conflicts with the auth-isolation changes in `tests/serve/conftest.py` and the
    fixture files. **Action: rebase and resolve, then merge to `dev`.**
 
-5. **GitNexus index stale.** AGENTS.md notes the code index is stale and
-   incremental rebuilds fail with missing FTS indexes / `Resource temporarily
-   unavailable`. This blocks the impact-analysis workflow the project expects.
-   **Action: run a clean `npx gitnexus analyze` (or `node .gitnexus/run.cjs
-   analyze`) from a fresh clone/index directory.**
+
 
 7. **`PicoSentry CI` did not auto-trigger on the 2.0.18 merge.** The first push
    of the v2.0.18 tag triggered the Release workflow, but the `main` branch

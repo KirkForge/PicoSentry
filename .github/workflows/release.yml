@@ -23,9 +23,9 @@ jobs:
   release:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.12'
 
@@ -50,7 +50,7 @@ jobs:
         run: cd dist && sha256sum * > "picosentry-${GITHUB_REF_NAME#v}.SHA256SUMS"
 
       - name: SLSA build-provenance attestation
-        uses: actions/attest-build-provenance@v1
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: 'dist/picosentry-*.whl,dist/picosentry-*.tar.gz'
 
@@ -60,7 +60,7 @@ jobs:
           inputs: dist/picosentry-*.whl dist/picosentry-*.tar.gz
 
       - name: Create GitHub Release with all evidence
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             dist/picosentry-*.whl
@@ -83,7 +83,7 @@ jobs:
       contents: read
       id-token: write   # docker/login-action with OIDC if registry supports it
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3

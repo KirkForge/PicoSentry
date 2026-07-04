@@ -24,6 +24,11 @@
   secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`), builds and pushes the multi-arch
   image on `v*` tags via `docker buildx bake`, and verifies the image with
   `--version` and `health`. This closes the manual-push gap.
+- **CI action versions bumped.** `actions/checkout@v4` → `actions/checkout@v7`,
+  `actions/setup-python@v5` → `actions/setup-python@v6`,
+  `actions/attest-build-provenance@v1` → `@v4`,
+  `softprops/action-gh-release@v2` → `@v3` across all workflows. This removes
+  the GitHub Node.js 20 deprecation annotations. Local ruff/mypy still pass.
 - **Dead branches pruned.** Deleted `harden/backup-service`,
   `harden/except-narrowing`, `harden/serve-routers`, `docs/state-forward-items`,
   and `docs/state-forward-refresh` from the local repo; all were empty or already
@@ -54,12 +59,7 @@
    unavailable`. This blocks the impact-analysis workflow the project expects.
    **Action: run a clean `npx gitnexus analyze` (or `node .gitnexus/run.cjs
    analyze`) from a fresh clone/index directory.**
-6. **CI Node.js 20 deprecation warnings.** The `PicoSentry CI`, `Release`, and
-   `verify-release` workflows use `actions/checkout@v4`, `actions/setup-python@v5`,
-   `sigstore/cosign-installer@v3`, and GitHub attestation actions that target
-   Node.js 20. GitHub is forcing them onto Node.js 24 and emitting annotations.
-   Non-blocking today, but will become blocking. **Action: bump actions to their
-   Node.js 24-compatible versions and re-run CI.**
+
 7. **`PicoSentry CI` did not auto-trigger on the 2.0.18 merge.** The first push
    of the v2.0.18 tag triggered the Release workflow, but the `main` branch
    `PicoSentry CI` run did not appear until an additional `workflow_dispatch`

@@ -6,11 +6,15 @@ rate limiting, auth, and request ID propagation.
 
 from __future__ import annotations
 
+import tempfile
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.server import create_admin_app, create_app
+from picosentry.watch.telemetry.sink import TelemetryConfig, TelemetrySink
 
 # ─── Fixtures ────────────────────────────────────────────────────────────
 
@@ -40,21 +44,32 @@ def open_config() -> PicoWatchConfig:
 
 
 @pytest.fixture
-def api_client(app_config: PicoWatchConfig) -> TestClient:
+def _temp_audit_sink() -> TelemetrySink:
+    """TelemetrySink backed by an isolated temporary SQLite database.
+
+    Prevents xdist worker collisions on the default picowatch_audit.db file.
+    """
+    with tempfile.TemporaryDirectory() as tmp:
+        sink = TelemetrySink(config=TelemetryConfig(audit_db_path=Path(tmp) / "audit.db"))
+        yield sink
+
+
+@pytest.fixture
+def api_client(app_config: PicoWatchConfig, _temp_audit_sink: TelemetrySink) -> TestClient:
     """TestClient for the main API app."""
-    return TestClient(create_app(app_config))
+    return TestClient(create_app(app_config, sink=_temp_audit_sink))
 
 
 @pytest.fixture
-def admin_client(app_config: PicoWatchConfig) -> TestClient:
+def admin_client(app_config: PicoWatchConfig, _temp_audit_sink: TelemetrySink) -> TestClient:
     """TestClient for the admin app."""
-    return TestClient(create_admin_app(app_config))
+    return TestClient(create_admin_app(app_config, sink=_temp_audit_sink))
 
 
 @pytest.fixture
-def open_client(open_config: PicoWatchConfig) -> TestClient:
+def open_client(open_config: PicoWatchConfig, _temp_audit_sink: TelemetrySink) -> TestClient:
     """TestClient with no auth."""
-    return TestClient(create_app(open_config))
+    return TestClient(create_app(open_config, sink=_temp_audit_sink))
 
 
 # ─── Full request flow tests ────────────────────────────────────────────

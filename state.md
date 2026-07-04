@@ -19,6 +19,11 @@
   `tracked_in="DEEP_REVIEW.md"` references to a non-existent file. Added a living
   catalog of the documented L2 detector limitations (false-positive tendencies,
   edge cases, blind spots) and cross-links to `BENCHMARKS.md` and `THREAT_MODEL.md`.
+- **Release workflow now publishes Docker images.** Added a `docker` job to
+  `.github/workflows/release.yml` that logs into Docker Hub (using repository
+  secrets `DOCKERHUB_USERNAME` / `DOCKERHUB_TOKEN`), builds and pushes the multi-arch
+  image on `v*` tags via `docker buildx bake`, and verifies the image with
+  `--version` and `health`. This closes the manual-push gap.
 - **Dead branches pruned.** Deleted `harden/backup-service`,
   `harden/except-narrowing`, `harden/serve-routers`, `docs/state-forward-items`,
   and `docs/state-forward-refresh` from the local repo; all were empty or already
@@ -77,11 +82,6 @@
  10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
      in CI but are not yet required branch-protection checks (admin action pending,
      already noted in state.md but still open). **Action: enable in repo settings.**
- 11. **Release workflow does not publish Docker images.** The `Release` workflow
-     builds wheels/sdist/SBOM/SLSA/Sigstore, but the Docker image is still pushed
-     manually via `docker buildx bake --push`. **Action: add a release job that
-     runs `docker buildx bake --push` (or `scripts/build_docker_multiarch.sh --push`)
-     so the image is attested and published automatically on `v*` tags.**
  12. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
      artifacts can embed secrets from the build environment. **Action: add
      `target/` to `.gitignore` audit checks across all Rust repos and consider a

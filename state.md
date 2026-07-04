@@ -44,20 +44,17 @@
   token for rotation/revocation in Atlassian.
 
 ### Open gaps / missing work identified (PicoSentry)
- 1. **`PicoSentry CI` auto-trigger monitoring.** The 2.0.18 merge initially did not
-    spawn a `main` branch `PicoSentry CI` run until an extra commit was pushed.
-    This may have been GitHub deduplicating because the `v2.0.18` tag pointed to
-    the same commit, or a transient webhook delay. **Action: monitor the next
-    merge; if it recurs, remove `paths-ignore` or add `workflow_dispatch`
-    permanently.**
- 2. **Branch-protection checks.** `postgres-live-test` and `admission-kind` jobs
-    run in CI but are not yet required branch-protection checks. **Action:
-    enable in repo settings (admin-only).**
- 3. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
-    artifacts can embed secrets from the build environment. **Action: add
-    `target/` to `.gitignore` audit checks across all Rust repos and consider a
-    pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
-    KirkForge repositories.**
+ 1. **Branch-protection checks.** `postgres-live-test` and `admission-kind` jobs
+    run in CI but are not yet required branch-protection checks. Exact required
+    checks to enable: `postgres-live-test (15)`, `postgres-live-test (16)`, and
+    `PicoDome Admission Real-Cluster Matrix`. **Action: enable in repo settings
+    (admin-only).**
+ 2. **Cross-project secret hygiene (PicoSentry portion done).** The Plugin2
+    incident showed compiled build artifacts can embed secrets. Added
+    `.pre-commit-config.yaml` to PicoSentry with `ruff` + `trufflehog` secret
+    scanning, and documented manual hook usage in `CONTRIBUTING.md`.
+    **Remaining:** apply the same pre-commit / `.gitignore` audit pattern to the
+    other KirkForge Rust repositories (Plugin2, etc.).
 
 
 

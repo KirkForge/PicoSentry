@@ -27,12 +27,15 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ),
     ComponentStatus(
         name="`picosentry sandbox`",
-        status="Beta",
-        notes="seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis",
+        status="Stable",
+        notes=(
+            "seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; "
+            "seccomp-trace is opt-in and argument-limited"
+        ),
     ),
     ComponentStatus(
         name="`picosentry watch`",
-        status="Beta",
+        status="Stable",
         notes=(
             "Deterministic regex + lexical classifier pre-filter for prompt injection (L5) "
             "and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server"
@@ -41,7 +44,9 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry serve`",
         status="Beta",
-        notes="API server, dashboard, RBAC, multi-tenant — security review + regression tests in place",
+        notes=(
+            "API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place"
+        ),
     ),
     ComponentStatus(
         name="`picosentry daemon`",
@@ -58,20 +63,20 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ),
     ComponentStatus(
         name="`picosentry corpus`",
-        status="Beta",
-        notes="Export/import/validate/list/sign IoC packs; 3 built-in packs",
+        status="Stable",
+        notes="Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures",
     ),
     ComponentStatus(
         name="Cross-layer correlation",
-        status="Beta",
+        status="Stable",
         notes=(
             "Links findings across scan + sandbox + watch layers; "
-            "persistence, dedup, and per-minute backpressure tested"
+            "persistence, dedup, and per-minute backpressure tested in CI"
         ),
     ),
     ComponentStatus(
         name="Plugin system",
-        status="Beta",
+        status="Stable",
         notes=(
             "Loads, validates, dispatches; Ed25519 signature verify against a "
             "configured trusted-key allowlist; unsigned plugins load only when "
@@ -80,8 +85,10 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ),
     ComponentStatus(
         name="Postgres backend",
-        status="Beta",
-        notes="psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers",
+        status="Stable",
+        notes=(
+            "psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI"
+        ),
     ),
     ComponentStatus(
         name="Cluster mode",

@@ -181,29 +181,37 @@ class TestMaturityWarnings:
         _ = capsys.readouterr()
         # Capture via direct call: STABLE returns early, nothing printed.
         # Re-verify by calling the BETA path and confirming it DOES print.
-        _emit_maturity_warning("sandbox")
+        _emit_maturity_warning("serve")
         captured = capsys.readouterr()
         assert "BETA" in captured.err
         assert "PICOSENTRY_MATURITY_ACK" in captured.err
 
     def test_maturity_warning_beta_commands(self, capsys):
-        """sandbox and watch print BETA warnings."""
+        """serve and daemon print BETA warnings."""
         from picosentry.cli import _emit_maturity_warning
 
-        for cmd in ("sandbox", "watch"):
+        for cmd in ("serve", "daemon"):
             _emit_maturity_warning(cmd)
             captured = capsys.readouterr()
             assert "BETA" in captured.err, f"{cmd} should print BETA warning"
             assert cmd in captured.err
 
-    def test_maturity_warning_experimental_serve(self, capsys):
-        """serve prints EXPERIMENTAL warning."""
-        from picosentry.cli import _emit_maturity_warning
+    def test_maturity_warning_experimental_path(self, capsys, monkeypatch):
+        """The EXPERIMENTAL warning path still prints for experimental commands."""
+        from picosentry.cli import _COMMAND_MATURITY, _emit_maturity_warning
 
-        _emit_maturity_warning("serve")
+        monkeypatch.setitem(
+            _COMMAND_MATURITY,
+            "future-cmd",
+            (
+                "EXPERIMENTAL",
+                "Future command for testing the experimental warning path.",
+            ),
+        )
+        _emit_maturity_warning("future-cmd")
         captured = capsys.readouterr()
         assert "EXPERIMENTAL" in captured.err
-        assert "serve" in captured.err
+        assert "future-cmd" in captured.err
 
     def test_maturity_warning_ack_env_suppresses(self, capsys, monkeypatch):
         """PICOSENTRY_MATURITY_ACK=1 suppresses the warning entirely."""
@@ -217,7 +225,7 @@ class TestMaturityWarnings:
 
     def test_maturity_warning_quiet_suppresses_beta_only(self, capsys, monkeypatch):
         """--quiet suppresses BETA warnings but not EXPERIMENTAL ones."""
-        from picosentry.cli import _emit_maturity_warning
+        from picosentry.cli import _COMMAND_MATURITY, _emit_maturity_warning
 
         # Make sure no env ack is set
         monkeypatch.delenv("PICOSENTRY_MATURITY_ACK", raising=False)
@@ -226,7 +234,15 @@ class TestMaturityWarnings:
         captured = capsys.readouterr()
         assert captured.err == "", f"--quiet should silence BETA, got: {captured.err!r}"
 
-        _emit_maturity_warning("serve", quiet=True)
+        monkeypatch.setitem(
+            _COMMAND_MATURITY,
+            "future-cmd",
+            (
+                "EXPERIMENTAL",
+                "Future command for testing the experimental warning path.",
+            ),
+        )
+        _emit_maturity_warning("future-cmd", quiet=True)
         captured = capsys.readouterr()
         assert "EXPERIMENTAL" in captured.err, "--quiet must NOT silence EXPERIMENTAL"
 

@@ -9,6 +9,16 @@
   still claimed Docker/PyPI were at v2.0.17 after the 2.0.18 bump. Updated both to
   v2.0.18; `tests/test_experimental_status.py` and `tests/test_public_api.py` still
   pass.
+- **Docker Hub v2.0.18 published.** The release workflow only builds PyPI
+  artifacts, not the Docker image. `docker-bake.hcl` still defaulted to `v2.0.14`;
+  bumped to `v2.0.18`. Built and pushed `kirkforge/picodome:v2.0.18` and `:latest`
+  multi-arch (linux/amd64 + linux/arm64) using `docker buildx bake --push`.
+  Verified on Docker Hub: tag present, both architectures, image health checks
+  passed inside the container.
+- **Dead branches pruned.** Deleted `harden/backup-service`,
+  `harden/except-narrowing`, `harden/serve-routers`, `docs/state-forward-items`,
+  and `docs/state-forward-refresh` from the local repo; all were empty or already
+  merged into `main`.
 - **Plugin2 secret leak remediated.** In `KirkForge-Plugin2` an Atlassian API token
   was embedded in a compiled `.so` artifact under `target/` and pushed to GitHub
   (secret-scanning alert, commit `52d3b83b`). Ran `git-filter-repo --path target/
@@ -27,13 +37,7 @@
    loader exception-narrowing slice for P4 #10. Diff against `main` is small but
    conflicts with the auth-isolation changes in `tests/serve/conftest.py` and the
    fixture files. **Action: rebase and resolve, then merge to `dev`.**
-3. **Empty hardening branches.** `harden/backup-service`,
-   `harden/except-narrowing`, and `harden/serve-routers` report zero commits ahead
-   of `main`. They may have been fast-forwarded or abandoned. **Action: verify
-   and delete if truly empty.**
-4. **State-only branches.** `docs/state-forward-items` and
-   `docs/state-forward-refresh` exist but are merged; they may still be useful
-   forward-planning records or just dead branches. **Action: review and prune.**
+
 5. **GitNexus index stale.** AGENTS.md notes the code index is stale and
    incremental rebuilds fail with missing FTS indexes / `Resource temporarily
    unavailable`. This blocks the impact-analysis workflow the project expects.
@@ -60,18 +64,28 @@
    raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
    and asserts this, but real users cannot sign exported IoC packs. **Action:
    decide whether to implement signing or remove the API surface.**
-10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
-    in CI but are not yet required branch-protection checks (admin action pending,
-    already noted in state.md but still open). **Action: enable in repo settings.**
-11. **Docker Hub image tag mismatch.** README and `experimental.py` now say
-    `v2.0.18`, but the Docker Hub build is part of the GitHub release workflow.
-    **Action: confirm `kirkforge/picodome:v2.0.18` was published by the release
-    workflow; if not, the bake/push step needs investigation.**
-12. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
-    artifacts can embed secrets from the build environment. **Action: add
-    `target/` to `.gitignore` audit checks across all Rust repos and consider a
-    pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
-    KirkForge repositories.**
+ 8. **Missing `docs/DEEP_REVIEW.md`.** `picosentry/scan/detection_quality.py`
+    references `tracked_in="DEEP_REVIEW.md"` in 9 places, but the file does not
+    exist. **Action: create `docs/DEEP_REVIEW.md` or change the tracker reference
+    to a real document (e.g., `docs/BENCHMARKS.md`).**
+ 9. **Unimplemented corpus-pack signing.** `picosentry/scan/corpus_share.py:71`
+    raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
+    and asserts this, but real users cannot sign exported IoC packs. **Action:
+    decide whether to implement signing or remove the API surface.**
+ 10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
+     in CI but are not yet required branch-protection checks (admin action pending,
+     already noted in state.md but still open). **Action: enable in repo settings.**
+ 11. **Release workflow does not publish Docker images.** The `Release` workflow
+     builds wheels/sdist/SBOM/SLSA/Sigstore, but the Docker image is still pushed
+     manually via `docker buildx bake --push`. **Action: add a release job that
+     runs `docker buildx bake --push` (or `scripts/build_docker_multiarch.sh --push`)
+     so the image is attested and published automatically on `v*` tags.**
+ 12. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
+     artifacts can embed secrets from the build environment. **Action: add
+     `target/` to `.gitignore` audit checks across all Rust repos and consider a
+     pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
+     KirkForge repositories.**
+
 
 ---
 

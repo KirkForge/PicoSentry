@@ -15,6 +15,10 @@
   multi-arch (linux/amd64 + linux/arm64) using `docker buildx bake --push`.
   Verified on Docker Hub: tag present, both architectures, image health checks
   passed inside the container.
+- **`docs/DEEP_REVIEW.md` created.** `picosentry/scan/detection_quality.py` had 9
+  `tracked_in="DEEP_REVIEW.md"` references to a non-existent file. Added a living
+  catalog of the documented L2 detector limitations (false-positive tendencies,
+  edge cases, blind spots) and cross-links to `BENCHMARKS.md` and `THREAT_MODEL.md`.
 - **Dead branches pruned.** Deleted `harden/backup-service`,
   `harden/except-narrowing`, `harden/serve-routers`, `docs/state-forward-items`,
   and `docs/state-forward-refresh` from the local repo; all were empty or already
@@ -66,10 +70,6 @@
    raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
    and asserts this, but real users cannot sign exported IoC packs. **Action:
    decide whether to implement signing or remove the API surface.**
- 8. **Missing `docs/DEEP_REVIEW.md`.** `picosentry/scan/detection_quality.py`
-    references `tracked_in="DEEP_REVIEW.md"` in 9 places, but the file does not
-    exist. **Action: create `docs/DEEP_REVIEW.md` or change the tracker reference
-    to a real document (e.g., `docs/BENCHMARKS.md`).**
  9. **Unimplemented corpus-pack signing.** `picosentry/scan/corpus_share.py:71`
     raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
     and asserts this, but real users cannot sign exported IoC packs. **Action:

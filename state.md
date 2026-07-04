@@ -27,12 +27,14 @@
   token for rotation/revocation in Atlassian.
 
 ### Open gaps / missing work identified (PicoSentry)
-1. **Stale feature branch: `feat/prompt-guard-classifier-tier`.** Contains a
-   deterministic lexical-classifier tier for `picosentry watch` (commits
-   `626dcc4`–`95ef5c8`). It is based on an *old* point in history; diff against
-   current `main` shows ~936k deletions because `datasets/malware/` and many
-   landed files are missing from its base. **Action: rebase onto current `main`,**
-   not merge.
+ 1. **Stale/abandoned feature branch: `feat/prompt-guard-classifier-tier`.**
+    Rebase attempt showed the branch removes the fail-closed guard, output-size
+    limits, JSON-schema limits, admin server auth, and logging that were added
+    to `main` *after* the branch was cut. The lexical classifier code itself is
+    already present in `main` (`picosentry/watch/prompt_guard/classifier.py`).
+    **Action: do not merge; delete the branch.** The classifier feature is
+    already shipped; any future enhancements should start from `main`.
+
 2. **Stale P4 branch: `no-ci/p4-exception-config-loader`.** Contains the config-
    loader exception-narrowing slice for P4 #10. Diff against `main` is small but
    conflicts with the auth-isolation changes in `tests/serve/conftest.py` and the

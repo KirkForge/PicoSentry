@@ -44,49 +44,21 @@
   token for rotation/revocation in Atlassian.
 
 ### Open gaps / missing work identified (PicoSentry)
- 1. **Stale/abandoned feature branch: `feat/prompt-guard-classifier-tier`.**
-    Rebase attempt showed the branch removes the fail-closed guard, output-size
-    limits, JSON-schema limits, admin server auth, and logging that were added
-    to `main` *after* the branch was cut. The lexical classifier code itself is
-    already present in `main` (`picosentry/watch/prompt_guard/classifier.py`).
-    **Action: do not merge; delete the branch.** The classifier feature is
-    already shipped; any future enhancements should start from `main`.
+ 1. **`PicoSentry CI` auto-trigger monitoring.** The 2.0.18 merge initially did not
+    spawn a `main` branch `PicoSentry CI` run until an extra commit was pushed.
+    This may have been GitHub deduplicating because the `v2.0.18` tag pointed to
+    the same commit, or a transient webhook delay. **Action: monitor the next
+    merge; if it recurs, remove `paths-ignore` or add `workflow_dispatch`
+    permanently.**
+ 2. **Branch-protection checks.** `postgres-live-test` and `admission-kind` jobs
+    run in CI but are not yet required branch-protection checks. **Action:
+    enable in repo settings (admin-only).**
+ 3. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
+    artifacts can embed secrets from the build environment. **Action: add
+    `target/` to `.gitignore` audit checks across all Rust repos and consider a
+    pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
+    KirkForge repositories.**
 
-2. **Stale P4 branch: `no-ci/p4-exception-config-loader`.** Contains the config-
-   loader exception-narrowing slice for P4 #10. Diff against `main` is small but
-   conflicts with the auth-isolation changes in `tests/serve/conftest.py` and the
-   fixture files. **Action: rebase and resolve, then merge to `dev`.**
-
-
-
-7. **`PicoSentry CI` did not auto-trigger on the 2.0.18 merge.** The first push
-   of the v2.0.18 tag triggered the Release workflow, but the `main` branch
-   `PicoSentry CI` run did not appear until an additional `workflow_dispatch`
-   trigger was added and a fresh commit pushed. Possible causes: GitHub
-   deduplication because the tag pointed to the same commit, or a transient
-   webhook delay. **Action: monitor the next merge; if it recurs, remove
-   `paths-ignore` or add `workflow_dispatch` permanently.**
-8. **Missing `docs/DEEP_REVIEW.md`.** `picosentry/scan/detection_quality.py`
-   references `tracked_in="DEEP_REVIEW.md"` in 9 places, but the file does not
-   exist. **Action: create `docs/DEEP_REVIEW.md` or change the tracker reference
-   to a real document (e.g., `docs/BENCHMARKS.md`).**
-9. **Unimplemented corpus-pack signing.** `picosentry/scan/corpus_share.py:71`
-   raises `NotImplementedError` for `CorpusPack.sign()`. The test suite expects
-   and asserts this, but real users cannot sign exported IoC packs. **Action:
-   decide whether to implement signing or remove the API surface.**
- 9. **Corpus-pack signing API clarified.** `picosentry/scan/corpus_share.py:71`
-    raises `NotImplementedError` for `CorpusPack.sign()`, directing callers to
-    `seal()` (integrity stamp) or `sign_cryptographically()` (Sigstore etc.).
-    The test suite asserts this behavior. **Status: intentional deprecation, not
-    a gap.** No further action unless we want to drop the method entirely.
- 10. **Branch-protection gaps.** `postgres-live-test` and `admission-kind` jobs run
-     in CI but are not yet required branch-protection checks (admin action pending,
-     already noted in state.md but still open). **Action: enable in repo settings.**
- 12. **Cross-project secret hygiene.** The Plugin2 incident shows compiled build
-     artifacts can embed secrets from the build environment. **Action: add
-     `target/` to `.gitignore` audit checks across all Rust repos and consider a
-     pre-commit secret-scanning hook (e.g., `git-secrets` or `trufflehog`) for all
-     KirkForge repositories.**
 
 
 ---

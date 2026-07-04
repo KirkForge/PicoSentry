@@ -27,6 +27,45 @@ python scripts/test_doctor.py --fix
 python scripts/test_doctor.py --workers 4 --report doctor.json
 ```
 
+## PicoSentry at a glance
+
+The codebase is organized by product surface, not by layer:
+
+```text
+picosentry/
+  cli.py            # top-level command dispatcher
+  scan/             # supply-chain scanner (stable)
+    engine.py
+    rules/
+    models.py
+    validation.py
+  watch/            # LLM prompt/output guard (beta)
+    prompt_guard/
+    output_guard/
+    server.py
+    telemetry/
+  sandbox/          # runtime sandbox (beta)
+    l3/             # syscall policy backends
+    l4/             # behavioral analysis
+    daemon/
+  serve/            # API server, orchestrator, plugins (beta)
+    server.py
+    services/       # auth, orchestrator, plugin host, webhooks, correlation, cluster
+    config/
+  _core/            # cross-cutting utilities
+```
+
+Entry points for the most common changes:
+
+| Task | Start here |
+|------|------------|
+| Add a scan rule | `docs/EXTENSION_GUIDE.md` → `picosentry/scan/rules/` |
+| Add a watch rule | `docs/EXTENSION_GUIDE.md` → `picosentry/watch/rules/` |
+| Add a sandbox backend | `docs/EXTENSION_GUIDE.md` → `picosentry/sandbox/l3/backends/` |
+| Find an internal API | `docs/INTERNAL_API.md` |
+| Understand trust boundaries | `docs/ARCHITECTURE.md` |
+| Write a plugin | `docs/PLUGIN_DEVELOPMENT.md` |
+
 ## What we need help with
 
 | Area | Skill needed | Complexity |

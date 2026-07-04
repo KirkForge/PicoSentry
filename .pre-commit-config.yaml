@@ -1,0 +1,26 @@
+# Pre-commit hooks for PicoSentry
+# Install with: pip install pre-commit && pre-commit install
+# Note: this repo uses core.hooksPath for external hooks; pre-commit install may
+# conflict. Run hooks manually with `pre-commit run --all-files` if needed.
+
+minimum_pre_commit_version: "3.2.0"
+
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff
+        args: ["--fix"]
+        files: ^(picosentry|tests|scripts)/.*\.py$
+      - id: ruff-format
+        files: ^(picosentry|tests|scripts)/.*\.py$
+
+  - repo: https://github.com/trufflesecurity/trufflehog
+    rev: v3.88.0
+    hooks:
+      - id: trufflehog
+        name: TruffleHog — scan for leaked secrets
+        entry: trufflehog git file://.
+        language: golang
+        pass_filenames: false
+        stages: [pre-commit, pre-push]

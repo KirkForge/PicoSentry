@@ -2,9 +2,9 @@
 
 ---
 
-## Current session: 2026-07-08 — Option A + B: distributed rate limiter and cluster token rotation
+## Current session: 2026-07-08 — Option A + B: distributed rate limiter and cluster token rotation (merged to dev)
 
-### Done this session (on `main`)
+### Done this session (on `dev` via PR #5)
 - **Implemented `PICOSHOGUN_RATE_LIMIT_BACKEND=redis` for `serve`.**
   - Added `picosentry/serve/middleware/rate_limit_redis.py`: `RedisRateLimitBackend`
     using Redis sorted sets for shared sliding-window counters. Falls back to
@@ -35,6 +35,27 @@
     rotation, retirement, snapshot adoption, and mismatch rejection.
   - Updated daemon-handler tests to supply `X-Cluster-Token` headers so they
     reach the intended exception-handling paths.
+- **Broad exception-narrowing sweep (P4 #10 follow-up).**
+  - Auth/cryptographic paths: `picosentry/scan/auth.py`, `picosentry/scan/crypto.py`.
+  - Engine/policy/campaign paths: `picosentry/scan/engine.py`.
+  - Cluster audit/heartbeat/health/gossip sinks: `picosentry/sandbox/cluster/orchestrator.py`.
+  - Daemon auth audit sinks: `picosentry/sandbox/daemon/handler_mixins.py`.
+  - Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py`.
+  - Scan config/policy load: `picosentry/scan/config.py`.
+  - Corpus cryptographic signing/verification and IoC import:
+    `picosentry/scan/corpus_share.py`.
+  - Workspace discovery/worker/scan loop: `picosentry/scan/workspace.py`.
+  - Watch config load/permission check: `picosentry/watch/config.py`.
+  - Replaced production `assert` statements with explicit `RuntimeError` in
+    `picosentry/serve/services/plugin_host.py`,
+    `picosentry/sandbox/ratelimit/redis_limiter.py`,
+    `picosentry/sandbox/policy_versioned/signing.py`.
+  - Added explicit timeout handling to the Discord notifier.
+  - Documented intentional broad catches in `plugin_manager.py` (untrusted plugins
+    must not crash the host).
+- **Backfilled serve router/middleware tests.**
+  - Added `tests/serve/test_routers_and_middleware.py` covering `/auth`, `/admin`,
+    `/projects`, and request-ID/security-headers/timeout/size-limit middleware.
 - **Updated Enterprise docs.**
   - `docs/ops/runbook.md`: added distributed Redis rate-limit backend section
     and updated cluster token rotation instructions for the new graceful flow.
@@ -42,15 +63,19 @@
     complete.
   - `docs/SECURITY_REVIEW_CLUSTER.md`: updated token-rotation limitation and
     marked rotation/runbook criteria as complete.
-- **Verified.**
-  - `tests/serve/` passes (412 tests).
-  - `tests/sandbox/` passes (1571 passed, 18 skipped).
-  - `ruff check/format` and `mypy picosentry/` pass.
+- **Verified and merged.**
+  - Full `python3 scripts/test_doctor.py --workers 4 --no-fail-fast` passes:
+    ruff check/format, mypy, and full pytest umbrella.
+  - Created PR #5 `no-ci/enterprise-rate-limit-token-rotation` → `dev`.
+  - Merged to `dev` at `90851a1`.
 
 ### Open gaps / missing work identified (PicoSentry)
 - **Per-component hardening to reach Enterprise:** the remaining blockers are
   formal pentest/adversarial review for `serve`/`daemon`/`admission`/`cluster`
   and network-segmentation controls / split-brain quorum for cluster mode.
+- **Forward work:** continue opportunistic exception narrowing for remaining
+  broad `except Exception` safety nets; fast-forward `main` once `dev` CI is
+  green.
 
 ---
 

@@ -86,8 +86,8 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
     try:
         with workspace_yaml.open(encoding="utf-8") as f:
             config = yaml.safe_load(f)
-    except Exception as e:
-        logger.warning("Failed to parse pnpm-workspace.yaml: %s", e)
+    except Exception:
+        logger.warning("Failed to parse pnpm-workspace.yaml", exc_info=True)
         return discover_projects(root)
 
     if not isinstance(config, dict):
@@ -149,7 +149,7 @@ def _workspace_scan_worker(
 
         _e = _cde(corpus_dir=_Path(corpus_dir) if corpus_dir else None, advisory_db_path=advisory_db_path)
         result_queue.put(("ok", _e.scan(target_path, rules=rules, advisory_db_path=advisory_db_path)))
-    except Exception as exc:
+    except (OSError, RuntimeError, ValueError, TypeError, TimeoutError) as exc:
         result_queue.put(("error", str(exc)))
 
 
@@ -206,14 +206,14 @@ def scan_workspace(
                     try:
                         while not _rq.empty():
                             _rq.get_nowait()
-                    except Exception:
+                    except (OSError, ValueError):
                         pass
                     _rq.close()
                     _rq.join_thread()
                     raise TimeoutError(f"scan of {rel} timed out after {timeout}s") from None
                 try:
                     _st, scan_result = _rq.get(timeout=1)
-                except Exception:
+                except (OSError, ValueError):
                     raise TimeoutError(f"scan of {rel} timed out after {timeout}s") from None
                 finally:
                     _rq.close()
@@ -259,7 +259,7 @@ def scan_workspace(
                 len(scan_result.findings),
                 scan_result.stats.duration_ms,
             )
-        except Exception as e:
+        except BaseException as e:
             result.failed_projects += 1
             error_msg = f"{rel}: {e}"
             result.errors.append(error_msg)

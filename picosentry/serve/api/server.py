@@ -270,6 +270,8 @@ app.add_middleware(
     max_requests_per_org=1000,
     window=60,
     persist=settings.is_production(),
+    backend=settings.security.rate_limit_backend,
+    backend_url=settings.security.redis_url,
     exempt_paths={"/health", "/health/live", "/health/ready"},
 )
 app.add_middleware(

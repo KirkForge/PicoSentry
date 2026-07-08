@@ -315,8 +315,8 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to parse config file %s: %s", config_path, e)
             return config
-    except Exception as e:
-        logger.warning("Failed to parse config file %s: %s", config_path, e)
+    except Exception:
+        logger.warning("Failed to parse config file %s", config_path, exc_info=True)
         return config
 
     if not isinstance(data, dict):
@@ -427,7 +427,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
             config.deny_packages = policy.deny_packages
             config.waivers = [w.to_dict() for w in policy.waivers]
             config.fail_on_severity = policy.fail_on_severity
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError):
             logger.warning("Failed to load policy file %s", policy_path)
 
     if "daemon" in data and isinstance(data["daemon"], dict):

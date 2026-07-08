@@ -510,6 +510,8 @@ class PluginManager:
                             continue
                         results.append({"plugin": plugin_name, "result": result})
             except Exception:
+                # Plugins are intentionally untrusted/3rd-party code; swallow all
+                # hook failures so a misbehaving plugin cannot crash the host.
                 logger.exception("Plugin %s hook %s failed", plugin_name, hook)
 
         return results
@@ -524,6 +526,8 @@ class PluginManager:
                     "health": health,
                 }
             except Exception:
+                # Health checks run across all loaded plugins; keep the host
+                # stable even when a plugin raises unexpectedly.
                 logger.exception("Plugin %s health check failed", name)
                 status[name] = {
                     "error": "health check failed",
@@ -537,6 +541,7 @@ class PluginManager:
                 plugin.shutdown()
                 logger.info("Plugin unloaded: %s", name)
             except Exception:
+                # Shutdown failures must not prevent cleanup from completing.
                 logger.exception("Plugin %s shutdown failed", name)
 
         self.plugins.clear()

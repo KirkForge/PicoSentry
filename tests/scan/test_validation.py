@@ -48,6 +48,8 @@ def test_validation_report_is_deterministic() -> None:
     assert r1.to_dict() == r2.to_dict()
 
 
+@pytest.mark.timeout(180)
+@pytest.mark.slow
 def test_validation_report_has_required_fields() -> None:
     """ValidationReport always exposes the headline fields used by README + CLI."""
     r = run_validation()

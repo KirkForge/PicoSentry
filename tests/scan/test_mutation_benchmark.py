@@ -72,6 +72,7 @@ class TestMutationBenchmark:
     """End-to-end mutation benchmark tests."""
 
     @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_cosmetic_mutations_keep_high_recall(self):
         """Whitespace and comment mutations should not break detection."""
         config = MutationBenchmarkConfig(

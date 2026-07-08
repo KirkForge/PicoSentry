@@ -56,6 +56,19 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
     _cluster_leave = cluster_sub.add_parser("leave", help="Gracefully leave the cluster")
 
+    cluster_rotate = cluster_sub.add_parser("rotate-token", help="Rotate the cluster gossip token")
+    cluster_rotate.add_argument(
+        "--new-token",
+        default=None,
+        help="New token value (default: auto-generated)",
+    )
+    cluster_rotate.add_argument(
+        "--retire-after",
+        type=int,
+        default=300,
+        help="Seconds after which old accepted tokens are retired (default: 300)",
+    )
+
 
 def cmd(args: argparse.Namespace) -> int:
     from picosentry.sandbox.cluster import (
@@ -162,7 +175,18 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"✓ Left cluster (node {manager.node_id})")
         return 0
 
-    print("Usage: picodome cluster {join|status|leave}", file=sys.stderr)
+    if action == "rotate-token":
+        manager = get_cluster_manager()
+        result = manager.rotate_token(args.new_token)
+        retired = manager.retire_stale_tokens(args.retire_after)
+        print(f"✓ Rotated cluster token on node {result['node_id']}")
+        print(f"  Version: {result['token_version']}")
+        print(f"  Accepted tokens: {result['accepted_count']}")
+        print(f"  Retired stale tokens: {retired}")
+        print("  Propagate the new token to peers via `picodome cluster status` and gossip.")
+        return 0
+
+    print("Usage: picodome cluster {join|status|leave|rotate-token}", file=sys.stderr)
     return 1
 
 

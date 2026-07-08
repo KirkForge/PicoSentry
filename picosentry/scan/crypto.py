@@ -224,7 +224,7 @@ def verify_content_sigstore(
 
     try:
         bundle = Bundle.from_json(signature_bundle_json)
-    except Exception:
+    except (json.JSONDecodeError, TypeError, KeyError, ValueError):
         logger.exception("Failed to parse Sigstore bundle")
         return False
 
@@ -237,9 +237,6 @@ def verify_content_sigstore(
         return True
     except VerificationError as e:
         logger.warning("Sigstore verification failed: %s", e)
-        return False
-    except Exception:
-        logger.exception("Sigstore verification failed")
         return False
 
 

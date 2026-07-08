@@ -1382,10 +1382,10 @@ class TestGossipLoop:
         assert not mgr._gossip_thread.is_alive()
 
 
-class TestClusterExperimentalWarnings:
-    """Cluster/gossip features must advertise their experimental status."""
+class TestClusterBetaWarnings:
+    """Cluster/gossip features must advertise their beta status."""
 
-    def test_setup_cluster_manager_logs_experimental_warning(self, caplog):
+    def test_setup_cluster_manager_logs_beta_warning(self, caplog):
         import logging
 
         from picosentry.sandbox.cluster.manager import setup_cluster_manager
@@ -1393,9 +1393,9 @@ class TestClusterExperimentalWarnings:
         with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
             setup_cluster_manager(node_id="warn-node", cluster_token="test-token")
 
-        assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+        assert any("BETA" in r.message for r in caplog.records)
 
-    def test_cluster_manager_start_logs_experimental_warning(self, caplog):
+    def test_cluster_manager_start_logs_beta_warning(self, caplog):
         import logging
 
         mgr = ClusterManager(node_id="warn-start-node")
@@ -1403,9 +1403,9 @@ class TestClusterExperimentalWarnings:
             mgr.start()
             mgr.stop()
 
-        assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+        assert any("BETA" in r.message for r in caplog.records)
 
-    def test_assign_scan_logs_experimental_warning(self, cluster_state, node_a, scan_request, caplog):
+    def test_assign_scan_logs_beta_warning(self, cluster_state, node_a, scan_request, caplog):
         import logging
 
         cluster_state.add_node(node_a)
@@ -1416,7 +1416,7 @@ class TestClusterExperimentalWarnings:
         with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
             mgr.assign_scan(scan_request)
 
-        assert any("EXPERIMENTAL" in r.message for r in caplog.records)
+        assert any("BETA" in r.message for r in caplog.records)
 
 
 class TestClusterManagerAuditHardening:
@@ -1457,4 +1457,74 @@ class TestClusterManagerAuditHardening:
             assert any("Audit record failed" in r.message for r in caplog.records)
         finally:
             monkeypatch.undo()
+            manager.stop()
+
+
+class TestClusterTokenRotation:
+    """Cluster token rotation and multi-token acceptance."""
+
+    def test_initial_token_is_primary_and_accepted(self):
+        from picosentry.sandbox.cluster.state import ClusterState
+
+        state = ClusterState(cluster_token="secret")
+        assert state.cluster_token == "secret"
+        assert state.token_store.is_accepted("secret")
+
+    def test_rotate_token_keeps_old_accepted(self):
+        from picosentry.sandbox.cluster.state import ClusterState
+        from picosentry.sandbox.cluster import MemoryStateBackend
+
+        state = ClusterState(backend=MemoryStateBackend(), cluster_token="old-secret")
+        state.token_store.rotate("new-secret")
+
+        assert state.cluster_token == "new-secret"
+        assert state.token_store.is_accepted("old-secret")
+        assert state.token_store.is_accepted("new-secret")
+
+    def test_merge_adopts_remote_token_when_common_token_exists(self):
+        from picosentry.sandbox.cluster.state import ClusterState
+        from picosentry.sandbox.cluster import MemoryStateBackend
+
+        local = ClusterState(backend=MemoryStateBackend(), cluster_token="shared")
+        remote = ClusterState(backend=MemoryStateBackend(), cluster_token="shared")
+        remote.token_store.rotate("new-secret")
+
+        local.merge_state(remote.get_state_snapshot())
+        assert local.token_store.is_accepted("new-secret")
+
+    def test_merge_rejects_remote_with_no_common_token(self):
+        from picosentry.sandbox.cluster.state import ClusterState
+        from picosentry.sandbox.cluster import MemoryStateBackend
+
+        local = ClusterState(backend=MemoryStateBackend(), cluster_token="secret-a")
+        remote = ClusterState(backend=MemoryStateBackend(), cluster_token="secret-b")
+
+        with pytest.raises(ValueError, match="cluster token mismatch"):
+            local.merge_state(remote.get_state_snapshot())
+
+    def test_cluster_manager_rotate_token(self, manager):
+        manager.start()
+        try:
+            manager.state.set_cluster_token("token-v1")
+            result = manager.rotate_token("token-v2")
+
+            assert result["token_version"] == 2
+            assert manager.state.cluster_token == "token-v2"
+            assert manager.state.token_store.is_accepted("token-v1")
+        finally:
+            manager.stop()
+
+    def test_retire_stale_tokens_keeps_primary(self, manager):
+        manager.start()
+        try:
+            manager.state.set_cluster_token("token-v1")
+            manager.rotate_token("token-v2")
+            import time
+
+            time.sleep(0.1)
+            retired = manager.retire_stale_tokens(max_age_seconds=0.05)
+            assert retired == 1
+            assert manager.state.token_store.is_accepted("token-v2")
+            assert not manager.state.token_store.is_accepted("token-v1")
+        finally:
             manager.stop()

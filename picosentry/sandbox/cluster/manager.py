@@ -54,7 +54,7 @@ def setup_cluster_manager(
     import logging
 
     logging.getLogger("picodome.cluster").warning(
-        "Cluster/gossip configuration is EXPERIMENTAL and not recommended for production use."
+        "Cluster/gossip configuration is BETA and not recommended for production use."
     )
 
     _cluster_manager = ClusterManager(

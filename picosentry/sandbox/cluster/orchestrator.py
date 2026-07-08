@@ -87,7 +87,11 @@ class ClusterManager:
 
     @property
     def cluster_token(self) -> str:
-        return self._cluster_token
+        return self._state.token_store.primary_token
+
+    @property
+    def token_store(self) -> Any:
+        return self._state.token_store
 
     @property
     def address(self) -> str:
@@ -104,7 +108,7 @@ class ClusterManager:
             return
 
         logger.warning(
-            "Cluster/gossip features are EXPERIMENTAL: node_id=%s address=%s port=%s",
+            "Cluster/gossip features are BETA: node_id=%s address=%s port=%s",
             self._node_id,
             self._address,
             self._port,
@@ -152,7 +156,7 @@ class ClusterManager:
                 actor=f"cluster-{self._node_id}",
                 detail=f"Cluster node started at {self._address}:{self._port}",
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
 
         logger.info("Cluster node %s started at %s:%d", self._node_id, self._address, self._port)
@@ -192,14 +196,14 @@ class ClusterManager:
                 actor=f"cluster-{self._node_id}",
                 detail="Cluster node stopped",
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
 
         logger.info("Cluster node %s stopped", self._node_id)
 
     def assign_scan(self, scan_request: ScanRequest) -> ClusterNode | None:
         logger.warning(
-            "Cluster scan distribution is EXPERIMENTAL: scan_id=%s command=%s",
+            "Cluster scan distribution is BETA: scan_id=%s command=%s",
             scan_request.scan_id,
             scan_request.command,
         )
@@ -218,7 +222,7 @@ class ClusterManager:
                     target=scan_request.scan_id,
                     metadata={"command": scan_request.command, "assigned_node": node.node_id},
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
 
         return node
@@ -228,6 +232,33 @@ class ClusterManager:
 
     def merge_peer_state(self, snapshot: dict[str, Any]) -> None:
         self._state.merge_state(snapshot)
+
+    def rotate_token(self, new_token: str | None = None) -> dict[str, Any]:
+        """Rotate this node's primary cluster token while keeping old tokens accepted.
+
+        The new token is propagated to peers via gossip snapshots, and peers
+        will adopt it into their accepted set. Both old and new tokens continue
+        to authenticate inbound requests until operators retire old tokens.
+        """
+        info = self._state.token_store.rotate(new_token)
+        logger.warning("Cluster token rotated on node %s: version=%d", self._node_id, info.version)
+        return {
+            "node_id": self._node_id,
+            "token_version": info.version,
+            "issued_at": info.issued_at,
+            "accepted_count": len(self._state.token_store.accepted_tokens),
+        }
+
+    def retire_stale_tokens(self, max_age_seconds: float = 300.0) -> int:
+        """Retire accepted tokens older than ``max_age_seconds`` (except the primary)."""
+        cutoff = time.time() - max_age_seconds
+        before = len(self._state.token_store.accepted_tokens)
+        self._state.token_store.retire_older_than(cutoff)
+        after = len(self._state.token_store.accepted_tokens)
+        retired = before - after
+        if retired:
+            logger.info("Retired %d stale cluster token(s) on node %s", retired, self._node_id)
+        return retired
 
     def handle_heartbeat(self, node_id: str, status: str = "online", load: int = 0) -> ClusterNode | None:
         node = self._state.get_node(node_id)
@@ -278,7 +309,7 @@ class ClusterManager:
                 target=node_id,
                 metadata={"redistributed_scans": redistributed},
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
 
         logger.info("Node %s failed: %d scans redistributed", node_id, len(redistributed))
@@ -316,7 +347,7 @@ class ClusterManager:
                 if node:
                     node.last_heartbeat = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
                     self._state.update_node(node)
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Heartbeat update failed")
 
             self._stop_event.wait(timeout=self._heartbeat_interval)
@@ -325,7 +356,7 @@ class ClusterManager:
         while self._running:
             try:
                 self._check_node_health()
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Health check failed")
 
             self._stop_event.wait(timeout=self._heartbeat_timeout)
@@ -377,9 +408,9 @@ class ClusterManager:
                 for peer in peers:
                     try:
                         self._fetch_and_merge_peer(peer)
-                    except Exception as e:
+                    except (OSError, RuntimeError, ValueError) as e:
                         logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Gossip loop error")
 
             self._stop_event.wait(timeout=gossip_interval)
@@ -398,8 +429,9 @@ class ClusterManager:
             base_url = f"{scheme}://{peer.address}:{peer.port}/api/v1/cluster/snapshot"
 
         headers: dict[str, str] = {"Accept": "application/json"}
-        if self._cluster_token:
-            headers["X-Cluster-Token"] = self._cluster_token
+        primary_token = self._state.token_store.primary_token
+        if primary_token:
+            headers["X-Cluster-Token"] = primary_token
 
         req = Request(base_url, headers=headers)
 

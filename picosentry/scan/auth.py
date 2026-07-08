@@ -318,11 +318,20 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
                     return AuthResult.denied("No signing keys found in JWKS. Cannot verify token.")
 
                 decode_kwargs["key"] = signing_key
-            except Exception as e:
+            except (
+                InsecureURLError,
+                ResponseTooLargeError,
+                urllib.error.URLError,
+                json.JSONDecodeError,
+                ValueError,
+                KeyError,
+            ) as e:
                 if isinstance(e, (InsecureURLError, ResponseTooLargeError)):
                     logger.exception("JWKS URL rejected")
-                else:
+                elif isinstance(e, urllib.error.URLError):
                     logger.exception("Failed to fetch JWKS from %s", config.oidc_jwks_url)
+                else:
+                    logger.exception("Failed to parse JWKS from %s", config.oidc_jwks_url)
                 return AuthResult.denied(f"JWKS fetch failed: {e}")
 
         if "key" not in decode_kwargs:
@@ -353,13 +362,27 @@ def check_oidc_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
             "PyJWT not installed. Cannot verify OIDC token signature. Install PyJWT for production: pip install PyJWT"
         )
         return AuthResult.denied("OIDC token verification requires PyJWT. Install with: pip install PyJWT")
-    except Exception as e:
-        error_msg = str(e)
-        error_type = type(e).__name__
-        if "Signature" in error_msg or "InvalidSignatureError" in error_type:
-            return AuthResult.denied("JWT signature verification failed")
-        logger.warning("JWT verification error: %s", error_msg)
-        return AuthResult.denied(f"JWT verification failed: {error_msg}")
+    except jwt.InvalidSignatureError:
+        logger.warning("JWT signature verification failed")
+        return AuthResult.denied("JWT signature verification failed")
+    except jwt.ExpiredSignatureError:
+        logger.warning("JWT expired")
+        return AuthResult.denied("JWT expired")
+    except jwt.InvalidIssuerError:
+        logger.warning("JWT issuer mismatch")
+        return AuthResult.denied("JWT issuer mismatch")
+    except jwt.InvalidAudienceError:
+        logger.warning("JWT audience mismatch")
+        return AuthResult.denied("JWT audience mismatch")
+    except jwt.DecodeError as e:
+        logger.warning("JWT decode error: %s", e)
+        return AuthResult.denied(f"JWT decode error: {e}")
+    except jwt.InvalidTokenError as e:
+        logger.warning("JWT verification error: %s", e)
+        return AuthResult.denied(f"JWT verification failed: {e}")
+    except ValueError as e:
+        logger.warning("JWT value error: %s", e)
+        return AuthResult.denied(f"JWT verification failed: {e}")
 
 
 def check_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:

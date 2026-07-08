@@ -57,7 +57,7 @@ def _load_toml_config(path: Path) -> dict[str, Any]:
         with path.open("rb") as f:
             data: dict[str, Any] = tomllib.load(f)
             return data
-    except Exception:
+    except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError):
         _logger.warning("Failed to load watch config from %s", path, exc_info=True)
         return {}
 
@@ -590,7 +590,7 @@ def check_config_permissions() -> list[str]:
                     msg = f"SECURITY: api_key found in world-readable config {path}. Consider: chmod 600 {path}"
                     warnings.append(msg)
                     logger.error(msg)
-            except Exception:
+            except (OSError, RuntimeError, UnicodeDecodeError):
                 logger.warning("Permission check failed for %s", path, exc_info=True)
 
     return warnings

@@ -236,7 +236,7 @@ class PicoDomeAuthMixin:
                         actor="anonymous",
                         detail="No auth configured in enterprise mode — rejecting",
                     )
-                except Exception:
+                except (OSError, RuntimeError):
                     logger.exception("Audit record failed")
                 self._send_error(ErrorCodes.UNAUTHORIZED)
                 return None
@@ -250,7 +250,7 @@ class PicoDomeAuthMixin:
                     actor="anonymous",
                     detail="No Authorization header provided",
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
             self._send_error(ErrorCodes.UNAUTHORIZED)
             return None
@@ -264,7 +264,7 @@ class PicoDomeAuthMixin:
                     actor=actor,
                     detail="Invalid token",
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
             self._send_error(ErrorCodes.UNAUTHORIZED)
             return None
@@ -278,7 +278,7 @@ class PicoDomeAuthMixin:
                     actor=actor,
                     detail="Request rate limit exceeded",
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
             self._send_error(ErrorCodes.RATE_LIMITED)
             return None
@@ -290,7 +290,7 @@ class PicoDomeAuthMixin:
                 actor=actor,
                 detail="Token authenticated",
             )
-        except Exception:
+        except (OSError, RuntimeError):
             logger.exception("Audit record failed")
 
         return token
@@ -309,7 +309,7 @@ class PicoDomeAuthMixin:
                     actor=actor,
                     detail=f"Insufficient permissions ({permission})",
                 )
-            except Exception:
+            except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
             self._send_error(ErrorCodes.FORBIDDEN, detail=f"Insufficient permissions ({permission})")
             return None

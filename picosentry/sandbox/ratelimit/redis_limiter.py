@@ -53,7 +53,7 @@ class RedisTokenBucketLimiter:
         self._config = config or RateLimitConfig()
         self._redis_url = redis_url or os.environ.get("PICODOME_REDIS_URL", _DEFAULT_REDIS_URL)
         self._client = None
-        self._lua_script = None
+        self._lua_script: Any | None = None
         self._available = False
 
         self._fallback = TokenBucketLimiter(config=self._config)
@@ -97,8 +97,9 @@ class RedisTokenBucketLimiter:
             now = time.time()
 
             lua_script = self._lua_script
-            assert lua_script is not None
-            result = lua_script(  # type: ignore[unreachable]
+            if lua_script is None:
+                raise RuntimeError("Redis Lua script not registered; rate limiter not initialized")
+            result = lua_script(
                 keys=[key],
                 args=[
                     str(self._config.rate_per_second),

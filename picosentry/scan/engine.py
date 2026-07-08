@@ -54,7 +54,7 @@ def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any
             stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
         if stack.layers():
             return stack.effective_policy()
-    except Exception as exc:
+    except (OSError, ValueError, TypeError, KeyError) as exc:
         logger.warning("Could not resolve effective policy: %s", exc)
     return None
 
@@ -94,7 +94,7 @@ def _get_version() -> str:
         from importlib.metadata import version
 
         return version("picosentry")
-    except Exception:
+    except (ImportError, ModuleNotFoundError):
         pass
 
     return "0.0.0"
@@ -364,7 +364,7 @@ class ScanEngine:
                             findings_count=len(findings),
                         )
                     )
-            except Exception as exc:
+            except BaseException as exc:
                 logger.exception("Rule %s raised an exception", primary_rule_id)
                 logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
                 elapsed = int(_now_ms() - rule_start)
@@ -583,7 +583,7 @@ def create_default_engine(
     for campaign in iter_campaigns():
         try:
             campaign.register(engine)
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, AttributeError) as exc:
             logger.warning(
                 "Failed to register campaign %s: %s",
                 campaign.campaign_id,

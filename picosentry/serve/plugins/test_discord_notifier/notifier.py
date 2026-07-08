@@ -94,5 +94,7 @@ class DiscordNotifier(PluginInterface):
             )
             resp.raise_for_status()
             logger.debug("[DiscordNotifier] Delivered %s alert", severity)
-        except Exception:
+        except requests.Timeout:
+            logger.warning("[DiscordNotifier] Delivery timed out after %ss", 5)
+        except requests.RequestException:
             logger.exception("[DiscordNotifier] Delivery failed")

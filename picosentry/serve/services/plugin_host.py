@@ -201,7 +201,8 @@ class PluginHost:
         if kwargs:
             message["kwargs"] = dict(kwargs)
 
-        assert self._proc.stdin is not None
+        if self._proc.stdin is None:
+            raise RuntimeError(f"Plugin worker for '{self.metadata.name}' has no stdin channel")
         self._proc.stdin.write(json.dumps(message, separators=(",", ":")) + "\n")
         self._proc.stdin.flush()
 

@@ -334,7 +334,8 @@ def load_policy_with_companion_verification(
         content = path.read_text(encoding="utf-8")
         return content, VerifyResult(valid=False, error="no verification key configured for signed policy")
 
-    assert effective_key is not None
+    if effective_key is None:
+        raise RuntimeError("Internal error: effective_key must not be None when signature exists")
     result = verify_policy_companion(path, effective_key, key_id=key_id)
     if not result.valid:
         logger.error("Policy %s signature verification FAILED: %s", path, result.error)

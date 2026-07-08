@@ -126,6 +126,13 @@ development guide.
 | `picosentry watch` | HTTP / WebSocket | Bearer token | LLM prompt/output guard |
 | Kubernetes admission | HTTPS webhook | TLS cert + K8s ValidatingWebhookConfiguration | Pod security validation |
 
+## Security reviews
+
+- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — `serve`
+- [`SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md) — `sandbox daemon`
+- [`SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md) — `admission`
+- [`SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md) — `cluster mode`
+
 ## See also
 
 - [`THREAT_MODEL.md`](THREAT_MODEL.md) — trust boundaries and threat analysis

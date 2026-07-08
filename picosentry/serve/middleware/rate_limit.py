@@ -2,6 +2,7 @@ import logging
 import threading
 import time
 from collections import defaultdict
+from typing import Any
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -19,6 +20,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         window: int = 60,
         max_buckets: int = 100000,
         persist: bool = False,
+        backend: str = "memory",
+        backend_url: str = "redis://localhost:6379/0",
+        backend_instance: Any | None = None,
         exempt_paths: set[str] | None = None,
     ):
         super().__init__(app)
@@ -27,6 +31,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.window = window
         self.max_buckets = max_buckets
         self.persist = persist
+        self.backend_name = backend.lower()
+        self.backend_url = backend_url
         self.exempt_paths = exempt_paths or set()
 
         self.ip_requests: dict[str, list] = defaultdict(list)
@@ -34,6 +40,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self._lock = threading.Lock()
         self._last_eviction = time.time()
         self._last_flush = time.time()
+        self._redis_backend: Any | None = None
+
+        if backend_instance is not None:
+            self._redis_backend = backend_instance
+        elif self.backend_name == "redis":
+            from picosentry.serve.middleware.rate_limit_redis import RedisRateLimitBackend
+
+            self._redis_backend = RedisRateLimitBackend(
+                redis_url=self.backend_url,
+                window=self.window,
+            )
+            logger.info("Rate limit Redis backend configured: %s", self.backend_url)
 
         if self.persist:
             self._init_db()
@@ -149,6 +167,35 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         buckets[key] = [t for t in buckets[key] if now - t < self.window]
         return len(buckets[key])
 
+    def _record_and_check(
+        self,
+        bucket_type: str,
+        bucket_key: str,
+        max_requests: int,
+        now: float,
+        buckets: dict,
+    ) -> tuple[bool, int]:
+        """Record a request and return (rate_limited, retry_after_seconds).
+
+        Uses the Redis backend when configured; otherwise the in-memory dict.
+        """
+        if self._redis_backend is not None:
+            count = self._redis_backend.record_and_count(bucket_type, bucket_key)
+            if count >= 0:
+                if count > max_requests:
+                    # Already recorded; estimate worst-case retry time.
+                    return True, self.window
+                return False, 0
+            # Redis failed: fall through to in-memory for this request.
+
+        count = self._clean_and_count(buckets, bucket_key, now) + 1
+        buckets[bucket_key].append(now)
+        if count > max_requests:
+            oldest = buckets[bucket_key][0] if buckets[bucket_key] else now - self.window
+            retry_after = int(self.window - (now - oldest) + 1)
+            return True, max(retry_after, 1)
+        return False, 0
+
     async def dispatch(self, request: Request, call_next):
         if request.url.path in self.exempt_paths:
             return await call_next(request)
@@ -159,13 +206,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         with self._lock:
             self._evict_if_needed(now)
 
-            org_api_key = request.headers.get("X-Org-API-Key", "")
             rate_limited = False
+            retry_after = 0
+            org_api_key = request.headers.get("X-Org-API-Key", "")
             if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
-                org_count = self._clean_and_count(self.org_requests, org_api_key, now)
-                if org_count >= self.max_requests_per_org:
-                    retry_after = int(self.window - (now - self.org_requests[org_api_key][0]) + 1)
-                    rate_limited = True
+                rate_limited, retry_after = self._record_and_check(
+                    "org",
+                    org_api_key,
+                    self.max_requests_per_org,
+                    now,
+                    self.org_requests,
+                )
+                if rate_limited:
                     rate_limit_response = JSONResponse(
                         {
                             "error": "Organization rate limit exceeded",
@@ -173,16 +225,18 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                             "window": f"{self.window}s",
                         },
                         status_code=429,
-                        headers={"Retry-After": str(max(retry_after, 1))},
+                        headers={"Retry-After": str(retry_after)},
                     )
-                else:
-                    self.org_requests[org_api_key].append(now)
 
             if not rate_limited:
-                ip_count = self._clean_and_count(self.ip_requests, client_ip, now)
-                if ip_count >= self.max_requests_per_ip:
-                    retry_after = int(self.window - (now - self.ip_requests[client_ip][0]) + 1)
-                    rate_limited = True
+                rate_limited, retry_after = self._record_and_check(
+                    "ip",
+                    client_ip,
+                    self.max_requests_per_ip,
+                    now,
+                    self.ip_requests,
+                )
+                if rate_limited:
                     rate_limit_response = JSONResponse(
                         {
                             "error": "Rate limit exceeded",
@@ -190,10 +244,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                             "window": f"{self.window}s",
                         },
                         status_code=429,
-                        headers={"Retry-After": str(max(retry_after, 1))},
+                        headers={"Retry-After": str(retry_after)},
                     )
-                else:
-                    self.ip_requests[client_ip].append(now)
 
         if rate_limited:
             return rate_limit_response

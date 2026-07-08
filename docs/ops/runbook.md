@@ -203,6 +203,197 @@ Possible causes:
    assert_url_safe("http://<daemon>:8443")
    ```
 
+### Admission deployment and certificate rotation
+
+1. Generate or rotate the webhook TLS secret. The simplest path with
+   cert-manager is in the Helm chart (`deploy/helm/picodome-admission/values.yaml`):
+   ```yaml
+   tls:
+     certManager:
+       enabled: true
+       issuerRef:
+         name: picodome-admission-issuer
+         kind: ClusterIssuer
+   ```
+2. Ensure `ValidatingWebhookConfiguration.caBundle` references the same CA. The
+   Helm template populates it from the cert-manager secret when
+   `certRotation.rollingUpdateOnRenew: true`.
+3. Rollout restart after manual cert changes when not using cert-manager:
+   ```bash
+   kubectl rollout restart deployment picodome-admission -n <namespace>
+   ```
+4. Validate the webhook responds:
+   ```bash
+   kubectl run test-pod --image=busybox --restart=Never --rm -i -- echo ok
+   ```
+5. Rollback: redeploy the previous chart revision or set
+   `webhook.failurePolicy: Ignore` temporarily while you diagnose.
+
+## Sandbox daemon operations
+
+### Deployment
+
+Start the daemon with mTLS in production:
+
+```bash
+export PICODOME_DAEMON_HOST=0.0.0.0
+export PICODOME_DAEMON_PORT=8443
+export PICODOME_API_TOKENS="$(openssl rand -hex 32)"
+export PICODOME_ENTERPRISE_MODE=1
+export PICODOME_TLS_CERT=/certs/tls.crt
+export PICODOME_TLS_KEY=/certs/tls.key
+export PICODOME_TLS_CA=/certs/ca.crt
+export PICODOME_STORE_BACKEND=jsonl
+export PICODOME_JOB_STORE_DIR=/var/lib/picodome
+
+picosentry sandbox daemon --host=0.0.0.0 --port=8443
+```
+
+For gRPC transport:
+
+```bash
+picosentry sandbox daemon --host=0.0.0.0 --port=8443 --transport=grpc --grpc-port=50051
+```
+
+### mTLS certificate rotation
+
+The daemon reloads its TLS context on `SIGHUP` without dropping connections:
+
+```bash
+kill -HUP <pid>
+```
+
+For a rolling rotation in Kubernetes:
+
+1. Update the `picodome-tls` Secret with the new cert/key/CA.
+2. Restart pods one at a time (`kubectl rollout restart deployment picodome`).
+3. Verify `/health` and `/ready` on each restarted pod.
+
+### Job store backup and restore
+
+**JSONL (default):**
+
+```bash
+# Backup
+systemctl stop picodome
+tar czf /backups/picodome-jsonl-$(date +%F).tar.gz /var/lib/picodome
+systemctl start picodome
+
+# Restore
+systemctl stop picodome
+rm -rf /var/lib/picodome/*
+tar xzf /backups/picodome-jsonl-<date>.tar.gz -C /
+systemctl start picodome
+```
+
+**SQLite:**
+
+```bash
+# Backup while running (WAL-safe)
+sqlite3 /var/lib/picodome/picodome.db ".backup /backups/picodome-$(date +%F).db"
+
+# Restore
+systemctl stop picodome
+cp /backups/picodome-<date>.db /var/lib/picodome/picodome.db
+systemctl start picodome
+```
+
+### Audit sink incident
+
+If an audit sink (file/syslog/webhook) is failing:
+
+1. Check the configured sinks:
+   ```bash
+   echo $PICODOME_AUDIT_SINKS   # e.g. null,file,webhook
+   ```
+2. Inspect the daemon log for `Failed to initialize sink` or `Failed to start sink`.
+3. For webhook failures, verify `PICODOME_WEBHOOK_URL` and `PICODOME_WEBHOOK_TOKEN`.
+4. To fail closed when sinks cannot start, stop the daemon and do not restart until
+   the sink is healthy. A fail-closed audit mode is not yet implemented; see
+   `docs/SECURITY_REVIEW_DAEMON.md`.
+
+### Metrics endpoint
+
+If `metrics.separatePort` is enabled, `/metrics` is served on a separate port
+without auth. Network-segment it so only Prometheus (or your scraper) can reach it.
+Use the Helm `networkPolicy.ingress.from` list to restrict sources.
+
+## Cluster mode operations
+
+### Bootstrap a cluster
+
+1. Start the first daemon with a cluster token:
+   ```bash
+   export PICODOME_CLUSTER_TOKEN="$(openssl rand -hex 32)"
+   export PICODOME_CLUSTER_ADDRESS=0.0.0.0
+   export PICODOME_CLUSTER_PORT=8444
+   export PICODOME_CLUSTER_BACKEND=memory
+   picosentry sandbox daemon --host=0.0.0.0 --port=8443
+   ```
+2. Join additional nodes:
+   ```bash
+   picodome cluster join <seed-node>:8444 \
+     --cluster-token "$PICODOME_CLUSTER_TOKEN" \
+     --node-id node-2
+   ```
+3. Check status:
+   ```bash
+   picodome cluster status
+   ```
+
+### Adding and removing nodes
+
+- To add: run `picodome cluster join` on the new node pointing at any existing peer.
+- To remove gracefully: run `picodome cluster leave` on the node. The leader
+  redistributes pending scans to remaining members.
+
+### Token rotation
+
+Cluster mode now supports graceful token rotation without a maintenance window.
+Each node maintains a primary token and an accepted-token set. New tokens are
+propagated through gossip snapshots; old tokens remain accepted until retired.
+
+1. Rotate the token on any node:
+   ```bash
+   picodome cluster rotate-token
+   ```
+   Or provide a specific value:
+   ```bash
+   picodome cluster rotate-token --new-token $(openssl rand -hex 32)
+   ```
+2. Wait for gossip to propagate the new token to all peers. Verify with:
+   ```bash
+   picodome cluster status
+   ```
+3. Retire old tokens once all peers have acknowledged the new one (default
+   grace window is 300 seconds):
+   ```bash
+   picodome cluster rotate-token --retire-after 0
+   ```
+
+If you must use the legacy single-token mode, all nodes still share
+`PICODOME_CLUSTER_TOKEN`, but a rolling restart with mismatched tokens will
+break gossip until every node is updated.
+
+For stronger identity, use mTLS gossip instead:
+
+```bash
+export PICODOME_CLUSTER_TLS_CERT=/certs/cluster.crt
+export PICODOME_CLUSTER_TLS_KEY=/certs/cluster.key
+export PICODOME_CLUSTER_TLS_CA=/certs/cluster-ca.crt
+picodome cluster join <seed-node>:8444 --tls-cert ... --tls-key ... --tls-ca ...
+```
+
+### Split-brain / disaster recovery
+
+1. Stop all cluster nodes.
+2. Pick the node with the most recent state (check the SQLite backend or the
+   newest JSONL file modification time).
+3. Restart that node alone; it will auto-elect as leader.
+4. Rejoin the remaining nodes one at a time and verify `picodome cluster status`.
+5. If state diverged, accept that scans assigned during the partition may need
+   manual reconciliation (the merge is optimistic).
+
 ## Rate-limiter overload
 
 ### Symptom: legitimate clients are rejected
@@ -213,22 +404,54 @@ Possible causes:
 3. If a single client is burst-ing, shorten `window_seconds` or lower
    `max_requests`.
 
-## GitNexus index drift
+### Distributed (Redis) rate-limit backend
 
-If the MCP tools report a stale index:
+For multi-replica deployments, enable the shared Redis backend so all pods
+enforce the same IP and org API-key windows:
 
 ```bash
-node .gitnexus/run.cjs analyze
-# or, after index corruption:
-node .gitnexus/run.cjs analyze --force
+export PICOSHOGUN_RATE_LIMIT_BACKEND=redis
+export PICOSHOGUN_REDIS_URL=redis://redis.example.com:6379/0
 ```
 
-If the analyze step fails with missing FTS indexes, reinstall the global
-package and retry:
+Behaviour:
+
+- `memory` (default): per-process in-memory counters; fastest but not shared
+  across replicas.
+- `sqlite`: per-node persistence across restarts (legacy; still per-node).
+- `redis`: shared counters across all `serve` replicas using Redis sorted sets.
+
+When Redis becomes unreachable, the middleware falls back to in-memory counters
+for that request and logs a warning. The fallback preserves availability but
+loses cross-replica consistency until Redis recovers.
+
+To verify the backend at runtime, send an authenticated request and check the
+logs for `Rate limit Redis backend connected` or `Redis rate-limit backend
+connection failed`.
+
+## GitNexus index drift
+
+If the MCP tools report a stale index or fail with `LadybugDB unavailable`
+/ `Resource temporarily unavailable`:
+
+1. Kill orphaned GitNexus / LadybugDB locks:
+   ```bash
+   scripts/gitnexus-kill-orphans.sh
+   ```
+2. Rebuild the index inside the pinned Docker container (the host Node/libssl
+   combination cannot reliably write the native `lbug` database on this
+   machine):
+   ```bash
+   scripts/gitnexus-analyze.sh
+   ```
+3. Restart or reconnect your editor's GitNexus MCP client so it opens the
+   freshly built `lbug` database without a stale file handle.
+
+If you need a stable MCP server entry point (for example, when an editor lets
+you configure a custom server command), use:
 
 ```bash
-npm i -g gitnexus
-node .gitnexus/run.cjs analyze --force
+scripts/gitnexus-mcp-server.sh
 ```
 
 ## Emergency contacts and rollback
@@ -236,6 +459,6 @@ node .gitnexus/run.cjs analyze --force
 - Roll back to the previous image: `docker run kirkforge/picodome:<previous-tag>`
 - Reinstall the previous PyPI version:
   ```bash
-  pip install 'picosentry<2.0.17'
+  pip install 'picosentry<2.0.18'
   ```
 - Verify a rollback with `picosentry health` and `python scripts/test_doctor.py`.

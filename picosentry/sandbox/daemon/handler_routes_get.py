@@ -21,26 +21,40 @@ logger = logging.getLogger("picodome.daemon")
 
 
 def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
-    """Verify X-Cluster-Token header matches the configured cluster token."""
-    expected = mgr.state.cluster_token
-    if not expected:
-        return True
+    """Verify X-Cluster-Token header matches any accepted cluster token."""
     provided = self.headers.get("X-Cluster-Token", "")
-    if provided != expected:
-        actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16] if provided else "anonymous"
-        try:
-            audit = get_audit_logger()
-            audit.record(
-                event_type=AuditEventType.AUTH_FAILURE,
-                actor=actor,
-                detail="Cluster token mismatch",
-                target=self.path,
-            )
-        except Exception:
-            logger.exception("Audit record failed")
-        self._send_error(403, "cluster token mismatch")
+    if not provided:
+        self._send_error(403, "cluster token required")
         return False
-    return True
+
+    token_store = getattr(mgr.state, "token_store", None)
+    from picosentry.sandbox.cluster.token_store import ClusterTokenStore
+
+    if isinstance(token_store, ClusterTokenStore):
+        if token_store.is_accepted(provided):
+            return True
+        # Legacy single-token peers send the primary token directly.
+        if provided == mgr.state.cluster_token:
+            return True
+    else:
+        # Backwards-compatible path for state objects without a token_store.
+        expected = mgr.state.cluster_token
+        if not expected or provided == expected:
+            return True
+
+    actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16]
+    try:
+        audit = get_audit_logger()
+        audit.record(
+            event_type=AuditEventType.AUTH_FAILURE,
+            actor=actor,
+            detail="Cluster token mismatch",
+            target=self.path,
+        )
+    except Exception:
+        logger.exception("Audit record failed")
+    self._send_error(403, "cluster token mismatch")
+    return False
 
 
 def _max_list_limit() -> int:

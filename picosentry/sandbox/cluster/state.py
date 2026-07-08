@@ -15,12 +15,23 @@ logger = logging.getLogger("picodome.cluster")
 
 
 class ClusterState:
-    def __init__(self, backend: StateBackend | None = None, cluster_token: str = "") -> None:
+    def __init__(
+        self,
+        backend: StateBackend | None = None,
+        cluster_token: str = "",
+        token_store: Any | None = None,
+    ) -> None:
         self._backend = backend or MemoryStateBackend()
         self._lock = threading.Lock()
         self._version_lock = threading.Lock()
-        self._cluster_token = cluster_token
         self._version_counter = 0
+
+        from picosentry.sandbox.cluster.token_store import ClusterTokenStore
+
+        if token_store is not None:
+            self._token_store = token_store
+        else:
+            self._token_store = ClusterTokenStore(cluster_token)
 
     @property
     def backend(self) -> StateBackend:
@@ -28,11 +39,16 @@ class ClusterState:
 
     @property
     def cluster_token(self) -> str:
-        return self._cluster_token
+        """Backwards-compatible accessor returning the primary token."""
+        return self._token_store.primary_token
+
+    @property
+    def token_store(self) -> Any:
+        return self._token_store
 
     def set_cluster_token(self, token: str) -> None:
-        with self._lock:
-            self._cluster_token = token
+        """Backwards-compatible setter that rotates the primary token."""
+        self._token_store.set_primary(token)
 
     def _next_version(self) -> int:
         with self._version_lock:
@@ -175,15 +191,49 @@ class ClusterState:
                 "scans": [s.to_dict() for s in scans],
                 "leader_id": leader_id,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "token_store": self._token_store.to_snapshot(),
             }
-            if self._cluster_token:
-                snapshot["cluster_token"] = self._cluster_token
+            # Preserve backwards compatibility with peers that only look for
+            # the old ``cluster_token`` field.
+            primary = self._token_store.primary_token
+            if primary:
+                snapshot["cluster_token"] = primary
             return snapshot
 
     def merge_state(self, snapshot: dict[str, Any]) -> None:
         with self._lock:
             remote_token = snapshot.get("cluster_token")
-            if self._cluster_token and remote_token != self._cluster_token:
+            token_store_snapshot = snapshot.get("token_store")
+            if token_store_snapshot:
+                from picosentry.sandbox.cluster.token_store import ClusterTokenStore
+
+                remote_store = ClusterTokenStore.from_snapshot(token_store_snapshot)
+                remote_accepted = remote_store.accepted_tokens
+                local_accepted = self._token_store.accepted_tokens
+                # Peers must share at least one accepted token, or the remote
+                # primary token must be one we already accept. This prevents a
+                # completely unrelated cluster from merging with ours while still
+                # allowing graceful token rotation.
+                common = remote_accepted & local_accepted
+                remote_primary = remote_store.primary_token
+                if (
+                    self.cluster_token
+                    and not common
+                    and remote_primary not in local_accepted
+                    and self.cluster_token not in remote_accepted
+                ):
+                    raise ValueError("cluster token mismatch")
+
+                # Adopt any tokens from the remote store we do not yet accept.
+                for info in remote_store.accepted_token_infos:
+                    if not self._token_store.is_accepted(info.token):
+                        self._token_store.adopt_token(
+                            info.token,
+                            version=info.version,
+                            issued_at=info.issued_at,
+                        )
+            elif self.cluster_token and remote_token != self.cluster_token:
+                # Legacy peers that do not send token_store snapshots.
                 raise ValueError("cluster token mismatch")
 
             def _node_is_newer(remote: ClusterNode, local: ClusterNode) -> bool:

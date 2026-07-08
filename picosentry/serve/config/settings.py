@@ -78,6 +78,18 @@ class SecurityConfig:
     allow_registration: bool = field(default_factory=lambda: _env_bool("ALLOW_REGISTRATION", "false"))
     ssl_cert_path: Path | None = None
     ssl_key_path: Path | None = None
+    # Rate-limit backend: "memory" (default), "sqlite" (per-node persistence),
+    # or "redis" (distributed, shared across serve replicas).
+    rate_limit_backend: str = field(default_factory=lambda: _env("RATE_LIMIT_BACKEND", "memory"))
+    # Redis URL for the distributed rate-limit backend.  Only used when
+    # rate_limit_backend=redis.  Falls back to the daemon Redis URL for
+    # operators who already configure PICODOME_REDIS_URL.
+    redis_url: str = field(
+        default_factory=lambda: _env(
+            "REDIS_URL",
+            os.environ.get("PICODOME_REDIS_URL", "redis://localhost:6379/0"),
+        )
+    )
 
     # Workspace root for POST /scans.  The serve mode used to accept any
     # server-local path as a scan target, which in a multi-tenant setup

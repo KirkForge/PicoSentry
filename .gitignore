@@ -2,18 +2,22 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.pyc
 *.so
 *.egg-info/
 dist/
 build/
 *.egg
 .pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 # Virtual environments
 venv/
 .venv/
 env/
 .env/
+.env.local
 
 # Editor / IDE
 .vscode/

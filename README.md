@@ -37,10 +37,12 @@ Source of truth: [`picosentry/experimental.py`](picosentry/experimental.py).
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
 
-The scanner is the stable product. Everything else is beta or experimental —
-read the notes column honestly. "Beta" means it works but hasn't been
-battle-tested in production. "Experimental" means it runs but hasn't had a
-security review — don't expose it to untrusted networks.
+The scanner is the stable product. Everything else is beta or stable —
+read the notes column honestly. "Beta" means it works, has regression and
+security tests, and is suitable for controlled production use, but has not
+been battle-tested in broad multi-tenant deployments. Each beta component has
+a security review in `docs/SECURITY_REVIEW*.md` listing the honest limitations
+that must be accepted before Enterprise exposure.
 
 ---
 
@@ -74,6 +76,12 @@ security review — don't expose it to untrusted networks.
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV
   corpus (`[scan]` extra); offline-only operation pulls from the local corpus
   snapshot.
+
+- **Beta components have per-component security reviews.** See
+  [`docs/SECURITY_REVIEW.md`](docs/SECURITY_REVIEW.md) (`serve`),
+  [`docs/SECURITY_REVIEW_DAEMON.md`](docs/SECURITY_REVIEW_DAEMON.md) (`daemon`),
+  [`docs/SECURITY_REVIEW_ADMISSION.md`](docs/SECURITY_REVIEW_ADMISSION.md) (`admission`),
+  and [`docs/SECURITY_REVIEW_CLUSTER.md`](docs/SECURITY_REVIEW_CLUSTER.md) (`cluster mode`).
 
 If a feature is listed as Experimental above, treat it as not production-ready.
 

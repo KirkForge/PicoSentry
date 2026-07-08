@@ -27,7 +27,7 @@ class ClusterNode:
     last_heartbeat: str = ""
     load: int = 0  # scans in progress
     version: int = 0  # monotonic conflict-resolution counter
-    cluster_token: str = ""  # shared cluster secret for inter-node trust
+    cluster_token: str = ""  # deprecated: use token store snapshots instead
 
     def __post_init__(self) -> None:
         if isinstance(self.status, str):

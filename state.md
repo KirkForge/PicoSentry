@@ -2,6 +2,87 @@
 
 ---
 
+## Current session: 2026-07-08 — Option A + B: distributed rate limiter and cluster token rotation
+
+### Done this session (on `main`)
+- **Implemented `PICOSHOGUN_RATE_LIMIT_BACKEND=redis` for `serve`.**
+  - Added `picosentry/serve/middleware/rate_limit_redis.py`: `RedisRateLimitBackend`
+    using Redis sorted sets for shared sliding-window counters. Falls back to
+    in-memory on Redis failure.
+  - Extended `picosentry/serve/middleware/rate_limit.py` with a `backend`
+    parameter (`memory`/`redis`) and optional `backend_instance` for tests.
+  - Added `SecurityConfig.rate_limit_backend` and `redis_url` in
+    `picosentry/serve/config/settings.py`, reading
+    `PICOSHOGUN_RATE_LIMIT_BACKEND` and `PICOSHOGUN_REDIS_URL` (with fallback
+    to `PICODOME_REDIS_URL`).
+  - Wired the backend into `picosentry/serve/api/server.py` so production
+    deployments can opt into shared rate limiting.
+  - Updated `tests/serve/conftest.py` to reset the Redis backend between tests.
+  - Added `tests/serve/test_rate_limit_redis.py` with mock-Redis coverage for
+    backend record/count/limit/reset, cross-instance enforcement, middleware
+    integration, org API-key limits, and fallback to memory on Redis failure.
+- **Implemented graceful cluster token rotation.**
+  - Added `picosentry/sandbox/cluster/token_store.py`: `ClusterTokenStore`
+    holding a primary token plus an accepted-token set with version metadata.
+  - Integrated the token store into `ClusterState` so snapshots propagate
+    accepted tokens and peers adopt new tokens during gossip.
+  - Added `ClusterManager.rotate_token()` and `retire_stale_tokens()` plus CLI
+    `picodome cluster rotate-token`.
+  - Updated daemon route handlers (`handler_routes_get.py`,
+    `handler_routes_post.py`) to accept any token in the accepted set while
+    preserving legacy single-token compatibility.
+  - Added `TestClusterTokenRotation` in `tests/sandbox/test_cluster.py` covering
+    rotation, retirement, snapshot adoption, and mismatch rejection.
+  - Updated daemon-handler tests to supply `X-Cluster-Token` headers so they
+    reach the intended exception-handling paths.
+- **Updated Enterprise docs.**
+  - `docs/ops/runbook.md`: added distributed Redis rate-limit backend section
+    and updated cluster token rotation instructions for the new graceful flow.
+  - `docs/SECURITY_REVIEW.md`: marked the shared rate-limit backend criterion as
+    complete.
+  - `docs/SECURITY_REVIEW_CLUSTER.md`: updated token-rotation limitation and
+    marked rotation/runbook criteria as complete.
+- **Verified.**
+  - `tests/serve/` passes (412 tests).
+  - `tests/sandbox/` passes (1571 passed, 18 skipped).
+  - `ruff check/format` and `mypy picosentry/` pass.
+
+### Open gaps / missing work identified (PicoSentry)
+- **Per-component hardening to reach Enterprise:** the remaining blockers are
+  formal pentest/adversarial review for `serve`/`daemon`/`admission`/`cluster`
+  and network-segmentation controls / split-brain quorum for cluster mode.
+
+---
+
+## Current session: 2026-07-06 — durable GitNexus workflow + Enterprise doc hardening (Pass 1)
+
+### Done this session (on `main`)
+- **Made GitNexus analysis reliable and editor-agnostic.** Host `gitnexus analyze` fails on this machine because the pre-built `lbugjs.node` native binding is ABI/OpenSSL-sensitive; Docker is the reproducible fix.
+  - Added `scripts/gitnexus-analyze.sh`: pinned `node:22.12.0` + `libssl3` container, global `gitnexus` install, project-local `.gitnexus/run.cjs` when present, and ownership fix from inside the container.
+  - Added `scripts/gitnexus-kill-orphans.sh`: kills processes holding `.gitnexus/lbug`, kills orphaned `gitnexus mcp` processes, removes stale `/tmp/lbug.bak*` files, and prunes old hook-lock slots.
+  - Added `scripts/gitnexus-mcp-server.sh`: lock-cleanup wrapper that `exec`s `gitnexus mcp`; useful if an editor allows a custom MCP server command.
+  - Updated `docs/AGENTS.md`, `docs/CLAUDE.md`, project `CLAUDE.md`, and `docs/ops/runbook.md` to point editors at `scripts/gitnexus-analyze.sh` and to restart/reconnect the GitNexus MCP client after any rebuild.
+- **Verified host CLI reads the fresh Docker-built index.** `gitnexus status` and `gitnexus list` work; `gitnexus mcp` accepts a JSON-RPC `initialize` request. The remaining step to restore in-editor tools is an MCP client reconnect/restart.
+- **User ran `scripts/gitnexus-analyze.sh`.** The Docker rebuild completed and the index is readable from the host CLI. Two post-run issues were fixed:
+  - The container left `.gitnexus/gitnexus.json` and `.gitnexus/meta.json` owned by `root`, blocking the host editor. Fixed with `sudo chown -R $(id -u):$(id -g) .gitnexus/`.
+  - Patched `scripts/gitnexus-analyze.sh` to add a host-side `sudo chown` fallback after the container exits.
+- **MCP tool availability confirmed briefly, then an orphaned `gitnexus mcp` process caused a lock.** Ran `scripts/gitnexus-kill-orphans.sh` to clear it. Editor MCP client needs one more reconnect to become fully stable.
+- **Enterprise readiness documentation (Pass 1).**
+  - Refreshed `docs/THREAT_MODEL.md`: maturity table now matches `picosentry/experimental.py` (scan/sandbox/watch/correlation/plugin/postgres = Stable; serve/daemon/admission/cluster = Beta), added cluster-mode trust boundary, and linked per-component security reviews.
+  - Refreshed `docs/SECURITY_REVIEW.md` for `serve`: updated date, added Postgres/plugin backend coverage, and explicit graduation criteria.
+  - Created `docs/SECURITY_REVIEW_DAEMON.md`, `docs/SECURITY_REVIEW_ADMISSION.md`, `docs/SECURITY_REVIEW_CLUSTER.md` with current state, test coverage, honest limitations, and graduation criteria.
+  - Updated `docs/ARCHITECTURE.md` and `README.md` to cross-link the new security reviews and reflect that there are no longer any Experimental components.
+  - Aligned cluster-mode log warnings from "EXPERIMENTAL" to "BETA" in `picosentry/sandbox/cluster/manager.py` and `picosentry/sandbox/cluster/orchestrator.py`, and updated `tests/sandbox/test_cluster.py::TestClusterBetaWarnings` accordingly.
+- **Verified changes.** `tests/test_experimental_status.py` and `tests/sandbox/test_cluster.py::TestClusterBetaWarnings` pass; `ruff check` and `ruff format --check` pass on changed Python files.
+
+### Open gaps / missing work identified (PicoSentry)
+- **Pass 2 (this session):**
+  - Run `scripts/gitnexus-analyze.sh` and restart/reconnect Claude Code and OpenCode so in-editor GitNexus MCP tools work again. ✅ Done — index rebuilt, editor tools operational.
+  - Add daemon/admission/cluster runbook sections to `docs/ops/runbook.md`. ✅ Done — added deployment, mTLS rotation, job-store backup/restore, audit-sink and metrics guidance for the daemon; admission deployment/cert rotation/rollback; cluster bootstrap, node add/remove, token rotation, split-brain recovery.
+
+
+---
+
 ## Current session: 2026-07-04 — GitNexus index restored + CI green + gap closure
 
 ### Done this session (on `main`)

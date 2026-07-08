@@ -3,7 +3,7 @@ import hmac
 import logging
 import secrets
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, ClassVar
 
 try:
     import jwt
@@ -56,24 +56,25 @@ class AuthService:
 
         return False
 
+    def _normalize_username(self, username: str) -> str:
+        return username.strip().casefold()
+
     def authenticate(self, username: str, password: str) -> str | None:
-        user = self._db.execute_one("SELECT * FROM users WHERE username = ? AND is_active = 1", (username,))
+        normalized = self._normalize_username(username)
+        user = self._db.execute_one("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
 
-        if not user:
-            logger.warning("Auth failed: user not found")
-            return None
-
-        if not self._verify_password(password, user["password_hash"]):
-            logger.warning("Auth failed: invalid password")
+        # Generic failure path: do not reveal whether the username exists.
+        if not user or not self._verify_password(password, user["password_hash"]):
+            logger.warning("Auth failed: invalid credentials")
             return None
 
         self._db.execute_insert(
             "UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(timezone.utc), user["id"])
         )
 
-        token = self._generate_token(user["id"], username, user["role"])
+        token = self._generate_token(user["id"], user["username"], user["role"])
 
-        logger.info("User %s authenticated", username)
+        logger.info("User %s authenticated", user["username"])
         return token
 
     def _generate_token(self, user_id: int, username: str, role: str) -> str:
@@ -115,8 +116,9 @@ class AuthService:
             return None
 
     def create_user(self, username: str, password: str, email: str | None = None, role: str = "viewer") -> int | None:
+        normalized = self._normalize_username(username)
 
-        existing = self._db.execute_one("SELECT id FROM users WHERE username = ?", (username,))
+        existing = self._db.execute_one("SELECT id FROM users WHERE username = ?", (normalized,))
         if existing:
             return None
 
@@ -127,13 +129,22 @@ class AuthService:
             INSERT INTO users (username, password_hash, email, role)
             VALUES (?, ?, ?, ?)
         """,
-            (username, password_hash, email, role),
+            (normalized, password_hash, email, role),
         )
 
-        logger.info("User created: %s (role: %s)", username, role)
+        logger.info("User created: %s (role: %s)", normalized, role)
         return user_id
 
+    _API_KEY_PERMISSIONS: ClassVar[set[str]] = {"read", "write", "admin"}
+
     def create_api_key(self, user_id: int, name: str, permissions: str = "read") -> str | None:
+        allowed_permissions = self._API_KEY_PERMISSIONS
+        requested = {p.strip() for p in permissions.split(",") if p.strip()}
+        if not requested or not requested.issubset(allowed_permissions):
+            logger.warning("API key create rejected: invalid permissions '%s'", permissions)
+            return None
+
+        normalized = ",".join(sorted(requested))
         api_key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
@@ -144,7 +155,7 @@ class AuthService:
             INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
             VALUES (?, ?, ?, ?, ?)
         """,
-            (key_hash, user_id, name, permissions, expires),
+            (key_hash, user_id, name, normalized, expires),
         )
 
         logger.info("API key created for user %s: %s", user_id, name)
@@ -158,13 +169,20 @@ class AuthService:
             SELECT ak.*, u.username, u.role
             FROM api_keys ak
             JOIN users u ON ak.user_id = u.id
-            WHERE ak.key_hash = ? AND ak.is_active = 1
+            WHERE ak.key_hash = ? AND ak.is_active = 1 AND u.is_active = 1
             AND (ak.expires_at IS NULL OR ak.expires_at > ?)
         """,
             (key_hash, datetime.now(timezone.utc)),
         )
 
         if not key:
+            return None
+
+        # Reject keys whose permissions are not a subset of the allowlist.
+        # Guards against pre-existing rows with invalid permission strings.
+        key_perms = {p.strip() for p in key["permissions"].split(",") if p.strip()}
+        if not key_perms.issubset(self._API_KEY_PERMISSIONS):
+            logger.warning("API key rejected: invalid stored permissions")
             return None
 
         self._db.execute_insert(

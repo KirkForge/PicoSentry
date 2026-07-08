@@ -605,6 +605,79 @@ class TestAuthService:
         result = auth.validate_token("invalid_token")
         assert result is None
 
+    def test_create_user_normalizes_username_case(self):
+        import time
+
+        from picosentry.serve.services.auth import AuthService
+
+        auth = AuthService()
+        base = f"svc_case_{int(time.time() * 1000)}"
+        user_id = auth.create_user(base.upper(), "testpassword123", role="viewer")
+        assert user_id is not None
+
+        duplicate = auth.create_user(base.lower(), "testpassword123", role="viewer")
+        assert duplicate is None
+
+        token = auth.authenticate(f"  {base}  ", "testpassword123")
+        assert token is not None
+
+    def test_authenticate_does_not_leak_user_existence(self):
+        import time
+
+        from picosentry.serve.services.auth import AuthService
+
+        auth = AuthService()
+        username = f"svc_leak_{int(time.time() * 1000)}"
+        auth.create_user(username, "testpassword123", role="viewer")
+
+        with self._capture_logs("picoshogun.Auth") as handler:
+            assert auth.authenticate(username, "wrongpassword") is None
+            assert auth.authenticate("doesnotexist", "wrongpassword") is None
+
+        messages = " ".join(r.getMessage() for r in handler.records)
+        assert "user not found" not in messages
+        assert "invalid password" not in messages
+        assert "invalid credentials" in messages
+
+    def test_create_api_key_validates_permissions(self):
+        import time
+
+        from picosentry.serve.services.auth import AuthService
+
+        auth = AuthService()
+        username = f"svc_keyperm_{int(time.time() * 1000)}"
+        auth.create_user(username, "testpassword123", role="viewer")
+
+        user = auth.authenticate(username, "testpassword123")
+        info = auth.validate_token(user)
+        user_id = info["id"]
+
+        assert auth.create_api_key(user_id, "valid", permissions="read") is not None
+        assert auth.create_api_key(user_id, "multi", permissions="read,write") is not None
+        assert auth.create_api_key(user_id, "invalid", permissions="hax") is None
+        assert auth.create_api_key(user_id, "empty", permissions="") is None
+
+    @staticmethod
+    @contextlib.contextmanager
+    def _capture_logs(logger_name: str):
+        import logging
+
+        class _Handler(logging.Handler):
+            def __init__(self):
+                super().__init__()
+                self.records = []
+
+            def emit(self, record):
+                self.records.append(record)
+
+        logger = logging.getLogger(logger_name)
+        handler = _Handler()
+        logger.addHandler(handler)
+        try:
+            yield handler
+        finally:
+            logger.removeHandler(handler)
+
 
 class TestSchedulerService:
     """Test the scheduler service directly."""

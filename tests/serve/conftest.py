@@ -9,6 +9,7 @@ import uuid
 from pathlib import Path
 
 import pytest
+import contextlib
 
 # Ensure project root is on sys.path
 ROOT = Path(__file__).parent.parent
@@ -58,6 +59,9 @@ def _find_and_clear_rate_limiter(app):
         if isinstance(obj, RateLimitMiddleware):
             obj.ip_requests.clear()
             obj.org_requests.clear()
+            if obj._redis_backend is not None:
+                with contextlib.suppress(Exception):
+                    obj._redis_backend.reset()
             return
         if hasattr(obj, "app"):
             obj = obj.app

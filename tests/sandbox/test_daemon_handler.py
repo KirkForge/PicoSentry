@@ -402,7 +402,7 @@ class TestDaemonExceptionHandling:
         _make_handler(tmp_path)
         handler = _new_handler()
         handler.path = "/api/v1/cluster/snapshot"
-        handler.headers = {}
+        handler.headers = {"X-Cluster-Token": "wrong"}
         handler._send_error = MagicMock()
 
         class _BoomAudit:
@@ -415,6 +415,7 @@ class TestDaemonExceptionHandling:
         ):
             mgr = MagicMock()
             mgr.state.cluster_token = "secret"
+            mgr.state.token_store.accepted_tokens = {"secret"}
             get_check(handler, mgr)
 
         assert any("Audit record failed" in r.message for r in caplog.records)
@@ -553,13 +554,13 @@ class TestDaemonExceptionHandling:
 
         import picosentry.sandbox.cluster.manager as cluster_manager_mod
 
-        _make_handler(tmp_path)
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
         handler = _new_handler()
         handler.path = "/api/v1/cluster/snapshot"
-        handler.headers = {}
+        handler.headers = {"X-Cluster-Token": "test-token-32-chars-long-for-perm"}
 
         class _BoomState:
-            cluster_token = ""
+            cluster_token = "test-token-32-chars-long-for-perm"
 
             def get_state_snapshot(self):
                 raise RuntimeError("internal cluster state secret")
@@ -640,11 +641,12 @@ class TestDaemonExceptionHandling:
         handler.headers = {
             "Content-Type": "application/json",
             "Content-Length": str(len(body)),
+            "X-Cluster-Token": "test-token-32-chars-long-for-perm",
         }
         handler.rfile = io.BytesIO(body.encode())
 
         class _BoomState:
-            cluster_token = ""
+            cluster_token = "test-token-32-chars-long-for-perm"
 
             def list_nodes(self):
                 return []
@@ -680,11 +682,12 @@ class TestDaemonExceptionHandling:
         _make_handler(tmp_path)
         handler = _new_handler()
         handler.path = "/api/v1/cluster/snapshot"
-        handler.headers = {}
+        handler.headers = {"X-Cluster-Token": "wrong"}
         handler._send_error = MagicMock()
 
         mgr = MagicMock()
         mgr.state.cluster_token = "secret"
+        mgr.state.token_store.accepted_tokens = {"secret"}
 
         with (
             caplog.at_level(logging.WARNING, logger="picodome.daemon"),

@@ -201,3 +201,6 @@ Before deploying a plugin, verify:
       allowlist.
 - [ ] It has a meaningful `health_check()` that fails closed when dependencies
       are unavailable.
+- [ ] It expects the server to swallow hook/health-check/shutdown failures so a
+      misbehaving plugin cannot crash the host; it should never rely on an
+      unhandled exception crossing the subprocess boundary.

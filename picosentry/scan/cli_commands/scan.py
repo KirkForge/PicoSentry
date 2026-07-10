@@ -16,9 +16,11 @@ from picosentry.scan.cli_service import (
     ScanTimeout,
     _format_quiet,
     _format_summary,
+    _resolve_external_path,
     _run_scan,
     _scan_worker,
     _verify_determinism,
+    _workspace_root,
 )
 
 NAME = "scan"
@@ -184,15 +186,18 @@ def cmd(args: argparse.Namespace) -> int:
     return orchestrator.run()
 
 
+# Re-export orchestration helpers for backward-compatible tests and scripts.
 __all__ = [
     "NAME",
     "ScanError",
     "ScanTimeout",
     "_format_quiet",
     "_format_summary",
+    "_resolve_external_path",
     "_run_scan",
     "_scan_worker",
     "_verify_determinism",
+    "_workspace_root",
     "add_arguments",
     "cmd",
 ]

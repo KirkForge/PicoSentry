@@ -4,6 +4,60 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Enterprise: distributed Redis rate-limit backend
+
+- New `PICOSHOGUN_RATE_LIMIT_BACKEND=redis` option for `picosentry serve`,
+  backed by `picosentry/serve/middleware/rate_limit_redis.py`.
+  `RedisRateLimitBackend` uses Redis sorted sets for shared sliding-window
+  counters across `serve` replicas; on Redis failure it falls back to the
+  in-memory backend so a single Redis outage does not open the floodgates.
+- `SecurityConfig` reads `PICOSHOGUN_RATE_LIMIT_BACKEND` and
+  `PICOSHOGUN_REDIS_URL` (with fallback to `PICODOME_REDIS_URL`) in
+  `picosentry/serve/config/settings.py`.
+- `RateLimitMiddleware` accepts `backend` (`memory` / `redis`) and an optional
+  `backend_instance` for deterministic tests.
+- Added `tests/serve/test_rate_limit_redis.py` covering record/count/limit/
+  reset, cross-instance enforcement, middleware integration, org API-key
+  limits, and fallback on Redis failure.
+
+### Enterprise: graceful cluster token rotation
+
+- Added `picosentry/sandbox/cluster/token_store.py`: `ClusterTokenStore`
+  holds a primary token plus an accepted-token set with version metadata,
+  enabling rolling rotation without a hard cut-over.
+- Integrated the token store into `ClusterState` so snapshots propagate
+  accepted tokens and peers adopt new tokens during gossip.
+- Added `ClusterManager.rotate_token()` and `retire_stale_tokens()` plus the
+  `picodome cluster rotate-token` CLI command.
+- Daemon route handlers now accept any token in the accepted set while
+  preserving legacy single-token compatibility.
+- Added `TestClusterTokenRotation` in `tests/sandbox/test_cluster.py`
+  covering rotation, retirement, snapshot adoption, and mismatch rejection.
+- Updated daemon-handler tests to supply `X-Cluster-Token` headers so they
+  reach the intended exception-handling paths.
+
+### Security: additional exception-narrowing slices
+
+- Auth/cryptographic paths: narrowed broad `except Exception` in
+  `picosentry/scan/auth.py` and `picosentry/scan/crypto.py`.
+- Engine/policy/campaign paths: `picosentry/scan/engine.py`.
+- Cluster audit/heartbeat/health/gossip sinks:
+  `picosentry/sandbox/cluster/orchestrator.py`.
+- Daemon auth audit sinks: `picosentry/sandbox/daemon/handler_mixins.py`.
+- Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py`.
+- Scan config/policy load: `picosentry/scan/config.py`.
+- Corpus cryptographic signing/verification and IoC import:
+  `picosentry/scan/corpus_share.py`.
+- Workspace discovery/worker/scan loop: `picosentry/scan/workspace.py`.
+- Watch config load/permission check: `picosentry/watch/config.py`.
+- Replaced production `assert` statements with explicit `RuntimeError` in
+  `picosentry/serve/services/plugin_host.py`,
+  `picosentry/sandbox/ratelimit/redis_limiter.py`, and
+  `picosentry/sandbox/policy_versioned/signing.py`.
+- Added explicit timeout handling to the Discord notifier.
+- Documented the intentional broad catch in `plugin_manager.py` (untrusted
+  plugins must not crash the host).
+
 ### Fix: scans/sandbox/websocket auth test isolation
 
 - `AuthService` now accepts an optional `db` parameter and resolves

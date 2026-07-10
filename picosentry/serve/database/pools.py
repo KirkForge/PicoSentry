@@ -51,7 +51,7 @@ class SQLitePool:
             conn.execute("BEGIN")
             yield conn
             conn.commit()
-        except Exception:
+        except BaseException:
             conn.rollback()
             raise
 

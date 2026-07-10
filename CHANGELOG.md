@@ -55,6 +55,13 @@ All notable changes to PicoSentry will be documented in this file.
   and the result-queue get catch to `(OSError, ValueError, TypeError)`.
   Operational failures still surface as `ScanError`; unexpected programmer
   errors propagate.
+- Retention/gRPC audit and transport boundaries: narrowed broad
+  `except Exception` in `picosentry/sandbox/retention/manager.py` (audit-log
+  failures for cleanup/export), `picosentry/sandbox/grpc_transport/client.py`
+  (TLS credential creation and scan retry), `server.py` (TLS credential creation
+  and start/stop audit logs), and `_servicer.py` (policy load, health check,
+  GetPolicy, and audit helper). Expected operational failures are logged and
+  handled; unexpected programmer errors propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

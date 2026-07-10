@@ -110,8 +110,8 @@ class PicoDomeGRPCServer:
                 actor="picodome-grpc-server",
                 detail=f"gRPC server listening on {address}",
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for gRPC server start", exc_info=True)
 
         self._server.start()
         logger.info("PicoDome gRPC server started on %s", address)
@@ -130,8 +130,8 @@ class PicoDomeGRPCServer:
                     actor="picodome-grpc-server",
                     detail="gRPC server stopped",
                 )
-            except Exception:
-                pass
+            except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+                logger.debug("Audit log failed for gRPC server stop", exc_info=True)
 
             logger.info("PicoDome gRPC server stopped")
 
@@ -175,6 +175,6 @@ class PicoDomeGRPCServer:
 
             logger.info("gRPC TLS credentials created (verify_client=%s)", mtls_config.verify_client)
             return credentials
-        except Exception:
-            logger.exception("Failed to create gRPC TLS credentials")
+        except (OSError, ValueError, TypeError) as e:
+            logger.warning("Failed to create gRPC TLS credentials: %s", e)
             return None

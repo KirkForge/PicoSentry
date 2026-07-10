@@ -4,6 +4,7 @@ test_cli.py — CLI integration and SARIF format validation tests.
 Tests the command-line interface and SARIF output format.
 """
 
+import argparse
 import json
 import subprocess
 import sys
@@ -723,6 +724,30 @@ class TestDiffCommand:
 
 class TestQuietAndSummary:
     """Test --quiet and --summary CLI flags."""
+
+    def test_worker_operational_error_becomes_scan_error(self, tmp_path):
+        """Operational errors from the worker queue are surfaced as ScanError."""
+        from unittest.mock import patch
+
+        import picosentry.scan.cli_commands.scan as scan_module
+        from picosentry.scan.cli_commands.scan import _run_scan
+        from picosentry.scan.config import PicoSentryConfig
+
+        project = _make_project(tmp_path, {"name": "x", "version": "1.0.0"})
+
+        config = PicoSentryConfig()
+        with (
+            patch.object(config, "merge_cli", return_value=config),
+            patch.object(scan_module, "_scan_worker") as mock_worker,
+        ):
+            # Simulate the worker leaving an error marker in the queue.
+            def _put_error(*args, **kwargs):
+                result_queue = args[-1]
+                result_queue.put(("error", "engine blew up"))
+
+            mock_worker.side_effect = _put_error
+            with pytest.raises(scan_module.ScanError, match="engine blew up"):
+                _run_scan(argparse.Namespace(timeout=1), project, merged_config=config)
 
     def test_summary_clean_project(self, tmp_path):
         """--summary on project with only minor findings should work."""

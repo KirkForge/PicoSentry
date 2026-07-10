@@ -106,7 +106,7 @@ def _scan_worker(
         )
         r = eng.scan(target_path, rules=rules, advisory_db_path=advisory_db_path)
         result_queue.put(("ok", r))
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError, ImportError, TimeoutError) as e:
         result_queue.put(("error", str(e)))
 
 
@@ -614,8 +614,8 @@ def _run_scan(
 
         try:
             status, data = result_queue.get(timeout=1)
-        except Exception:
-            raise ScanError("failed to retrieve scan result from worker") from None
+        except (OSError, ValueError, TypeError) as e:
+            raise ScanError("failed to retrieve scan result from worker") from e
         if status == "error":
             raise ScanError(data)
         result = data

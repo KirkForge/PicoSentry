@@ -44,7 +44,17 @@ All notable changes to PicoSentry will be documented in this file.
 - Cluster audit/heartbeat/health/gossip sinks:
   `picosentry/sandbox/cluster/orchestrator.py`.
 - Daemon auth audit sinks: `picosentry/sandbox/daemon/handler_mixins.py`.
-- Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py`.
+- Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py` now
+  narrows readiness and auth-config load catches to
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError)`. Expected
+  operational failures return 503 or fall back to env auth; unexpected
+  programmer errors propagate.
+- Scan CLI worker boundary: `picosentry/scan/cli_commands/scan.py` now
+  narrows the scan worker error catch to
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError, TimeoutError)`
+  and the result-queue get catch to `(OSError, ValueError, TypeError)`.
+  Operational failures still surface as `ScanError`; unexpected programmer
+  errors propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

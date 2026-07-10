@@ -132,8 +132,8 @@ class RedisTokenBucketLimiter:
                     "limited": current_tokens < 1.0,
                     "backend": "redis",
                 }
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as e:
+            logger.debug("Redis status probe failed: %s", e)
 
         return self._fallback.get_status(actor)
 
@@ -149,7 +149,8 @@ class RedisTokenBucketLimiter:
             else:
                 for key in client.scan_iter("picodome:ratelimit:*"):
                     client.delete(key)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError) as e:
+            logger.debug("Redis reset failed, falling back: %s", e)
             self._fallback.reset(actor)
 
     @property

@@ -51,7 +51,7 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
             detail="Cluster token mismatch",
             target=self.path,
         )
-    except Exception:
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
         logger.exception("Audit record failed")
     self._send_error(403, "cluster token mismatch")
     return False

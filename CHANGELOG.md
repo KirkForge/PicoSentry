@@ -85,6 +85,13 @@ All notable changes to PicoSentry will be documented in this file.
   escalation callback) and `picosentry/scan/policy_pkg/bundle.py` (cryptographic
   signing failure). Expected operational failures are logged/handled; unexpected
   programmer errors propagate.
+- Remaining sandbox boundaries: narrowed broad `except Exception` in
+  `picosentry/sandbox/tracing.py` (span exception recording),
+  `picosentry/sandbox/ratelimit/redis_limiter.py` (status/reset Redis failures),
+  `picosentry/sandbox/daemon/handler_routes_get.py` (cluster-token audit record
+  failure), and `picosentry/sandbox/l3/backends/seccomp_trace/orchestrator.py`
+  (availability probe and run fallback). Expected operational failures are
+  handled/fallback; unexpected programmer errors propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

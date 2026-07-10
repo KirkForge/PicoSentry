@@ -73,7 +73,7 @@ class L4Engine:
                 findings = rule_fn(profile, baselines) if param_count >= 2 else rule_fn(profile)
                 all_findings.extend(findings)
                 logger.debug("L4 rule %s: %d findings", rule_id, len(findings))
-            except Exception:
+            except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
                 logger.exception("L4 rule")
 
         if not deterministic:

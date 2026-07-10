@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import os
 import sys
-from typing import Callable
+from collections.abc import Callable
 
 
 _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
@@ -63,7 +63,7 @@ def maturity_badge(command: str) -> str:
     return _COMMAND_MATURITY.get(command, ("UNKNOWN", ""))[0]
 
 
-def wrap_with_maturity(command: str, quiet: bool = False) -> Callable[[], int]:
+def wrap_with_maturity(command: str, quiet: bool = False) -> Callable[[Callable[[], int]], Callable[[], int]]:
     """Decorator-style helper for simple commands that just need a warning."""
 
     def _decorator(fn: Callable[[], int]) -> Callable[[], int]:

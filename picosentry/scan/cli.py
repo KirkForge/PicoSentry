@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import sys
 
 from picosentry.scan.cli_commands import (
     benchmark,
@@ -21,6 +20,15 @@ from picosentry.scan.cli_commands import (
     update,
     version,
     workspace,
+)
+from picosentry.scan.cli_service import (
+    ScanError,
+    ScanTimeout,
+    _format_quiet,
+    _format_summary,
+    _run_scan,
+    _scan_worker,
+    _verify_determinism,
 )
 from picosentry.scan.logging import configure_logging
 
@@ -102,5 +110,24 @@ _cmd_advisories = advisories.cmd
 _handle_validate = scan.cmd  # kept for compatibility; validation now goes through orchestrator
 
 
-if __name__ == "__main__":
-    sys.exit(main())
+# Re-export orchestration symbols for backward compatibility with tests and scripts.
+__all__ = [
+    "ScanError",
+    "ScanTimeout",
+    "_cmd_advisories",
+    "_cmd_check",
+    "_cmd_corpus",
+    "_cmd_diff",
+    "_cmd_init",
+    "_cmd_ioc",
+    "_cmd_policy",
+    "_cmd_update",
+    "_cmd_workspace",
+    "_format_quiet",
+    "_format_summary",
+    "_handle_validate",
+    "_run_scan",
+    "_scan_worker",
+    "_verify_determinism",
+    "main",
+]

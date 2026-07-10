@@ -512,6 +512,7 @@ def create_default_engine(
     advisory_db_path: str | None = None,
     max_workers: int | None = None,
 ) -> ScanEngine:
+    """Create a default scan engine with the bundled rule set."""
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
@@ -535,7 +536,11 @@ def create_default_engine(
     from .rules.typosquat import detect_all_typosquat
     from .rules.worm_propagation import detect_worm_propagation
 
-    engine = ScanEngine(corpus_dir=corpus_dir, advisory_db_path=advisory_db_path)
+    engine = ScanEngine(
+        corpus_dir=corpus_dir,
+        advisory_db_path=advisory_db_path,
+        max_workers=max_workers,
+    )
 
     engine.register("L2-DEPC-001", detect_all_dep_confusion)
     engine.register("L2-TYPO-001", detect_all_typosquat)

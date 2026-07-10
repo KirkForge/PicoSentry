@@ -10,7 +10,6 @@ import argparse
 import sys
 from pathlib import Path
 
-from picosentry.scan import __version__
 from picosentry.scan.cli_service import (
     ScanError,
     ScanOrchestrator,
@@ -189,12 +188,11 @@ __all__ = [
     "NAME",
     "ScanError",
     "ScanTimeout",
-    "add_arguments",
-    "cmd",
     "_format_quiet",
     "_format_summary",
     "_run_scan",
     "_scan_worker",
     "_verify_determinism",
+    "add_arguments",
+    "cmd",
 ]
-

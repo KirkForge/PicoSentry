@@ -17,10 +17,14 @@ from collections.abc import Callable
 from typing import Any
 
 
+CommandAdder = Callable[[argparse._SubParsersAction], None]
+CommandRunner = Callable[[argparse.Namespace], Any]
+
+
 class CommandModule:
     """Small wrapper around a command module for type safety."""
 
-    def __init__(self, name: str, add_arguments: Callable[[argparse._SubParsersAction], None], cmd: Callable[[argparse.Namespace], Any]):
+    def __init__(self, name: str, add_arguments: CommandAdder, cmd: CommandRunner):
         self.name = name
         self.add_arguments = add_arguments
         self.cmd = cmd
@@ -29,7 +33,7 @@ class CommandModule:
 _COMMANDS: dict[str, CommandModule] = {}
 
 
-def register(name: str, add_arguments: Callable[[argparse._SubParsersAction], None], cmd: Callable[[argparse.Namespace], Any]) -> None:
+def register(name: str, add_arguments: CommandAdder, cmd: CommandRunner) -> None:
     """Register a top-level subcommand."""
     _COMMANDS[name] = CommandModule(name, add_arguments, cmd)
 

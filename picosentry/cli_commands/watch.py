@@ -7,7 +7,6 @@ it with the unified CLI and forwards arguments.
 from __future__ import annotations
 
 import argparse
-import os
 
 from picosentry.cli_commands import register
 from picosentry.cli_commands._common import import_or_warn

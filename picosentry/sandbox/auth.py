@@ -132,8 +132,7 @@ class TokenAuth:
             # Reject world-readable or world-writable files.
             if mode & 0o077:
                 logger.warning(
-                    "Token file %s has overly permissive mode %s; "
-                    "it should be readable only by owner (e.g. 0o600).",
+                    "Token file %s has overly permissive mode %s; it should be readable only by owner (e.g. 0o600).",
                     token_file,
                     oct(mode & 0o777),
                 )
@@ -205,7 +204,9 @@ class TokenAuth:
         if len(self._failed_attempts) < MAX_FAILED_ATTEMPTS_CACHE:
             return
         now = _time.monotonic()
-        stale_keys = [k for k, (_, last_time) in self._failed_attempts.items() if now - last_time > FAILED_ATTEMPT_TTL_SECONDS]
+        stale_keys = [
+            k for k, (_, last_time) in self._failed_attempts.items() if now - last_time > FAILED_ATTEMPT_TTL_SECONDS
+        ]
         if stale_keys:
             for k in stale_keys:
                 del self._failed_attempts[k]

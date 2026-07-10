@@ -9,6 +9,7 @@ and makes the orchestration testable without argparse.
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import logging
@@ -95,10 +96,8 @@ def _secure_realpath(path_str: str, description: str = "path") -> Path:
         real = Path(os.path.realpath(proc_path))
         return real
     finally:
-        try:
+        with contextlib.suppress(OSError):
             os.close(fd)
-        except OSError:
-            pass
 
 
 def _resolve_external_path(
@@ -127,9 +126,7 @@ def _resolve_external_path(
 
     resolved = candidate.resolve(strict=False)
     if not resolved.is_relative_to(workspace_root):
-        raise ValueError(
-            f"{description} must be inside the workspace root ({workspace_root}): {path_str}"
-        )
+        raise ValueError(f"{description} must be inside the workspace root ({workspace_root}): {path_str}")
 
     if must_exist:
         if not resolved.exists():
@@ -138,9 +135,7 @@ def _resolve_external_path(
         # will actually use, closing the symlink/traversal TOCTOU window.
         resolved = _secure_realpath(str(resolved), description=description)
         if not resolved.is_relative_to(workspace_root):
-            raise ValueError(
-                f"{description} resolves outside the workspace root ({workspace_root}): {path_str}"
-            )
+            raise ValueError(f"{description} resolves outside the workspace root ({workspace_root}): {path_str}")
 
     return resolved
 
@@ -251,10 +246,14 @@ class ScanOrchestrator:
         if config.output:
             config.output = str(_resolve_external_path(config.output, self.workspace_root, description="--output"))
 
-    def _load_cache(self, target: Path, config: PicoSentryConfig) -> tuple[Any, str]:
-        """Attempt to load a cached result.  Returns (cached_result, lockfile_hash)."""
+    def _load_cache(self, target: Path, config: PicoSentryConfig) -> tuple[ScanResult | None, Any, str]:
+        """Attempt to load a cached result.
+
+        Returns ``(cached_result, cache, lockfile_hash)``.  ``cache`` is the
+        cache store instance (or ``None`` if caching is disabled or failed).
+        """
         if getattr(self.args, "verify_determinism", False) or getattr(self.args, "no_cache", False):
-            return None, ""
+            return None, None, ""
         try:
             from picosentry.scan.cache import ScanCache
 
@@ -266,7 +265,7 @@ class ScanOrchestrator:
                     lockfile_hash = hashlib.sha256(lf.read_bytes()).hexdigest()[:16]
                     break
             if not lockfile_hash:
-                return None, ""
+                return None, cache, ""
 
             corpus_dir = Path(config.corpus) if config.corpus else None
             temp_engine = create_default_engine(corpus_dir=corpus_dir, advisory_db_path=config.advisory_db)
@@ -282,11 +281,11 @@ class ScanOrchestrator:
                         increment("cache.hits")
                     except ImportError:
                         pass
-                    return cached_result, lockfile_hash
-            return None, lockfile_hash
+                    return cached_result, cache, lockfile_hash
+            return None, cache, lockfile_hash
         except Exception as exc:
             logger.warning("Cache read failed for %s, disabling cache: %s", target, exc)
-            return None, ""
+            return None, None, ""
 
     @staticmethod
     def _scan_result_from_cache(cached_data: dict, target: Path) -> ScanResult | None:
@@ -299,9 +298,7 @@ class ScanOrchestrator:
                 target=cached_data.get("target", str(target)),
                 engine_version=cached_data.get("engine_version", __version__),
                 corpus_version=cached_data.get("corpus_version", ""),
-                findings=[Finding(**f) for f in cached_data.get("findings", [])]
-                if "findings" in cached_data
-                else [],
+                findings=[Finding(**f) for f in cached_data.get("findings", [])] if "findings" in cached_data else [],
                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
             )
         except Exception as exc:
@@ -376,7 +373,7 @@ class ScanOrchestrator:
         try:
             effective_policy = _resolve_effective_policy(config=config)
         except (PolicyNotFoundError, PolicyParseError, PolicyRuntimeError) as exc:
-            raise ScanError(f"policy error: {exc}")
+            raise ScanError(f"policy error: {exc}") from exc
         if effective_policy is not None:
             if hasattr(effective_policy, "deny_packages") and effective_policy.deny_packages:
                 denied_set = set(effective_policy.deny_packages)
@@ -560,14 +557,7 @@ class ScanOrchestrator:
             print(f"Error: policy error: {exc}", file=sys.stderr)
             return 2
 
-        cached_result, cache = None, None
-        lockfile_hash = ""
-        try:
-            cached_result, lockfile_hash = self._load_cache(target, config)
-            if cached_result is not None:
-                cache = None  # no need to write
-        except Exception:
-            cache = None
+        cached_result, cache, lockfile_hash = self._load_cache(target, config)
 
         try:
             result = cached_result or self._run_scan(target, merged_config=config)
@@ -580,7 +570,7 @@ class ScanOrchestrator:
                 print(e.exc_traceback, file=sys.stderr)
             return 1
 
-        if cache and lockfile_hash and not cached_result:
+        if cache is not None and lockfile_hash and not cached_result:
             self._save_cache(cache, lockfile_hash, result, config)
 
         from picosentry.scan.enterprise import is_enterprise_mode
@@ -769,6 +759,10 @@ def _run_scan(
     return ScanOrchestrator(args)._run_scan(target, file_config=file_config, merged_config=merged_config)
 
 
-def _verify_determinism(args: argparse.Namespace, target: Path) -> int:
-    """Module-level wrapper around ``ScanOrchestrator.verify_determinism`` for tests."""
+def _verify_determinism(args: argparse.Namespace, _target: Path) -> int:
+    """Module-level wrapper around ``ScanOrchestrator.verify_determinism`` for tests.
+
+    ``_target`` is accepted for API compatibility with the original module-level
+    helper, but the orchestrator reads the target from ``args.target``.
+    """
     return ScanOrchestrator(args).verify_determinism()

@@ -14,7 +14,7 @@ import sys
 
 # Import command modules to trigger their ``register`` calls.
 # ruff: noqa: F401
-from picosentry.cli_commands import (  # noqa: F401
+from picosentry.cli_commands import (
     admission,
     corpus,
     daemon,

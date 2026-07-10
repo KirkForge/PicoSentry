@@ -60,7 +60,7 @@ def _detect_backend(
                 available.insert(0, "seccomp-bpf")
         except ImportError:
             pass
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.debug("Seccomp backend check failed", exc_info=True)
 
         try:
@@ -71,7 +71,7 @@ def _detect_backend(
                 available.append("seccomp-trace")
         except ImportError:
             pass
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.debug("Seccomp trace backend check failed", exc_info=True)
 
     elif system == "Darwin":
@@ -84,7 +84,7 @@ def _detect_backend(
                 available.insert(0, "seatbelt")
         except ImportError:
             pass
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.debug("Seatbelt backend check failed", exc_info=True)
 
     if requested is not None:

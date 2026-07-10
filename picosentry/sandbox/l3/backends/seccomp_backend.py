@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import signal
+import subprocess
 import time
 import warnings
 
@@ -92,7 +93,7 @@ class SeccompBackend(SandboxBackend):
             lib.seccomp_release(ctx_kill)
 
             return True
-        except Exception:
+        except (OSError, ValueError, TypeError, AttributeError):
             return False
 
     def run(
@@ -233,8 +234,8 @@ class SeccompBackend(SandboxBackend):
                 )
             )
             stdout, stderr, exit_code = "", "", -1
-        except Exception:
-            logger.exception("Seccomp sandbox failed")
+        except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as e:
+            logger.warning("Seccomp sandbox failed: %s", e)
             return self._fallback_run(command, policy, timeout, cwd, env)
 
         duration_ms = int(_now_ms() - start_ms)

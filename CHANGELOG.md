@@ -62,6 +62,12 @@ All notable changes to PicoSentry will be documented in this file.
   and start/stop audit logs), and `_servicer.py` (policy load, health check,
   GetPolicy, and audit helper). Expected operational failures are logged and
   handled; unexpected programmer errors propagate.
+- Sandbox L3/L4 backend boundaries: narrowed broad `except Exception` in
+  `picosentry/sandbox/l3/backends/seccomp_backend.py` (availability probe and
+  run fallback), `picosentry/sandbox/l3/engine.py` (backend availability
+  checks), and `picosentry/sandbox/l4/engine.py` (per-rule execution). One
+  misbehaving L4 rule or missing seccomp library still cannot crash the
+  sandbox; programmer errors such as `NameError` now propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

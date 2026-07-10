@@ -5,6 +5,7 @@ import ctypes
 import logging
 import os
 import shutil
+import subprocess
 import warnings
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
@@ -47,7 +48,7 @@ class SeccompTraceBackend(SandboxBackend):
             lib.seccomp_init.argtypes = [ctypes.c_uint32]
             lib.seccomp_init.restype = ctypes.c_void_p
             lib.seccomp_release.argtypes = [ctypes.c_void_p]
-        except Exception:
+        except (OSError, AttributeError):
             return False
 
         from picosentry.sandbox.l3.backends._seccomp_common import (
@@ -60,7 +61,7 @@ class SeccompTraceBackend(SandboxBackend):
             if not ctx_allow:
                 return False
             lib.seccomp_release(ctx_allow)
-        except Exception:
+        except (OSError, ValueError, TypeError, AttributeError):
             return False
 
         try:
@@ -68,7 +69,7 @@ class SeccompTraceBackend(SandboxBackend):
             if not ctx_kill:
                 return False
             lib.seccomp_release(ctx_kill)
-        except Exception:
+        except (OSError, ValueError, TypeError, AttributeError):
             return False
 
         return process_manager.probe_log_emits(lib)
@@ -231,8 +232,8 @@ class SeccompTraceBackend(SandboxBackend):
                 )
             )
             stdout, stderr, exit_code = "", "", -1
-        except Exception:
-            logger.exception("Seccomp trace sandbox failed")
+        except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as e:
+            logger.warning("Seccomp trace sandbox failed: %s", e)
             return self._fallback_run(command, policy, timeout, cwd, env)
 
         duration_ms = int(_now_ms() - start_ms)

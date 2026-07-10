@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import sys
 from contextlib import contextmanager
 from typing import Any
 
@@ -85,9 +86,9 @@ def trace_scan(command: list[str], backend: str = "", **attrs: Any):
             for key, value in attrs.items():
                 span.set_attribute(f"picodome.{key}", str(value))
         yield span
-    except Exception:
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
         if not isinstance(span, _NoopSpan):
-            span.record_exception(Exception)
+            span.record_exception(sys.exc_info()[1])
         raise
     finally:
         if not isinstance(span, _NoopSpan):

@@ -52,8 +52,8 @@ def export_signed_policy(
             )
         except ImportError as e:
             logger.warning("Cryptographic signing skipped: %s", e)
-        except Exception:
-            logger.exception("Cryptographic signing failed")
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
+            logger.warning("Cryptographic signing failed: %s", e)
 
     pretty_json = json.dumps(bundle, sort_keys=True, indent=2)
     output_path.write_text(pretty_json, encoding="utf-8")

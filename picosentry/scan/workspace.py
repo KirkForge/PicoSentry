@@ -5,11 +5,29 @@ import multiprocessing
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from typing import Any, cast
 
 from picosentry.scan.config import PicoSentryConfig, load_config
 from picosentry.scan.engine import ScanEngine, create_default_engine
 
 logger = logging.getLogger("picosentry.workspace")
+
+try:
+    import yaml as _yaml
+except ImportError:  # pragma: no cover - PyYAML optional unless extra installed
+    _yaml = cast("Any", None)
+
+# Operational errors that can occur while parsing a pnpm-workspace.yaml file.
+# ImportError is handled separately (PyYAML not installed -> generic discovery);
+# these are the parse/read failures we expect and tolerate by falling back.
+_PNPM_PARSE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if cast("Any", _yaml) is not None:
+    _PNPM_PARSE_ERRORS = (*_PNPM_PARSE_ERRORS, _yaml.YAMLError)
 
 
 NPM_MANIFEST_GLOBS = [
@@ -86,8 +104,8 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
     try:
         with workspace_yaml.open(encoding="utf-8") as f:
             config = yaml.safe_load(f)
-    except Exception:
-        logger.warning("Failed to parse pnpm-workspace.yaml", exc_info=True)
+    except _PNPM_PARSE_ERRORS as e:
+        logger.warning("Failed to parse pnpm-workspace.yaml: %s", e)
         return discover_projects(root)
 
     if not isinstance(config, dict):

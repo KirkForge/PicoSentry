@@ -1,6 +1,7 @@
 import logging
 import re
 import sqlite3
+import sys
 import threading
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -578,7 +579,7 @@ class DatabaseManager:
             # are implicit — no explicit BEGIN needed.
             yield conn
             conn.commit()
-        except Exception:
+        except BaseException:
             conn.rollback()
             raise
 
@@ -632,10 +633,13 @@ class DatabaseManager:
                 cursor.execute("SELECT lastval()")
                 return cursor.fetchone()[0]
             except Exception:
-                # If psycopg2 is installed we can distinguish real DB errors from
-                # the expected "no lastval" case; if it is missing we are in a
-                # SQLite-only install and the only caller path is unreachable.
-                if psycopg2 is not None:
+                # lastval() can fail for tables without a serial column or when
+                # psycopg2 exposes OperationalError/ProgrammingError. We want to
+                # return 0 for the expected "no lastval" case, but re-raise
+                # truly unexpected programmer errors. Because the installed
+                # exception types vary by extras, we check whether the raised
+                # exception is a psycopg2 error before deciding to swallow it.
+                if psycopg2 is not None and isinstance(sys.exc_info()[1], psycopg2.Error):
                     logger.debug("lastval() not available for this table; returning 0")
                     return 0
                 raise

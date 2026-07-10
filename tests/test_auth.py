@@ -69,9 +69,10 @@ class TestRBAC:
         rbac.register_token("picodome-admin-secret123", "admin")
         assert rbac.get_role("picodome-admin-secret123") == "admin"
 
-    def test_unknown_token_gets_reader(self):
+    def test_unknown_token_gets_no_role(self):
         rbac = RBAC()
-        assert rbac.get_role("unknown-token") == Role.READER
+        assert rbac.get_role("unknown-token") == Role.NONE
+        assert rbac.has_permission("unknown-token", "scan:read") is False
 
     def test_submitter_permissions(self):
         rbac = RBAC()

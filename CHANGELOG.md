@@ -4,6 +4,121 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Enterprise: distributed Redis rate-limit backend
+
+- New `PICOSHOGUN_RATE_LIMIT_BACKEND=redis` option for `picosentry serve`,
+  backed by `picosentry/serve/middleware/rate_limit_redis.py`.
+  `RedisRateLimitBackend` uses Redis sorted sets for shared sliding-window
+  counters across `serve` replicas; on Redis failure it falls back to the
+  in-memory backend so a single Redis outage does not open the floodgates.
+- `SecurityConfig` reads `PICOSHOGUN_RATE_LIMIT_BACKEND` and
+  `PICOSHOGUN_REDIS_URL` (with fallback to `PICODOME_REDIS_URL`) in
+  `picosentry/serve/config/settings.py`.
+- `RateLimitMiddleware` accepts `backend` (`memory` / `redis`) and an optional
+  `backend_instance` for deterministic tests.
+- Added `tests/serve/test_rate_limit_redis.py` covering record/count/limit/
+  reset, cross-instance enforcement, middleware integration, org API-key
+  limits, and fallback on Redis failure.
+
+### Enterprise: graceful cluster token rotation
+
+- Added `picosentry/sandbox/cluster/token_store.py`: `ClusterTokenStore`
+  holds a primary token plus an accepted-token set with version metadata,
+  enabling rolling rotation without a hard cut-over.
+- Integrated the token store into `ClusterState` so snapshots propagate
+  accepted tokens and peers adopt new tokens during gossip.
+- Added `ClusterManager.rotate_token()` and `retire_stale_tokens()` plus the
+  `picodome cluster rotate-token` CLI command.
+- Daemon route handlers now accept any token in the accepted set while
+  preserving legacy single-token compatibility.
+- Added `TestClusterTokenRotation` in `tests/sandbox/test_cluster.py`
+  covering rotation, retirement, snapshot adoption, and mismatch rejection.
+- Updated daemon-handler tests to supply `X-Cluster-Token` headers so they
+  reach the intended exception-handling paths.
+
+### Security: additional exception-narrowing slices
+
+- Auth/cryptographic paths: narrowed broad `except Exception` in
+  `picosentry/scan/auth.py` and `picosentry/scan/crypto.py`.
+- Engine/policy/campaign paths: `picosentry/scan/engine.py`.
+- Cluster audit/heartbeat/health/gossip sinks:
+  `picosentry/sandbox/cluster/orchestrator.py`.
+- Daemon auth audit sinks: `picosentry/sandbox/daemon/handler_mixins.py`.
+- Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py` now
+  narrows readiness and auth-config load catches to
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError)`. Expected
+  operational failures return 503 or fall back to env auth; unexpected
+  programmer errors propagate.
+- Scan CLI worker boundary: `picosentry/scan/cli_commands/scan.py` now
+  narrows the scan worker error catch to
+  `(OSError, RuntimeError, ValueError, TypeError, ImportError, TimeoutError)`
+  and the result-queue get catch to `(OSError, ValueError, TypeError)`.
+  Operational failures still surface as `ScanError`; unexpected programmer
+  errors propagate.
+- Retention/gRPC audit and transport boundaries: narrowed broad
+  `except Exception` in `picosentry/sandbox/retention/manager.py` (audit-log
+  failures for cleanup/export), `picosentry/sandbox/grpc_transport/client.py`
+  (TLS credential creation and scan retry), `server.py` (TLS credential creation
+  and start/stop audit logs), and `_servicer.py` (policy load, health check,
+  GetPolicy, and audit helper). Expected operational failures are logged and
+  handled; unexpected programmer errors propagate.
+- Sandbox L3/L4 backend boundaries: narrowed broad `except Exception` in
+  `picosentry/sandbox/l3/backends/seccomp_backend.py` (availability probe and
+  run fallback), `picosentry/sandbox/l3/engine.py` (backend availability
+  checks), and `picosentry/sandbox/l4/engine.py` (per-rule execution). One
+  misbehaving L4 rule or missing seccomp library still cannot crash the
+  sandbox; programmer errors such as `NameError` now propagate.
+- Daemon start/stop audit and CLI boundaries: narrowed broad `except Exception`
+  in `picosentry/sandbox/daemon/daemon.py` (start/stop audit logs),
+  `picosentry/sandbox/cli_commands/daemon.py` (mTLS config load and gRPC server
+  start errors), and `picosentry/watch/telemetry/otel.py` (OTel tracer shutdown
+  and span recording). Expected operational failures are logged; unexpected
+  programmer errors propagate.
+- Serve database transaction boundaries: replaced broad `except Exception` with
+  `except BaseException` in `DatabaseManager.transaction()` and `SQLitePool.transaction()`
+  so the rollback-and-re-raise pattern still runs for `KeyboardInterrupt` and
+  `SystemExit`. Narrowed the `lastval()` swallow in `execute_insert()` to only
+  `psycopg2.Error` when psycopg2 is installed; unexpected programmer errors now
+  propagate instead of being masked as a zero return.
+- Correlation/policy boundaries: narrowed broad `except Exception` in
+  `picosentry/serve/services/correlation/engine.py` (persistence probe and
+  escalation callback) and `picosentry/scan/policy_pkg/bundle.py` (cryptographic
+  signing failure). Expected operational failures are logged/handled; unexpected
+  programmer errors propagate.
+- Remaining sandbox boundaries: narrowed broad `except Exception` in
+  `picosentry/sandbox/tracing.py` (span exception recording),
+  `picosentry/sandbox/ratelimit/redis_limiter.py` (status/reset Redis failures),
+  `picosentry/sandbox/daemon/handler_routes_get.py` (cluster-token audit record
+  failure), and `picosentry/sandbox/l3/backends/seccomp_trace/orchestrator.py`
+  (availability probe and run fallback). Expected operational failures are
+  handled/fallback; unexpected programmer errors propagate.
+- Plugin boundary documentation: the remaining broad `except Exception` sites in
+  `picosentry/serve/services/plugin_manager.py` and
+  `picosentry/serve/services/plugin_worker.py` are now explicitly marked as
+  intentional safety nets, and the plugin development guide explains that the
+  server swallows hook/health-check/shutdown failures to keep the host stable.
+- Scan config/policy load: `picosentry/scan/config.py` now conditionally
+  imports `yaml` at module load and narrows the YAML parse catch to
+  `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,
+  `TypeError`, and `yaml.YAMLError` when installed). JSON fallback and
+  expected parse/read failures return defaults; unexpected programmer errors
+  propagate.
+- Corpus cryptographic signing/verification and IoC import:
+  `picosentry/scan/corpus_share.py`.
+- Workspace discovery/worker/scan loop: `picosentry/scan/workspace.py` now
+  narrows the `pnpm-workspace.yaml` parse catch to `_PNPM_PARSE_ERRORS`
+  (`OSError`, `RuntimeError`, `ValueError`, `TypeError`, and `yaml.YAMLError`
+  when installed). Expected parse/read failures fall back to generic
+  discovery; unexpected programmer errors propagate.
+- Watch config load/permission check: `picosentry/watch/config.py`.
+- Replaced production `assert` statements with explicit `RuntimeError` in
+  `picosentry/serve/services/plugin_host.py`,
+  `picosentry/sandbox/ratelimit/redis_limiter.py`, and
+  `picosentry/sandbox/policy_versioned/signing.py`.
+- Added explicit timeout handling to the Discord notifier.
+- Documented the intentional broad catch in `plugin_manager.py` (untrusted
+  plugins must not crash the host).
+
 ### Fix: scans/sandbox/websocket auth test isolation
 
 - `AuthService` now accepts an optional `db` parameter and resolves

@@ -144,8 +144,8 @@ class RetentionManager:
                 detail=f"Removed {stats['files_removed']} files, freed {stats['bytes_freed']} bytes",
                 metadata=stats,
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for retention cleanup", exc_info=True)
 
         return stats
 
@@ -187,8 +187,8 @@ class RetentionManager:
                 detail=f"Exported {data_type} to {output_path}",
                 target=str(output_path),
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for data export", exc_info=True)
 
         return output_path
 

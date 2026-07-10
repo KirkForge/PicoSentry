@@ -57,12 +57,9 @@ class CorrelationEngine:
             cls.PERSIST_ENABLED = True
             logger.debug("Correlation persistence backend is available")
             return True
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
             cls.PERSIST_ENABLED = False
-            logger.debug(
-                "Correlation persistence not available (run migrations first)",
-                exc_info=True,
-            )
+            logger.debug("Correlation persistence not available (run migrations first): %s", e)
             return False
 
     def _allowed_by_backpressure(self, event_count: int) -> int:
@@ -242,7 +239,7 @@ class CorrelationEngine:
         for callback in self._escalation_callbacks:
             try:
                 callback(chain)
-            except Exception:
+            except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
                 logger.exception("Escalation callback failed for %s", chain.artifact_id)
 
     def _compute_timeline(self, artifact_id: str, events: list[CorrelatedEvent]) -> KillChainTimeline:

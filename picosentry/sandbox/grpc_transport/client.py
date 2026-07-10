@@ -135,8 +135,8 @@ class PicoDomeGRPCClient:
             )
             logger.info("gRPC client TLS credentials created")
             return credentials
-        except Exception:
-            logger.exception("Failed to create gRPC client TLS credentials")
+        except (OSError, ValueError, TypeError) as e:
+            logger.warning("Failed to create gRPC client TLS credentials: %s", e)
             return None
 
     def scan(
@@ -154,7 +154,7 @@ class PicoDomeGRPCClient:
         for attempt in range(1, self._max_retries + 1):
             try:
                 return self._do_scan(command, policy, scan_timeout, cwd)
-            except Exception as e:
+            except (OSError, RuntimeError, ValueError, TypeError, TimeoutError) as e:
                 last_error = e
                 if attempt < self._max_retries:
                     logger.warning(

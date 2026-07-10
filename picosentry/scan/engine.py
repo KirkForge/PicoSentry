@@ -5,17 +5,17 @@ import inspect
 import json
 import logging
 import os
-import threading
 import time
 from collections.abc import Callable, Sequence
-from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from .policy import Policy
 
+from picosentry import __version__ as _VERSION
 from .models import Finding, RuleExecution, ScanResult, ScanStats
 
 
@@ -23,43 +23,60 @@ DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
 
 RULE_TIMEOUT_SECONDS = DEFAULT_RULE_TIMEOUT_SECONDS
 
-
-_RULE_POOL_SIZE = 64
-_rule_executor: ThreadPoolExecutor | None = None
-_rule_executor_lock = threading.Lock()
+logger = logging.getLogger("picosentry.engine")
 
 
-def _get_rule_executor() -> ThreadPoolExecutor:
-    global _rule_executor
-    if _rule_executor is None:
-        with _rule_executor_lock:
-            if _rule_executor is None:
-                _rule_executor = ThreadPoolExecutor(max_workers=_RULE_POOL_SIZE, thread_name_prefix="picosentry-rule")
-    return _rule_executor
+class PolicyNotFoundError(Exception):
+    """A configured policy file is missing or unreadable."""
+
+
+class PolicyParseError(Exception):
+    """A policy file is readable but syntactically/semantically invalid."""
+
+
+class PolicyRuntimeError(Exception):
+    """An unexpected internal error occurred while resolving a policy."""
 
 
 def _resolve_effective_policy(policy_path: str | Path | None = None, config: Any = None) -> Policy | None:
     if policy_path is None and config is None:
         return None
-    try:
-        from picosentry.scan.policy import Policy
-        from picosentry.scan.policy_lifecycle import InheritedPolicy, PolicyStack
 
-        stack = PolicyStack()
-        if policy_path and Path(policy_path).exists():
-            policy = Policy.from_file(Path(policy_path))
-            stack.add(InheritedPolicy(policy=policy, layer="repo", source=str(policy_path)))
-        if config and hasattr(config, "policy_file") and config.policy_file:
-            p = Policy.from_file(Path(config.policy_file))
-            stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
-        if stack.layers():
+    from picosentry.scan.policy import Policy
+    from picosentry.scan.policy_lifecycle import InheritedPolicy, PolicyStack
+
+    stack = PolicyStack()
+
+    if policy_path:
+        policy_file = Path(policy_path)
+        if not policy_file.exists():
+            raise PolicyNotFoundError(f"Policy file not found: {policy_path}")
+        if not policy_file.is_file():
+            raise PolicyNotFoundError(f"Policy path is not a file: {policy_path}")
+        try:
+            policy = Policy.from_file(policy_file)
+        except (OSError, ValueError, KeyError) as exc:
+            raise PolicyParseError(f"Could not parse policy file {policy_path}: {exc}") from exc
+        stack.add(InheritedPolicy(policy=policy, layer="repo", source=str(policy_path)))
+
+    if config and hasattr(config, "policy_file") and config.policy_file:
+        cfg_policy_file = Path(config.policy_file)
+        if not cfg_policy_file.exists():
+            raise PolicyNotFoundError(f"Pipeline policy file not found: {config.policy_file}")
+        if not cfg_policy_file.is_file():
+            raise PolicyNotFoundError(f"Pipeline policy path is not a file: {config.policy_file}")
+        try:
+            p = Policy.from_file(cfg_policy_file)
+        except (OSError, ValueError, KeyError) as exc:
+            raise PolicyParseError(f"Could not parse pipeline policy file {config.policy_file}: {exc}") from exc
+        stack.add(InheritedPolicy(policy=p, layer="pipeline", source=config.policy_file))
+
+    if stack.layers():
+        try:
             return stack.effective_policy()
-    except (OSError, ValueError, TypeError, KeyError) as exc:
-        logger.warning("Could not resolve effective policy: %s", exc)
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
+            raise PolicyRuntimeError(f"Could not compute effective policy: {exc}") from exc
     return None
-
-
-logger = logging.getLogger("picosentry.engine")
 
 
 def user_corpus_dir() -> Path:
@@ -72,37 +89,6 @@ def user_corpus_dir() -> Path:
     return Path.home() / ".local" / "share" / "picosentry" / "corpus"
 
 
-def _get_version() -> str:
-    # Prefer the in-tree source version: when running from a checkout (tests,
-    # local dev, or an editable install) the source `__init__.py` is the
-    # ground truth. Installed wheel metadata can lag behind during version-bump
-    # commits, so falling back to it only after reading the source avoids
-    # test failures like `test_engine_version_in_scan_result` when the editable
-    # install has not been refreshed.
-    import re
-
-    init_path = Path(__file__).parent / "__init__.py"
-    try:
-        source = init_path.read_text(encoding="utf-8")
-        match = re.search(r'__version__\s*=\s*["\']([^"\']+)["\']', source)
-        if match:
-            return match.group(1)
-    except OSError:
-        pass
-
-    try:
-        from importlib.metadata import version
-
-        return version("picosentry")
-    except (ImportError, ModuleNotFoundError):
-        pass
-
-    return "0.0.0"
-
-
-_VERSION = _get_version()
-
-
 DetectorRule = Callable[..., list[Finding]]
 
 
@@ -111,11 +97,16 @@ class ScanEngine:
         self,
         corpus_dir: Path | None = None,
         advisory_db_path: str | Path | None = None,
+        max_workers: int | None = None,
     ) -> None:
         self._rules: dict[str, DetectorRule] = {}
         self._corpus_dir = self._resolve_corpus_dir(corpus_dir)
         self._corpus_version = self._compute_corpus_version()
         self._advisory_db_path = str(advisory_db_path) if advisory_db_path is not None else None
+        if max_workers is None:
+            cpus = os.cpu_count() or 1
+            max_workers = min(32, cpus * 2)
+        self._max_workers = max(1, max_workers)
 
     @staticmethod
     def _resolve_corpus_dir(explicit: Path | None) -> Path:
@@ -313,8 +304,6 @@ class ScanEngine:
 
         from concurrent.futures import TimeoutError as FuturesTimeoutError
 
-        rule_executor = _get_rule_executor()
-
         def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
             if fn.__name__ == "detect_all_advisory_vulnerabilities":
                 return fn(target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path)
@@ -323,62 +312,66 @@ class ScanEngine:
                 return fn(target_path, self._corpus_dir)
             return fn(target_path)
 
-        for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
-            rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
-            rule_ids_for_fn = fn_to_rule_ids[fn_id]
-            primary_rule_id = rule_ids_for_fn[0]
-            rule_start = _now_ms()
-            try:
-                future = rule_executor.submit(_invoke_rule, rule_fn)
+        with ThreadPoolExecutor(
+            max_workers=min(self._max_workers, len(selected_rules) or 1),
+            thread_name_prefix="picosentry-rule",
+        ) as rule_executor:
+            for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
+                rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
+                rule_ids_for_fn = fn_to_rule_ids[fn_id]
+                primary_rule_id = rule_ids_for_fn[0]
+                rule_start = _now_ms()
                 try:
-                    findings = future.result(timeout=_effective_rule_timeout)
-                except FuturesTimeoutError:
+                    future = rule_executor.submit(_invoke_rule, rule_fn)
+                    try:
+                        findings = future.result(timeout=_effective_rule_timeout)
+                    except FuturesTimeoutError:
+                        elapsed = int(_now_ms() - rule_start)
+                        logger.warning(
+                            "Rule %s exceeded %ss timebox — skipping",
+                            primary_rule_id,
+                            _effective_rule_timeout,
+                        )
+                        for rid in rule_ids_for_fn:
+                            rule_timings[rid] = elapsed
+                            rule_executions.append(
+                                RuleExecution(
+                                    rule_id=rid,
+                                    status="timeout",
+                                    duration_ms=elapsed,
+                                    findings_count=0,
+                                    error=f"exceeded {_effective_rule_timeout}s timebox",
+                                )
+                            )
+                        continue
+                    all_findings.extend(findings)
+                    logger.debug("Rules %s: %d findings", rule_ids_for_fn, len(findings))
                     elapsed = int(_now_ms() - rule_start)
-                    logger.warning(
-                        "Rule %s exceeded %ss timebox — skipping",
-                        primary_rule_id,
-                        _effective_rule_timeout,
-                    )
                     for rid in rule_ids_for_fn:
                         rule_timings[rid] = elapsed
                         rule_executions.append(
                             RuleExecution(
                                 rule_id=rid,
-                                status="timeout",
+                                status="ok",
                                 duration_ms=elapsed,
-                                findings_count=0,
-                                error=f"exceeded {_effective_rule_timeout}s timebox",
+                                findings_count=len(findings),
                             )
                         )
-                    continue
-                all_findings.extend(findings)
-                logger.debug("Rules %s: %d findings", rule_ids_for_fn, len(findings))
-                elapsed = int(_now_ms() - rule_start)
-                for rid in rule_ids_for_fn:
-                    rule_timings[rid] = elapsed
-                    rule_executions.append(
-                        RuleExecution(
-                            rule_id=rid,
-                            status="ok",
-                            duration_ms=elapsed,
-                            findings_count=len(findings),
+                except BaseException as exc:
+                    logger.exception("Rule %s raised an exception", primary_rule_id)
+                    logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
+                    elapsed = int(_now_ms() - rule_start)
+                    for rid in rule_ids_for_fn:
+                        rule_timings[rid] = elapsed
+                        rule_executions.append(
+                            RuleExecution(
+                                rule_id=rid,
+                                status="failed",
+                                duration_ms=elapsed,
+                                findings_count=0,
+                                error=f"{type(exc).__name__}: {exc}",
+                            )
                         )
-                    )
-            except BaseException as exc:
-                logger.exception("Rule %s raised an exception", primary_rule_id)
-                logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
-                elapsed = int(_now_ms() - rule_start)
-                for rid in rule_ids_for_fn:
-                    rule_timings[rid] = elapsed
-                    rule_executions.append(
-                        RuleExecution(
-                            rule_id=rid,
-                            status="failed",
-                            duration_ms=elapsed,
-                            findings_count=0,
-                            error=f"{type(exc).__name__}: {exc}",
-                        )
-                    )
 
         if rules is not None:
             selected_set = set(selected_rules.keys())
@@ -517,7 +510,9 @@ class ScanEngine:
 def create_default_engine(
     corpus_dir: Path | None = None,
     advisory_db_path: str | None = None,
+    max_workers: int | None = None,
 ) -> ScanEngine:
+    """Create a default scan engine with the bundled rule set."""
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
     from .rules.bundled_shadow import detect_bundled_shadows
     from .rules.credential_read import detect_credential_reading
@@ -541,7 +536,11 @@ def create_default_engine(
     from .rules.typosquat import detect_all_typosquat
     from .rules.worm_propagation import detect_worm_propagation
 
-    engine = ScanEngine(corpus_dir=corpus_dir, advisory_db_path=advisory_db_path)
+    engine = ScanEngine(
+        corpus_dir=corpus_dir,
+        advisory_db_path=advisory_db_path,
+        max_workers=max_workers,
+    )
 
     engine.register("L2-DEPC-001", detect_all_dep_confusion)
     engine.register("L2-TYPO-001", detect_all_typosquat)

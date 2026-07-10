@@ -293,6 +293,10 @@ ignore_errors = true
 module = "picosentry.sandbox.tracing"
 disable_error_code = ["attr-defined"]
 
+[[tool.mypy.overrides]]
+module = "picosentry.scan.config"
+disable_error_code = ["unreachable"]
+
 # The daemon HTTP handler is composed of multiple mixin classes
 # (PicoDomeResponseMixin, PicoDomeAuthMixin, PicoDomeGetRoutesMixin,
 # PicoDomePostRoutesMixin) that share state via the composite PicoDomeHandler

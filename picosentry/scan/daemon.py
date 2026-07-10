@@ -295,8 +295,8 @@ class HealthHandler(BaseHTTPRequestHandler):
                 "request_id": request_id,
             }
             self._send_json(200, status, request_id, start_time)
-        except Exception:
-            logger.warning("Readiness check: engine init failed", exc_info=True)
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError) as e:
+            logger.warning("Readiness check: engine init failed: %s", e)
             status = {"status": "not_ready", "reason": "engine_init_failed", "request_id": request_id}
             self._send_json(503, status, request_id, start_time)
 
@@ -568,8 +568,8 @@ def run_daemon(
         try:
             cfg = load_config(Path.cwd())
             auth_config = AuthConfig.from_dict(cfg.daemon) if cfg.daemon else AuthConfig.from_env()
-        except Exception:
-            logger.debug("Config file not found or invalid, falling back to env vars", exc_info=True)
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError) as e:
+            logger.debug("Config file not found or invalid, falling back to env vars: %s", e)
             auth_config = AuthConfig.from_env()
 
     rate_limiter = RateLimiter(rps=auth_config.rate_limit_rps)

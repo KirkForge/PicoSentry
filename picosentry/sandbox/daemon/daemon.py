@@ -158,8 +158,8 @@ class PicoDomeDaemon:
                 actor="picodome-daemon",
                 detail=f"Listening on {self._host}:{self._port}",
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for daemon start", exc_info=True)
 
         logger.info("PicoDome daemon starting on %s:%d", self._host, self._port)
 
@@ -274,8 +274,8 @@ class PicoDomeDaemon:
                 actor="picodome-daemon",
                 detail="Daemon stopped",
             )
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for daemon stop", exc_info=True)
 
         logger.info("PicoDome daemon stopped")
 

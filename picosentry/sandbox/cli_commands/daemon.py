@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import argparse
+import logging
 import os
 import sys
 from typing import Any
+
+logger = logging.getLogger("picodome.cli.daemon")
 
 NAME = "daemon"
 
@@ -105,8 +108,8 @@ def cmd(args: argparse.Namespace) -> int:
             mtls_config = MTLSConfig.from_env()
             if not mtls_config.is_configured:
                 mtls_config = None
-        except Exception:
-            pass
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError, AttributeError) as e:
+            logger.debug("mTLS config load failed, continuing without TLS: %s", e)
 
         server = PicoDomeGRPCServer(
             host=host,
@@ -120,7 +123,7 @@ def cmd(args: argparse.Namespace) -> int:
         except KeyboardInterrupt:
             server.stop()
             return 0
-        except Exception as e:
+        except (OSError, RuntimeError, ValueError, TypeError) as e:
             print(f"gRPC daemon error: {e}", file=sys.stderr)
             return 1
     else:

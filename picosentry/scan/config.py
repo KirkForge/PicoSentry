@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
@@ -11,6 +11,26 @@ if TYPE_CHECKING:
     from picosentry.scan.policy import Policy
 
 logger = logging.getLogger("picosentry.config")
+
+try:
+    import yaml as _yaml
+except ImportError:  # pragma: no cover - PyYAML optional unless extra installed
+    _yaml = cast("Any", None)
+
+# Expose yaml module under a stable name for tests that need to monkeypatch it.
+yaml = _yaml
+
+# Operational errors that can occur while parsing a config file.  ImportError
+# is handled separately (PyYAML not installed -> JSON fallback); these are the
+# parse/read failures we expect and tolerate by returning defaults.
+_CONFIG_PARSE_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    TypeError,
+)
+if cast("Any", _yaml) is not None:
+    _CONFIG_PARSE_ERRORS = (*_CONFIG_PARSE_ERRORS, _yaml.YAMLError)
 
 
 CONFIG_NAMES = [".picosentry.yml", ".picosentry.yaml", "picosentry.config.yml"]
@@ -303,11 +323,8 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
 
     logger.info("Loading config from %s", config_path)
 
-    try:
-        import yaml
-
-        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
-    except ImportError:
+    data: dict[str, Any] | None = None
+    if yaml is None:
         try:
             import json
 
@@ -315,9 +332,17 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         except (json.JSONDecodeError, OSError) as e:
             logger.warning("Failed to parse config file %s: %s", config_path, e)
             return config
-    except Exception:
-        logger.warning("Failed to parse config file %s", config_path, exc_info=True)
-        return config
+        # JSON parsed successfully; fall through to validation below.
+    else:
+        try:
+            data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+        except _CONFIG_PARSE_ERRORS as e:
+            logger.warning("Failed to parse config file %s: %s", config_path, e)
+            return config
+
+    # yaml.safe_load may return None for an empty file; treat as empty dict.
+    if data is None:
+        data = {}
 
     if not isinstance(data, dict):
         logger.warning("Config file %s is not a mapping, ignoring", config_path)

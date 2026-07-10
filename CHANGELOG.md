@@ -80,6 +80,11 @@ All notable changes to PicoSentry will be documented in this file.
   `SystemExit`. Narrowed the `lastval()` swallow in `execute_insert()` to only
   `psycopg2.Error` when psycopg2 is installed; unexpected programmer errors now
   propagate instead of being masked as a zero return.
+- Correlation/policy boundaries: narrowed broad `except Exception` in
+  `picosentry/serve/services/correlation/engine.py` (persistence probe and
+  escalation callback) and `picosentry/scan/policy_pkg/bundle.py` (cryptographic
+  signing failure). Expected operational failures are logged/handled; unexpected
+  programmer errors propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

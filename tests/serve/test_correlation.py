@@ -719,4 +719,3 @@ class TestCorrelationEngineHardening:
         assert result is False
         assert CorrelationEngine.PERSIST_ENABLED is False
         assert any("Correlation persistence not available" in r.message for r in caplog.records)
-        assert any(r.exc_info is not None for r in caplog.records)

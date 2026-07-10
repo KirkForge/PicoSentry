@@ -92,6 +92,11 @@ All notable changes to PicoSentry will be documented in this file.
   failure), and `picosentry/sandbox/l3/backends/seccomp_trace/orchestrator.py`
   (availability probe and run fallback). Expected operational failures are
   handled/fallback; unexpected programmer errors propagate.
+- Plugin boundary documentation: the remaining broad `except Exception` sites in
+  `picosentry/serve/services/plugin_manager.py` and
+  `picosentry/serve/services/plugin_worker.py` are now explicitly marked as
+  intentional safety nets, and the plugin development guide explains that the
+  server swallows hook/health-check/shutdown failures to keep the host stable.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

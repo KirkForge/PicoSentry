@@ -97,6 +97,9 @@ def main() -> int:
     try:
         module = importlib.import_module(entry_point)
     except Exception:
+        # INTENTIONAL BROAD CATCH: plugin import failures are reported to the
+        # host as a structured error; any import-time failure must not crash
+        # the worker.
         _send({"status": "error", "error": f"failed to import plugin module: {traceback.format_exc()}"})
         return 1
 
@@ -108,6 +111,9 @@ def main() -> int:
     try:
         instance = plugin_class()
     except Exception:
+        # INTENTIONAL BROAD CATCH: plugin instantiation failures are reported
+        # to the host as a structured error; any constructor failure must not
+        # crash the worker.
         _send({"status": "error", "error": f"plugin instantiation failed: {traceback.format_exc()}"})
         return 1
 
@@ -146,6 +152,8 @@ def main() -> int:
                 if hasattr(instance, "shutdown"):
                     instance.shutdown()
             except Exception:
+                # INTENTIONAL BROAD CATCH: plugin shutdown hook failures are
+                # logged locally; the worker must still acknowledge shutdown.
                 logger.exception("shutdown hook failed")
             _send({"status": "ok", "result": None})
             break
@@ -159,6 +167,8 @@ def main() -> int:
             result = method(*args, **kwargs)
             _send({"status": "ok", "result": result})
         except Exception:
+            # INTENTIONAL BROAD CATCH: hook method failures are returned as
+            # structured errors so the host can decide whether to continue.
             _send({"status": "error", "error": f"method {method_name} raised: {traceback.format_exc()}"})
 
     return 0
@@ -168,5 +178,7 @@ if __name__ == "__main__":
     try:
         raise SystemExit(main())
     except Exception:
+        # INTENTIONAL BROAD CATCH: any uncaught worker crash is reported to the
+        # host as a structured error before the worker exits.
         _send({"status": "error", "error": f"worker crashed: {traceback.format_exc()}"})
         raise SystemExit(1) from None

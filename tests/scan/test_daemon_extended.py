@@ -639,7 +639,7 @@ class TestRunDaemon(unittest.TestCase):
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
         with (
-            patch("picosentry.scan.config.load_config", side_effect=Exception("no config")),
+            patch("picosentry.scan.config.load_config", side_effect=RuntimeError("no config")),
             patch.object(AuthConfig, "from_env", return_value=AuthConfig(mode="off")) as mock_from_env,
         ):
             run_daemon()

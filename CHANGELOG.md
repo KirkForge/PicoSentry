@@ -68,6 +68,12 @@ All notable changes to PicoSentry will be documented in this file.
   checks), and `picosentry/sandbox/l4/engine.py` (per-rule execution). One
   misbehaving L4 rule or missing seccomp library still cannot crash the
   sandbox; programmer errors such as `NameError` now propagate.
+- Daemon start/stop audit and CLI boundaries: narrowed broad `except Exception`
+  in `picosentry/sandbox/daemon/daemon.py` (start/stop audit logs),
+  `picosentry/sandbox/cli_commands/daemon.py` (mTLS config load and gRPC server
+  start errors), and `picosentry/watch/telemetry/otel.py` (OTel tracer shutdown
+  and span recording). Expected operational failures are logged; unexpected
+  programmer errors propagate.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

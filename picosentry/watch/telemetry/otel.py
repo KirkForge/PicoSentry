@@ -57,7 +57,7 @@ def shutdown_tracing() -> None:
         provider = trace.get_tracer_provider()
         if hasattr(provider, "shutdown"):
             provider.shutdown()
-    except Exception:
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
         logger.debug("Tracer provider shutdown failed or was not initialized", exc_info=True)
     finally:
         _tracer = None
@@ -85,7 +85,7 @@ def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> Non
 
             if result.blocked:
                 span.set_status(trace.StatusCode.ERROR, "Prompt blocked")
-    except Exception:
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
         logger.debug("Failed to record prompt scan span", exc_info=True)
 
 
@@ -109,5 +109,5 @@ def trace_output_validation(result: ValidationResult, model: str | None = None) 
 
             if not result.valid:
                 span.set_status(trace.StatusCode.ERROR, "Output validation failed")
-    except Exception:
+    except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
         logger.debug("Failed to record output validation span", exc_info=True)

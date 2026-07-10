@@ -173,6 +173,28 @@ class TestDiscoverPnpmWorkspace(unittest.TestCase):
             # Falls back to generic discovery
             self.assertGreaterEqual(len(result), 1)
 
+    def test_unexpected_parse_error_propagates(self):
+        """A truly unexpected exception should not be swallowed by the broad fallback."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / "package.json").write_text('{"name": "root"}')
+            (root / "pnpm-workspace.yaml").write_text("packages:\n  - 'packages/*'\n")
+
+            import yaml as _yaml
+            import picosentry.scan.workspace as workspace_module
+
+            def _boom(*args, **kwargs):
+                raise ZeroDivisionError("simulated programmer error")
+
+            original = _yaml.safe_load
+            try:
+                workspace_module.yaml = _yaml
+                workspace_module.yaml.safe_load = _boom  # type: ignore[misc]
+                with self.assertRaises(ZeroDivisionError):
+                    discover_pnpm_workspace(root)
+            finally:
+                _yaml.safe_load = original  # type: ignore[misc]
+
 
 class TestWorkspaceResult(unittest.TestCase):
     """Test WorkspaceResult data class."""

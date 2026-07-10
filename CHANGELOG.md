@@ -45,10 +45,19 @@ All notable changes to PicoSentry will be documented in this file.
   `picosentry/sandbox/cluster/orchestrator.py`.
 - Daemon auth audit sinks: `picosentry/sandbox/daemon/handler_mixins.py`.
 - Scan daemon dashboard/scan handlers: `picosentry/scan/daemon.py`.
-- Scan config/policy load: `picosentry/scan/config.py`.
+- Scan config/policy load: `picosentry/scan/config.py` now conditionally
+  imports `yaml` at module load and narrows the YAML parse catch to
+  `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,
+  `TypeError`, and `yaml.YAMLError` when installed). JSON fallback and
+  expected parse/read failures return defaults; unexpected programmer errors
+  propagate.
 - Corpus cryptographic signing/verification and IoC import:
   `picosentry/scan/corpus_share.py`.
-- Workspace discovery/worker/scan loop: `picosentry/scan/workspace.py`.
+- Workspace discovery/worker/scan loop: `picosentry/scan/workspace.py` now
+  narrows the `pnpm-workspace.yaml` parse catch to `_PNPM_PARSE_ERRORS`
+  (`OSError`, `RuntimeError`, `ValueError`, `TypeError`, and `yaml.YAMLError`
+  when installed). Expected parse/read failures fall back to generic
+  discovery; unexpected programmer errors propagate.
 - Watch config load/permission check: `picosentry/watch/config.py`.
 - Replaced production `assert` statements with explicit `RuntimeError` in
   `picosentry/serve/services/plugin_host.py`,

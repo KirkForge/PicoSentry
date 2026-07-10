@@ -74,6 +74,12 @@ All notable changes to PicoSentry will be documented in this file.
   start errors), and `picosentry/watch/telemetry/otel.py` (OTel tracer shutdown
   and span recording). Expected operational failures are logged; unexpected
   programmer errors propagate.
+- Serve database transaction boundaries: replaced broad `except Exception` with
+  `except BaseException` in `DatabaseManager.transaction()` and `SQLitePool.transaction()`
+  so the rollback-and-re-raise pattern still runs for `KeyboardInterrupt` and
+  `SystemExit`. Narrowed the `lastval()` swallow in `execute_insert()` to only
+  `psycopg2.Error` when psycopg2 is installed; unexpected programmer errors now
+  propagate instead of being masked as a zero return.
 - Scan config/policy load: `picosentry/scan/config.py` now conditionally
   imports `yaml` at module load and narrows the YAML parse catch to
   `_CONFIG_PARSE_ERRORS` (`OSError`, `RuntimeError`, `ValueError`,

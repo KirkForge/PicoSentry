@@ -11,6 +11,7 @@ from picosentry.scan.config import (
     load_config,
 )
 from picosentry.scan.models import Confidence, Finding, Severity
+import pytest
 
 # ── PicoSentryConfig defaults ──
 
@@ -165,6 +166,29 @@ class TestLoadConfig:
         config = load_config(tmp_path)
         # List is not a dict — should return defaults
         assert config.format == "table"
+
+    def test_unexpected_parse_error_propagates(self, tmp_path, monkeypatch):
+        """A truly unexpected exception (e.g. programmer error) should not be
+        swallowed by the config loader's broad fallback.
+        """
+        config_file = tmp_path / ".picosentry.yml"
+        config_file.write_text("format: json\n")
+
+        import picosentry.scan.config as config_module
+
+        def _boom(*args, **kwargs):
+            raise ZeroDivisionError("simulated programmer error")
+
+        # Remove YAMLError from the operational tuple so ZeroDivisionError is
+        # no longer treated as an expected parse failure.
+        original_errors = config_module._CONFIG_PARSE_ERRORS
+        try:
+            config_module._CONFIG_PARSE_ERRORS = (OSError,)
+            monkeypatch.setattr(config_module.yaml, "safe_load", _boom)
+            with pytest.raises(ZeroDivisionError):
+                load_config(tmp_path)
+        finally:
+            config_module._CONFIG_PARSE_ERRORS = original_errors
 
     def test_version_mismatch_still_loads(self, tmp_path):
         config_file = tmp_path / ".picosentry.yml"

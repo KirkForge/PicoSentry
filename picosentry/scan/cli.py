@@ -88,10 +88,6 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-ScanTimeout = scan.ScanTimeout
-ScanError = scan.ScanError
-
-
 _cmd_check = check.cmd
 _cmd_diff = diff.cmd
 _cmd_init = init.cmd
@@ -103,12 +99,7 @@ _cmd_policy = policy.cmd
 _cmd_advisories = advisories.cmd
 
 
-_run_scan = scan._run_scan
-_scan_worker = scan._scan_worker
-_format_summary = scan._format_summary
-_format_quiet = scan._format_quiet
-_verify_determinism = scan._verify_determinism
-_handle_validate = scan._handle_validate
+_handle_validate = scan.cmd  # kept for compatibility; validation now goes through orchestrator
 
 
 if __name__ == "__main__":

@@ -32,6 +32,7 @@ class Role:
     SUBMITTER = "submitter"
     READER = "reader"
     ADMIN = "admin"
+    NONE = "none"  # unknown / unauthenticated token
 
     ALL = (SUBMITTER, READER, ADMIN)
 
@@ -40,10 +41,13 @@ ROLE_PERMISSIONS: dict[str, set[str]] = {
     Role.SUBMITTER: {"scan:submit", "scan:read", "health"},
     Role.READER: {"scan:read", "policy:read", "baseline:read", "audit:read", "health"},
     Role.ADMIN: {"*"},  # wildcard — all permissions
+    Role.NONE: set(),  # unknown tokens have no permissions
 }
 
 
 MIN_TOKEN_LENGTH = 32
+MAX_FAILED_ATTEMPTS_CACHE = 1000
+FAILED_ATTEMPT_TTL_SECONDS = 3600
 
 
 class RBAC:
@@ -63,7 +67,7 @@ class RBAC:
 
     def get_role(self, token: str) -> str:
         token_hash = _hash_token(token)
-        return self._role_map.get(token_hash, Role.READER)
+        return self._role_map.get(token_hash, Role.NONE)
 
     def has_permission(self, token: str, permission: str) -> bool:
         role = self.get_role(token)
@@ -109,6 +113,7 @@ class TokenAuth:
 
         token_file = Path.home() / ".picodome" / "api-tokens"
         if token_file.is_file():
+            self._assert_token_file_permissions(token_file)
             try:
                 for raw_line in token_file.read_text(encoding="utf-8").splitlines():
                     line = raw_line.strip()
@@ -118,6 +123,22 @@ class TokenAuth:
                 pass
 
         logger.info("Loaded %d API token(s)", len(self._token_hashes))
+
+    @staticmethod
+    def _assert_token_file_permissions(token_file: Path) -> None:
+        try:
+            stat = token_file.stat()
+            mode = stat.st_mode
+            # Reject world-readable or world-writable files.
+            if mode & 0o077:
+                logger.warning(
+                    "Token file %s has overly permissive mode %s; "
+                    "it should be readable only by owner (e.g. 0o600).",
+                    token_file,
+                    oct(mode & 0o777),
+                )
+        except OSError:
+            pass
 
     def _add_token(self, token: str) -> None:
 
@@ -167,6 +188,7 @@ class TokenAuth:
     def _record_failure(self, token_hash: str) -> None:
         import time as _time
 
+        self._evict_stale_failures_if_needed()
         entry = self._failed_attempts.get(token_hash)
         if entry is None:
             self._failed_attempts[token_hash] = (1, _time.monotonic())
@@ -176,16 +198,21 @@ class TokenAuth:
 
     def _clear_failures(self, token_hash: str) -> None:
         self._failed_attempts.pop(token_hash, None)
-        if len(self._failed_attempts) > 1000:
-            self._cleanup_stale_failures()
 
-    def _cleanup_stale_failures(self) -> None:
+    def _evict_stale_failures_if_needed(self) -> None:
         import time as _time
 
+        if len(self._failed_attempts) < MAX_FAILED_ATTEMPTS_CACHE:
+            return
         now = _time.monotonic()
-        stale_keys = [k for k, (attempts, last_time) in self._failed_attempts.items() if now - last_time > 3600]
-        for k in stale_keys:
-            del self._failed_attempts[k]
+        stale_keys = [k for k, (_, last_time) in self._failed_attempts.items() if now - last_time > FAILED_ATTEMPT_TTL_SECONDS]
+        if stale_keys:
+            for k in stale_keys:
+                del self._failed_attempts[k]
+            return
+        # No stale entries: evict oldest to bound memory.
+        oldest = min(self._failed_attempts.items(), key=lambda item: item[1][1])
+        del self._failed_attempts[oldest[0]]
 
     def validate(self, token: str) -> bool:
         token_hash = _hash_token(token)

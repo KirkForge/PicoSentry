@@ -35,8 +35,8 @@ class PicoDomeServicer:
                     from picosentry.sandbox.l3.policy import load_policy
 
                     policy = load_policy(Path(policy_name))
-                except Exception:
-                    logger.debug("Policy '%s' not found, using default", policy_name)
+                except (OSError, RuntimeError, ValueError, TypeError, ImportError) as e:
+                    logger.debug("Policy '%s' not found, using default: %s", policy_name, e)
 
             sandbox_result = self._scan_engine.scan(
                 command=command,
@@ -130,7 +130,8 @@ class PicoDomeServicer:
 
             checks = check_health()
             all_healthy = all(c.healthy for c in checks)
-        except Exception:
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
+            logger.debug("Health check failed, defaulting to healthy", exc_info=True)
             all_healthy = True
 
         try:
@@ -167,8 +168,9 @@ class PicoDomeServicer:
             else:
                 policy_json = "{}"
                 policy_version = 0
-        except Exception as e:
-            policy_json = json.dumps({"error": str(e)})
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError) as e:
+            logger.warning("GetPolicy failed for %s: %s", name, e)
+            policy_json = json.dumps({"error": "policy lookup failed"})
             policy_version = 0
 
         try:
@@ -250,8 +252,8 @@ class PicoDomeServicer:
                 actor="picodome-grpc",
                 detail=detail,
             )
-        except Exception:
-            logger.debug("Audit log failed for event %s", event_type)
+        except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+            logger.debug("Audit log failed for event %s", event_type, exc_info=True)
 
 
 class _DictProxy:

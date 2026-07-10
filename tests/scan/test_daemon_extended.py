@@ -476,7 +476,7 @@ class TestHandleReadiness(unittest.TestCase):
 
     def test_readiness_not_ready_engine_fails(self):
         handler = _make_handler()
-        with patch("picosentry.scan.engine.create_default_engine", side_effect=Exception("init error")):
+        with patch("picosentry.scan.engine.create_default_engine", side_effect=RuntimeError("init error")):
             handler._handle_readiness("rid-3", time.monotonic())
         data = _read_json_body(handler)
         self.assertEqual(data["status"], "not_ready")

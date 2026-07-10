@@ -1,7 +1,9 @@
 """Tests for PicoSentry daemon with auth and rate limiting."""
 
+import io
 import json
 import unittest
+from unittest.mock import MagicMock
 
 from picosentry.scan.auth import AuthConfig, RateLimiter
 from picosentry.scan.daemon import HealthHandler
@@ -19,9 +21,6 @@ class TestDaemonHealthHandler(unittest.TestCase):
         """Health endpoint returns 200 with no auth required."""
         handler = HealthHandler.__new__(HealthHandler)
         # Test the response data directly
-        import io
-        from unittest.mock import MagicMock
-
         handler.wfile = io.BytesIO()
         handler.send_response = MagicMock()
         handler.send_header = MagicMock()

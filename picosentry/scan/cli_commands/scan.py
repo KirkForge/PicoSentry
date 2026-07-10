@@ -28,7 +28,7 @@ NAME = "scan"
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     scan_parser = subparsers.add_parser(NAME, help="Scan a project directory for supply chain risks")
-    scan_parser.add_argument("target", type=str, help="Path to project directory to scan")
+    scan_parser.add_argument("target", nargs="?", default=".", type=str, help="Path to project directory to scan")
     scan_parser.add_argument(
         "--format",
         "-f",

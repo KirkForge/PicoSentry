@@ -94,8 +94,9 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
       - name: Install package
         # `[watch-server]` brings in fastapi + uvicorn, which the watch HTTP
-        # daemon and its tests require.
-        run: pip install --no-cache-dir -e ".[dev,watch-server]"
+        # daemon and its tests require. `[otel]` provides the metrics imports
+        # used by the rate limiter and server modules under tests/watch/.
+        run: pip install --no-cache-dir -e ".[dev,watch-server,otel]"
       - name: Run watch tests
         run: python -m pytest tests/watch/ -v --tb=short
 

@@ -241,7 +241,8 @@ ignore = [
 # - test helpers and mocks often accept parameters for API compatibility
 "picosentry/serve/api/routers/*.py" = ["ARG001"]
 "picosentry/sandbox/grpc_transport/_servicer.py" = ["ARG002"]
-"picosentry/sandbox/l3/backends/*.py" = ["ARG002"]
+"picosentry/sandbox/l3/backends/*.py" = ["ARG002", "TC001"]
+"picosentry/sandbox/l3/backends/seccomp_trace/*.py" = ["TC001"]
 "picosentry/sandbox/tracing.py" = ["ARG002"]
 "picosentry/serve/services/observability.py" = ["ARG002"]
 "picosentry/serve/services/plugin_manager.py" = ["ARG002"]

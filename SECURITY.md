@@ -11,7 +11,6 @@
 
 **Do not open a public GitHub issue.** Use one of these channels:
 
-- **Email**: [security@kirkforge.dev](mailto:security@kirkforge.dev)
 - **GitHub**: [Private vulnerability report](https://github.com/KirkForge/PicoSentry/security/advisories/new)
 
 We aim to acknowledge receipt within 48 hours and provide a triage timeline within 5 business days.

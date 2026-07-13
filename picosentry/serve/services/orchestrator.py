@@ -1,16 +1,12 @@
 import json
 import logging
-import os
 import re
-import smtplib
-import sqlite3
 import subprocess
 import threading
 import time
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
@@ -22,76 +18,28 @@ from picosentry.serve.services.correlation import (
 from picosentry.serve.services.event_bus import event_bus
 from picosentry.serve.services.intelligence import IntelligenceEngine
 from picosentry.serve.services.metrics import metrics
+from picosentry.serve.services._orchestrator_data import (
+    PICO_CLI,
+    PROJECT_LAYER_MAP,
+    REGISTRY_PATH,
+    ProjectMeta,
+    _validate_project_command,
+)
+from picosentry.serve.services._orchestrator_health import perform_health_checks
+from picosentry.serve.services._orchestrator_reports import (
+    generate_project_report,
+    generate_summary_report,
+)
+from picosentry.serve.services._orchestrator_stats import (
+    get_threat_score,
+    update_project_stats,
+)
 from picosentry.serve.services.orgs import Organization
 from picosentry.serve.services.plugin_manager import plugin_manager
 
 logger = logging.getLogger("picoshogun.Orchestrator")
 
-try:
-    import psycopg2
-except ImportError:
-    psycopg2 = cast("Any", None)
-
-# Expected failures when probing external dependencies in health checks.
-# A probe failure must be reported as degraded, not crash the health endpoint.
-_HEALTH_PROBE_ERRORS: tuple[type[BaseException], ...] = (
-    OSError,
-    RuntimeError,
-    ValueError,
-    TypeError,
-    sqlite3.Error,
-)
-if psycopg2 is not None:
-    _HEALTH_PROBE_ERRORS = (*_HEALTH_PROBE_ERRORS, psycopg2.Error)
-
 BASE_DIR = Path(__file__).parent.parent
-REGISTRY_PATH = BASE_DIR / "config" / "project_registry.json"
-
-
-PICO_CLI = {
-    "picosentry": ["picosentry", "scan"],
-    "picodome": ["picosentry", "sandbox", "run"],
-    "picowatch": ["picosentry", "watch", "scan-prompt"],
-    "picoshogun": ["picosentry", "health"],
-}
-
-
-PROJECT_LAYER_MAP: dict[str, str] = {
-    "picosentry": "scan",
-    "picodome": "sandbox_l3",
-    "picowatch": "watch",
-}
-
-# Strict allowlist for project IDs and package names that are fed into
-# subprocess.run().  Anything outside [A-Za-z0-9_.-] is rejected to prevent
-# shell metacharacters, path traversal, or unexpected executable resolution.
-_PROJECT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
-_PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
-
-
-def _validate_project_command(project_id: str, package: str) -> None:
-    """Raise ValueError if project_id or package can reach unsafe executables."""
-    if not _PROJECT_ID_RE.match(project_id):
-        raise ValueError(f"Project ID {project_id!r} contains unsafe characters")
-    if package and not _PACKAGE_NAME_RE.match(package):
-        raise ValueError(f"Package name {package!r} contains unsafe characters")
-
-
-@dataclass
-class ProjectMeta:
-    id: str
-    name: str
-    category: str
-    priority: int
-    dependencies: list[str]
-    cron_schedule: str
-    estimated_duration: int
-    status: str = "pending"
-    version: str = "1.0.1"
-    intelligence_outputs: list[str] | None = None
-    intelligence_inputs: list[str] | None = None
-    description: str = ""
-    package: str = ""
 
 
 class EnhancedOrchestrator:  # rationale: async execution engine coordinating PicoSentry, PicoDome, PicoWatch
@@ -292,7 +240,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             cmd = cli_args
             _validate_project_command(project_id, cmd[0] if cmd else "")
             for arg in cmd[1:]:
-                if not _PACKAGE_NAME_RE.match(arg):
+                if not re.match(r"^[a-zA-Z0-9_.-]+$", arg):
                     raise ValueError(f"CLI argument {arg!r} contains unsafe characters")
 
             result = subprocess.run(
@@ -345,7 +293,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 ),
             )
 
-            self._update_project_stats(project_id)
+            update_project_stats(project_id)
 
             metrics.project_run(project_id, duration, status, org_id=org_id)
 
@@ -580,21 +528,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         ]
 
     def get_threat_score(self) -> dict[str, Any]:
-        scores = self.intel.threat_scores
-        return {
-            "aggregate": sum(scores.values()),
-            "breakdown": dict(sorted(scores.items(), key=lambda x: -x[1])[:10]),
-            "level": self._threat_level(sum(scores.values())),
-        }
-
-    def _threat_level(self, score: float) -> str:
-        if score >= 50:
-            return "critical"
-        if score >= 20:
-            return "high"
-        if score >= 5:
-            return "medium"
-        return "low"
+        return get_threat_score(self.intel)
 
     def list_alerts(
         self, sent: bool | None = None, severity: str | None = None, limit: int = 50, org_id: int | None = None
@@ -654,185 +588,13 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         return [{**dict(row), "labels": json.loads(row["labels"]) if row["labels"] else {}} for row in rows]
 
     def get_health_checks(self) -> list[dict]:
-        checks = []
-
-        start = time.time()
-        try:
-            db.execute("SELECT 1")
-            latency = (time.time() - start) * 1000
-            checks.append(
-                {
-                    "component": "database",
-                    "status": "healthy",
-                    "message": "Connected",
-                    "latency_ms": round(latency, 2),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-        except _HEALTH_PROBE_ERRORS as e:
-            checks.append(
-                {
-                    "component": "database",
-                    "status": "critical",
-                    "message": str(e),
-                    "latency_ms": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-
-        try:
-            stat = os.statvfs(str(BASE_DIR))
-            free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
-            total_gb = (stat.f_blocks * stat.f_frsize) / (1024**3)
-            used_pct = (1 - stat.f_bavail / stat.f_blocks) * 100
-
-            status = "healthy" if used_pct < 80 else "warning" if used_pct < 90 else "critical"
-            checks.append(
-                {
-                    "component": "disk_space",
-                    "status": status,
-                    "message": f"{free_gb:.1f}GB free of {total_gb:.1f}GB ({used_pct:.1f}% used)",
-                    "latency_ms": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-        except OSError as e:
-            checks.append(
-                {
-                    "component": "disk_space",
-                    "status": "unknown",
-                    "message": str(e),
-                    "latency_ms": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-
-        project_count = len(self.registry)
-        checks.append(
-            {
-                "component": "projects",
-                "status": "healthy" if project_count > 0 else "warning",
-                "message": f"{project_count} projects in registry",
-                "latency_ms": 0,
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            }
-        )
-
-        for check in checks:
-            db.execute_insert(
-                """
-                INSERT INTO health_checks (component, status, message, latency_ms)
-                VALUES (?, ?, ?, ?)
-            """,
-                (check["component"], check["status"], check["message"], check["latency_ms"]),
-            )
-
-        start = time.time()
-        try:
-            if settings.alerts.email_smtp_host:
-                with smtplib.SMTP(
-                    settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=5
-                ) as server:
-                    if settings.alerts.email_smtp_starttls:
-                        server.starttls()
-                    latency = (time.time() - start) * 1000
-                    checks.append(
-                        {
-                            "component": "smtp",
-                            "status": "healthy",
-                            "message": "SMTP reachable",
-                            "latency_ms": round(latency, 2),
-                            "timestamp": datetime.now(timezone.utc).isoformat(),
-                        }
-                    )
-            else:
-                checks.append(
-                    {
-                        "component": "smtp",
-                        "status": "disabled",
-                        "message": "SMTP not configured",
-                        "latency_ms": 0,
-                        "timestamp": datetime.now(timezone.utc).isoformat(),
-                    }
-                )
-        except (OSError, smtplib.SMTPException) as e:
-            checks.append(
-                {
-                    "component": "smtp",
-                    "status": "critical",
-                    "message": f"SMTP unreachable: {e}",
-                    "latency_ms": 0,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
-
-        return checks
+        return perform_health_checks(self.registry)
 
     def generate_summary_report(self, org_id: int | None = None) -> str:
-        status = self.get_status(org_id=org_id)
-
-        report = f"""
-╔══════════════════════════════════════════════════════════════════╗
-║     PicoShogun Command Centre Report                  ║
-╚══════════════════════════════════════════════════════════════════╝
-
-Generated: {status["timestamp"]}
-System Health: {status["system_health"].upper()}
-Uptime: {status["uptime_seconds"]:.0f} seconds
-
-OVERALL STATUS
-──────────────
-Projects:      {status["projects_total"]} total
-Active Runs:   {status["projects_active"]}
-Failed (24h):  {status["projects_failed"]}
-Threat Level:  {status["threat_score"]:.1f}/100
-Active Intel:  {status["active_threats"]} critical/high items
-Pending Alerts: {status["pending_alerts"]}
-
-THREAT SCORE BREAKDOWN
-──────────────────────
-"""
-        for pid, score in sorted(self.intel.threat_scores.items(), key=lambda x: -x[1])[:10]:
-            report += f"  {pid}: {score:.1f}\n"
-
-        return report
+        return generate_summary_report(self, org_id=org_id)
 
     def generate_project_report(self, project_id: str, org_id: int | None = None) -> dict[str, Any] | None:
-        project = self.get_project(project_id)
-        if not project:
-            return None
-
-        org_filter = "AND org_id = ?" if org_id is not None else ""
-        params_runs: list[Any] = [project_id]
-        if org_id is not None:
-            params_runs.append(org_id)
-        runs = db.execute(
-            f"""
-            SELECT * FROM project_runs
-            WHERE project_id = ? {org_filter}
-            ORDER BY run_start DESC LIMIT 10
-        """,
-            tuple(params_runs),
-        )
-
-        params_intel: list[Any] = [project_id]
-        if org_id is not None:
-            params_intel.append(org_id)
-        intel = db.execute(
-            f"""
-            SELECT * FROM intelligence
-            WHERE source_project = ? {org_filter}
-            ORDER BY created_at DESC LIMIT 10
-        """,
-            tuple(params_intel),
-        )
-
-        return {
-            "project": project,
-            "recent_runs": [dict(r) for r in runs],
-            "intelligence": [dict(r) for r in intel],
-            "correlations": self.get_correlations(project_id),
-        }
+        return generate_project_report(self, project_id, org_id=org_id)
 
 
 orchestrator = EnhancedOrchestrator()

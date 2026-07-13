@@ -5,7 +5,6 @@ import inspect
 import json
 import logging
 import os
-import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import replace
@@ -17,6 +16,7 @@ if TYPE_CHECKING:
     from .policy import Policy
 
 from picosentry import __version__ as _VERSION
+from ._engine_scan_helpers import _now_ms, count_installed_packages, count_relevant_files
 from .models import Finding, RuleExecution, ScanResult, ScanStats
 
 
@@ -280,23 +280,7 @@ class ScanEngine:
         packages_scanned = 0
         rule_timings: dict[str, int] = {}
 
-        nm_path = target_path / "node_modules"
-        if nm_path.is_dir():
-            packages_scanned = 0
-            for d in nm_path.iterdir():
-                if not d.is_dir() or d.name.startswith("."):
-                    continue
-                if d.name.startswith("@"):
-                    packages_scanned += sum(1 for s in d.iterdir() if s.is_dir())
-                else:
-                    packages_scanned += 1
-
-        if not packages_scanned:
-            for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
-                if sp_path.is_dir():
-                    packages_scanned = sum(
-                        1 for d in sp_path.iterdir() if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
-                    )
+        packages_scanned = count_installed_packages(target_path)
 
         fn_to_rule_ids: dict[int, list[str]] = {}
         for rule_id in selected_rules:
@@ -393,73 +377,7 @@ class ScanEngine:
 
         duration = _now_ms() - start_ms
 
-        _SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
-        _RELEVANT_EXTENSIONS = frozenset(
-            {
-                ".json",
-                ".js",
-                ".mjs",
-                ".cjs",
-                ".ts",
-                ".tsx",
-                ".jsx",
-                ".yaml",
-                ".yml",
-                ".lock",
-                ".npmrc",
-                ".env",
-                ".py",
-                ".toml",
-                ".cfg",
-                ".ini",
-                ".go",
-                ".xml",
-                ".gradle",
-                ".rb",
-                ".gemspec",
-                ".csproj",
-                ".sln",
-            }
-        )
-        if target_path.is_dir():
-            files_scanned = 0
-            for file in target_path.rglob("*"):
-                if not file.is_file() or file.is_symlink():
-                    continue
-
-                if any(part in _SKIP_DIRS for part in file.parts):
-                    continue
-                if file.suffix in _RELEVANT_EXTENSIONS or file.name in {
-                    "package.json",
-                    "package-lock.json",
-                    "pnpm-lock.yaml",
-                    "yarn.lock",
-                    ".npmrc",
-                    "pnpm-workspace.yaml",
-                    "requirements.txt",
-                    "pyproject.toml",
-                    "setup.cfg",
-                    "setup.py",
-                    "poetry.lock",
-                    "uv.lock",
-                    "Pipfile",
-                    "Pipfile.lock",
-                    "METADATA",
-                    "PKG-INFO",
-                    "go.mod",
-                    "go.sum",
-                    "go.env",
-                    "pom.xml",
-                    "build.gradle",
-                    "Gemfile",
-                    "Gemfile.lock",
-                    "packages.config",
-                    "packages.lock.json",
-                    "nuget.config",
-                }:
-                    files_scanned += 1
-        else:
-            files_scanned = 1
+        files_scanned = count_relevant_files(target_path)
 
         by_severity: dict[str, int] = {}
         by_rule: dict[str, int] = {}
@@ -597,7 +515,3 @@ def create_default_engine(
             )
 
     return engine
-
-
-def _now_ms() -> float:
-    return time.monotonic() * 1000

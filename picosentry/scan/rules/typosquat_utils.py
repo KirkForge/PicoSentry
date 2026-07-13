@@ -4,7 +4,9 @@ import json
 import logging
 from pathlib import Path
 
-from picosentry.scan.rules._typosquat_corpus import (
+# Re-export built-in corpora for backward compatibility; active consumers include
+# picosentry.scan.rules.typosquat and the test suite.
+from picosentry.scan.rules._typosquat_corpus import (  # noqa: F401
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
     BUILTIN_MAVEN_TOP_100,

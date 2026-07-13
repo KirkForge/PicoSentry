@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from picosentry.scan.auth import AuthConfig, RateLimiter
-from picosentry.scan.daemon.handler import HealthHandler, _request_counter
+from picosentry.scan.daemon.handler import HealthHandler, _request_counter as _request_counter
 from picosentry.scan.daemon.tls import TLSConfig
 from picosentry.scan.enterprise import EnterpriseViolation, enterprise_daemon_checks, is_enterprise_mode
 
@@ -147,9 +147,10 @@ __all__: list[str] = [
     "DEFAULT_HOST",
     "DEFAULT_PORT",
     "EnterpriseViolation",
-    "HealthHandler",
     "HTTPServer",
+    "HealthHandler",
     "TLSConfig",
+    "_request_counter",
     "enterprise_daemon_checks",
     "is_enterprise_mode",
     "run_daemon",

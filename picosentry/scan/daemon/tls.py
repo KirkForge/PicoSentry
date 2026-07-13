@@ -20,7 +20,7 @@ class TLSConfig:
         return self.is_enabled() and bool(self.mtls_ca)
 
     @staticmethod
-    def from_env() -> "TLSConfig":
+    def from_env() -> TLSConfig:
         import os
 
         return TLSConfig(

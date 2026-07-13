@@ -273,9 +273,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                     "SECURITY: Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1"
                 )
 
-        if not self.is_production():
-            if self.api.host == "0.0.0.0":
-                issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")
+        if not self.is_production() and self.api.host == "0.0.0.0":
+            issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")
 
         return issues
 

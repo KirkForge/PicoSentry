@@ -1,4 +1,3 @@
-from datetime import datetime, timezone
 from typing import Any, Protocol
 
 from picosentry.serve.database.manager import db

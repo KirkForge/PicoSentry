@@ -21,7 +21,7 @@ from pathlib import Path
 from typing import Any
 
 from picosentry.scan import __version__
-from picosentry.scan._cli_service_helpers import (
+from picosentry.scan._cli_service_helpers import (  # noqa: F401
     ScanError,
     ScanTimeout,
     _apply_policy,

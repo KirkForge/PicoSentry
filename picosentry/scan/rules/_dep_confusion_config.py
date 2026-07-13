@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -12,17 +11,17 @@ from .pypi_utils import detect_pypi_project
 from .rubygems_utils import detect_rubygems_project
 
 __all__ = [
-    "DepConfusionConfig",
+    "_CARGO_CONFIG",
+    "_GO_CONFIG",
     "_INTERNAL_ALL_PATTERNS",
     "_INTERNAL_EXTRA_PATTERNS",
     "_INTERNAL_PREFIX_PATTERNS",
     "_MAVEN_KNOWN_SAFE_ARTIFACTS",
     "_MAVEN_PUBLIC_GROUP_PREFIXES",
-    "_CARGO_CONFIG",
-    "_GO_CONFIG",
     "_NUGET_CONFIG",
     "_PYPI_CONFIG",
     "_RUBYGEMS_CONFIG",
+    "DepConfusionConfig",
 ]
 
 

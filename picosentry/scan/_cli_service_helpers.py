@@ -8,23 +8,15 @@ from ``cli_service`` and ``cli_commands.scan`` for backward compatibility.
 from __future__ import annotations
 
 import contextlib
-import hashlib
-import json
 import logging
 import multiprocessing
 import os
 import sys
-import tempfile
 import traceback
 from pathlib import Path
-from typing import Any
 
-from picosentry.scan import __version__
-from picosentry.scan.config import PicoSentryConfig
-from picosentry.scan.engine import create_default_engine
-from picosentry.scan.formatters import format_json
 from picosentry.scan.formatters.table import _PINCH_LABELS
-from picosentry.scan.models import Finding, ScanResult, ScanStats, Severity
+from picosentry.scan.models import ScanResult, Severity
 from picosentry.scan.policy import Policy
 from picosentry.scan.rules.utils import iter_node_modules, load_package_json
 

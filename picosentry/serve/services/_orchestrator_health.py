@@ -3,7 +3,6 @@ import os
 import smtplib
 import time
 from datetime import datetime, timezone
-from typing import Any
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db

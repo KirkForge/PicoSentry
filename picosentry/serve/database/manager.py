@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Any, cast
 
 from picosentry.serve.config.settings import settings
-from picosentry.serve.database._schema import MIGRATIONS, SQLDialect
+from picosentry.serve.database._schema import MIGRATIONS, SQLDialect, Migration, _sqlite_to_postgres
 from picosentry.serve.database.pools import SQLitePool, create_pool
 
 try:

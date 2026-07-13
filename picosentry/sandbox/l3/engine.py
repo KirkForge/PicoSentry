@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import platform
+import threading
 
 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 from picosentry.sandbox.l3.models import Policy, SandboxResult
@@ -47,22 +48,27 @@ class BackendRegistry:
 
     def __init__(self) -> None:
         self._default_backend: SandboxBackend | None = None
+        self._lock = threading.Lock()
 
     def get(self, allow_degraded: bool | None = None) -> SandboxBackend:
         if self._default_backend is None:
-            backend_name = os.environ.get("PICODOME_SANDBOX_BACKEND", None)
-            self._default_backend = _detect_backend(
-                requested=backend_name,
-                allow_degraded=allow_degraded,
-            )
+            with self._lock:
+                if self._default_backend is None:
+                    backend_name = os.environ.get("PICODOME_SANDBOX_BACKEND", None)
+                    self._default_backend = _detect_backend(
+                        requested=backend_name,
+                        allow_degraded=allow_degraded,
+                    )
         return self._default_backend
 
     def set(self, backend: SandboxBackend, name: str | None = None) -> None:
-        self._default_backend = backend
+        with self._lock:
+            self._default_backend = backend
         logger.info("Backend override: %s", name or backend.name)
 
     def reset(self) -> None:
-        self._default_backend = None
+        with self._lock:
+            self._default_backend = None
 
 
 _registry = BackendRegistry()

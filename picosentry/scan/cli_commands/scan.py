@@ -10,6 +10,7 @@ import argparse
 import sys
 from pathlib import Path
 
+from picosentry.scan._cli_service_worker import _scan_worker
 from picosentry.scan.cli_service import (
     ScanError,
     ScanOrchestrator,
@@ -18,7 +19,6 @@ from picosentry.scan.cli_service import (
     _format_summary,
     _resolve_external_path,
     _run_scan,
-    _scan_worker,
     _verify_determinism,
     _workspace_root,
 )

@@ -18,8 +18,7 @@ from .pypi_utils import (
     parse_requirements_file,
 )
 from .rubygems_utils import detect_rubygems_project, get_rubygems_dep_names, parse_gemfile
-from .corpus_index import check_typosquat_against_index, load_indexed_corpus
-from .typosquat_utils import (
+from ._typosquat_corpus import (
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
     BUILTIN_MAVEN_TOP_100,
@@ -27,8 +26,9 @@ from .typosquat_utils import (
     BUILTIN_PYPI_TOP_100,
     BUILTIN_RUBYGEMS_TOP_100,
     BUILTIN_TOP_100,
-    typosquat_severity_confidence,
 )
+from .corpus_index import check_typosquat_against_index, load_indexed_corpus
+from .typosquat_utils import typosquat_severity_confidence
 from .utils import get_dep_names, load_package_json
 
 logger = logging.getLogger("picosentry.typosquat")

@@ -204,7 +204,8 @@ def test_bench_small_scan(engine, small_project):
 def test_bench_typosquat():
     """Typosquat check against 327 top packages should be fast."""
     from picosentry.scan.engine import create_default_engine
-    from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100, load_corpus_for_ecosystem
+    from picosentry.scan.rules._typosquat_corpus import BUILTIN_TOP_100
+    from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem
 
     engine = create_default_engine()
     start = time.monotonic()
@@ -283,7 +284,7 @@ def test_bench_token_filter_negative(benign_large_js):
 
 def test_bench_corpus_index_10k():
     """Building a 10k-name index and running 100 queries should be fast."""
-    from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100
+    from picosentry.scan.rules._typosquat_corpus import BUILTIN_TOP_100
 
     # Use realistic, varied package names rather than a single shared prefix.
     bases = BUILTIN_TOP_100[:50]

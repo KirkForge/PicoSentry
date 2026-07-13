@@ -128,3 +128,37 @@ class TestHealthCheckHardening:
 
         with pytest.raises(NameError, match="programmer bug"):
             orchestrator.get_health_checks()
+
+
+class TestOrchestratorHelpers:
+    """Direct tests for helper modules extracted from EnhancedOrchestrator."""
+
+    def test_perform_health_checks_imports_and_runs(self, orchestrator, monkeypatch):
+        from picosentry.serve.services._orchestrator_health import perform_health_checks
+
+        monkeypatch.setattr(
+            "picosentry.serve.services._orchestrator_health.smtplib.SMTP",
+            lambda *args, **kwargs: MagicMock(),
+        )
+        checks = perform_health_checks(orchestrator.registry)
+        components = {c["component"] for c in checks}
+        assert "database" in components
+        assert "disk_space" in components
+        assert "projects" in components
+
+    def test_update_project_stats_writes_run_count(self, orchestrator, monkeypatch):
+        from picosentry.serve.services._orchestrator_stats import update_project_stats
+
+        monkeypatch.setattr(
+            "picosentry.serve.services._orchestrator_stats.db.execute_one",
+            lambda _q, _p: {"total": 5, "success": 4, "avg_dur": 1.2},
+        )
+        calls = []
+        monkeypatch.setattr(
+            "picosentry.serve.services._orchestrator_stats.db.execute_insert",
+            lambda _q, p: calls.append(p),
+        )
+
+        update_project_stats("test-project")
+        assert len(calls) == 1
+        assert calls[0][4] == "test-project"

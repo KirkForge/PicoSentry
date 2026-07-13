@@ -16,7 +16,7 @@ from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, sa
 from picosentry.scan.config import load_config
 from picosentry.scan.engine import user_corpus_dir
 from picosentry.scan.rules.corpus_index import save_indexed_corpus
-from picosentry.scan.rules.typosquat_utils import (
+from picosentry.scan.rules._typosquat_corpus import (
     BUILTIN_CARGO_TOP_100,
     BUILTIN_GO_TOP_100,
     BUILTIN_MAVEN_TOP_100,

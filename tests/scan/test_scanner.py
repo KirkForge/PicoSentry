@@ -861,7 +861,8 @@ class TestPackageNameTyposquat:
     def test_corpus_loaded_from_file(self, tmp_path):
         """Typosquat rule should load corpus from file, not just builtin."""
         from picosentry.scan.engine import ScanEngine
-        from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100, load_corpus_for_ecosystem
+        from picosentry.scan.rules._typosquat_corpus import BUILTIN_TOP_100
+        from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem
 
         # Load from package's corpus directory (works regardless of layout)
         engine = ScanEngine()

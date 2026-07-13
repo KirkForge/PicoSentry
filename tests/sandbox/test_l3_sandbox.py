@@ -345,3 +345,86 @@ class TestGetSetBackend:
         assert "test" in str(err)
         assert "reason" in str(err)
         assert err.backend_name == "test"
+
+
+class TestSandboxSession:
+    """Direct tests for the SandboxSession lifecycle helper."""
+
+    def test_session_tracks_subprocess_and_cleans_up(self):
+        from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
+        from picosentry.sandbox.l3.models import SandboxResult
+        from picosentry.sandbox.l3.policy import default_policy
+        from picosentry.sandbox.l3.session import SandboxSession
+
+        backend = SubprocessBackend()
+        policy = default_policy()
+        session = SandboxSession(backend, policy, ["echo", "session"])
+        with session:
+            assert session.state.value in ("running", "cleaned")
+            assert isinstance(session.result, SandboxResult)
+        assert session.state.value == "cleaned"
+
+    def test_session_cleanup_kills_tracked_process(self):
+        import subprocess
+
+        from picosentry.sandbox.l3.policy import default_policy
+        from picosentry.sandbox.l3.session import SandboxSession
+
+        class _FakeBackend:
+            name = "fake"
+            isolation_level = "none"
+            enforcement_guarantee = "best_effort"
+
+            def run_in_session(self, session):
+                # Leave a live process on the session so cleanup must kill it.
+                session.resources.proc = subprocess.Popen(["sleep", "10"])
+
+        session = SandboxSession(_FakeBackend(), default_policy(), ["sleep", "10"])
+        session.start()
+        proc = session.resources.proc
+        assert proc is not None and proc.poll() is None
+        session.cleanup()
+        assert proc.poll() is not None
+
+    def test_run_session_convenience_helper(self):
+        from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
+        from picosentry.sandbox.l3.policy import default_policy
+        from picosentry.sandbox.l3.session import run_session
+
+        backend = SubprocessBackend()
+        result = run_session(backend, default_policy(), ["echo", "ok"])
+        assert result.exit_code == 0
+        assert "ok" in result.stdout
+
+
+class TestBackendRegistry:
+    """Direct tests for the per-process backend registry."""
+
+    def test_registry_lazy_detection(self):
+        from picosentry.sandbox.l3.engine import BackendRegistry
+
+        registry = BackendRegistry()
+        assert registry._default_backend is None
+        backend = registry.get()
+        assert backend is not None
+        assert registry._default_backend is backend
+
+    def test_registry_thread_safe_concurrent_get(self):
+        import threading
+
+        from picosentry.sandbox.l3.engine import BackendRegistry
+
+        registry = BackendRegistry()
+        results = []
+
+        def getter():
+            results.append(registry.get())
+
+        threads = [threading.Thread(target=getter) for _ in range(10)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert len(results) == 10
+        assert all(b is results[0] for b in results)

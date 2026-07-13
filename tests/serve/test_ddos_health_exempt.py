@@ -139,6 +139,8 @@ def test_lookalike_paths_are_not_exempt() -> None:
     assert saw_429, "/health-evil must be rate-limited like any other user path"
 
 
+
+
 def test_is_health_path_unit() -> None:
     """The classmethod is a closed-set check, with a subpath match for
     the liveness/ready variants.  Pin the predicate directly so a
@@ -153,3 +155,33 @@ def test_is_health_path_unit() -> None:
     assert not DDoSShieldMiddleware._is_health_path("/healthy")
     assert not DDoSShieldMiddleware._is_health_path("/api/v1/health")
     assert not DDoSShieldMiddleware._is_health_path("/")
+
+
+def test_path_bucket_lru_eviction() -> None:
+    """High-risk path buckets are bounded by an LRU cap.
+
+    The shield caps the number of tracked per-path buckets and evicts
+    the least-recently touched path.  Hitting more distinct high-risk
+    paths than the cap allows should keep the dict size bounded and
+    discard the oldest entries.
+    """
+    now = 0.0
+
+    def fake_now() -> float:
+        nonlocal now
+        now += 0.001
+        return now
+
+    client, shield = _build_app(_now=fake_now)
+    shield._max_tracked_paths = 2
+
+    # Use the exact high-risk paths; the shield only tracks those.
+    paths = ["/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"]
+    for path in paths:
+        client.get(path)
+
+    assert len(shield._path_buckets) <= shield._max_tracked_paths
+    # The most recently touched path should still be present.
+    assert "/api/v1/projects" in shield._path_buckets
+    # The oldest path should have been evicted.
+    assert "/api/v1/scan" not in shield._path_buckets

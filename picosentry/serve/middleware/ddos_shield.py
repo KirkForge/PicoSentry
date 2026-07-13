@@ -1,5 +1,6 @@
 import logging
 import time
+from collections import OrderedDict
 from typing import ClassVar
 from collections.abc import Callable
 
@@ -35,10 +36,11 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
         super().__init__(app)
         self.enabled = enabled
         self._now = _now
-        self._path_buckets: dict[str, list[float]] = {}
+        self._path_buckets: OrderedDict[str, list[float]] = OrderedDict()
         self._global_bucket: list[float] = []
         self._burst_limit = 50  # requests per 10-second window per path
         self._global_limit = 200  # total requests per 10-second window
+        self._max_tracked_paths = 1000  # LRU cap for unique per-path buckets
 
     @classmethod
     def _is_health_path(cls, path: str) -> bool:
@@ -90,6 +92,9 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
                 )
             bucket.append(now)
             self._path_buckets[path] = bucket
+            self._path_buckets.move_to_end(path)
+            while len(self._path_buckets) > self._max_tracked_paths:
+                self._path_buckets.popitem(last=False)
 
         self._global_bucket.append(now)
         return await call_next(request)

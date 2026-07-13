@@ -11,7 +11,8 @@ from picosentry.scan.rules.corpus_index import (
     load_indexed_corpus,
     save_indexed_corpus,
 )
-from picosentry.scan.rules.typosquat_utils import BUILTIN_TOP_100, check_typosquat
+from picosentry.scan.rules._typosquat_corpus import BUILTIN_TOP_100
+from picosentry.scan.rules.typosquat_utils import check_typosquat
 
 
 def test_index_contains_loaded_names():

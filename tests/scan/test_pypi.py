@@ -358,7 +358,8 @@ class TestTyposquatUtils:
         assert len(matches) == 0
 
     def test_load_corpus_missing_file_uses_builtin(self, tmp_path):
-        from picosentry.scan.rules.typosquat_utils import BUILTIN_PYPI_TOP_100, load_corpus_for_ecosystem
+        from picosentry.scan.rules._typosquat_corpus import BUILTIN_PYPI_TOP_100
+        from picosentry.scan.rules.typosquat_utils import load_corpus_for_ecosystem
 
         corpus = load_corpus_for_ecosystem(tmp_path, "pypi", BUILTIN_PYPI_TOP_100)
         assert len(corpus) > 0

@@ -21,13 +21,13 @@ from picosentry.scan.cli_commands import (
     version,
     workspace,
 )
+from picosentry.scan.cli_commands.scan import _scan_worker
 from picosentry.scan.cli_service import (
     ScanError,
     ScanTimeout,
     _format_quiet,
     _format_summary,
     _run_scan,
-    _scan_worker,
     _verify_determinism,
 )
 from picosentry.scan.logging import configure_logging

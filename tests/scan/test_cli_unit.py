@@ -7,10 +7,13 @@ and checks return codes / stdout / stderr.
 """
 
 import json
+import multiprocessing
 import os
 import tempfile
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+
+import pytest
 
 from picosentry.scan.cli import (
     ScanError,
@@ -21,11 +24,13 @@ from picosentry.scan.cli import (
     _cmd_init,
     _cmd_ioc,
     _cmd_policy,
-    _format_quiet,
-    _format_summary,
     main,
 )
-from picosentry.scan.models import Severity
+from picosentry.scan._cli_service_formatters import _format_quiet, _format_summary, _print_verbose_details
+from picosentry.scan._cli_service_paths import _resolve_external_path, _secure_realpath, _workspace_root
+from picosentry.scan._cli_service_policy import _apply_policy
+from picosentry.scan._cli_service_worker import _scan_worker
+from picosentry.scan.models import ScanResult, ScanStats, Severity
 
 from tests.scan.conftest import (
     make_finding as _make_finding,
@@ -972,3 +977,213 @@ class TestScanDeterministic:
         # deterministic output should not have duration_ms in stats
         stats = data.get("stats", {})
         assert "duration_ms" not in stats or isinstance(stats.get("duration_ms"), int)
+
+
+class TestCliServicePaths:
+    """Direct tests for _cli_service_paths helpers."""
+
+    def test_workspace_root_defaults_to_cwd(self, tmp_path, monkeypatch):
+        """_workspace_root returns CWD when env var is absent."""
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.delenv("PICOSENTRY_SCANS_WORKSPACE_ROOT", raising=False)
+        assert _workspace_root() == tmp_path
+
+    def test_workspace_root_env_override(self, tmp_path, monkeypatch):
+        """_workspace_root respects PICOSENTRY_SCANS_WORKSPACE_ROOT."""
+        workspace = tmp_path / "workspace"
+        workspace.mkdir()
+        monkeypatch.setenv("PICOSENTRY_SCANS_WORKSPACE_ROOT", str(workspace))
+        resolved = _workspace_root()
+        assert resolved == workspace
+        assert resolved.is_absolute()
+
+    def test_resolve_external_path_accepts_relative(self, tmp_path, monkeypatch):
+        """Relative paths resolve against CWD and stay inside workspace."""
+        monkeypatch.chdir(tmp_path)
+        subdir = tmp_path / "out"
+        subdir.mkdir()
+        result = _resolve_external_path("out", tmp_path, must_exist=True)
+        assert result == subdir
+
+    def test_resolve_external_path_rejects_url(self, tmp_path):
+        """Remote URLs are rejected immediately."""
+        with pytest.raises(ValueError, match="remote URL"):
+            _resolve_external_path("https://example.com/file", tmp_path)
+
+    def test_resolve_external_path_rejects_empty(self, tmp_path):
+        """Empty paths raise a clear error."""
+        with pytest.raises(ValueError, match="non-empty string"):
+            _resolve_external_path("", tmp_path)
+
+    def test_resolve_external_path_rejects_traversal(self, tmp_path):
+        """Paths escaping the workspace root are rejected."""
+        with pytest.raises(ValueError, match="inside the workspace root"):
+            _resolve_external_path("../outside.txt", tmp_path, must_exist=True)
+
+    def test_resolve_external_path_rejects_symlink(self, tmp_path):
+        """Symlink arguments are rejected to avoid ambiguous resolution."""
+        real = tmp_path / "real.txt"
+        real.write_text("x")
+        link = tmp_path / "link.txt"
+        link.symlink_to(real)
+        with pytest.raises(ValueError, match="symlink"):
+            _resolve_external_path(str(link), tmp_path)
+
+    def test_resolve_external_path_must_exist(self, tmp_path):
+        """must_exist=True raises when the path does not exist."""
+        missing = tmp_path / "missing.txt"
+        with pytest.raises(ValueError, match="does not exist"):
+            _resolve_external_path(str(missing), tmp_path, must_exist=True)
+
+    def test_secure_realpath_returns_canonical(self, tmp_path):
+        """_secure_realpath returns the canonical path of an open inode."""
+        target = tmp_path / "file.txt"
+        target.write_text("hello")
+        canonical = _secure_realpath(str(target))
+        assert canonical == target.resolve()
+
+
+class TestCliServiceFormatters:
+    """Direct tests for _cli_service_formatters helpers."""
+
+    def test_format_summary_no_findings(self):
+        """No findings prints the lobster all-clear."""
+        result = _make_result(findings=[])
+        assert "No pinches" in _format_summary(result)
+
+    def test_format_summary_with_findings(self):
+        """Findings are summarized by severity/pinch labels."""
+        result = _make_result(
+            findings=[
+                _make_finding(rule_id="R1", severity=Severity.HIGH),
+                _make_finding(rule_id="R2", severity=Severity.HIGH),
+                _make_finding(rule_id="R3", severity=Severity.LOW),
+            ],
+            stats=ScanStats(
+                packages_scanned=1,
+                files_scanned=10,
+                duration_ms=50,
+                findings_by_severity={"HIGH": 2, "LOW": 1},
+            ),
+        )
+        summary = _format_summary(result)
+        assert "2 HARD PINCH" in summary
+        assert "1 NUDGE" in summary
+
+    def test_format_quiet_no_findings(self):
+        """Quiet mode shows emoji all-clear for no findings."""
+        result = _make_result(findings=[])
+        out = _format_quiet(result)
+        assert "No pinches" in out
+
+    def test_format_quiet_counts_by_severity(self):
+        """Quiet mode lists severity counts and rule counts."""
+        result = _make_result(
+            findings=[
+                _make_finding(rule_id="R1", severity=Severity.CRITICAL),
+                _make_finding(rule_id="R1", severity=Severity.CRITICAL),
+                _make_finding(rule_id="R2", severity=Severity.MEDIUM),
+            ],
+            stats=ScanStats(
+                packages_scanned=1,
+                files_scanned=5,
+                duration_ms=42,
+                findings_by_severity={"CRITICAL": 2, "MEDIUM": 1},
+                findings_by_rule={"R1": 2, "R2": 1},
+            ),
+        )
+        out = _format_quiet(result)
+        assert "3 finding(s)" in out
+        assert "Target: /tmp/test" in out
+        assert "Duration: 42ms" in out
+        assert "R1: 2" in out
+
+    def test_print_verbose_details(self, capsys):
+        """Verbose details are printed to stderr."""
+        result = _make_result(
+            findings=[_make_finding(rule_id="R1", severity=Severity.HIGH)],
+            stats=ScanStats(
+                packages_scanned=2,
+                files_scanned=7,
+                duration_ms=123,
+                rule_timings_ms={"R1": 45},
+                findings_by_severity={"HIGH": 1},
+                findings_by_rule={"R1": 1},
+            ),
+        )
+        _print_verbose_details(result)
+        err = capsys.readouterr().err
+        assert "Scan Details" in err
+        assert "Engine: v0.15.0" in err
+        assert "R1" in err
+        assert "HIGH" in err
+
+
+class TestCliServiceWorker:
+    """Direct tests for _scan_worker."""
+
+    def test_scan_worker_returns_success(self, tmp_path):
+        """The worker enqueues a successful scan result."""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "package.json").write_text(
+            json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"})
+        )
+        queue = multiprocessing.Queue()
+        _scan_worker(str(project), None, None, None, queue)
+        status, payload = queue.get(timeout=5)
+        assert status == "ok"
+        assert isinstance(payload, ScanResult)
+        assert payload.target == str(project)
+
+    def test_scan_worker_returns_error_on_exception(self, tmp_path):
+        """The worker enqueues an error tuple when the engine raises."""
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "package.json").write_text(
+            json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"})
+        )
+        queue = multiprocessing.Queue()
+        with patch(
+            "picosentry.scan.engine.create_default_engine"
+        ) as mock_create:
+            mock_create.side_effect = RuntimeError("engine failure")
+            _scan_worker(str(project), None, None, None, queue)
+        status, payload = queue.get(timeout=5)
+        assert status == "error"
+        assert payload["type"] == "RuntimeError"
+        assert "message" in payload
+        assert "traceback" in payload
+
+
+class TestCliServicePolicy:
+    """Direct tests for _apply_policy."""
+
+    def test_apply_policy_no_file_is_noop(self, tmp_path):
+        """When policy_file is None nothing changes."""
+        result = _make_result(target=str(tmp_path))
+        _apply_policy(result, None)
+        assert result.policy_result is None
+
+    def test_apply_policy_missing_file_raises(self, tmp_path):
+        """Missing policy file raises PolicyNotFoundError."""
+        result = _make_result(target=str(tmp_path))
+        with pytest.raises(Exception, match="Policy file not found"):
+            _apply_policy(result, str(tmp_path / "missing.yml"))
+
+    def test_apply_policy_applies_and_sets_result(self, tmp_path):
+        """Valid policy file produces a policy_result on the ScanResult."""
+        policy_file = tmp_path / "policy.yml"
+        policy_file.write_text(
+            "version: '1.0'\n"
+            "allow:\n"
+            "  - name: clean-pkg\n"
+        )
+        project = tmp_path / "project"
+        project.mkdir()
+        (project / "package.json").write_text(
+            json.dumps({"name": "clean-pkg", "version": "1.0.0", "license": "MIT"})
+        )
+        result = _make_result(target=str(project))
+        _apply_policy(result, str(policy_file))
+        assert result.policy_result is not None

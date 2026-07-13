@@ -15,6 +15,7 @@ from picosentry.sandbox.l3.models import (
     SyscallAction,
     Verdict,
 )
+from picosentry.sandbox.l3.session import SandboxSession
 from picosentry.sandbox.models import _now_ms
 
 logger = logging.getLogger("picodome.l3.subprocess")
@@ -36,21 +37,17 @@ class SubprocessBackend(SandboxBackend):
     def is_available(self) -> bool:
         return True
 
-    def run(
-        self,
-        command: list[str],
-        policy: Policy,
-        timeout: float | None = None,
-        cwd: str | None = None,
-        env: dict | None = None,
-    ) -> SandboxResult:
+    def run_in_session(self, session: SandboxSession) -> SandboxResult:
         start_ms = _now_ms()
         events: list[SandboxEvent] = []
         exit_code = -1
         stdout = ""
         stderr = ""
 
-        effective_timeout = timeout or 30.0
+        effective_timeout = session.timeout or 30.0
+        command = session.command
+        cwd = session.cwd
+        env = session.env
 
         try:
             if env is not None:
@@ -90,6 +87,7 @@ class SubprocessBackend(SandboxBackend):
                 cwd=cwd,
                 env=run_env,
             )
+            session.resources.proc = proc
 
             try:
                 stdout_bytes, stderr_bytes = proc.communicate(timeout=effective_timeout)
@@ -107,11 +105,13 @@ class SubprocessBackend(SandboxBackend):
                         timestamp_ms=int(_now_ms() - start_ms),
                     )
                 )
+            finally:
+                session.resources.proc = None
 
             stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
             stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
 
-            events.extend(self._analyze_output(stdout, stderr, policy, command))
+            events.extend(self._analyze_output(stdout, stderr, session.policy, command))
 
         except FileNotFoundError:
             events.append(
@@ -143,13 +143,32 @@ class SubprocessBackend(SandboxBackend):
             exit_code=exit_code,
             duration_ms=duration_ms,
             events=events,
-            policy_name=policy.name,
+            policy_name=session.policy.name,
             backend_name=self.name,
             isolation_level=self.isolation_level,
             enforcement_guarantee=self.enforcement_guarantee,
             degraded=False,
             stdout=stdout,
             stderr=stderr,
+        )
+
+    def run(
+        self,
+        command: list[str],
+        policy: Policy,
+        timeout: float | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+    ) -> SandboxResult:
+        from picosentry.sandbox.l3.session import run_session
+
+        return run_session(
+            backend=self,
+            policy=policy,
+            command=command,
+            timeout=timeout,
+            cwd=cwd,
+            env=env,
         )
 
     def _analyze_output(

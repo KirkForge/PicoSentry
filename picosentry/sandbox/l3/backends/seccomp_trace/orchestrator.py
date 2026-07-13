@@ -16,6 +16,7 @@ from picosentry.sandbox.l3.models import (
     SyscallAction,
     Verdict,
 )
+from picosentry.sandbox.l3.session import SandboxSession
 from picosentry.sandbox.models import _now_ms
 
 from . import event_parser, filter_builder, process_manager
@@ -74,6 +75,16 @@ class SeccompTraceBackend(SandboxBackend):
 
         return process_manager.probe_log_emits(lib)
 
+    def run_in_session(self, session: SandboxSession) -> SandboxResult:
+        return self._run(
+            session.command,
+            session.policy,
+            timeout=session.timeout,
+            cwd=session.cwd,
+            env=session.env,
+            session=session,
+        )
+
     def run(
         self,
         command: list[str],
@@ -82,9 +93,33 @@ class SeccompTraceBackend(SandboxBackend):
         cwd: str | None = None,
         env: dict | None = None,
     ) -> SandboxResult:
+        from picosentry.sandbox.l3.session import run_session
+
+        return run_session(
+            backend=self,
+            policy=policy,
+            command=command,
+            timeout=timeout,
+            cwd=cwd,
+            env=env,
+        )
+
+    def _run(
+        self,
+        command: list[str],
+        policy: Policy,
+        timeout: float | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        session: SandboxSession | None = None,
+    ) -> SandboxResult:
         start_ms = _now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
+
+        pid: int | None = None
+        out_r: int | None = None
+        err_r: int | None = None
 
         try:
             lib = ctypes.CDLL("libseccomp.so.2")
@@ -100,6 +135,8 @@ class SeccompTraceBackend(SandboxBackend):
 
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
+            if session is not None:
+                session.resources.open_fds.extend([out_r, out_w, err_r, err_w])
 
             child_env = os.environ.copy()
             if env:
@@ -133,6 +170,10 @@ class SeccompTraceBackend(SandboxBackend):
                 os._exit(1)
 
             else:
+                if session is not None:
+                    session.resources.child_pid = pid
+                    session.resources.open_fds = [fd for fd in session.resources.open_fds if fd not in (out_w, err_w)]
+
                 os.close(out_w)
                 os.close(err_w)
                 lib.seccomp_release(ctx)
@@ -235,6 +276,15 @@ class SeccompTraceBackend(SandboxBackend):
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as e:
             logger.warning("Seccomp trace sandbox failed: %s", e)
             return self._fallback_run(command, policy, timeout, cwd, env)
+        finally:
+            for fd in (out_r, err_r):
+                if fd is not None:
+                    with contextlib.suppress(OSError):
+                        os.close(fd)
+            if session is not None:
+                session.resources.open_fds = [
+                    fd for fd in session.resources.open_fds if fd not in (out_r, err_r)
+                ]
 
         duration_ms = int(_now_ms() - start_ms)
         overall = event_parser.compute_verdict(events, exit_code)

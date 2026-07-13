@@ -35,6 +35,7 @@ from picosentry.sandbox.l3.models import (
     SyscallAction,
     Verdict,
 )
+from picosentry.sandbox.l3.session import SandboxSession
 from picosentry.sandbox.models import _now_ms
 
 logger = logging.getLogger("picodome.l3.seccomp")
@@ -96,6 +97,16 @@ class SeccompBackend(SandboxBackend):
         except (OSError, ValueError, TypeError, AttributeError):
             return False
 
+    def run_in_session(self, session: SandboxSession) -> SandboxResult:
+        return self._run(
+            session.command,
+            session.policy,
+            timeout=session.timeout,
+            cwd=session.cwd,
+            env=session.env,
+            session=session,
+        )
+
     def run(
         self,
         command: list[str],
@@ -104,9 +115,33 @@ class SeccompBackend(SandboxBackend):
         cwd: str | None = None,
         env: dict | None = None,
     ) -> SandboxResult:
+        from picosentry.sandbox.l3.session import run_session
+
+        return run_session(
+            backend=self,
+            policy=policy,
+            command=command,
+            timeout=timeout,
+            cwd=cwd,
+            env=env,
+        )
+
+    def _run(
+        self,
+        command: list[str],
+        policy: Policy,
+        timeout: float | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        session: SandboxSession | None = None,
+    ) -> SandboxResult:
         start_ms = _now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
+
+        pid: int | None = None
+        out_r: int | None = None
+        err_r: int | None = None
 
         try:
             lib = ctypes.CDLL("libseccomp.so.2")
@@ -122,6 +157,8 @@ class SeccompBackend(SandboxBackend):
 
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
+            if session is not None:
+                session.resources.open_fds.extend([out_r, out_w, err_r, err_w])
 
             child_env = os.environ.copy()
             if env:
@@ -159,6 +196,11 @@ class SeccompBackend(SandboxBackend):
                 os._exit(1)
 
             else:
+                if session is not None:
+                    session.resources.child_pid = pid
+                    # The write ends are closed in the parent; only read ends need tracking now.
+                    session.resources.open_fds = [fd for fd in session.resources.open_fds if fd not in (out_w, err_w)]
+
                 os.close(out_w)
                 os.close(err_w)
 
@@ -237,6 +279,16 @@ class SeccompBackend(SandboxBackend):
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as e:
             logger.warning("Seccomp sandbox failed: %s", e)
             return self._fallback_run(command, policy, timeout, cwd, env)
+        finally:
+            # Best-effort close of parent read ends if the wait helper did not already close them.
+            for fd in (out_r, err_r):
+                if fd is not None:
+                    with contextlib.suppress(OSError):
+                        os.close(fd)
+            if session is not None:
+                session.resources.open_fds = [
+                    fd for fd in session.resources.open_fds if fd not in (out_r, err_r)
+                ]
 
         duration_ms = int(_now_ms() - start_ms)
         overall = self._compute_verdict(events, exit_code)

@@ -3,12 +3,12 @@ from __future__ import annotations
 import logging
 import os
 import platform
-import threading
 
 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 from picosentry.sandbox.l3.models import Policy, SandboxResult
 from picosentry.sandbox.l3.policy import default_policy
 from picosentry.sandbox.l3.policy_hash import policy_hash
+from picosentry.sandbox.l3.session import run_session
 from picosentry.sandbox.models import _generate_run_id, _generate_timestamp
 from typing import TYPE_CHECKING
 
@@ -34,6 +34,53 @@ class BackendUnavailableError(RuntimeError):
             f"Set PICODOME_ALLOW_DEGRADED=1 or pass allow_degraded=True "
             f"to opt into subprocess fallback."
         )
+
+
+class BackendRegistry:
+    """Lightweight, per-process cache of detected backends.
+
+    Unlike the previous module-level singleton, this registry is intentionally
+    small and stateless except for the cached backend instance. Each call site
+    receives its own :class:`~SandboxSession`, so resource ownership remains
+    with the session, not with the registry.
+    """
+
+    def __init__(self) -> None:
+        self._default_backend: SandboxBackend | None = None
+
+    def get(self, allow_degraded: bool | None = None) -> SandboxBackend:
+        if self._default_backend is None:
+            backend_name = os.environ.get("PICODOME_SANDBOX_BACKEND", None)
+            self._default_backend = _detect_backend(
+                requested=backend_name,
+                allow_degraded=allow_degraded,
+            )
+        return self._default_backend
+
+    def set(self, backend: SandboxBackend, name: str | None = None) -> None:
+        self._default_backend = backend
+        logger.info("Backend override: %s", name or backend.name)
+
+    def reset(self) -> None:
+        self._default_backend = None
+
+
+_registry = BackendRegistry()
+
+# Backward-compatible module-level helpers
+def get_backend(allow_degraded: bool | None = None) -> SandboxBackend:
+    return _registry.get(allow_degraded=allow_degraded)
+
+
+def set_backend(
+    backend: SandboxBackend,
+    name: str | None = None,
+) -> None:
+    _registry.set(backend, name=name)
+
+
+def reset_backend() -> None:
+    _registry.reset()
 
 
 def _detect_backend(
@@ -179,37 +226,6 @@ def _detect_backend(
     )
 
 
-_default_backend: SandboxBackend | None = None
-_backend_lock = threading.Lock()
-
-
-def get_backend() -> SandboxBackend:
-    global _default_backend
-    if _default_backend is None:
-        with _backend_lock:
-            if _default_backend is None:
-                backend_name = os.environ.get("PICODOME_SANDBOX_BACKEND", None)
-                _default_backend = _detect_backend(
-                    requested=backend_name,
-                    allow_degraded=None,  # reads from env inside
-                )
-    return _default_backend
-
-
-def set_backend(
-    backend: SandboxBackend,
-    name: str | None = None,
-) -> None:
-    global _default_backend
-    _default_backend = backend
-    logger.info("Backend override: %s", name or backend.name)
-
-
-def reset_backend() -> None:
-    global _default_backend
-    _default_backend = None
-
-
 def sandbox_run(
     command: list[str],
     policy: Policy | None = None,
@@ -231,7 +247,14 @@ def sandbox_run(
     else:
         be = backend
 
-    result = be.run(command, policy, timeout=timeout, cwd=cwd, env=env)
+    result = run_session(
+        backend=be,
+        policy=policy,
+        command=command,
+        timeout=timeout,
+        cwd=cwd,
+        env=env,
+    )
 
     p_hash = policy_hash(policy) if policy else ""
     p_version = policy.version if policy else ""

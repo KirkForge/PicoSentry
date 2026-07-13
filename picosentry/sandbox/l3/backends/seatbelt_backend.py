@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import os
 import platform
@@ -17,6 +18,7 @@ from picosentry.sandbox.l3.models import (
     SyscallAction,
     Verdict,
 )
+from picosentry.sandbox.l3.session import SandboxSession
 from picosentry.sandbox.models import _now_ms
 
 logger = logging.getLogger("picodome.l3.seatbelt")
@@ -54,6 +56,16 @@ class SeatbeltBackend(SandboxBackend):
         except (FileNotFoundError, subprocess.TimeoutExpired):
             return False
 
+    def run_in_session(self, session: SandboxSession) -> SandboxResult:
+        return self._run(
+            session.command,
+            session.policy,
+            timeout=session.timeout,
+            cwd=session.cwd,
+            env=session.env,
+            session=session,
+        )
+
     def run(
         self,
         command: list[str],
@@ -61,6 +73,26 @@ class SeatbeltBackend(SandboxBackend):
         timeout: float | None = None,
         cwd: str | None = None,
         env: dict | None = None,
+    ) -> SandboxResult:
+        from picosentry.sandbox.l3.session import run_session
+
+        return run_session(
+            backend=self,
+            policy=policy,
+            command=command,
+            timeout=timeout,
+            cwd=cwd,
+            env=env,
+        )
+
+    def _run(
+        self,
+        command: list[str],
+        policy: Policy,
+        timeout: float | None = None,
+        cwd: str | None = None,
+        env: dict | None = None,
+        session: SandboxSession | None = None,
     ) -> SandboxResult:
         start_ms = _now_ms()
         events: list[SandboxEvent] = []
@@ -75,6 +107,8 @@ class SeatbeltBackend(SandboxBackend):
             with tempfile.NamedTemporaryFile(mode="w", suffix=".sb", delete=False, prefix="picodome_") as f:
                 f.write(profile)
                 profile_path = f.name
+                if session is not None:
+                    session.resources.temp_files.append(profile_path)
 
             try:
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
@@ -90,6 +124,8 @@ class SeatbeltBackend(SandboxBackend):
                     cwd=cwd,
                     env=run_env,
                 )
+                if session is not None:
+                    session.resources.proc = proc
 
                 try:
                     stdout_bytes, stderr_bytes = proc.communicate(timeout=effective_timeout)
@@ -111,6 +147,9 @@ class SeatbeltBackend(SandboxBackend):
                             timestamp_ms=int(_now_ms() - start_ms),
                         )
                     )
+                finally:
+                    if session is not None:
+                        session.resources.proc = None
 
                 if "deny" in stderr.lower() or "violation" in stderr.lower():
                     events.append(
@@ -129,7 +168,12 @@ class SeatbeltBackend(SandboxBackend):
                 events.extend(sb._check_suspicious_patterns(stdout, stderr))
 
             finally:
-                Path(profile_path).unlink()
+                with contextlib.suppress(OSError):
+                    Path(profile_path).unlink()
+                if session is not None:
+                    session.resources.temp_files = [
+                        p for p in session.resources.temp_files if p != profile_path
+                    ]
 
         except FileNotFoundError:
             events.append(

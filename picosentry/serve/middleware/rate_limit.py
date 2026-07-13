@@ -208,6 +208,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
             rate_limited = False
             retry_after = 0
+            rate_limit_response = None
             org_api_key = request.headers.get("X-Org-API-Key", "")
             if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
                 rate_limited, retry_after = self._record_and_check(

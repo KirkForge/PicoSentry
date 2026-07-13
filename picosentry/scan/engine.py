@@ -8,6 +8,7 @@ import os
 import time
 from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -380,9 +381,15 @@ class ScanEngine:
         target_prefix = str(target_path)
         if not target_prefix.endswith("/") and not target_prefix.endswith("\\"):
             target_prefix += "/"
+        # Frozen dataclass findings must not be mutated in place.  Re-create
+        # each finding with the target prefix stripped from the file path.
+        stripped_findings: list[Finding] = []
         for f in all_findings:
             if f.file.startswith(target_prefix):
-                object.__setattr__(f, "file", f.file[len(target_prefix) :])
+                stripped_findings.append(replace(f, file=f.file[len(target_prefix) :]))
+            else:
+                stripped_findings.append(f)
+        all_findings = stripped_findings
 
         duration = _now_ms() - start_ms
 

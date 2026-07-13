@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import smtplib
 import sqlite3
 import subprocess
@@ -60,6 +61,20 @@ PROJECT_LAYER_MAP: dict[str, str] = {
     "picodome": "sandbox_l3",
     "picowatch": "watch",
 }
+
+# Strict allowlist for project IDs and package names that are fed into
+# subprocess.run().  Anything outside [A-Za-z0-9_.-] is rejected to prevent
+# shell metacharacters, path traversal, or unexpected executable resolution.
+_PROJECT_ID_RE = re.compile(r"^[a-zA-Z0-9_-]+$")
+_PACKAGE_NAME_RE = re.compile(r"^[a-zA-Z0-9_.-]+$")
+
+
+def _validate_project_command(project_id: str, package: str) -> None:
+    """Raise ValueError if project_id or package can reach unsafe executables."""
+    if not _PROJECT_ID_RE.match(project_id):
+        raise ValueError(f"Project ID {project_id!r} contains unsafe characters")
+    if package and not _PACKAGE_NAME_RE.match(package):
+        raise ValueError(f"Package name {package!r} contains unsafe characters")
 
 
 @dataclass
@@ -245,6 +260,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         if not meta:
             return {"error": f"Unknown project: {project_id}"}
 
+        _validate_project_command(project_id, meta.package or project_id)
         cli_args = PICO_CLI.get(project_id, [meta.package or project_id])
         timeout = timeout or settings.orchestrator.default_timeout
 
@@ -274,6 +290,10 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
 
         try:
             cmd = cli_args
+            _validate_project_command(project_id, cmd[0] if cmd else "")
+            for arg in cmd[1:]:
+                if not _PACKAGE_NAME_RE.match(arg):
+                    raise ValueError(f"CLI argument {arg!r} contains unsafe characters")
 
             result = subprocess.run(
                 cmd,

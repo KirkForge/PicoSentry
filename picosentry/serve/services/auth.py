@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import logging
+import os
 import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any, ClassVar
@@ -26,11 +27,42 @@ logger = logging.getLogger("picoshogun.Auth")
 
 
 class AuthService:
+    # Defense-in-depth: refuse to instantiate the auth service with a secret
+    # key that is empty, a known placeholder, or too short to resist brute
+    # force.  assert_secure() is the startup gate; this check protects tests
+    # and any code path that builds AuthService before that gate has run.
+    _WEAK_SECRET_DENYLIST = frozenset(
+        {
+            "",
+            "change-me-in-production",
+            "changeme",
+            "default",
+            "secret",
+            "password",
+            "please-change-me",
+            "your-secret-key",
+            "your-secret-key-here",
+        }
+    )
+    _MIN_SECRET_KEY_LENGTH = 32
+
     def __init__(self, db: DatabaseManager | None = None):
         self._db_override = db
         self.secret_key = settings.security.secret_key
         self.algorithm = settings.security.jwt_algorithm
         self.expiration_hours = settings.security.jwt_expiration_hours
+
+        if os.environ.get("ALLOW_INSECURE_SECRET", "").lower() not in ("true", "1", "yes"):
+            if self.secret_key in self._WEAK_SECRET_DENYLIST:
+                raise ValueError(
+                    "AuthService: secret key is empty or uses a well-known placeholder. "
+                    "Set PICOSHOGUN_SECRET_KEY or ALLOW_INSECURE_SECRET=true for local dev only."
+                )
+            if len(self.secret_key) < self._MIN_SECRET_KEY_LENGTH:
+                raise ValueError(
+                    f"AuthService: secret key is {len(self.secret_key)} bytes; "
+                    f"minimum is {self._MIN_SECRET_KEY_LENGTH}."
+                )
 
     @property
     def _db(self) -> DatabaseManager:

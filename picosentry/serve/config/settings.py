@@ -67,7 +67,11 @@ class APIConfig:
 
 @dataclass
 class SecurityConfig:
-    secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", "change-me-in-production"))
+    # Default to an empty secret key.  An unset key is caught by the
+    # denylist in assert_secure() in every environment, so a deployment
+    # cannot silently start signing JWTs with a well-known placeholder.
+    # For local development without a real key, set ALLOW_INSECURE_SECRET=true.
+    secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", ""))
 
     jwt_algorithm: str = "HS256"
     jwt_expiration_hours: int = 24
@@ -243,9 +247,16 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     def validate(self) -> list[str]:
         issues = []
 
+        # Secret-key check is environment-agnostic: a missing or placeholder
+        # key must be flagged regardless of PICOSHOGUN_ENV.  assert_secure()
+        # is the hard gate that blocks startup; validate() surfaces it early.
+        if not self.security.secret_key or self.security.secret_key == "change-me-in-production":
+            issues.append(
+                "SECURITY: Default secret key is not set or uses a placeholder — "
+                "set PICOSHOGUN_SECRET_KEY before deployment"
+            )
+
         if self.is_production():
-            if self.security.secret_key == "change-me-in-production":
-                issues.append("SECURITY: Default secret key in production")
             if not self.security.ssl_cert_path:
                 issues.append(
                     "SECURITY: No SSL certificate configured "
@@ -263,8 +274,6 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                 )
 
         if not self.is_production():
-            if self.security.secret_key == "change-me-in-production":
-                issues.append("CONFIG: Default secret key — set SHOGUN_SECRET_KEY before production deployment")
             if self.api.host == "0.0.0.0":
                 issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")
 

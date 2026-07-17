@@ -12,7 +12,7 @@ Source of truth for component maturity is [`picosentry/experimental.py`](../pico
 | Component | Responsibility | Maturity |
 |-----------|----------------|----------|
 | **scan** | Offline deterministic supply-chain scanner | **STABLE** |
-| **sandbox** | Runtime containment (seccomp-bpf / Landlock / behavioral analysis) | **STABLE** |
+| **sandbox** | Runtime containment (seccomp-bpf / behavioral analysis) | **STABLE** |
 | **watch** | LLM prompt/output guard (L5/L6) | **STABLE** |
 | **serve** | API server, scheduler, webhooks, multi-tenant metrics | **BETA** |
 | **daemon** | Long-running policy enforcement daemon | **BETA** |
@@ -96,9 +96,12 @@ specific blockers and honest limitations:
 ### Boundary 3: Sandbox / daemon runtime enforcement
 
 - **Assumption:** the host OS and kernel are trusted.
-- **Enforcement:** Linux seccomp-bpf blocks dangerous syscalls; Landlock
-  restricts filesystem access where available. The daemon uses TLS/mTLS for
-  its HTTP/gRPC interfaces. Audit sinks (file, syslog, webhook) are opt-in.
+- **Enforcement:** Linux seccomp-bpf blocks dangerous syscalls. There is no
+  path-based filesystem access-control layer in the sandbox today (a prior
+  landlock claim was retracted — see ADR-002); filesystem access is bounded by
+  the child's working directory and the syscall allowlist. The daemon uses
+  TLS/mTLS for its HTTP/gRPC interfaces. Audit sinks (file, syslog, webhook)
+  are opt-in.
 - **Limits:** seccomp-trace and some advanced sandbox tests require kernel
   configs that are not present on every distribution. macOS uses the lighter
   Seatbelt backend. The sandbox is **enforcement** for syscalls, not full

@@ -2,6 +2,89 @@
 
 ---
 
+## Current session: 2026-07-17 — GLM workorder: secret gate verify, landlock ADR correction, per-dialect migrations, plugin-trust + naming ADRs
+
+### Done this session (on `main`, uncommitted; LLM scratch per `feedback-repo-doc-minimalism`)
+- **[SECURITY] `settings.py:74` default secret — verified already fail-closed.**
+  The workorder flagged `settings.py:74` default `"change-me-in-production"` as
+  only blocking in `PICOSHOGUN_ENV=production`. Current code is already fixed:
+  `SecurityConfig.secret_key` defaults to `""` (`settings.py:73`), the weak-key
+  denylist in `assert_secure()` is **environment-agnostic**
+  (`picosentry/_core/config.py:62-75` — checked for every env, not just
+  production), and `assert_secure()` calls `sys.exit(SECURITY_EXIT_CODE=7)` on
+  any ERROR violation (`_core/config.py:124-132`). `server.py:73` calls
+  `settings.assert_secure()` at startup. `ALLOW_INSECURE_SECRET=true` is the
+  explicit dev escape hatch (`_core/config.py:62`). Gate verified empirically:
+  `PICOSHOGUN_ENV=production` + unset secret → `EXIT_CODE=7` with
+  `[secret_key]` violation logged. No code change needed.
+- **[JUDGMENT] ADR-002 landlock — DECIDED: correct (option b), not implement.**
+  `grep -rni landlock picosentry/sandbox/` → 0 hits; the only `landlock` in the
+  tree was a PyPI package name in `picosentry/scan/corpus/pypi_top_packages.json`.
+  seccomp-bpf IS implemented (`picosentry/sandbox/l3/backends/`). A real
+  landlock backend (ctypes/pylandlock + ≥5.13 kernel test matrix + fallback) is
+  a large HARD-ENG effort; an untested/shallow backend would be worse than
+  honest seccomp-only docs. Corrected `docs/adr/ADR-002-kernel-sandbox.md` to
+  seccomp-bpf-only with a "Correction (2026-07): landlock claim was fiction"
+  section; fixed `docs/THREAT_MODEL.md:15` and `:99-101`. Gate: README already
+  had zero landlock claims; `picosentry/sandbox/` has zero landlock; remaining
+  doc mentions are the retraction itself.
+- **[HARD-ENG] `_sqlite_to_postgres` string-replace DDL — replaced with real
+  per-dialect migration SQL.** Deleted `_sqlite_to_postgres`
+  (`picosentry/serve/database/_schema.py`, was lines 7-17) and its `re` import;
+  removed it from `__all__` and from `manager.py:17` import. Gave every
+  migration an explicit hand-written `postgres_sql` (migrations 2-10; migration
+  1 already had one). `Migration.sql_for("postgres")` now **raises** if
+  `postgres_sql` is None — no silent string-replace fallback
+  (`_schema.py:65-74`). Runtime `?`→`%s` placeholder translation was already
+  handled separately by `DatabaseManager._prepare_sql` (`manager.py:77-83`), so
+  the deletion is safe. Migration 10 postgres_sql uses `ADD COLUMN IF NOT EXISTS`
+  (PG ≥9.6) for idempotency the SQLite variant cannot express. Updated
+  `tests/serve/test_postgres_backend.py`: removed `TestSQLiteToPostgresTranslation`
+  and the auto-translate test; added `test_postgres_backend_raises_without_explicit_sql`
+  and `TestMigrationsHaveExplicitPostgresSQL` (all-migrations-have-postgres_sql,
+  no-AUTOINCREMENT-in-postgres_sql). Gate: `grep -rn _sqlite_to_postgres` → 0;
+  SQLite migration path 195 passed (`test_api`+`test_integration`); Postgres
+  `scripts/live_test_postgres.sh` **PASSED** (all 10 migrations on PG container,
+  CRUD round-trip + IN-clause placeholder OK); `test_postgres_backend.py` 18 passed.
+- **[DOC] New ADRs for plugin trust + rename.**
+  - `docs/adr/ADR-004-plugin-trust-boundary.md`: trust-boundary decision —
+    **sandbox is the safety boundary; signing is the admission boundary; no
+    plugin (signed or unsigned) is trusted with host privileges.** All dispatch
+    via `PluginHost` subprocess with deny-by-default capabilities
+    (`plugin_host.py:7`, `plugin_manager.py:37`); signing (`plugin_manager.py:290`,
+    trusted set `:106`) only decides whether a plugin may load; production
+    fail-closed via `_SignedPluginsCheck` (`settings.py:214`) → exit 7 unless
+    `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1`.
+  - `docs/adr/ADR-005-picoshogun-picosentry-naming.md`: `picoshogun` retained as
+    internal codename / `PICOSHOGUN_*` env prefix / db filename for config
+    stability (146 refs across 57 files; a rename would break every deployed
+    config and silently disable `assert_secure`). Public surface stays PicoSentry.
+    `grep -rni picoshogun` is intentionally non-zero.
+
+### Verification (this session)
+- `uv run ruff check` + `mypy` on changed files: clean.
+- `uv run pytest tests/serve/test_postgres_backend.py tests/serve/test_api.py tests/serve/test_integration.py tests/test_security_gates.py tests/serve/services/test_plugin_manager.py` → **216 passed**.
+- `bash scripts/live_test_postgres.sh` → **PASSED** (real PG 16 container).
+- Secret gate: `PICOSHOGUN_ENV=production` + unset `PICOSHOGUN_SECRET_KEY` → `EXIT_CODE=7`.
+
+### Not touched (coordination)
+- OTel test-pollution fix (qwen tier P0) — not in my bucket; left for the delegate.
+
+### CI audit (2026-07-17 review refresh)
+- `.github/workflows/`: `admission-kind.yml`, `ci.yml`, `release.yml`,
+  `verify-release.yml`. **No `actions/setup-node` step anywhere** — repo is
+  pure Python (`setup-python@v6` only). Node-24 pin is **n/a**; no edit made.
+- Re-ran `uv run pytest tests/serve/test_postgres_backend.py -q` → **18 passed**
+  (confirms the per-dialect migration rewrite is green in isolation).
+- `state.md` is **git-tracked** (`git ls-files state.md`) and **absent from
+  `.gitignore`** — contradicts the user convention that `state.md` is a
+  local-only working journal (gitignored). Left tracked (untracking is
+  destructive/out-of-scope); flagged in REVIEW as a tracked-vs-local
+  inconsistency. The file is dirty with this session's entry, like the rest
+  of the tree.
+
+---
+
 ## Current session: 2026-07-08 — Option A + B: distributed rate limiter and cluster token rotation (merged to dev)
 
 ### Done this session (on `dev` via PR #5)

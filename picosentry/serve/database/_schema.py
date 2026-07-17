@@ -1,20 +1,6 @@
 from __future__ import annotations
 
-import re
 from dataclasses import dataclass
-
-
-def _sqlite_to_postgres(sql: str) -> str:
-    """Translate SQLite DDL/DML used in migrations to PostgreSQL equivalents.
-
-    The migration SQL is under project control and never contains literal ``?``
-    characters inside string literals, so a direct replacement is safe.
-    """
-    sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
-    # SQLite stores BOOLEAN as INTEGER (0/1); Postgres BOOLEAN expects FALSE/TRUE.
-    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+0", "BOOLEAN DEFAULT FALSE", sql, flags=re.IGNORECASE)
-    sql = re.sub(r"BOOLEAN\s+DEFAULT\s+1", "BOOLEAN DEFAULT TRUE", sql, flags=re.IGNORECASE)
-    return sql.replace("?", "%s")
 
 
 @dataclass(frozen=True)
@@ -65,9 +51,15 @@ class Migration:
     def sql_for(self, backend: str) -> str:
         if backend == "sqlite":
             return self.sqlite_sql
-        if self.postgres_sql is not None:
-            return self.postgres_sql
-        return _sqlite_to_postgres(self.sqlite_sql)
+        if self.postgres_sql is None:
+            # ponytail: no silent string-replace fallback. Per-backend migration
+            # SQL is mandatory; a missing postgres_sql is a programmer error that
+            # would otherwise ship SQLite DDL to Postgres via regex munging.
+            raise RuntimeError(
+                f"migration {self.version} ({self.name}) has no postgres_sql; "
+                "per-backend migration SQL is mandatory"
+            )
+        return self.postgres_sql
 
 
 MIGRATIONS: list[Migration] = [
@@ -286,6 +278,32 @@ MIGRATIONS: list[Migration] = [
             FOREIGN KEY (user_id) REFERENCES users(id)
         );
     """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS users (
+            id SERIAL PRIMARY KEY,
+            username TEXT UNIQUE NOT NULL,
+            password_hash TEXT NOT NULL,
+            email TEXT,
+            role TEXT DEFAULT 'viewer',
+            is_active BOOLEAN DEFAULT TRUE,
+            last_login TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS api_keys (
+            id SERIAL PRIMARY KEY,
+            key_hash TEXT UNIQUE NOT NULL,
+            user_id INTEGER,
+            name TEXT,
+            permissions TEXT,
+            expires_at TIMESTAMP,
+            last_used TIMESTAMP,
+            is_active BOOLEAN DEFAULT TRUE,
+            revoked_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+    """,
     ),
     Migration(
         3,
@@ -293,6 +311,22 @@ MIGRATIONS: list[Migration] = [
         """
         CREATE TABLE IF NOT EXISTS audit_log (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            action TEXT NOT NULL,
+            user_id INTEGER,
+            resource_type TEXT,
+            resource_id TEXT,
+            details TEXT,
+            ip_address TEXT,
+            user_agent TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_log(user_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_audit_action ON audit_log(action, resource_type);
+    """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id SERIAL PRIMARY KEY,
             action TEXT NOT NULL,
             user_id INTEGER,
             resource_type TEXT,
@@ -330,6 +364,35 @@ MIGRATIONS: list[Migration] = [
             command TEXT NOT NULL,
             params TEXT DEFAULT '{}',
             enabled BOOLEAN DEFAULT 1,
+            last_run TIMESTAMP,
+            next_run TIMESTAMP,
+            last_status TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_webhooks_active ON webhooks(active);
+        CREATE INDEX IF NOT EXISTS idx_jobs_active ON scheduled_jobs(enabled, next_run);
+    """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS webhooks (
+            id SERIAL PRIMARY KEY,
+            name TEXT,
+            url TEXT NOT NULL,
+            secret TEXT,
+            events TEXT,
+            active BOOLEAN DEFAULT TRUE,
+            retries INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS scheduled_jobs (
+            id SERIAL PRIMARY KEY,
+            name TEXT UNIQUE NOT NULL,
+            cron_expression TEXT NOT NULL,
+            command TEXT NOT NULL,
+            params TEXT DEFAULT '{}',
+            enabled BOOLEAN DEFAULT TRUE,
             last_run TIMESTAMP,
             next_run TIMESTAMP,
             last_status TEXT,
@@ -379,6 +442,42 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_orgs_key ON orgs(api_key_hash);
         CREATE INDEX IF NOT EXISTS idx_org_members ON org_users(org_id, user_id);
     """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS orgs (
+            id SERIAL PRIMARY KEY,
+            name TEXT NOT NULL,
+            slug TEXT UNIQUE NOT NULL,
+            owner_id INTEGER,
+            tier TEXT DEFAULT 'free',
+            api_key_hash TEXT UNIQUE,
+            is_active BOOLEAN DEFAULT TRUE,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE TABLE IF NOT EXISTS org_users (
+            id SERIAL PRIMARY KEY,
+            org_id INTEGER,
+            user_id INTEGER,
+            role TEXT DEFAULT 'member',
+            invited_at TIMESTAMP,
+            joined_at TIMESTAMP,
+            FOREIGN KEY (org_id) REFERENCES orgs(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE TABLE IF NOT EXISTS org_projects (
+            id SERIAL PRIMARY KEY,
+            org_id INTEGER,
+            project_id TEXT,
+            added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (org_id) REFERENCES orgs(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_orgs_slug ON orgs(slug);
+        CREATE INDEX IF NOT EXISTS idx_orgs_key ON orgs(api_key_hash);
+        CREATE INDEX IF NOT EXISTS idx_org_members ON org_users(org_id, user_id);
+    """,
     ),
     Migration(
         6,
@@ -391,6 +490,9 @@ MIGRATIONS: list[Migration] = [
         -- Same: handled idempotently
 
         -- Add index for org-filtered run queries
+        CREATE INDEX IF NOT EXISTS idx_project_runs_org ON project_runs(org_id, run_start);
+    """,
+        postgres_sql="""
         CREATE INDEX IF NOT EXISTS idx_project_runs_org ON project_runs(org_id, run_start);
     """,
     ),
@@ -413,6 +515,22 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_rule ON anomaly_alerts(rule_id, created_at);
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_severity ON anomaly_alerts(severity, created_at);
     """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS anomaly_alerts (
+            id SERIAL PRIMARY KEY,
+            rule_id TEXT NOT NULL,
+            metric_name TEXT NOT NULL,
+            value REAL,
+            threshold REAL,
+            comparison TEXT,
+            severity TEXT DEFAULT 'warning',
+            description TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_rule ON anomaly_alerts(rule_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_severity ON anomaly_alerts(severity, created_at);
+    """,
     ),
     Migration(
         8,
@@ -420,6 +538,10 @@ MIGRATIONS: list[Migration] = [
         """
         -- No-op: column rename handled in Python _migrate_orgs_api_key_hash()
         -- This placeholder ensures migration 8 is recorded as applied.
+        SELECT 1;
+    """,
+        postgres_sql="""
+        -- No-op: column rename handled in Python _migrate_orgs_api_key_hash()
         SELECT 1;
     """,
     ),
@@ -466,6 +588,46 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_correlation_chains_score
             ON correlation_chains(chain_score DESC);
     """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS correlation_events (
+            id SERIAL PRIMARY KEY,
+            dedup_key TEXT UNIQUE NOT NULL,
+            artifact_id TEXT NOT NULL,
+            layer TEXT NOT NULL,
+            rule_id TEXT NOT NULL,
+            severity TEXT NOT NULL,
+            confidence TEXT NOT NULL,
+            target TEXT,
+            title TEXT,
+            detail TEXT,
+            timestamp TEXT NOT NULL,
+            run_id TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_artifact
+            ON correlation_events(artifact_id, timestamp);
+        CREATE INDEX IF NOT EXISTS idx_correlation_layer
+            ON correlation_events(layer);
+        CREATE INDEX IF NOT EXISTS idx_correlation_severity
+            ON correlation_events(severity);
+
+        CREATE TABLE IF NOT EXISTS correlation_chains (
+            id SERIAL PRIMARY KEY,
+            artifact_id TEXT UNIQUE NOT NULL,
+            chain_score REAL NOT NULL DEFAULT 0.0,
+            severity TEXT NOT NULL DEFAULT 'INFO',
+            confidence TEXT NOT NULL DEFAULT 'LOW',
+            narrative TEXT,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            phase_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_score
+            ON correlation_chains(chain_score DESC);
+    """,
     ),
     Migration(
         10,
@@ -490,6 +652,25 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_org ON scheduled_jobs(org_id);
         CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
     """,
+        # Postgres supports ADD COLUMN IF NOT EXISTS (PG >= 9.6), which makes
+        # the tenant-tagging migration idempotent without the runner's
+        # duplicate-column swallow. SQLite's ALTER TABLE lacks that clause, so
+        # the SQLite variant relies on the migration runner's version guard.
+        postgres_sql="""
+        ALTER TABLE intelligence ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        ALTER TABLE alerts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        ALTER TABLE metrics ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        ALTER TABLE webhooks ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        ALTER TABLE scheduled_jobs ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        ALTER TABLE correlation_chains ADD COLUMN IF NOT EXISTS org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_intelligence_org ON intelligence(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_alerts_org ON alerts(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_metrics_org ON metrics(org_id, created_at);
+        CREATE INDEX IF NOT EXISTS idx_webhooks_org ON webhooks(org_id);
+        CREATE INDEX IF NOT EXISTS idx_scheduled_jobs_org ON scheduled_jobs(org_id);
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
+    """,
     ),
 ]
 
@@ -497,5 +678,4 @@ __all__ = [
     "MIGRATIONS",
     "Migration",
     "SQLDialect",
-    "_sqlite_to_postgres",
 ]

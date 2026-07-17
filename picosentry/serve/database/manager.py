@@ -14,7 +14,6 @@ from picosentry.serve.database._schema import (  # noqa: F401
     MIGRATIONS,
     SQLDialect,
     Migration,
-    _sqlite_to_postgres,
 )
 from picosentry.serve.database.pools import SQLitePool, create_pool
 

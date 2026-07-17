@@ -11,26 +11,7 @@ import pytest
 from picosentry.serve.database.manager import (
     Migration,
     SQLDialect,
-    _sqlite_to_postgres,
 )
-
-
-class TestSQLiteToPostgresTranslation:
-    def test_autoincrement_to_serial(self):
-        sqlite = "CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);"
-        pg = _sqlite_to_postgres(sqlite)
-        assert "SERIAL PRIMARY KEY" in pg
-        assert "AUTOINCREMENT" not in pg
-
-    def test_placeholders_translated(self):
-        sqlite = "INSERT INTO t (a, b) VALUES (?, ?)"
-        pg = _sqlite_to_postgres(sqlite)
-        assert pg == "INSERT INTO t (a, b) VALUES (%s, %s)"
-
-    def test_literal_question_mark_not_a_risk(self):
-        """Project-controlled migration SQL has no literal '?'."""
-        sqlite = "SELECT * FROM t WHERE name = ?"
-        assert _sqlite_to_postgres(sqlite) == "SELECT * FROM t WHERE name = %s"
 
 
 class TestMigrationBackendSelection:
@@ -54,15 +35,33 @@ class TestMigrationBackendSelection:
         assert "SERIAL PRIMARY KEY" in sql
         assert "AUTOINCREMENT" not in sql
 
-    def test_postgres_backend_auto_translates_when_no_explicit(self):
+    def test_postgres_backend_raises_without_explicit_sql(self):
+        """No string-replace fallback: a migration without postgres_sql must fail loudly."""
         m = Migration(
             version=1,
             name="test",
             sqlite_sql="CREATE TABLE t (id INTEGER PRIMARY KEY AUTOINCREMENT, v TEXT);",
         )
-        sql = m.sql_for("postgres")
-        assert "SERIAL PRIMARY KEY" in sql
-        assert "INTEGER PRIMARY KEY AUTOINCREMENT" not in sql
+        with pytest.raises(RuntimeError, match="no postgres_sql"):
+            m.sql_for("postgres")
+
+
+class TestMigrationsHaveExplicitPostgresSQL:
+    """Every migration ships hand-written per-dialect SQL — no DDL string-replace."""
+
+    def test_all_migrations_define_postgres_sql(self):
+        from picosentry.serve.database._schema import MIGRATIONS
+
+        missing = [m.version for m in MIGRATIONS if m.postgres_sql is None]
+        assert missing == [], f"migrations missing postgres_sql: {missing}"
+
+    def test_no_autoincrement_in_postgres_sql(self):
+        from picosentry.serve.database._schema import MIGRATIONS
+
+        for m in MIGRATIONS:
+            assert "AUTOINCREMENT" not in (m.postgres_sql or ""), (
+                f"migration {m.version}: postgres_sql still contains AUTOINCREMENT"
+            )
 
 
 class TestSQLDialect:

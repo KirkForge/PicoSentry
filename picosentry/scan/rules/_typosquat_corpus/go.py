@@ -104,5 +104,3 @@ BUILTIN_GO_TOP_100: list[str] = sorted(
         "time",
     ]
 )
-
-

@@ -45,7 +45,6 @@ logger = logging.getLogger("picosentry.dep_confusion")
 __all__ = ["detect_all_dep_confusion"]
 
 
-
 def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
     if name in config.known_safe_names:
         return False
@@ -56,7 +55,6 @@ def _looks_internal_base(name: str, config: DepConfusionConfig) -> bool:
         if re.search(pattern, name, re.IGNORECASE):
             return True
     return config.check_single_segment and "." not in name and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", name) is not None
-
 
 
 def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
@@ -389,7 +387,6 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                     findings.append(_make_finding(rubygems_config, gem_name, gem_name, target, "Gemfile"))
 
     return findings
-
 
 
 def _make_finding(

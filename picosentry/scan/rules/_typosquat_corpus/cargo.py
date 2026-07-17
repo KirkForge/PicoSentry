@@ -106,5 +106,3 @@ BUILTIN_CARGO_TOP_100: list[str] = sorted(
         "html2md",
     ]
 )
-
-

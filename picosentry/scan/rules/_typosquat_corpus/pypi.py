@@ -104,5 +104,3 @@ BUILTIN_PYPI_TOP_100: list[str] = sorted(
         "nox",
     ]
 )
-
-

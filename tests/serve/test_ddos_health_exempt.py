@@ -139,8 +139,6 @@ def test_lookalike_paths_are_not_exempt() -> None:
     assert saw_429, "/health-evil must be rate-limited like any other user path"
 
 
-
-
 def test_is_health_path_unit() -> None:
     """The classmethod is a closed-set check, with a subpath match for
     the liveness/ready variants.  Pin the predicate directly so a

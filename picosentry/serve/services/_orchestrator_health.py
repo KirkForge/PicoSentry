@@ -88,9 +88,7 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
     start = time.time()
     try:
         if settings.alerts.email_smtp_host:
-            with smtplib.SMTP(
-                settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=5
-            ) as server:
+            with smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=5) as server:
                 if settings.alerts.email_smtp_starttls:
                     server.starttls()
                 latency = (time.time() - start) * 1000

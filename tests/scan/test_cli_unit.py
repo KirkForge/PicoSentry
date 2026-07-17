@@ -1126,9 +1126,7 @@ class TestCliServiceWorker:
         """The worker enqueues a successful scan result."""
         project = tmp_path / "project"
         project.mkdir()
-        (project / "package.json").write_text(
-            json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"})
-        )
+        (project / "package.json").write_text(json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"}))
         queue = multiprocessing.Queue()
         _scan_worker(str(project), None, None, None, queue)
         status, payload = queue.get(timeout=5)
@@ -1140,13 +1138,9 @@ class TestCliServiceWorker:
         """The worker enqueues an error tuple when the engine raises."""
         project = tmp_path / "project"
         project.mkdir()
-        (project / "package.json").write_text(
-            json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"})
-        )
+        (project / "package.json").write_text(json.dumps({"name": "clean", "version": "1.0.0", "license": "MIT"}))
         queue = multiprocessing.Queue()
-        with patch(
-            "picosentry.scan.engine.create_default_engine"
-        ) as mock_create:
+        with patch("picosentry.scan.engine.create_default_engine") as mock_create:
             mock_create.side_effect = RuntimeError("engine failure")
             _scan_worker(str(project), None, None, None, queue)
         status, payload = queue.get(timeout=5)
@@ -1174,16 +1168,10 @@ class TestCliServicePolicy:
     def test_apply_policy_applies_and_sets_result(self, tmp_path):
         """Valid policy file produces a policy_result on the ScanResult."""
         policy_file = tmp_path / "policy.yml"
-        policy_file.write_text(
-            "version: '1.0'\n"
-            "allow:\n"
-            "  - name: clean-pkg\n"
-        )
+        policy_file.write_text("version: '1.0'\nallow:\n  - name: clean-pkg\n")
         project = tmp_path / "project"
         project.mkdir()
-        (project / "package.json").write_text(
-            json.dumps({"name": "clean-pkg", "version": "1.0.0", "license": "MIT"})
-        )
+        (project / "package.json").write_text(json.dumps({"name": "clean-pkg", "version": "1.0.0", "license": "MIT"}))
         result = _make_result(target=str(project))
         _apply_policy(result, str(policy_file))
         assert result.policy_result is not None

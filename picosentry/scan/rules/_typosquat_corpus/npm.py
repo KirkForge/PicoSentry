@@ -103,5 +103,3 @@ BUILTIN_TOP_100: list[str] = sorted(
         "runtypes",
     ]
 )
-
-

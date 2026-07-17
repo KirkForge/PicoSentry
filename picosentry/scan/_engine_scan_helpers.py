@@ -100,7 +100,5 @@ def count_installed_packages(target_path: Path) -> int:
 
     for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
         if sp_path.is_dir():
-            return sum(
-                1 for d in sp_path.iterdir() if d.is_dir() and d.name.endswith((".dist-info", ".egg-info"))
-            )
+            return sum(1 for d in sp_path.iterdir() if d.is_dir() and d.name.endswith((".dist-info", ".egg-info")))
     return 0

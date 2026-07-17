@@ -171,9 +171,7 @@ class SeatbeltBackend(SandboxBackend):
                 with contextlib.suppress(OSError):
                     Path(profile_path).unlink()
                 if session is not None:
-                    session.resources.temp_files = [
-                        p for p in session.resources.temp_files if p != profile_path
-                    ]
+                    session.resources.temp_files = [p for p in session.resources.temp_files if p != profile_path]
 
         except FileNotFoundError:
             events.append(

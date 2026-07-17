@@ -282,9 +282,7 @@ class SeccompTraceBackend(SandboxBackend):
                     with contextlib.suppress(OSError):
                         os.close(fd)
             if session is not None:
-                session.resources.open_fds = [
-                    fd for fd in session.resources.open_fds if fd not in (out_r, err_r)
-                ]
+                session.resources.open_fds = [fd for fd in session.resources.open_fds if fd not in (out_r, err_r)]
 
         duration_ms = int(_now_ms() - start_ms)
         overall = event_parser.compute_verdict(events, exit_code)

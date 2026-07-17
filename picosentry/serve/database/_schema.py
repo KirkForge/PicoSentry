@@ -56,8 +56,7 @@ class Migration:
             # SQL is mandatory; a missing postgres_sql is a programmer error that
             # would otherwise ship SQLite DDL to Postgres via regex munging.
             raise RuntimeError(
-                f"migration {self.version} ({self.name}) has no postgres_sql; "
-                "per-backend migration SQL is mandatory"
+                f"migration {self.version} ({self.name}) has no postgres_sql; per-backend migration SQL is mandatory"
             )
         return self.postgres_sql
 

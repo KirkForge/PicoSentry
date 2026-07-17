@@ -73,6 +73,7 @@ class BackendRegistry:
 
 _registry = BackendRegistry()
 
+
 # Backward-compatible module-level helpers
 def get_backend(allow_degraded: bool | None = None) -> SandboxBackend:
     return _registry.get(allow_degraded=allow_degraded)

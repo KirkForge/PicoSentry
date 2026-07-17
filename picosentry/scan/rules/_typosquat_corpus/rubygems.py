@@ -114,5 +114,3 @@ BUILTIN_RUBYGEMS_TOP_100: list[str] = sorted(
         "sendgrid-ruby",
     ]
 )
-
-

@@ -106,5 +106,3 @@ BUILTIN_MAVEN_TOP_100: list[str] = sorted(
         "error-prone-annotations",
     ]
 )
-
-

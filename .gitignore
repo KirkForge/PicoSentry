@@ -72,5 +72,7 @@ picoshogun.db
 picosentry/serve/logs/
 
 # PicoDome runtime sandbox state
+state.md
+.picodome/
 .picodome/
 

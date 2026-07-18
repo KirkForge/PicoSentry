@@ -120,7 +120,14 @@ class LogManager:
         import re
 
         entries = []
-        level_pattern = re.compile(rf"^{level}", re.IGNORECASE) if level else None
+        level_pattern = None
+        if level:
+            # Allowlist level to a single word; anything else is treated as a
+            # literal prefix search instead of being compiled into a regex
+            # (PicoSentry-LOW-1 / ReDoS).
+            safe_level = re.sub(r"[^A-Za-z]", "", level)
+            if safe_level:
+                level_pattern = re.compile(rf"^{re.escape(safe_level)}\b", re.IGNORECASE)
 
         for log_file in self._get_log_files():
             if log_file.suffix != ".log":

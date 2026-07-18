@@ -174,12 +174,12 @@ def test_path_bucket_lru_eviction() -> None:
     shield._max_tracked_paths = 2
 
     # Use the exact high-risk paths; the shield only tracks those.
-    paths = ["/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"]
+    paths = ["/api/v1/scans", "/api/v1/auth/login", "/projects"]
     for path in paths:
         client.get(path)
 
     assert len(shield._path_buckets) <= shield._max_tracked_paths
     # The most recently touched path should still be present.
-    assert "/api/v1/projects" in shield._path_buckets
+    assert "/projects" in shield._path_buckets
     # The oldest path should have been evicted.
-    assert "/api/v1/scan" not in shield._path_buckets
+    assert "/api/v1/scans" not in shield._path_buckets

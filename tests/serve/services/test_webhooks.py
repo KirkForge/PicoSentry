@@ -73,12 +73,18 @@ class TestWebhookDispatch:
             retries=0,
             created_at=datetime.now(timezone.utc),
             org_id=1,
+            pinned_ips=["1.1.1.1"],
         )
 
         def _raise(*args, **kwargs):
             raise requests.Timeout("connection timed out")
 
         monkeypatch.setattr(requests, "post", _raise)
+        # Pin the re-resolver so the create-time pinned set still matches.
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(["1.1.1.1"]),
+        )
 
         results = manager.dispatch("alert", {"msg": "test"})
         assert len(results) == 1
@@ -86,3 +92,47 @@ class TestWebhookDispatch:
         assert results[0]["success"] is False
         assert results[0]["status"] == 0
         assert "timed out" in results[0]["error"]
+
+    def test_dispatch_rejects_dns_rebind(self, monkeypatch):
+        """A hostname that resolves to a different IP at dispatch time than
+        at create time must be rejected (PicoSentry-HIGH-2)."""
+        from datetime import datetime, timezone
+
+        import requests
+
+        # Create-time resolver says public IP; dispatch-time resolver says
+        # 127.0.0.1.
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        manager.webhooks = {}
+        manager.webhooks["rebind-hook"] = Webhook(
+            id=2,
+            name="rebind-hook",
+            url="https://evil.example/hook",
+            secret="secret",
+            events=["alert"],
+            active=True,
+            retries=0,
+            created_at=datetime.now(timezone.utc),
+            org_id=1,
+            pinned_ips=["1.1.1.1"],
+        )
+
+        posted = {"count": 0}
+
+        def _capture_post(*args, **kwargs):
+            posted["count"] += 1
+            return requests.Response()
+
+        monkeypatch.setattr(requests, "post", _capture_post)
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(["127.0.0.1"]),
+        )
+
+        results = manager.dispatch("alert", {"msg": "test"})
+        assert len(results) == 1
+        assert results[0]["webhook"] == "rebind-hook"
+        assert results[0]["success"] is False
+        assert results[0]["status"] == 0
+        assert "rebind" in results[0]["error"].lower()
+        assert posted["count"] == 0

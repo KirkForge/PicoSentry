@@ -1,4 +1,5 @@
 import logging
+import os
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +10,27 @@ from picosentry.scan.engine import create_default_engine as _create_engine
 from picosentry.serve.api.deps import require_role
 from picosentry.serve.api.models import SandboxRunRequest, SandboxRunResponse, ScanRequest, ScanResponse
 from picosentry.serve.config.settings import settings
+
+# Server-side secrets and config that must never be passed into an operator-
+# controlled sandboxed child.  These keys are stripped regardless of whether
+# the child env is built from os.environ or from a supplied dict.
+_SANDBOX_ENV_DENYLIST: frozenset[str] = frozenset({
+    "PICOSHOGUN_SECRET_KEY",
+    "PICODOME_REDIS_URL",
+    "PICOSHOGUN_REDIS_URL",
+    "PICOSHOGUN_DATABASE_URL",
+    "SHOGUN_DATABASE_URL",
+    "DATABASE_URL",
+    "DISCORD_WEBHOOK_URL",
+    "SLACK_WEBHOOK_URL",
+    "PICOSHOGUN_SMTP_PASSWORD",
+    "PICOSHOGUN_SMTP_USER",
+    "PICOSHOGUN_EMAIL_TO",
+    "PICODOME_POLICY_SIGNING_KEY",
+    "GITHUB_TOKEN",
+    "AWS_SECRET_ACCESS_KEY",
+    "AWS_ACCESS_KEY_ID",
+})
 
 logger = logging.getLogger("picoshogun.scans")
 
@@ -85,8 +107,33 @@ async def run_sandbox(
     request: SandboxRunRequest,
     user: dict = Depends(require_role("operator")),
 ):
+    # Strip server secrets from any environment visible to the sandboxed child.
+    # The L3 backends otherwise start with os.environ.copy() and merge the
+    # caller-supplied env on top, which would hand the operator the JWT signing
+    # key, DB URL, webhook URLs, SMTP creds, etc. (PicoSentry-HIGH-1).
+    env = {k: v for k, v in os.environ.items() if k not in _SANDBOX_ENV_DENYLIST}
+
+    # Require an explicit workspace root for POST /sandboxes.  Without it, the
+    # endpoint is disabled; with it, the endpoint only writes inside that root.
+    # This does not make seccomp path-aware (it cannot be), but it bounds the
+    # blast radius to one configured directory per deployment.
+    workspace_root = settings.security.scans_workspace_root
+    sandbox_cwd: str | None = None
+    if workspace_root is not None:
+        try:
+            workspace_root = Path(workspace_root).resolve()
+            env["PICOSHOGUN_SANDBOX_WORKSPACE_ROOT"] = str(workspace_root)
+            sandbox_cwd = str(workspace_root)
+        except (OSError, RuntimeError):
+            pass
+
     try:
-        result = _sandbox_run(request.command, timeout=request.timeout)
+        result = _sandbox_run(
+            request.command,
+            timeout=request.timeout,
+            env=env,
+            cwd=sandbox_cwd,
+        )
     except (RuntimeError, OSError, ValueError, TypeError) as exc:
         logger.warning("Sandbox execution failed: %s", exc, exc_info=True)
         raise HTTPException(status_code=500, detail=f"Sandbox execution failed: {exc}") from exc

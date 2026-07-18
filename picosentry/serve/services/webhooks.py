@@ -59,14 +59,21 @@ def _is_safe_webhook_url(url: str, dns_resolver=None) -> tuple:
     if ips is None:
         return False, f"Cannot resolve hostname '{parsed.hostname}'"
 
+    # Every returned address must pass the SSRF blocklist. Allowlisting one IP
+    # and ignoring the rest lets a multi-record DNS response bypass the guard.
+    safe_ips: list[str] = []
     for ip_str in ips:
         try:
             ip = ipaddress.ip_address(ip_str)
         except ValueError:
             continue
-        for network in SSRF_BLOCKED_NETWORKS:
-            if ip in network:
-                return False, f"Target IP {ip} is in blocked network {network}"
+        blocked = next((network for network in SSRF_BLOCKED_NETWORKS if ip in network), None)
+        if blocked:
+            return False, f"Target IP {ip} is in blocked network {blocked}"
+        safe_ips.append(ip_str)
+
+    if not safe_ips:
+        return False, f"No usable IPs for hostname '{parsed.hostname}'"
 
     return True, "OK"
 
@@ -82,6 +89,10 @@ class Webhook:
     retries: int
     created_at: datetime
     org_id: int | None = None
+    # Resolved IP addresses checked at create() time.  dispatch() pins to this
+    # list so a DNS rebinding attack cannot swap a public IP for 127.0.0.1
+    # between registration and firing (PicoSentry-HIGH-2).
+    pinned_ips: list[str] | None = None
 
 
 class WebhookManager:
@@ -103,6 +114,7 @@ class WebhookManager:
                 retries=row["retries"],
                 created_at=row["created_at"],
                 org_id=row.get("org_id"),
+                pinned_ips=None,
             )
             self.webhooks[row["name"]] = webhook
 
@@ -113,6 +125,13 @@ class WebhookManager:
         is_safe, reason = _is_safe_webhook_url(url, dns_resolver=self.dns_resolver)
         if not is_safe:
             raise ValueError(f"Webhook URL rejected: {reason}")
+
+        # Pin the IPs that passed the SSRF check.  Re-resolve at dispatch time
+        # only to verify the address is still in the pinned set.
+        resolve = self.dns_resolver or _resolve_hostname
+        pinned_ips = resolve(urlparse(url).hostname) or []
+        if not pinned_ips:
+            raise ValueError("Webhook URL rejected: no resolvable IPs")
 
         secret = secret or secrets.token_urlsafe(32)
 
@@ -160,6 +179,23 @@ class WebhookManager:
             signature = self._sign_payload(event_payload, webhook.secret)
 
             try:
+                # Re-resolve and verify the IP is still in the create-time
+                # pinned set.  This closes DNS rebinding: an attacker who
+                # controls the hostname cannot change the answer between
+                # registration and dispatch.
+                parsed = urlparse(webhook.url)
+                current_ips = set(_resolve_hostname(parsed.hostname) or [])
+                allowed_ips = set(webhook.pinned_ips or [])
+                if webhook.pinned_ips is not None and not current_ips.issubset(allowed_ips):
+                    logger.warning(
+                        "Webhook %s rejected: DNS rebind detected (was %s, now %s)",
+                        name,
+                        allowed_ips,
+                        current_ips,
+                    )
+                    results.append({"webhook": name, "status": 0, "success": False, "error": "DNS rebind detected"})
+                    continue
+
                 response = requests.post(
                     webhook.url,
                     json=event_payload,

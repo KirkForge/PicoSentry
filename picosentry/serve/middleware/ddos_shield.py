@@ -11,7 +11,7 @@ logger = logging.getLogger("picoshogun.DDoSShield")
 
 
 class DDoSShieldMiddleware(BaseHTTPMiddleware):
-    HIGH_RISK_PATHS: ClassVar[set[str]] = {"/api/v1/scan", "/api/v1/auth/token", "/api/v1/projects"}
+    HIGH_RISK_PATHS: ClassVar[set[str]] = {"/api/v1/scans", "/api/v1/auth/login", "/projects"}
 
     # Health and readiness probes are called by load balancers and
     # Kubernetes liveness/readiness checks on a tight schedule (often
@@ -78,21 +78,26 @@ class DDoSShieldMiddleware(BaseHTTPMiddleware):
             )
 
         path = request.url.path
-        if path in self.HIGH_RISK_PATHS:
-            bucket = self._path_buckets.get(path, [])
+        # The per-path bucket is keyed by the exact mounted path.  Routes that
+        # include a dynamic suffix (e.g. /projects/{id}) still get the same
+        # burst protection because we bucket on the prefix defined in
+        # HIGH_RISK_PATHS.
+        high_risk_path = next((p for p in self.HIGH_RISK_PATHS if path == p or path.startswith(p + "/")), None)
+        if high_risk_path:
+            bucket = self._path_buckets.get(high_risk_path, [])
             bucket = [t for t in bucket if t > cutoff]
             if len(bucket) >= self._burst_limit:
                 client = request.client.host if request.client else "unknown"
-                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", path, client)
+                logger.warning("DDoS shield: path burst limit exceeded for %s from %s", high_risk_path, client)
                 from starlette.responses import JSONResponse
 
                 return JSONResponse(
-                    {"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {path}"},
+                    {"error": "rate_limit_exceeded", "detail": f"Burst limit exceeded for {high_risk_path}"},
                     status_code=429,
                 )
             bucket.append(now)
-            self._path_buckets[path] = bucket
-            self._path_buckets.move_to_end(path)
+            self._path_buckets[high_risk_path] = bucket
+            self._path_buckets.move_to_end(high_risk_path)
             while len(self._path_buckets) > self._max_tracked_paths:
                 self._path_buckets.popitem(last=False)
 

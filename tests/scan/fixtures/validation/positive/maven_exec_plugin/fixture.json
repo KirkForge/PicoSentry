@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project with exec-maven-plugin running curl (fires L2-BUILD-001).",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ]
+}

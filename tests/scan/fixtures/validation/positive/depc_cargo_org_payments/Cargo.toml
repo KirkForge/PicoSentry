@@ -1,7 +1,5 @@
 [package]
-name = "org-payments-consumer"
+name = "my-app"
 version = "0.1.0"
-edition = "2021"
-
 [dependencies]
-org-payments = "1.0"
+org-payments = "3.0"

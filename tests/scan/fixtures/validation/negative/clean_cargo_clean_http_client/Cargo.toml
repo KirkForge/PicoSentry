@@ -1,0 +1,8 @@
+[package]
+name = "clean_http_client"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_http_client"
+license = "MIT"
+
+[dependencies]

@@ -1,9 +1,8 @@
 {
-  "name": "express-patched",
+  "name": "patched-fork",
   "version": "1.0.0",
-  "author": "Jane Doe",
   "repository": {
     "type": "git",
-    "url": "https://github.com/jane-doe/express-patched.git"
+    "url": "git+https://github.com/attacker/patched-fork.git"
   }
 }

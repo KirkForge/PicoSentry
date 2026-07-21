@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clean-mock-generator"
+version = "0.1.0"
+description = "A clean Python library: clean-mock-generator"
+requires-python = ">=3.9"
+dependencies = []

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Range-overlap CVE variant: django 2.1.5 (still in the affected range, fixed at 2.1.15) (fires L2-PYPI-ADV-001). Tests version-range arithmetic at a non-boundary version.",
-  "expected_rule_ids": ["L2-PYPI-ADV-001"]
+  "description": "PyPI package with Django version in CVE range (fires L2-PYPI-ADV-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-ADV-001"
+  ]
 }

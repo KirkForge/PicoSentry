@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "npm package reading .npmrc and NPM_TOKEN (fires L2-POST-001, L2-CRED-001).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-CRED-001"
+  ]
+}

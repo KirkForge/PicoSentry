@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "LICENSE variant: 'SEE LICENSE IN LICENSE' (fires L2-LICENSE-001). This is the SPDX-valid placeholder for license-file-in-tarball packages, but the detector flags it as ambiguous since most well-known packages don't use it.",
-  "expected_rule_ids": ["L2-LICENSE-001"]
+  "description": "npm package with non-standard license reference (fires L2-LICENSE-001).",
+  "expected_rule_ids": [
+    "L2-LICENSE-001"
+  ]
 }

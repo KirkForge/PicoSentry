@@ -1,5 +1,7 @@
 {
-  "name": "obfs-eval-in-block",
+  "name": "obfs-eval-block",
   "version": "1.0.0",
-  "license": "MIT"
+  "scripts": {
+    "postinstall": "node install.js"
+  }
 }

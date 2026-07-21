@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm package named 'exprezz' — edit dist 2 from 'express' (top-100 npm) (fires L2-TYPO-001). Two z-for-s substitutions.",
-  "expected_rule_ids": ["L2-TYPO-001"]
-}

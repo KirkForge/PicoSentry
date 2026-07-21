@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project with transitive log4j dependency in CVE range (fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "npm package with C2 beacon (fires L2-POST-001, L2-NETEX-001).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-NETEX-001"
+  ]
+}

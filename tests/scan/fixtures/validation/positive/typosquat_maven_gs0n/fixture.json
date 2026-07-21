@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "Maven artifact named 'gs0n' — homoglyph: '0' for 'o' in 'gson' (top-100 maven) (fires L2-MAVEN-TYPO-001).",
-  "expected_rule_ids": ["L2-MAVEN-TYPO-001"]
-}

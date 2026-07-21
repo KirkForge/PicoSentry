@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI package with hex-decoded exec (fires L2-PYPI-OBFS-003).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-003",
+    "L2-PYPI-POST-001"
+  ]
+}

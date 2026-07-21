@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Cargo crate with malicious build.rs (fires L2-BUILD-001).",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ]
+}

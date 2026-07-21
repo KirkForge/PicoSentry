@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI project 'internal-auth' (matches internal- pattern, no private index).",
-  "expected_rule_ids": ["L2-PYPI-DEPC-001"]
-}

@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Go module with download in go:generate (fires L2-BUILD-001).",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ]
+}

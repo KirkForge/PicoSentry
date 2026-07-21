@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm package with a postinstall that does Object.assign(target, JSON.parse(src)) without a hasOwn guard — a classic prototype-pollution sink. Fires L2-POST-001 (lifecycle script).",
-  "expected_rule_ids": ["L2-POST-001"]
-}

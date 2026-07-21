@@ -1,5 +1,3 @@
-module utils-consumer
-
-go 1.20
-
-require internal-corp.example.com/utils v1.0.0
+module my-app
+go 1.21
+require corp-utils v0.5.0

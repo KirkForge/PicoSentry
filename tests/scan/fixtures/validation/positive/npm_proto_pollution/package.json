@@ -1,0 +1,7 @@
+{
+  "name": "evil-proto",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e 'Object.prototype.__proto__.polluted = true'"
+  }
+}

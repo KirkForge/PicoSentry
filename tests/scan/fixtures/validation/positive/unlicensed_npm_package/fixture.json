@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with license='UNLICENSED' (legal status unknown).",
-  "expected_rule_ids": ["L2-LICENSE-001"]
+  "description": "npm package without license field (fires L2-LICENSE-001).",
+  "expected_rule_ids": [
+    "L2-LICENSE-001"
+  ]
 }

@@ -1,0 +1,8 @@
+[package]
+name = "clean_web_framework"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_web_framework"
+license = "MIT"
+
+[dependencies]

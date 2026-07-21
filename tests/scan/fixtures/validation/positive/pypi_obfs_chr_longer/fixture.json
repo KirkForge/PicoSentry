@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "PYPI OBFS bypass variant: longer chr() chain (fires L2-PYPI-OBFS-004).",
-  "expected_rule_ids": ["L2-PYPI-OBFS-004"]
+  "description": "PyPI package with chr-based string construction (fires L2-PYPI-OBFS-004).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-004",
+    "L2-PYPI-POST-001"
+  ]
 }

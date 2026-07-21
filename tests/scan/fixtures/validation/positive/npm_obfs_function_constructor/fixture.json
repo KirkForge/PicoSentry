@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "OBFS bypass variant: Function() constructor used for dynamic execution (fires L2-OBFS-001). Function() is the JS eval-equivalent and matches the same regex.",
-  "expected_rule_ids": ["L2-OBFS-001"]
+  "description": "npm package with Function constructor eval bypass (fires L2-OBFS-001).",
+  "expected_rule_ids": [
+    "L2-OBFS-001",
+    "L2-POST-001"
+  ]
 }

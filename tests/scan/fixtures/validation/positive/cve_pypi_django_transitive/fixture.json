@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Transitive CVE variant: vulnerable django 2.1.0 reachable via installed site-packages (fires L2-PYPI-ADV-001). Exercises the iter_site_packages dist-info path with a wrapper-only direct requirement.",
-  "expected_rule_ids": ["L2-PYPI-ADV-001"]
+  "description": "PyPI package with transitive Django dependency in CVE range (fires L2-PYPI-ADV-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-ADV-001"
+  ]
 }

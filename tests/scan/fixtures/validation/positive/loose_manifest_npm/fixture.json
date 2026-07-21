@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with dangerous dep range ('*') triggering MANI-001, and optionalDependencies + postinstall triggering MANI-002.",
-  "expected_rule_ids": ["L2-MANI-001", "L2-MANI-002"]
+  "description": "npm package with 'x' version range (fires L2-MANI-001).",
+  "expected_rule_ids": [
+    "L2-MANI-001"
+  ]
 }

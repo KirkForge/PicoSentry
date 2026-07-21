@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "Maven artifact 'internal-billing' (matches internal-billing pattern, no private repository).",
-  "expected_rule_ids": ["L2-MAVEN-DEPC-001"]
-}

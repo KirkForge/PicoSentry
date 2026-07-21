@@ -1,5 +1,7 @@
 {
-  "name": "obfs-b64-function",
+  "name": "obfs-b64-fn",
   "version": "1.0.0",
-  "license": "MIT"
+  "scripts": {
+    "postinstall": "node install.js"
+  }
 }

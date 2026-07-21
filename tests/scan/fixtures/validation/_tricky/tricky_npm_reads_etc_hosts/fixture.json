@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "npm package reading /etc/hosts (not a credential file, but reads system file).",
+  "expected_clean": true
+}

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Range-overlap CVE variant: dgrijalva/jwt-go v3.1.0 (still in the affected range, fixed at 3.2.1) (fires L2-GO-ADV-001). Tests version-range arithmetic for semver pre-3.2.1.",
-  "expected_rule_ids": ["L2-GO-ADV-001"]
+  "description": "Go module with golang-jwt in CVE range (fires L2-GO-ADV-001).",
+  "expected_rule_ids": [
+    "L2-GO-ADV-001"
+  ]
 }

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Range-overlap CVE variant: Newtonsoft.Json 12.0.0 (still in the affected range, fixed at 13.0.2) (fires L2-NUGET-ADV-001). Tests version-range arithmetic at a non-boundary version.",
-  "expected_rule_ids": ["L2-NUGET-ADV-001"]
+  "description": "NuGet package with Newtonsoft.Json in CVE range (fires L2-NUGET-ADV-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-ADV-001"
+  ]
 }

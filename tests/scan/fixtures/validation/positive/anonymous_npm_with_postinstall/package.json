@@ -1,7 +1,7 @@
 {
-  "name": "anon-pkg",
+  "name": "anon-postinstall",
   "version": "1.0.0",
   "scripts": {
-    "postinstall": "node setup.js"
+    "postinstall": "node install.js"
   }
 }

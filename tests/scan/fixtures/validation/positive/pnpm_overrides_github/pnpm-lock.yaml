@@ -1,8 +1,0 @@
-lockfileVersion: '6.0'
-settings:
-  autoInstallPeers: true
-  excludeLinksFromLockfile: false
-dependencies:
-  left-pad:
-    specifier: github:example/left-pad-fork
-    version: github.com/example/left-pad-fork

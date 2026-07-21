@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "PYPI OBFS bypass variant: eval(compile(...)) pattern (fires L2-PYPI-OBFS-001). The compile() call is the standard library's way to turn a string into a code object before exec/eval.",
-  "expected_rule_ids": ["L2-PYPI-OBFS-001"]
+  "description": "PyPI package with compile + exec (fires L2-PYPI-OBFS-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-POST-001"
+  ]
 }

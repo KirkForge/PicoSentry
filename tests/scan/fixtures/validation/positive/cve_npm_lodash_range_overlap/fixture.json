@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Range-overlap CVE variant: lodash 4.17.10 (middle of the affected range, fixed at 4.17.21) (fires L2-ADV-001). Tests version-range arithmetic in the advisory check.",
-  "expected_rule_ids": ["L2-ADV-001"]
+  "description": "npm package with lodash version in CVE range (fires L2-ADV-001).",
+  "expected_rule_ids": [
+    "L2-ADV-001"
+  ]
 }

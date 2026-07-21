@@ -1,9 +1,8 @@
 {
-  "name": "react-custom-fix",
+  "name": "fork-drift",
   "version": "1.0.0",
-  "author": "John Doe",
   "repository": {
     "type": "git",
-    "url": "https://github.com/john-doe/react-custom-fix"
+    "url": "git+https://github.com/personal-user/fork-drift.git"
   }
 }

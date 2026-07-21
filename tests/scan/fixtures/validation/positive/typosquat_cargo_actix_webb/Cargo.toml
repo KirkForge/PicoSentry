@@ -1,7 +1,0 @@
-[package]
-name = "actix-webb"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
-real-pkg = "1.0"

@@ -1,7 +1,5 @@
 [package]
-name = "range-overlap-serde-app"
+name = "cve-serde"
 version = "0.1.0"
-edition = "2021"
-
 [dependencies]
-serde = "1.0.50"
+serde = "1.0.150"

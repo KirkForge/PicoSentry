@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "Netex variant: postinstall hits AWS IMDS endpoint (fires L2-NETEX-001). The 169.254.169.254 metadata service is the standard AWS credential-exfiltration sink.",
-  "expected_rule_ids": ["L2-NETEX-001"]
+  "description": "npm package accessing IMDS metadata (fires L2-POST-001, L2-NETEX-001).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-NETEX-001"
+  ]
 }

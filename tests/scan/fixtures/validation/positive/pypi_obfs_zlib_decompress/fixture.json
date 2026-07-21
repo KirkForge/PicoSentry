@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI package with zlib-decompressed exec (fires L2-PYPI-OBFS-005).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-005",
+    "L2-PYPI-POST-001"
+  ]
+}

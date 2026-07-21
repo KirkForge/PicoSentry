@@ -1,14 +1,7 @@
 {
-  "name": "obfs-b64-exec-npm",
+  "name": "obfs-b64",
   "version": "1.0.0",
-  "description": "Multi-rule OBFS fixture: Buffer.from(b64) + eval.",
-  "license": "MIT",
-  "author": "Test Author",
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "repository": {
-    "type": "git",
-    "url": "git://example.com/obfs-b64-exec-npm.git"
+  "scripts": {
+    "postinstall": "node install.js"
   }
 }

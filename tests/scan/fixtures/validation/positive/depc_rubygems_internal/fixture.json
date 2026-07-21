@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem depending on internal-gem without private gem server (fires L2-RUBYGEMS-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-DEPC-001"
+  ]
+}

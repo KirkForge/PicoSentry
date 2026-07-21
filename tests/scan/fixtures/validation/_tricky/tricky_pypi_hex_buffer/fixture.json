@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "PyPI package with hex bytes that are not exec'd (should not fire L2-PYPI-OBFS-003).",
+  "expected_clean": true
+}

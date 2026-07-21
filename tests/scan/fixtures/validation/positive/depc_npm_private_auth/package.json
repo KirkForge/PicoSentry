@@ -1,8 +1,7 @@
 {
-  "name": "auth-consumer",
+  "name": "my-app",
   "version": "1.0.0",
-  "license": "MIT",
   "dependencies": {
-    "@private/auth": "1.0.0"
+    "@internal/auth": "^1.0.0"
   }
 }

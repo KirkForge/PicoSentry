@@ -1,5 +1,7 @@
 {
-  "name": "obfs-function-constructor",
+  "name": "obfs-fn-ctor",
   "version": "1.0.0",
-  "license": "MIT"
+  "scripts": {
+    "postinstall": "node install.js"
+  }
 }

@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI project with a hex-escaped string literal (5 escapes in one string). Single-rule fixture for L2-PYPI-OBFS-003.",
-  "expected_rule_ids": ["L2-PYPI-OBFS-003"]
-}

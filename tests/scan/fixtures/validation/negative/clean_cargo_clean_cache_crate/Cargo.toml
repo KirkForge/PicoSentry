@@ -1,0 +1,8 @@
+[package]
+name = "clean_cache_crate"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_cache_crate"
+license = "MIT"
+
+[dependencies]

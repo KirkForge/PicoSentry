@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app declaring engines.node='*' (overly permissive engine constraint).",
-  "expected_rule_ids": ["L2-ENGIN-001"]
+  "description": "npm package with overly permissive engine constraint (fires L2-ENGIN-001).",
+  "expected_rule_ids": [
+    "L2-ENGIN-001"
+  ]
 }

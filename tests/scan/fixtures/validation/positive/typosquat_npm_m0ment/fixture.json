@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm package named 'm0ment' — homoglyph: '0' for 'o' in 'moment' (top-100 npm) (fires L2-TYPO-001).",
-  "expected_rule_ids": ["L2-TYPO-001"]
-}

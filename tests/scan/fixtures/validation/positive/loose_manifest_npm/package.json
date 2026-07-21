@@ -2,12 +2,6 @@
   "name": "loose-manifest",
   "version": "1.0.0",
   "dependencies": {
-    "some-lib": "*"
-  },
-  "optionalDependencies": {
-    "opt-lib": "1.0.0"
-  },
-  "scripts": {
-    "postinstall": "node setup.js"
+    "express": "x"
   }
 }

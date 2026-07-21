@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Transitive CVE variant: vulnerable dgrijalva/jwt-go v3.2.0 reachable only via wrapper-module (fires L2-GO-ADV-001). go.sum lists wrapper-module and jwt-go@3.2.0 as a transitive.",
-  "expected_rule_ids": ["L2-GO-ADV-001"]
+  "description": "Go module with transitive jwt dependency in CVE range (fires L2-GO-ADV-001).",
+  "expected_rule_ids": [
+    "L2-GO-ADV-001"
+  ]
 }

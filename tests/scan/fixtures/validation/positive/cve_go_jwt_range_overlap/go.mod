@@ -1,5 +1,3 @@
-module range-overlap-jwt-app
-
-go 1.20
-
-require github.com/dgrijalva/jwt-go v3.1.0
+module cve-jwt
+go 1.21
+require github.com/golang-jwt/jwt v4.5.0

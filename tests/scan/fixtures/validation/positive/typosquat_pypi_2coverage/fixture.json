@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "PyPI project depending on '2coverage' \u2014 edit dist <=2 from 'coverage' (top PyPI) (fires L2-PYPI-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-TYPO-001"
+  ]
+}

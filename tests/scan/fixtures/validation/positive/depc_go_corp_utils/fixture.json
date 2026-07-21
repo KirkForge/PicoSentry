@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Go module 'internal-corp.example.com/utils' (fires L2-GO-DEPC-001). Variant using internal- prefix.",
-  "expected_rule_ids": ["L2-GO-DEPC-001"]
+  "description": "Go module depending on corp-utils without private proxy (fires L2-GO-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-GO-DEPC-001"
+  ]
 }

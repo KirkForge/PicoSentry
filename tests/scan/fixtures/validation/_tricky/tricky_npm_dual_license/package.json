@@ -1,17 +1,5 @@
 {
-  "name": "dual-license-pkg",
+  "name": "dual-license",
   "version": "1.0.0",
-  "description": "A package with a permissive dual license.",
-  "author": "Acme Platform Team <platform@acme.example.com>",
-  "license": "(MIT OR Apache-2.0)",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/dual-license-pkg/dual-license-pkg"
-  },
-  "engines": {
-    "node": ">=18.0.0"
-  },
-  "dependencies": {
-    "lodash": "^4.17.21"
-  }
+  "license": "(MIT OR Apache-2.0)"
 }

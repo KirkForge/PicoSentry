@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "PyPI dep 'corp-utils' (fires L2-PYPI-DEPC-001). Variant using corp- prefix.",
-  "expected_rule_ids": ["L2-PYPI-DEPC-001"]
+  "description": "PyPI package depending on corp-utils without private index (fires L2-PYPI-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-DEPC-001"
+  ]
 }

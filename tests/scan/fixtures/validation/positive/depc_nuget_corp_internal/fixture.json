@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "NuGet dep 'Corp.InternalUtils' (fires L2-NUGET-DEPC-001). Variant using Corp. prefix.",
-  "expected_rule_ids": ["L2-NUGET-DEPC-001"]
+  "description": "NuGet package depending on Corp.Internal without private source (fires L2-NUGET-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-DEPC-001"
+  ]
 }

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "MAINT variant: single named author + postinstall script (fires L2-MAINT-001). The existing 'no author' variant covers the anonymous case; this covers the single-named-maintainer case.",
-  "expected_rule_ids": ["L2-MAINT-001"]
+  "description": "npm package with single maintainer and postinstall script (fires L2-MAINT-001).",
+  "expected_rule_ids": [
+    "L2-MAINT-001"
+  ]
 }

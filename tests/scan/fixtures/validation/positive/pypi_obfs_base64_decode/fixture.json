@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI project with a single base64.b64decode() call and no exec/eval. Single-rule fixture for L2-PYPI-OBFS-002. L2-PYPI-OBFS-007 is NOT triggered because there is no exec/eval within 200 chars.",
-  "expected_rule_ids": ["L2-PYPI-OBFS-002"]
-}

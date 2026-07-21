@@ -1,0 +1,15 @@
+{
+  "name": "clean-env-loader",
+  "version": "1.0.0",
+  "description": "A clean npm package: clean-env-loader",
+  "main": "index.js",
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/clean-env-loader.git"
+  },
+  "author": "Example Author <author@example.com>"
+}

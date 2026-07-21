@@ -1,0 +1,29 @@
+{
+  "label": "negative",
+  "description": "A clean npm package 'clean-logger-lib' with no suspicious patterns. Should produce zero findings.",
+  "forbidden_rule_ids": [
+    "L2-POST-001",
+    "L2-OBFS-001",
+    "L2-OBFS-002",
+    "L2-OBFS-003",
+    "L2-OBFS-004",
+    "L2-CRED-001",
+    "L2-NETEX-001",
+    "L2-WORM-001",
+    "L2-SIDELOAD-001",
+    "L2-ENGIN-001",
+    "L2-FORK-001",
+    "L2-LICENSE-001",
+    "L2-MAINT-001",
+    "L2-PROV-001",
+    "L2-MANI-001",
+    "L2-MANI-002",
+    "L2-BUND-001",
+    "L2-IOC-001",
+    "L2-LOCK-001",
+    "L2-PNPM-001",
+    "L2-TYPO-001",
+    "L2-DEPC-001",
+    "L2-ADV-001"
+  ]
+}

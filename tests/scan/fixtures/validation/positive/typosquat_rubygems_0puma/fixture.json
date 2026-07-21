@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem depending on '0puma' \u2014 edit dist <=2 from 'puma' (top RubyGems) (fires L2-RUBYGEMS-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-TYPO-001"
+  ]
+}

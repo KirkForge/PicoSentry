@@ -1,0 +1,8 @@
+{
+  "label": "tricky",
+  "description": "PyPI package using globals() namespace bypass for exec (fires L2-PYPI-OBFS-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-POST-001"
+  ]
+}

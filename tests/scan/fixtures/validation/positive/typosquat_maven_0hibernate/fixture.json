@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact '0hibernate' \u2014 edit dist <=2 from 'hibernate' (top Maven) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

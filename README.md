@@ -105,7 +105,7 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 1048 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
@@ -116,7 +116,7 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
+| Detection benchmarks | **Stable** | 1048 fixtures (899 pos / 142 neg / 7 tricky), 54 rules, 94.44% mean precision, 73.79% mean recall — see [model card](docs/model-card.md) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
 
@@ -141,7 +141,7 @@ pip install picosentry[all]           # everything
 
 - **[Technical manual](docs/manual.md)** — full install options, gRPC transport, plugin system, corpus management, repository structure, and sandbox details
 - **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
-- **[Detection benchmarks](docs/BENCHMARKS.md)** — 188 fixtures, 54 rules, precision/recall
+- **[Detection benchmarks](docs/model-card.md)** — 1048 fixtures, 54 rules, precision/recall per rule
 - **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component security analysis
 - **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
 

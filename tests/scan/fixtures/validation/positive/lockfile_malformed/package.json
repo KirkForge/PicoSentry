@@ -1,7 +1,6 @@
 {
-  "name": "lockfile-malformed-app",
+  "name": "bad-lock",
   "version": "1.0.0",
-  "license": "MIT",
   "dependencies": {
     "express": "^4.18.0"
   }

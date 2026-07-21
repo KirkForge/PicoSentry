@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Cargo dep 'company-billing' (fires L2-CARGO-DEPC-001). Variant using company- prefix.",
-  "expected_rule_ids": ["L2-CARGO-DEPC-001"]
+  "description": "Cargo crate depending on company-billing without private registry (fires L2-CARGO-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-CARGO-DEPC-001"
+  ]
 }

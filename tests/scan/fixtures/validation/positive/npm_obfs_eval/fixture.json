@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm project with a bare eval() call in index.js. Single-rule fixture for L2-OBFS-001.",
-  "expected_rule_ids": ["L2-OBFS-001"]
-}

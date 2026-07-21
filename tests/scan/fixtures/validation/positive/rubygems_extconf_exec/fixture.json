@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem with extconf.rb executing system command (fires L2-BUILD-001).",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ]
+}

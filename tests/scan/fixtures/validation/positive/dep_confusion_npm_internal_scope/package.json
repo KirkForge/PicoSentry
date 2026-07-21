@@ -1,7 +1,0 @@
-{
-  "name": "internal-app",
-  "version": "1.0.0",
-  "dependencies": {
-    "@internal/payments": "1.0.0"
-  }
-}

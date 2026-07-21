@@ -1,0 +1,7 @@
+{
+  "label": "negative",
+  "description": "A clean NuGet package 'CleanValidatorLib' with no suspicious patterns. Should produce zero findings.",
+  "forbidden_rule_ids": [
+    "L2-BUILD-001"
+  ]
+}

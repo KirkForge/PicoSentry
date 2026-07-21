@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "OBFS bypass variant: longer hex-escaped string (fires L2-OBFS-002). Six hex escapes pass the {4,} repetition check.",
-  "expected_rule_ids": ["L2-OBFS-002"]
+  "description": "npm package with longer hex-encoded require (fires L2-OBFS-002).",
+  "expected_rule_ids": [
+    "L2-OBFS-002",
+    "L2-POST-001"
+  ]
 }

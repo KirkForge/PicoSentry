@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with no author/contributors/maintainers AND a postinstall script.",
-  "expected_rule_ids": ["L2-MAINT-001"]
+  "description": "npm package with no author and postinstall script (fires L2-MAINT-001).",
+  "expected_rule_ids": [
+    "L2-MAINT-001"
+  ]
 }

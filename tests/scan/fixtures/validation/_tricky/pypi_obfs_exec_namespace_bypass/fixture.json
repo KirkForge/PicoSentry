@@ -1,5 +1,0 @@
-{
-  "label": "tricky",
-  "description": "Bypass gap: globals()['ex' + 'ec'](...) — exec token is broken across a string concatenation. L2-PYPI-OBFS-001's regex matches the literal exec( token and does NOT match this dynamic-access pattern. Documents a known detector limit; an AST-based or token-aware detector would catch this.",
-  "expected_clean": true
-}

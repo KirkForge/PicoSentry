@@ -1,5 +1,3 @@
-module transitive-jwt-app
-
-go 1.20
-
-require github.com/example/wrapper-module v1.0.0
+module cve-jwt-trans
+go 1.21
+require github.com/gin-gonic/gin v1.9.0

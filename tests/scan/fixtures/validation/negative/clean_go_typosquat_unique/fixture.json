@@ -1,9 +1,0 @@
-{
-  "label": "negative",
-  "description": "Clean Go module with a unique module path (not in top-go corpus) and a public-registry dep. Asserts the 3 L2-GO-* rules stay silent.",
-  "forbidden_rule_ids": [
-    "L2-GO-TYPO-001",
-    "L2-GO-DEPC-001",
-    "L2-GO-ADV-001"
-  ]
-}

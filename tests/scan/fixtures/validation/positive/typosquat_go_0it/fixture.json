@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Go module named '0it' \u2014 edit dist <=2 from 'kit' (top Go) (fires L2-GO-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-GO-TYPO-001"
+  ]
+}

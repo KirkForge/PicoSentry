@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "npm package with GitHub dependency on a well-known package (edge case for L2-SIDELOAD-001).",
+  "expected_clean": true
+}

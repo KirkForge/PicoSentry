@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "npm package with prototype pollution in postinstall (fires L2-POST-001).",
+  "expected_rule_ids": [
+    "L2-POST-001"
+  ]
+}

@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "Worm variant: postinstall rewrites its own package.json (fires L2-WORM-001). The writeFileSync(..., package.json) pattern is the canonical Shai-Hulud self-propagation trait — the worm mutates its own manifest mid-install to inject new lifecycle scripts.",
-  "expected_rule_ids": ["L2-WORM-001"]
+  "description": "npm package with self-modifying package.json (fires L2-POST-001, L2-WORM-001).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-WORM-001"
+  ]
 }

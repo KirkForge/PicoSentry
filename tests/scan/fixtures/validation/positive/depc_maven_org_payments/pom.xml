@@ -1,14 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>com.example</groupId>
-  <artifactId>org-payments-consumer</artifactId>
-  <version>0.1.0</version>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
   <dependencies>
-    <dependency>
-      <groupId>com.example</groupId>
-      <artifactId>org-payments</artifactId>
-      <version>1.0.0</version>
-    </dependency>
+    <dependency><groupId>com.org</groupId><artifactId>payments</artifactId><version>3.0.0</version></dependency>
   </dependencies>
 </project>

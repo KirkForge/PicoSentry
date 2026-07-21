@@ -1,7 +1,0 @@
-[package]
-name = "clean_cargo_build_rs"
-version = "0.1.0"
-edition = "2021"
-build = "build.rs"
-
-[dependencies]

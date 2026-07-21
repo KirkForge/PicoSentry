@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "npm package named '2ommander' \u2014 edit dist <=2 from 'commander' (top npm) (fires L2-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

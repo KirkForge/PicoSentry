@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "npm package with dual license expression (should not fire L2-LICENSE-001).",
+  "expected_clean": true
+}

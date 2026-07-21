@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "npm package with github: protocol dependency (fires L2-SIDELOAD-001).",
+  "expected_rule_ids": [
+    "L2-SIDELOAD-001"
+  ]
+}

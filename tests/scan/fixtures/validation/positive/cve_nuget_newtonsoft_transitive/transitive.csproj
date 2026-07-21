@@ -1,9 +1,0 @@
-<Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <RootNamespace>TransitiveNewtonsoft</RootNamespace>
-  </PropertyGroup>
-  <ItemGroup>
-    <PackageReference Include="Wrapper.Pkg" Version="1.0.0" />
-  </ItemGroup>
-</Project>

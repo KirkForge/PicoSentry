@@ -1,11 +1,7 @@
 {
-  "name": "optional-dep-preinstall",
+  "name": "optional-lifecycle",
   "version": "1.0.0",
-  "license": "MIT",
   "optionalDependencies": {
-    "preinstall-pkg": "1.0.0"
-  },
-  "scripts": {
-    "preinstall": "node setup.js"
+    "evil-hook": "^1.0.0"
   }
 }

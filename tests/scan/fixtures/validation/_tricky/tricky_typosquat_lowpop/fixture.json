@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "npm package named 'exprezz-lite' \u2014 edit dist from 'express' but with suffix (edge case for L2-TYPO-001).",
+  "expected_clean": true
+}

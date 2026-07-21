@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI package with direct exec() call (fires L2-PYPI-OBFS-001, L2-PYPI-POST-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-POST-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "1lodash",
+  "version": "1.0.0",
+  "dependencies": {
+    "real-pkg": "1.0.0"
+  }
+}

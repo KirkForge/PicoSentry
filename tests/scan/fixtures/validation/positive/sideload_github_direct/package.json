@@ -1,0 +1,7 @@
+{
+  "name": "gh-dep",
+  "version": "1.0.0",
+  "dependencies": {
+    "user-pkg": "github:user/pkg"
+  }
+}

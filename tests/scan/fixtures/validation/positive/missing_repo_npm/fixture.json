@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with no repository field — provenance cannot be verified.",
-  "expected_rule_ids": ["L2-PROV-001"]
+  "description": "npm package without repository field (fires L2-PROV-001).",
+  "expected_rule_ids": [
+    "L2-PROV-001"
+  ]
 }

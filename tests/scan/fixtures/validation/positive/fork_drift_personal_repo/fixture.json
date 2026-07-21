@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with a fork-indicator in the name ('fix') and a non-canonical repository org.",
-  "expected_rule_ids": ["L2-FORK-001"]
+  "description": "npm package in personal repo without fork indicators (fires L2-FORK-001).",
+  "expected_rule_ids": [
+    "L2-FORK-001"
+  ]
 }

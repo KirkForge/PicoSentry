@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI package named 'numpt' — edit dist 1 from 'numpy' (top-100 pypi) (fires L2-PYPI-TYPO-001).",
-  "expected_rule_ids": ["L2-PYPI-TYPO-001"]
-}

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm package with an exact-pinned engines.node (no operator prefix). The 'engines typo' family is documented here: an exact-pinned version is brittle and a common source of consumer install failures. Fires L2-ENGIN-001 (exact-version-pin sub-detector).",
-  "expected_rule_ids": ["L2-ENGIN-001"]
+  "description": "npm package with suspiciously low engine constraint (fires L2-ENGIN-001).",
+  "expected_rule_ids": [
+    "L2-ENGIN-001"
+  ]
 }

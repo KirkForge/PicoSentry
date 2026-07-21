@@ -1,8 +1,7 @@
 {
-  "name": "billing-consumer",
+  "name": "my-app",
   "version": "1.0.0",
-  "license": "MIT",
   "dependencies": {
-    "@internal/billing": "1.0.0"
+    "@company/billing": "^1.0.0"
   }
 }

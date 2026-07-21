@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm package with a postinstall that runs child_process.exec with a string-concatenated user input, exposing a command-injection sink. Fires L2-POST-001.",
-  "expected_rule_ids": ["L2-POST-001"]
-}

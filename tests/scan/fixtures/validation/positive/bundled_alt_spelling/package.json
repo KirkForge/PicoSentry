@@ -1,8 +1,7 @@
 {
-  "name": "bundled-alt-spelling",
+  "name": "bundled-alt",
   "version": "1.0.0",
-  "bundleDependencies": [
-    "evil-pkg-a",
-    "evil-pkg-b"
+  "bundledDependencies": [
+    "alt-spelling-pkg"
   ]
 }

@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "NuGet package reference '1og4net' — homoglyph: '1' for 'l' in 'log4net' (top-100 nuget) (fires L2-NUGET-TYPO-001).",
-  "expected_rule_ids": ["L2-NUGET-TYPO-001"]
-}

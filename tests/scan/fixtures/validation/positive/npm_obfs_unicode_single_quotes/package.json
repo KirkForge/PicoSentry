@@ -1,5 +1,7 @@
 {
-  "name": "obfs-unicode-single",
+  "name": "obfs-unicode-sq",
   "version": "1.0.0",
-  "license": "MIT"
+  "scripts": {
+    "postinstall": "node install.js"
+  }
 }

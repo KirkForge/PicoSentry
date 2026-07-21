@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI package with marshal.loads direct exec (fires L2-PYPI-OBFS-006).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-006",
+    "L2-PYPI-POST-001"
+  ]
+}

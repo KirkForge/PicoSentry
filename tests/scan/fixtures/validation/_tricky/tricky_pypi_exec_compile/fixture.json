@@ -1,0 +1,5 @@
+{
+  "label": "tricky",
+  "description": "PyPI package using compile() for a safe expression (should not fire L2-PYPI-OBFS-001).",
+  "expected_clean": true
+}

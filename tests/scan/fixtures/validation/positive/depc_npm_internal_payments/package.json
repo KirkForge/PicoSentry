@@ -1,8 +1,7 @@
 {
-  "name": "payments-consumer",
+  "name": "my-app",
   "version": "1.0.0",
-  "license": "MIT",
   "dependencies": {
-    "@internal/payments": "1.0.0"
+    "@acme/payments": "^2.0.0"
   }
 }

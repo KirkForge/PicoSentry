@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "RubyGems project depending on 'internal-payments' (matches internal- pattern, no private source).",
-  "expected_rule_ids": ["L2-RUBYGEMS-DEPC-001"]
-}

@@ -1,0 +1,9 @@
+{
+  "label": "negative",
+  "description": "A clean Rust crate 'clean_signal_handler' with no suspicious patterns. Should produce zero findings.",
+  "forbidden_rule_ids": [
+    "L2-CARGO-TYPO-001",
+    "L2-CARGO-DEPC-001",
+    "L2-CARGO-ADV-001"
+  ]
+}

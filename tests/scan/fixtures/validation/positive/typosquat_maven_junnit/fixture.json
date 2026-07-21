@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "Maven artifact 'lombk' (edit distance 1 from 'lombok', a top-100 Maven artifact).",
-  "expected_rule_ids": ["L2-MAVEN-TYPO-001"]
-}

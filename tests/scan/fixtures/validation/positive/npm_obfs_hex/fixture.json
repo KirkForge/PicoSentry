@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm project with a hex-escaped string literal (5 escapes). Single-rule fixture for L2-OBFS-002.",
-  "expected_rule_ids": ["L2-OBFS-002"]
-}

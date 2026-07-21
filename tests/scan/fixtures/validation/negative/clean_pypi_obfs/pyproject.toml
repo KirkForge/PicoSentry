@@ -1,9 +1,0 @@
-[build-system]
-requires = ["setuptools>=68"]
-build-backend = "setuptools.build_meta"
-
-[project]
-name = "clean-pypi-obfs"
-version = "1.0.0"
-description = "Clean PyPI fixture asserting the L2-PYPI-OBFS-* family stays silent on string-only modules."
-license = {text = "MIT"}

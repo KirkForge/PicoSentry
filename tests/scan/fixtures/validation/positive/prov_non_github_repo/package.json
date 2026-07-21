@@ -1,6 +1,8 @@
 {
-  "name": "anon-git-host",
+  "name": "non-github",
   "version": "1.0.0",
-  "license": "MIT",
-  "repository": "https://git.example-internal.com/org/pkg.git"
+  "repository": {
+    "type": "git",
+    "url": "git+https://bitbucket.org/example/pkg.git"
+  }
 }

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm dep @private/auth (fires L2-DEPC-001). Variant using the @private scope.",
-  "expected_rule_ids": ["L2-DEPC-001"]
+  "description": "npm package with @internal/auth dep without private registry (fires L2-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-DEPC-001"
+  ]
 }

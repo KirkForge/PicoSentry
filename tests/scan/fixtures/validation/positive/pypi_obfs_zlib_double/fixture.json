@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "PYPI OBFS bypass variant: __import__(\"zlib\") with double quotes (fires L2-PYPI-OBFS-005). The regex matches both quote styles.",
-  "expected_rule_ids": ["L2-PYPI-OBFS-005"]
+  "description": "PyPI package with double-wrapped zlib payload (fires L2-PYPI-OBFS-005).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-005",
+    "L2-PYPI-POST-001"
+  ]
 }

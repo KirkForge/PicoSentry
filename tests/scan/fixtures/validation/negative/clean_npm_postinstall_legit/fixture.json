@@ -1,9 +1,0 @@
-{
-  "label": "negative",
-  "description": "Clean npm project that does NOT use install scripts (no install/postinstall/preinstall/prepare/prepack). Asserts L2-POST-001, L2-MAINT-001, L2-CRED-001 stay silent on a package that performs no lifecycle work.",
-  "forbidden_rule_ids": [
-    "L2-POST-001",
-    "L2-CRED-001",
-    "L2-MAINT-001"
-  ]
-}

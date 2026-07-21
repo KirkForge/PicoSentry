@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "PNPM variant: pnpm.overrides pointing at a github URL (fires L2-PNPM-001). pnpm.overrides can redirect a registered dep to a github source — same threat as a git dep.",
-  "expected_rule_ids": ["L2-PNPM-001"]
+  "description": "pnpm package with GitHub override (fires L2-PNPM-001).",
+  "expected_rule_ids": [
+    "L2-PNPM-001"
+  ]
 }

@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "npm app whose postinstall script publishes via npm and pipes a remote shell script (worm propagation fingerprint).",
-  "expected_rule_ids": ["L2-WORM-001"]
+  "description": "npm package with worm propagation via npm publish + curl|sh (fires L2-POST-001, L2-WORM-001).",
+  "expected_rule_ids": [
+    "L2-POST-001",
+    "L2-WORM-001"
+  ]
 }

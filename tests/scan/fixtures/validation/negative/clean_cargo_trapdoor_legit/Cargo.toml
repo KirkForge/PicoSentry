@@ -1,9 +1,0 @@
-[package]
-name = "fernet-msg"
-version = "0.1.0"
-edition = "2021"
-license = "MIT"
-description = "A simple Fernet-encrypted messaging library (legitimate, not the historical cross-ecosystem supply-chain payload)."
-
-[dependencies]
-fernet = "0.2"

@@ -1,8 +1,0 @@
-{
-  "label": "negative",
-  "description": "Clean npm project using pnpm with a default-registry .npmrc and a normal pnpm-lock.yaml (no overrides/hooks). Asserts L2-PNPM-001 and L2-LOCK-001 stay silent on legitimate pnpm configurations.",
-  "forbidden_rule_ids": [
-    "L2-PNPM-001",
-    "L2-LOCK-001"
-  ]
-}

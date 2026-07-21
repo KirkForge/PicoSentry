@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "Cargo crate depending on 'acme-billing' (matches 'acme-' internal pattern, no [patch] block).",
-  "expected_rule_ids": ["L2-CARGO-DEPC-001"]
-}

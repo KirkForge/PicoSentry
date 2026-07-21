@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "RubyGems project depending on 'devvise' (edit distance 1 from 'devise', a top-100 RubyGem).",
-  "expected_rule_ids": ["L2-RUBYGEMS-TYPO-001"]
-}

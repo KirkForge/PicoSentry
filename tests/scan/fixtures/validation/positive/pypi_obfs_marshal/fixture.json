@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI project with marshal.loads() call. Single-rule fixture for L2-PYPI-OBFS-006.",
-  "expected_rule_ids": ["L2-PYPI-OBFS-006"]
-}

@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "npm package with unicode-escaped eval (fires L2-OBFS-004).",
+  "expected_rule_ids": [
+    "L2-OBFS-004",
+    "L2-POST-001"
+  ]
+}

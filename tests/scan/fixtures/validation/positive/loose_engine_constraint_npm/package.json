@@ -1,5 +1,5 @@
 {
-  "name": "loose-app",
+  "name": "loose-engines",
   "version": "1.0.0",
   "engines": {
     "node": "*"

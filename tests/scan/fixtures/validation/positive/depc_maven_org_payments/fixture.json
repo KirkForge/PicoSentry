@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "Maven dep 'com.example:org-payments' (fires L2-MAVEN-DEPC-001). Variant using org- prefix.",
-  "expected_rule_ids": ["L2-MAVEN-DEPC-001"]
+  "description": "Maven project depending on com.org:payments without private repo (fires L2-MAVEN-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-DEPC-001"
+  ]
 }

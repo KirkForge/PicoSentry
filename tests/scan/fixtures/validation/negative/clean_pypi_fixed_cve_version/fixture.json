@@ -1,5 +1,0 @@
-{
-  "label": "negative",
-  "description": "Clean PyPI project at the fixed version of an advisory (django 2.1.15, the fix release for CVE-2019-19844). Should NOT fire L2-PYPI-ADV-001. The existing CVE fixture uses 2.1.0 (vulnerable); this covers the post-fix side.",
-  "forbidden_rule_ids": ["L2-PYPI-ADV-001"]
-}

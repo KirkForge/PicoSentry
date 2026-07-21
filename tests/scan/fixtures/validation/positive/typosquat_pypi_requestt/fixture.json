@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI project named 'requestt' (edit distance 1 from 'requests', a top-100 PyPI package).",
-  "expected_rule_ids": ["L2-PYPI-TYPO-001"]
-}

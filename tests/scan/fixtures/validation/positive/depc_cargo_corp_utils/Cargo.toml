@@ -1,7 +1,5 @@
 [package]
-name = "corp-utils-consumer"
+name = "my-app"
 version = "0.1.0"
-edition = "2021"
-
 [dependencies]
-corp-utils = "1.0"
+corp-utils = "0.5"

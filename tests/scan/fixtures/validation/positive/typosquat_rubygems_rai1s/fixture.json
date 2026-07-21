@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "RubyGems gem 'rai1s' (in Gemfile) — homoglyph: '1' for 'l' in 'rails' (top-100 rubygems) (fires L2-RUBYGEMS-TYPO-001).",
-  "expected_rule_ids": ["L2-RUBYGEMS-TYPO-001"]
-}

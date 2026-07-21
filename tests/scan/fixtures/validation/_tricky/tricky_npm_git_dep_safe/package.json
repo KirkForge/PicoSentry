@@ -1,14 +1,7 @@
 {
-  "name": "git-dep-safe",
+  "name": "safe-git-dep",
   "version": "1.0.0",
-  "description": "A package with a git+https dep and no install script.",
-  "author": "Acme Platform Team <platform@acme.example.com>",
-  "license": "MIT",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/acme-corp/git-dep-safe"
-  },
   "dependencies": {
-    "safe-pkg": "git+https://github.com/acme-corp/safe-pkg.git"
+    "express": "github:expressjs/express"
   }
 }

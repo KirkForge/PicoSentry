@@ -1,7 +1,5 @@
 [package]
-name = "company-billing-consumer"
+name = "my-app"
 version = "0.1.0"
-edition = "2021"
-
 [dependencies]
 company-billing = "1.0"

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "npm app with dependencies declared but no lockfile (package-lock.json / pnpm-lock.yaml / yarn.lock).",
-  "expected_rule_ids": ["L2-LOCK-001"]
+  "description": "npm package without lockfile (fires L2-LOCK-001).",
+  "expected_rule_ids": [
+    "L2-LOCK-001"
+  ]
 }

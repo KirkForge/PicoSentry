@@ -1,5 +1,5 @@
 {
-  "name": "unlicensed-pkg",
+  "name": "unlicensed",
   "version": "1.0.0",
-  "license": "UNLICENSED"
+  "description": "No license field"
 }

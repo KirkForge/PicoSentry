@@ -1,5 +1,7 @@
 {
-  "name": "obfs-unicode-longer",
+  "name": "obfs-unicode-long",
   "version": "1.0.0",
-  "license": "MIT"
+  "scripts": {
+    "postinstall": "node install.js"
+  }
 }

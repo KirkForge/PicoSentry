@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "npm package named '1luebird' \u2014 edit dist <=2 from 'bluebird' (top npm) (fires L2-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

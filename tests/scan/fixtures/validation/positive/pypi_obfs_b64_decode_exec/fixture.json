@@ -1,0 +1,9 @@
+{
+  "label": "positive",
+  "description": "PyPI package with base64 decode + exec (fires L2-PYPI-OBFS-002, L2-PYPI-OBFS-007).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-002",
+    "L2-PYPI-OBFS-007",
+    "L2-PYPI-POST-001"
+  ]
+}

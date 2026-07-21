@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "PyPI package with Poetry subprocess in build script (fires L2-PYPI-POST-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-POST-001"
+  ]
+}

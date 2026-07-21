@@ -1,5 +1,8 @@
 {
   "label": "positive",
-  "description": "OBFS bypass variant: atob() then eval() (fires L2-OBFS-003). The regex matches atob + eval.",
-  "expected_rule_ids": ["L2-OBFS-003"]
+  "description": "npm package with atob + eval chain (fires L2-OBFS-003).",
+  "expected_rule_ids": [
+    "L2-OBFS-003",
+    "L2-POST-001"
+  ]
 }

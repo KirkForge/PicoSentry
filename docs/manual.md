@@ -224,7 +224,7 @@ Where PicoSentry is weaker: pip-audit and osv-scanner have wider and more freque
 
 - **Admission controller is beta.** It is live-tested against kind; the real-cluster matrix in `.github/workflows/admission-kind.yml` exercises pod admission decisions across K8s v1.28–v1.30.
 
-- **Has published detection-benchmark data** in [`docs/BENCHMARKS.md`](BENCHMARKS.md). The v2.0.15 corpus is 188 fixtures (150 positive, 38 negative) / 50 L2 rule_ids + 4 L2-CAMP rule_ids / 100% precision / 100% recall. The corpus is small (mean ~3 positives + ~3 negatives per rule across 54 rules) and the fixtures are mostly hand-crafted, so the 100% number is a smoke test, not a statistically meaningful measurement. See "Honest limitations" in that document for what the numbers do and don't prove.
+- **Has published detection-benchmark data** in [`docs/model-card.md`](model-card.md). The v2.0.15 corpus is 1048 fixtures (899 positive, 142 negative, 7 tricky) / 54 rules / 94.44% mean precision / 73.79% mean recall. See "Honest limitations" in that document for what the numbers do and don't prove.
 
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV corpus (`[scan]` extra); offline-only operation pulls from the local corpus snapshot.
 
@@ -261,7 +261,7 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 188 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 1048 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
@@ -272,6 +272,6 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 188 fixtures (150 pos / 38 neg), 54 rules, 100% CI floor (small corpus — see honest limitations) |
+| Detection benchmarks | **Stable** | 1048 fixtures (899 pos / 142 neg / 7 tricky), 54 rules, 94.44% mean precision, 73.79% mean recall — see [model card](docs/model-card.md) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |

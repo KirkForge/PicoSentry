@@ -1,4 +1,0 @@
-source 'https://rubygems.org'
-
-gem 'devvise', '1.0.0'
-gem 'real-pkg', '1.0.0'

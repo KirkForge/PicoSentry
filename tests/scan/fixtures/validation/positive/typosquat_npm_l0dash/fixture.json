@@ -1,5 +1,0 @@
-{
-  "label": "positive",
-  "description": "npm package named 'l0dash' — homoglyph: '0' for 'o' in 'lodash' (top-100 npm) (fires L2-TYPO-001). Edit dist 1, severity HIGH (homoglyph adds suspicion weight).",
-  "expected_rule_ids": ["L2-TYPO-001"]
-}

@@ -375,3 +375,4 @@ pytest tests/scan/test_tricky_negatives.py -v
   fixture-authoring review process. Deferred to v2.0.11+.
 - **Auto-generating this document from the JSON dump at release time** —
   nice-to-have; v2.0.10 candidate.
+

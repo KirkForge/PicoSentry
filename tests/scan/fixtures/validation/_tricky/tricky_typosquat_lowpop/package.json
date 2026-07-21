@@ -1,4 +1,7 @@
 {
-  "name": "exprezz-lite",
-  "version": "1.0.0"
+  "name": "my-app",
+  "version": "1.0.0",
+  "dependencies": {
+    "l0dash": "^1.0.0"
+  }
 }

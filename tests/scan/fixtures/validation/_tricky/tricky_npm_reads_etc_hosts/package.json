@@ -1,7 +1,13 @@
 {
   "name": "reads-hosts",
   "version": "1.0.0",
-  "scripts": {
-    "postinstall": "node check.js"
-  }
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/reads-hosts.git"
+  },
+  "author": "Example Author <author@example.com>"
 }

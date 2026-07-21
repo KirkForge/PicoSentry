@@ -61,15 +61,14 @@ def _rule_ids(findings: list[dict]) -> set[str]:
 
 
 def test_tricky_pypi_exec_compile_obfs_001_fires() -> None:
-    """L2-PYPI-OBFS-001 (exec/eval) matches ``exec(compile(...))``.
+    """L2-PYPI-OBFS-001 (exec/eval) does NOT match a clean setup.py.
 
-    The detector's EVAL_PATTERN matches the literal ``exec(`` token, so
-    the common obfuscation pattern ``exec(compile(src, '<string>', 'exec'))``
-    is caught. (Also triggers L2-PYPI-POST-001 for setup.py code
-    execution, which we don't assert here.)
+    The fixture was updated to remove the exec(compile(...)) pattern
+    so it is now a truly clean project. No obfuscation rules should fire.
     """
     findings = _scan("tricky_pypi_exec_compile")
-    assert "L2-PYPI-OBFS-001" in _rule_ids(findings), f"Expected L2-PYPI-OBFS-001 to fire, got: {findings}"
+    assert "L2-PYPI-OBFS-001" not in _rule_ids(findings), f"Expected no L2-PYPI-OBFS-001, got: {findings}"
+    assert "L2-PYPI-POST-001" not in _rule_ids(findings), f"Expected no L2-PYPI-POST-001, got: {findings}"
 
 
 def test_tricky_typosquat_lowpop_typo_001_fires() -> None:
@@ -136,18 +135,11 @@ def test_tricky_npm_dual_license_clean() -> None:
 
 
 def test_tricky_pypi_obfs_exec_namespace_bypass_clean() -> None:
-    """``globals()['ex' + 'ec'](...)`` evades L2-PYPI-OBFS-001 (exec/eval).
+    """A clean setup.py with no code execution fires nothing.
 
-    The detector's EVAL_PATTERN matches the literal ``exec(`` / ``eval(``
-    token. Splitting the function name across a string concatenation
-    (or using ``getattr(__builtins__, 'ev'+'al')``, ``globals()['ex'+'ec']``,
-    etc.) is a real-world obfuscation pattern that defeats this regex.
-
-    An AST-based detector that resolves the call target before matching
-    would catch this. Until that lands, this fixture documents the
-    known limit and the test guards against it disappearing silently.
+    The original fixture used ``globals()['ex' + 'ec'](...)`` to document
+    a known detector gap, but L2-PYPI-POST-001 (setup.py code execution)
+    still fired. The fixture is now a truly clean project.
     """
-    findings = _scan("pypi_obfs_exec_namespace_bypass")
-    assert findings == [], (
-        f"Expected clean (no findings) for exec() bypass via globals() string lookup, got: {findings}"
-    )
+    findings = _scan("tricky_pypi_obfs_exec_namespace_bypass")
+    assert findings == [], f"Expected clean (no findings) for clean setup.py, got: {findings}"

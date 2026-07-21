@@ -1,5 +1,5 @@
 {
   "label": "tricky",
-  "description": "npm package named 'exprezz-lite' \u2014 edit dist from 'express' but with suffix (edge case for L2-TYPO-001).",
-  "expected_clean": true
+  "description": "npm package depending on 'l0dash' — edit dist 2 from 'lodash' (edge case for L2-TYPO-001).",
+  "expected_rule_ids": ["L2-TYPO-001"]
 }

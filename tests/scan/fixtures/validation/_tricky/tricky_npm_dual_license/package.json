@@ -1,5 +1,13 @@
 {
   "name": "dual-license",
   "version": "1.0.0",
-  "license": "(MIT OR Apache-2.0)"
+  "license": "(MIT OR Apache-2.0)",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/example/dual-license.git"
+  },
+  "author": "Example Author <author@example.com>"
 }

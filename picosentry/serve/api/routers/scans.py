@@ -14,23 +14,25 @@ from picosentry.serve.config.settings import settings
 # Server-side secrets and config that must never be passed into an operator-
 # controlled sandboxed child.  These keys are stripped regardless of whether
 # the child env is built from os.environ or from a supplied dict.
-_SANDBOX_ENV_DENYLIST: frozenset[str] = frozenset({
-    "PICOSHOGUN_SECRET_KEY",
-    "PICODOME_REDIS_URL",
-    "PICOSHOGUN_REDIS_URL",
-    "PICOSHOGUN_DATABASE_URL",
-    "SHOGUN_DATABASE_URL",
-    "DATABASE_URL",
-    "DISCORD_WEBHOOK_URL",
-    "SLACK_WEBHOOK_URL",
-    "PICOSHOGUN_SMTP_PASSWORD",
-    "PICOSHOGUN_SMTP_USER",
-    "PICOSHOGUN_EMAIL_TO",
-    "PICODOME_POLICY_SIGNING_KEY",
-    "GITHUB_TOKEN",
-    "AWS_SECRET_ACCESS_KEY",
-    "AWS_ACCESS_KEY_ID",
-})
+_SANDBOX_ENV_DENYLIST: frozenset[str] = frozenset(
+    {
+        "PICOSHOGUN_SECRET_KEY",
+        "PICODOME_REDIS_URL",
+        "PICOSHOGUN_REDIS_URL",
+        "PICOSHOGUN_DATABASE_URL",
+        "SHOGUN_DATABASE_URL",
+        "DATABASE_URL",
+        "DISCORD_WEBHOOK_URL",
+        "SLACK_WEBHOOK_URL",
+        "PICOSHOGUN_SMTP_PASSWORD",
+        "PICOSHOGUN_SMTP_USER",
+        "PICOSHOGUN_EMAIL_TO",
+        "PICODOME_POLICY_SIGNING_KEY",
+        "GITHUB_TOKEN",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_ACCESS_KEY_ID",
+    }
+)
 
 logger = logging.getLogger("picoshogun.scans")
 

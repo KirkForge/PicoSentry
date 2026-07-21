@@ -13,6 +13,12 @@ sys.path, so the package's parent must be on the path, not the package.
 import os
 from pathlib import Path
 
+# Disable OTel exporter in pytest runs to prevent "Connection refused" noise
+# from the OTLP exporter trying to connect to localhost:4317 when no collector
+# is running. This must be set before any picosentry modules are imported.
+os.environ.setdefault("OTEL_EXPORTER_OTLP_ENDPOINT", "")
+os.environ.setdefault("PICOWATCH_OTEL_ENDPOINT", "")
+
 # Add the project root (parent of the picosentry/ package dir) to PYTHONPATH so
 # that `python -m picosentry` works in subprocess calls even without
 # `pip install -e .`.  In-process imports are handled by pyproject.toml's

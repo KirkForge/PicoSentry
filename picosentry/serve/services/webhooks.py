@@ -128,8 +128,11 @@ class WebhookManager:
 
         # Pin the IPs that passed the SSRF check.  Re-resolve at dispatch time
         # only to verify the address is still in the pinned set.
+        hostname = urlparse(url).hostname
+        if not hostname:
+            raise ValueError("Webhook URL rejected: URL has no hostname")
         resolve = self.dns_resolver or _resolve_hostname
-        pinned_ips = resolve(urlparse(url).hostname) or []
+        pinned_ips = resolve(hostname) or []
         if not pinned_ips:
             raise ValueError("Webhook URL rejected: no resolvable IPs")
 
@@ -184,6 +187,12 @@ class WebhookManager:
                 # controls the hostname cannot change the answer between
                 # registration and dispatch.
                 parsed = urlparse(webhook.url)
+                if not parsed.hostname:
+                    logger.warning("Webhook %s rejected: URL has no hostname", name)
+                    results.append(
+                        {"webhook": name, "status": 0, "success": False, "error": "Webhook URL has no hostname"}
+                    )
+                    continue
                 current_ips = set(_resolve_hostname(parsed.hostname) or [])
                 allowed_ips = set(webhook.pinned_ips or [])
                 if webhook.pinned_ips is not None and not current_ips.issubset(allowed_ips):

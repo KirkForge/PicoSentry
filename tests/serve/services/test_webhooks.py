@@ -51,6 +51,23 @@ class TestWebhookURLSafety:
         assert ok is False
         assert "Cannot resolve" in reason
 
+    def test_scheme_only_url_rejected(self):
+        ok, reason = _is_safe_webhook_url("http://")
+        assert ok is False
+        assert "hostname" in reason.lower()
+
+
+class TestWebhookManagerCreate:
+    """WebhookManager.create() must reject malformed URLs with a clean error."""
+
+    def test_create_rejects_scheme_only_url(self):
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        try:
+            manager.create("bad-hook", "http://", ["alert"])
+            assert False, "Expected ValueError"
+        except ValueError as e:
+            assert "hostname" in str(e).lower()
+
 
 class TestWebhookDispatch:
     """Dispatch must tolerate request failures without leaking internal errors."""

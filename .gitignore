@@ -76,3 +76,6 @@ state.md
 .picodome/
 .picodome/
 
+# Runtime backup directories (production DB + logs — one git add . away from a leak)
+picosentry/serve/backups/temp_*/
+

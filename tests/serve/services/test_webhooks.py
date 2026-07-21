@@ -62,11 +62,10 @@ class TestWebhookManagerCreate:
 
     def test_create_rejects_scheme_only_url(self):
         manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
-        try:
+        import pytest
+
+        with pytest.raises(ValueError, match="hostname"):
             manager.create("bad-hook", "http://", ["alert"])
-            assert False, "Expected ValueError"
-        except ValueError as e:
-            assert "hostname" in str(e).lower()
 
 
 class TestWebhookDispatch:

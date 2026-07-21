@@ -1,1383 +1,5772 @@
 {
-  "total_fixtures": 188,
-  "total_positive": 150,
-  "total_negative": 38,
-  "mean_precision": 1.0,
-  "mean_recall": 1.0,
-  "rule_metrics": [
-    {
-      "rule_id": "L2-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-BUILD-001",
-      "true_positives": 5,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-BUND-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CAMP-AXIOS-POISONING",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CAMP-NODE-IPC-COMPROMISE",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CAMP-SHAI-HULUD",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CAMP-TRAPDOOR",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CARGO-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CARGO-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CARGO-TYPO-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-CRED-001",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-ENGIN-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-FORK-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-GO-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-GO-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-GO-TYPO-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-IOC-001",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-LICENSE-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-LOCK-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MAINT-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MANI-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MANI-002",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MAVEN-ADV-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MAVEN-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-MAVEN-TYPO-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-NETEX-001",
-      "true_positives": 5,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-NUGET-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-NUGET-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-NUGET-TYPO-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-OBFS-001",
-      "true_positives": 5,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-OBFS-002",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-OBFS-003",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-OBFS-004",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PNPM-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-POST-001",
-      "true_positives": 11,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PROV-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-DEPC-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-001",
-      "true_positives": 5,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-002",
-      "true_positives": 6,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-003",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-004",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-005",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-006",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-OBFS-007",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-POST-001",
-      "true_positives": 2,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-PYPI-TYPO-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-RUBYGEMS-ADV-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-RUBYGEMS-DEPC-001",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-RUBYGEMS-TYPO-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-SIDELOAD-001",
-      "true_positives": 1,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-TYPO-001",
-      "true_positives": 4,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    },
-    {
-      "rule_id": "L2-WORM-001",
-      "true_positives": 3,
-      "false_positives": 0,
-      "false_negatives": 0,
-      "precision": 1.0,
-      "recall": 1.0
-    }
-  ],
   "fixture_results": [
     {
+      "details": [],
       "fixture": "anonymous_npm_with_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "bundled_alt_spelling",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "camp_axios_poisoning",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "camp_node_ipc_compromise",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "camp_trapdoor_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "cargo_build_rs_download",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "cargo_build_rs_exec",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-CRED-001"
+      ],
+      "fixture": "credential_read_aws",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "credential_read_npmrc",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-CRED-001"
+      ],
+      "fixture": "credential_read_ssh",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
       "fixture": "cve_cargo_serde_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-CARGO-ADV-001"
+      ],
       "fixture": "cve_cargo_serde_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-GO-ADV-001"
+      ],
       "fixture": "cve_go_jwt_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-GO-ADV-001"
+      ],
       "fixture": "cve_go_jwt_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "cve_maven_log4j_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-MAVEN-ADV-001"
+      ],
+      "fixture": "cve_maven_log4j_transitive",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-ADV-001"
+      ],
       "fixture": "cve_npm_lodash_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-ADV-001"
+      ],
       "fixture": "cve_npm_lodash_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "cve_nuget_newtonsoft_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-NUGET-ADV-001"
+      ],
       "fixture": "cve_nuget_newtonsoft_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PYPI-ADV-001"
+      ],
       "fixture": "cve_pypi_django_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PYPI-ADV-001"
+      ],
       "fixture": "cve_pypi_django_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-RUBYGEMS-ADV-001"
+      ],
       "fixture": "cve_rubygems_rack_range_overlap",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-RUBYGEMS-ADV-001"
+      ],
       "fixture": "cve_rubygems_rack_transitive",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "dep_confusion_cargo_acme",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_go_internal",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_maven_internal",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_npm_internal_scope",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_nuget_internal",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_pypi_internal",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
-      "fixture": "dep_confusion_rubygems_internal",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
+      "details": [],
       "fixture": "depc_cargo_company_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_cargo_corp_utils",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_cargo_org_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_go_acme_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_go_corp_utils",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_go_org_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-MAVEN-DEPC-001"
+      ],
       "fixture": "depc_maven_acme_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-MAVEN-DEPC-001"
+      ],
       "fixture": "depc_maven_corp_utils",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-MAVEN-DEPC-001"
+      ],
       "fixture": "depc_maven_org_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-DEPC-001"
+      ],
       "fixture": "depc_npm_internal_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-DEPC-001"
+      ],
       "fixture": "depc_npm_internal_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "depc_npm_private_auth",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_nuget_acme_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_nuget_corp_internal",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "depc_nuget_org_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-PYPI-DEPC-001"
+      ],
       "fixture": "depc_pypi_company_billing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PYPI-DEPC-001"
+      ],
       "fixture": "depc_pypi_corp_utils",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PYPI-DEPC-001"
+      ],
       "fixture": "depc_pypi_org_payments",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
+      "fixture": "depc_rubygems_internal",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "fork_drift_personal_repo",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "fork_patched_named",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "go_generate_download",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-BUILD-001"
+      ],
+      "fixture": "go_generate_exec",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
       "fixture": "ioc_event_stream_shadow",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "license_missing",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "license_see_license_in_license",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-LOCK-001"
+      ],
       "fixture": "lockfile_malformed",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "loose_engine_constraint_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "loose_manifest_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "maint_single_maintainer_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_cargo_build_rs",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_cargo_serde_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_go_generate",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_go_jwt_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_maven_exec_plugin",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_maven_log4j_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_bundled_dependencies",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_c2_shai_hulud",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_git_dep",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_install",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_lodash_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_obfuscated_js",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_preinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_npm_prepare",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_nuget_msbuild_target",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_nuget_newtonsoft_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_pnpm_dangerous",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_pypi",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_pypi_django_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_pypi_obfs_full",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_pypi_poetry_subprocess",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_rubygems_extconf",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "malicious_rubygems_rack_cve",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "mani_latest_tag",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-MANI-002"
+      ],
       "fixture": "mani_optional_dep_lifecycle",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-BUILD-001"
+      ],
+      "fixture": "maven_exec_plugin",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-BUILD-001"
+      ],
+      "fixture": "maven_exec_shell",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
       "fixture": "missing_lockfile_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "missing_repo_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "netex_c2_shai_hulud_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "details": [
+        "missing:L2-NETEX-001"
+      ],
+      "fixture": "netex_c2_shai_hulud",
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-NETEX-001"
+      ],
       "fixture": "netex_env_exfil_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "netex_imds_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "npm_command_injection_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_command_injection",
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-ENGIN-001"
+      ],
       "fixture": "npm_engin_typo",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-OBFS-003"
+      ],
       "fixture": "npm_obfs_b64_atob_eval",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-OBFS-003"
+      ],
       "fixture": "npm_obfs_b64_function",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-OBFS-003"
+      ],
       "fixture": "npm_obfs_base64_exec",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "npm_obfs_eval",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
+      "details": [],
       "fixture": "npm_obfs_eval_in_block",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "npm_obfs_eval_in_script",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "npm_obfs_function_constructor",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "npm_obfs_hex",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_obfs_hex_encoded",
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "npm_obfs_hex_longer",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-OBFS-002"
+      ],
       "fixture": "npm_obfs_hex_single_quotes",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "npm_obfs_unicode",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_obfs_unicode_escape",
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "npm_obfs_unicode_longer",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-OBFS-004"
+      ],
       "fixture": "npm_obfs_unicode_single_quotes",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "npm_proto_pollution_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_preinstall",
+      "outcome": "PASS"
     },
     {
-      "fixture": "npm_regex_dos_manifest",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_prepare",
+      "outcome": "PASS"
     },
     {
-      "fixture": "npm_ssrf_postinstall",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "npm_proto_pollution",
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "npm_regex_dos",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "npm_ssrf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "nuget_msbuild_download",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-BUILD-001"
+      ],
+      "fixture": "nuget_msbuild_target",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-PNPM-001"
+      ],
       "fixture": "pnpm_overrides_github",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PNPM-001"
+      ],
       "fixture": "pnpm_proto_pollution_hook",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PROV-001"
+      ],
       "fixture": "prov_non_github_repo",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "pypi_obfs_b64_exec",
-      "outcome": "PASS",
-      "details": []
+      "details": [
+        "missing:L2-PYPI-OBFS-007"
+      ],
+      "fixture": "pypi_obfs_b64_decode_exec",
+      "outcome": "FAIL"
     },
     {
+      "details": [],
       "fixture": "pypi_obfs_b64_exec_close",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "pypi_obfs_b64decodestring",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "pypi_obfs_b64import_dec",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "pypi_obfs_base64_decode",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
+      "details": [
+        "missing:L2-PYPI-OBFS-004"
+      ],
       "fixture": "pypi_obfs_chr_longer",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "pypi_obfs_eval",
-      "outcome": "PASS",
-      "details": []
-    },
-    {
+      "details": [],
       "fixture": "pypi_obfs_eval_compile",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "pypi_obfs_hex",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "pypi_obfs_eval_direct",
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-PYPI-OBFS-003"
+      ],
+      "fixture": "pypi_obfs_hex_decode",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
       "fixture": "pypi_obfs_hex_single",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "pypi_obfs_marshal",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "pypi_obfs_marshal_direct",
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "pypi_obfs_marshal_load",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "pypi_obfs_ord_chain",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [
+        "missing:L2-PYPI-OBFS-003"
+      ],
       "fixture": "pypi_obfs_unhexlify_eval",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
-      "fixture": "pypi_obfs_unicode",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "pypi_obfs_unicode_arithmetic",
+      "outcome": "PASS"
     },
     {
-      "fixture": "pypi_obfs_zlib",
-      "outcome": "PASS",
-      "details": []
+      "details": [
+        "missing:L2-PYPI-OBFS-005"
+      ],
+      "fixture": "pypi_obfs_zlib_decompress",
+      "outcome": "FAIL"
     },
     {
+      "details": [
+        "missing:L2-PYPI-OBFS-005"
+      ],
       "fixture": "pypi_obfs_zlib_double",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "FAIL"
     },
     {
+      "details": [],
+      "fixture": "pypi_poetry_subprocess",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "pypi_setup_exec",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "pypi_setup_subprocess",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "pypi_setup_urlopen",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "rubygems_extconf_download",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "rubygems_extconf_exec",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "shai_hulud_named_signature",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_cargo_actix_webb",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "sideload_file_protocol",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_cargo_cl4p",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "sideload_git_protocol",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_cargo_reqwast",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "sideload_github_direct",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_cargo_serd3",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0and",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_go_cobraa",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0anyhow",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_go_g0rm",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0axum",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_go_gim",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0ayon",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_go_gogin",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0chrono",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_maven_gs0n",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0clap",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_maven_junnit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0diesel",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_npm_exprezz",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0egex",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_npm_l0dash",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0eqwest",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_npm_m0ment",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0erde",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_npm_reactt",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0futures",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_nuget_m0oq",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0hiserror",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_nuget_newtonsof",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0hrono",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_nuget_newtonsot",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0hyper",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_nuget_nun1t",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0iesel",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_pypi_djang0",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0lap",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_pypi_fl4sk",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0nyhow",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_pypi_numpt",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0ocket",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_pypi_requestt",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0okio",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_rubygems_d3vise",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0ower",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_rubygems_devvise",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0qlx",
+      "outcome": "PASS"
     },
     {
-      "fixture": "typosquat_rubygems_rai1s",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "typosquat_cargo_0racing",
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "typosquat_cargo_0rand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0rayon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0regex",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0reqwest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0rocket",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0serde",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0sqlx",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0thiserror",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0tokio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0tower",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0tracing",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0utures",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0xum",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_0yper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_aatixaweb",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_aatixbweb",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_aazyastatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_cargo_aazybstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0ap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0buffalo",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0cho",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0cobra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0echo",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0egroni",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0evel",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0fiber",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0gin",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0gorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0iber",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-GO-TYPO-001"
+      ],
+      "fixture": "typosquat_go_0icro",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0in",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0iper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0it",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0kit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-GO-TYPO-001"
+      ],
+      "fixture": "typosquat_go_0kratos",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0logrus",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-GO-TYPO-001"
+      ],
+      "fixture": "typosquat_go_0micro",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0mux",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0negroni",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0obra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0ogrus",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0orm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-GO-TYPO-001"
+      ],
+      "fixture": "typosquat_go_0ratos",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0revel",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0uffalo",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0ux",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0viper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_go_0zap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0affeine",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0amcrest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0assertj",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0caffeine",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0etty",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0gson",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0guava",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0hamcrest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0hibernate",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0ibernate",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0junit",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0lf4j",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0log4j",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0mockito",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0netty",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0ockito",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0og4j",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0slf4j",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0son",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0ssertj",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_0uava",
+      "outcome": "PASS"
+    },
+    {
+      "details": [
+        "missing:L2-MAVEN-TYPO-001"
+      ],
+      "fixture": "typosquat_maven_0unit",
+      "outcome": "FAIL"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aacksonadatabind",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aacksonbdatabind",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aafkaaclients",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aafkabclients",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aommonsaio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aommonsalang3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aommonsbio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_aommonsblang3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_apringaboot",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_maven_apringbboot",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0alidator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0args",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0assport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0async",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0axios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0bluebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0chalk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0commander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0cors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0debug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0dotenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0eact",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ebpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ebug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0emver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0equelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0equest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0eslint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0express",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0glob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0gulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0halk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0imraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0inquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0inston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0isarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0jsonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0lob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0lodash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0luebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0mocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0moment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0mongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0morgan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0nodemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0nquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0od",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0odash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0odemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0oment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ommander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0organ",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0otenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0passport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0prettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0puppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0qlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0react",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0request",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0rettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0rimraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0sarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0semver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0sequelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0slib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0slint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0sonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0sqlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0sync",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0tslib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0typeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0typescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0uid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0uppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0uuid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0validator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0webpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0winston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0xios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0xpress",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0yargs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ypeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0ypescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0zod",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_0zustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1alidator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1args",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1assport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1async",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1axios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1bluebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1chalk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1commander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1cors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1debug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1dotenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1eact",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ebpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ebug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1emver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1equelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1equest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1eslint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1express",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1glob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1gulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1halk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1imraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1inquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1inston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1isarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1jsonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1lob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1lodash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1luebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1mocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1moment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1mongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1morgan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1nodemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1nquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1od",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1odash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1odemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1oment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ommander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1organ",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1otenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1passport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1prettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1puppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1qlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1react",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1request",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1rettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1rimraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1sarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1semver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1sequelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1slib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1slint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1sonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1sqlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1sync",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1tslib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1typeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1typescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1uid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1uppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1uuid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1validator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1webpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1winston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1xios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1xpress",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1yargs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ypeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1ypescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1zod",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_1zustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2alidator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2args",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2assport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2async",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2axios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2bluebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2chalk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2commander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2cors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2debug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2dotenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2eact",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ebpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ebug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2emver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2equelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2equest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2eslint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2express",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2glob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2gulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2halk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2imraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2inquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2inston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2isarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2jsonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2lob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2lodash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2luebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2mocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2moment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2mongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2morgan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2nodemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2nquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2od",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2odash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2odemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2oment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ommander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2organ",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2otenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2passport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2prettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2puppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2qlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2react",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2request",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2rettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2rimraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2sarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2semver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2sequelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2slib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2slint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2sonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2sqlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2sync",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2tslib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2typeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2typescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2uid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2uppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2uuid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2validator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2webpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2winston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2xios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2xpress",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2yargs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ypeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2ypescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2zod",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_2zustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3alidator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3args",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3assport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3async",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3axios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3bluebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3chalk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3commander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3cors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3debug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3dotenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3eact",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ebpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ebug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3emver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3equelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3equest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3eslint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3express",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3glob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3gulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3halk",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3imraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3inquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3inston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3isarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3jsonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3lob",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3lodash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3luebird",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3mocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3moment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3mongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3morgan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3nodemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3nquirer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ocha",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3od",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3odash",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3odemon",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3oment",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ommander",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ongoose",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3organ",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3otenv",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3passport",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3prettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3puppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3qlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3react",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3request",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3rettier",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3rimraf",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3sarray",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3semver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3sequelize",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3slib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3slint",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3sonwebtoken",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3sqlite3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3sync",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3tslib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3typeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3typescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3uid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ulp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3uppeteer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3uuid",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3validator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3webpack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3winston",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3xios",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3xpress",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3yargs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ypeorm",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3ypescript",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3zod",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_3zustand",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_4qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_5qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_6qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_7qs",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactadom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactbdom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactcdom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactddom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactedom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactfdom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeactgdom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeacthdom",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectametadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectbmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectcmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectdmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectemetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectfmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflectgmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aeflecthmetadata",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aerveastatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervebstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervecstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervedstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aerveestatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervefstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervegstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aervehstatic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketaio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketbio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketcio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketdio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketeio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketfio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aocketgio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aockethio",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodeafetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodebfetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodecfetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodedfetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodeefetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodeffetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodegfetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodehfetch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodyaparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodybparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodycparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodydparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodyeparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodyfparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodygparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aodyhparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookieaparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiebparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiecparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiedparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookieeparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiefparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiegparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aookiehparser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourceamap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcebmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcecmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcedmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourceemap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcefmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcegmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aourcehmap",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropatypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropbtypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropctypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropdtypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropetypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropftypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aropgtypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_arophtypes",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_asaextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_asbextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_ascextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_asdextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_aseextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_asfextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_asgextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_ashextra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpaerrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpberrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpcerrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpderrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpeerrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpferrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpgerrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_attpherrors",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtadecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtbdecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtcdecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtddecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtedecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtfdecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awtgdecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_awthdecode",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatoaregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatobregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatocregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatodregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatoeregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatofregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatogregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_npm_pathatohregexp",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0AutoMapper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0BenchmarkDotNet",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Dapper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0EntityFramework",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0FluentValidation",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0MediatR",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Moq",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0NUnit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Npgsql",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Polly",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Refit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Serilog",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Swashbuckle",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0Unit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0apper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0ediatR",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0efit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0enchmarkDotNet",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0erilog",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0luentValidation",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0ntityFramework",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0olly",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0oq",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0pgsql",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0unit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0utoMapper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0washbuckle",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_0xunit",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_NawtonsoftaJson",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_nuget_NawtonsoftbJson",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0alembic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0andas",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0astapi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0atplotlib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0black",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0boto3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0celery",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0cipy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0click",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0coverage",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0django",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0elery",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ensorflow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0equests",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0erkzeug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0fastapi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0flask",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0gunicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0illow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0inja2",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0isort",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0jango",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0jinja2",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0lack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0lask",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0lembic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0lick",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0matplotlib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0mypy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0numpy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0orch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0oto3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0overage",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0pandas",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0pillow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0pydantic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0pytest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0qlalchemy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ransformers",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0requests",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ruff",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0scipy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0sort",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0sqlalchemy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0tensorflow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0torch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0transformers",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0uff",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0umpy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0unicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0uvicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0vicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0werkzeug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ydantic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ypy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_0ytest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1alembic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1andas",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1astapi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1atplotlib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1black",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1boto3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1celery",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1cipy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1click",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1coverage",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1django",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1elery",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ensorflow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1equests",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1erkzeug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1fastapi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1flask",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1gunicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1illow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1inja2",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1isort",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1jango",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1jinja2",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1lack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1lask",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1lembic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1lick",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1matplotlib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1mypy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1numpy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1orch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1oto3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1overage",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1pandas",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1pillow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1pydantic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1pytest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1qlalchemy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ransformers",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1requests",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ruff",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1scipy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1sort",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1sqlalchemy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1tensorflow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1torch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1transformers",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1uff",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1umpy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1unicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1uvicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1vicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1werkzeug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ydantic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ypy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_1ytest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2alembic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2andas",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2astapi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2atplotlib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2black",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2boto3",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2celery",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2cipy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2click",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2coverage",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2django",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2ensorflow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2equests",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2erkzeug",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2flask",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2gunicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2illow",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2inja2",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2isort",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2mypy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2numpy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2orch",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2pydantic",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2pytest",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2qlalchemy",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2ransformers",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2ruff",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_2uvicorn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_acikitalearn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_acikitblearn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_acikitclearn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_acikitdlearn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_pypi_acikitelearn",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0ack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0ails",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0aker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0aminari",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0ancancan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0aperclip",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0araday",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0arrierwave",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0cancancan",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0carrierwave",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0devise",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0edis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0evise",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0faker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0faraday",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0httparty",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0idekiq",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0inatra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0kaminari",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0nokogiri",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0okogiri",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0paperclip",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0pg",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0puma",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0rack",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0rails",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0redis",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0rspec",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0sidekiq",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0sinatra",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0spec",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0ttparty",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_0uma",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_1pg",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_aillapaginate",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "typosquat_rubygems_aillbpaginate",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "unlicensed_npm_package",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "worm_github_workflow_delete",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "worm_propagation_npm",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "worm_self_modify_package_json",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_cargo_build_rs",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_auth_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_cargo_lib",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_cache_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_cargo_trapdoor_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_config_loader",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_cargo_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_db_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_go_generate",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_file_watcher",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_go_module",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_http_client",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_go_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_logger_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_maven_exec_plugin",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_metrics_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_maven_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_queue_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_app",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_scheduler_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_axios_cdn",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_serializer",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_credential_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_signal_handler",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_internal_scope_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_task_runner",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_ioc_clean",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_validator_crate",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_license_mit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_cargo_clean_web_framework",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_lockfile_consistent",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-api-handler",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_manifest_clean",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-auth-handler",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_network_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-cache-client",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_node_ipc_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-config-reader",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_obfs_strings",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-db-accessor",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_pnpm_config_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-event-publisher",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_postinstall_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-file-watcher",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_shai_hulud_legit",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-graceful-shutdown",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_trapdoor_lookalike",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-health-endpoint",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-log-writer",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_unique_package_name",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-metrics-exporter",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_npm_with_internal_scope_private_registry",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-middleware-lib",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_nuget_msbuild_target",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-queue-consumer",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_nuget_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_go_clean-signal-handler",
+      "outcome": "PASS"
     },
     {
+      "details": [],
+      "fixture": "clean_go_clean-webserver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-audit-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-auth-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-cache-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-config-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-data-access",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-notification-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-queue-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-reporting-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-rest-api",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_maven_clean-scheduler-service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_api_server",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_array_utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_async_queue",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_auth_middleware",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_batch_processor",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_bulkhead_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_cache_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_circuit_breaker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_cli_tool",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_config_loader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_cors_handler",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_cron_job",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_csrf_protection",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_data_transformer",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_date_formatter",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_db_connector",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_debounce_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_email_service",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_env_loader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_error_handler",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_event_emitter",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_express_app",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_file_uploader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_health_checker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_http_router",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_i18n_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_interval_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_json_parser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_logger_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_memoize_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_metrics_collector",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_number_utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_object_utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_path_resolver",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_promise_utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_queue_worker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_rate_limiter",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_react_app",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_retry_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_scheduler_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_session_manager",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_stream_processor",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_string_formatter",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_template_engine",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_throttle_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_timeout_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_utility_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_validator_lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_web_app",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_npm_clean_yaml_reader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanAuthService",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanCacheLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanConfigLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanDataAccess",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanLoggerLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanMailerLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanParserLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanQueueLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanRestApi",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_nuget_CleanValidatorLib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "clean_obfs_compile_no_exec",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
+      "details": [],
       "fixture": "clean_pnpm_workspace_clean",
-      "outcome": "PASS",
-      "details": []
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_pypi_fixed_cve_version",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-assert-utils",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_pypi_lib",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-benchmark-utils",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_pypi_lib_obfs_full",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-collection-utils",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_pypi_obfs",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-compression-lib",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_pypi_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-config-parser",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_rubygems_extconf",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-crypto-utils",
+      "outcome": "PASS"
     },
     {
-      "fixture": "clean_rubygems_typosquat_unique",
-      "outcome": "PASS",
-      "details": []
+      "details": [],
+      "fixture": "clean_pypi_clean-csv-processor",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-data-processor",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-date-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-encoding-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-env-manager",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-file-handler",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-fixture-loader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-http-client",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-json-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-log-formatter",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-math-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-mock-generator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-net-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-path-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-profiler-lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-schema-validator",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-serialization-lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-string-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-test-helper",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-tracer-lib",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-type-checker",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-validator-utils",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-xml-parser",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_pypi_clean-yaml-loader",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_api_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_auth_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_cache_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_config_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_logger_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_mailer_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_parser_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_queue_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_validator_gem",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
+      "fixture": "clean_rubygems_clean_web_gem",
+      "outcome": "PASS"
     }
-  ]
+  ],
+  "mean_precision": 0.9444,
+  "mean_recall": 0.7379,
+  "rule_metrics": [
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 4,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.7333,
+      "rule_id": "L2-BUILD-001",
+      "true_positives": 11
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-BUND-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-AXIOS-POISONING",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-NODE-IPC-COMPROMISE",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-SHAI-HULUD",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CAMP-TRAPDOOR",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "rule_id": "L2-CARGO-ADV-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CARGO-DEPC-001",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-CARGO-TYPO-001",
+      "true_positives": 40
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "rule_id": "L2-CRED-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "rule_id": "L2-ENGIN-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-FORK-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-GO-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-GO-DEPC-001",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 4,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.8667,
+      "rule_id": "L2-GO-TYPO-001",
+      "true_positives": 26
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-IOC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-LICENSE-001",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "rule_id": "L2-LOCK-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MAINT-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-MANI-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rule_id": "L2-MANI-002",
+      "true_positives": 0
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "rule_id": "L2-MAVEN-ADV-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 3,
+      "false_positives": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rule_id": "L2-MAVEN-DEPC-001",
+      "true_positives": 0
+    },
+    {
+      "false_negatives": 14,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5625,
+      "rule_id": "L2-MAVEN-TYPO-001",
+      "true_positives": 18
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.6,
+      "rule_id": "L2-NETEX-001",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.6667,
+      "rule_id": "L2-NUGET-ADV-001",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NUGET-DEPC-001",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-NUGET-TYPO-001",
+      "true_positives": 30
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-OBFS-001",
+      "true_positives": 4
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "rule_id": "L2-OBFS-002",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 3,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.25,
+      "rule_id": "L2-OBFS-003",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "rule_id": "L2-OBFS-004",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-PNPM-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-POST-001",
+      "true_positives": 34
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "rule_id": "L2-PROV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-PYPI-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 3,
+      "false_positives": 0,
+      "precision": 0.0,
+      "recall": 0.0,
+      "rule_id": "L2-PYPI-DEPC-001",
+      "true_positives": 0
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-001",
+      "true_positives": 4
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-002",
+      "true_positives": 5
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.5,
+      "rule_id": "L2-PYPI-OBFS-003",
+      "true_positives": 2
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "rule_id": "L2-PYPI-OBFS-004",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-PYPI-OBFS-005",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-OBFS-006",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 1,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.75,
+      "rule_id": "L2-PYPI-OBFS-007",
+      "true_positives": 3
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-POST-001",
+      "true_positives": 22
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-PYPI-TYPO-001",
+      "true_positives": 150
+    },
+    {
+      "false_negatives": 2,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 0.3333,
+      "rule_id": "L2-RUBYGEMS-ADV-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-RUBYGEMS-DEPC-001",
+      "true_positives": 1
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-RUBYGEMS-TYPO-001",
+      "true_positives": 36
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-SIDELOAD-001",
+      "true_positives": 4
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-TYPO-001",
+      "true_positives": 440
+    },
+    {
+      "false_negatives": 0,
+      "false_positives": 0,
+      "precision": 1.0,
+      "recall": 1.0,
+      "rule_id": "L2-WORM-001",
+      "true_positives": 3
+    }
+  ],
+  "total_fixtures": 1041,
+  "total_negative": 142,
+  "total_positive": 899
 }

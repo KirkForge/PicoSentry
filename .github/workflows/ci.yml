@@ -302,7 +302,7 @@ jobs:
         run: docker buildx build --platform linux/arm64 --load -t picosentry:test-arm64 .
       - name: Verify arm64 image runs scan on a known-malicious fixture
         run: |
-          docker run --platform linux/arm64 --rm -v $PWD/tests/scan/fixtures/validation/positive/malicious_pypi:/fixture picosentry:test-arm64 scan /fixture --format json | python -c "import sys,json; d=json.load(sys.stdin); assert d['findings_count'] > 0, 'Expected findings on malicious fixture'; print(f'PASS: {d[\"findings_count\"]} findings on arm64')"
+          docker run --platform linux/arm64 --rm -v $PWD/tests/scan/fixtures/validation/positive/malicious_pypi:/fixture picosentry:test-arm64 scan /fixture --format json | python3 -c "import sys,json; d=json.load(sys.stdin); assert len(d['findings']) > 0, 'Expected findings on malicious fixture'; print(f'PASS: {len(d[\"findings\"])} findings on arm64')"
       - name: Verify arm64 image runs sandbox smoke
         run: |
           docker run --platform linux/arm64 --rm picosentry:test-arm64 sandbox --help > /dev/null && echo "PASS: sandbox --help on arm64" || echo "NOTE: sandbox --help may fail under QEMU emulation (seccomp arch mismatch) — this is expected; the release buildx bake builds natively"

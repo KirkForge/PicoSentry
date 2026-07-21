@@ -275,7 +275,7 @@ jobs:
           docker run --rm picosentry:test health
       - name: Verify sigstore is importable in the image
         run: |
-          docker run --rm picosentry:test python -c "import sigstore; print('sigstore', sigstore.__version__, 'available')"
+          docker run --entrypoint python --rm picosentry:test -c "import sigstore; print('sigstore', sigstore.__version__, 'available')"
       - name: Verify --sign sigstore fails predictably (missing identity, not missing tooling)
         run: |
           output=$(docker run --rm picosentry:test corpus export /tmp/test-pack.json --sign sigstore 2>&1 || true)

@@ -273,3 +273,18 @@ jobs:
         run: |
           docker run --rm picosentry:test --version
           docker run --rm picosentry:test health
+      - name: Verify sigstore is importable in the image
+        run: |
+          docker run --rm picosentry:test python -c "import sigstore; print('sigstore', sigstore.__version__, 'available')"
+      - name: Verify --sign sigstore fails predictably (missing identity, not missing tooling)
+        run: |
+          output=$(docker run --rm picosentry:test corpus export /tmp/test-pack.json --sign sigstore 2>&1 || true)
+          if echo "$output" | grep -qi "identity"; then
+            echo "PASS: sigstore signing fails on missing identity (expected in CI without OIDC token)"
+          elif echo "$output" | grep -qi "module.*not found\|ImportError.*sigstore"; then
+            echo "FAIL: sigstore package is missing from the image"
+            exit 1
+          else
+            echo "UNEXPECTED: $output"
+            exit 1
+          fi

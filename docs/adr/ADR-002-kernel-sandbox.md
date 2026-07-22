@@ -52,3 +52,18 @@ backend requires its own test matrix on ≥5.13 kernels plus a fallback path.
   arm64 scan is CI-verified (QEMU + native); arm64 sandbox is QEMU-verified
   with native-runner as a future hardening step. Unknown syscalls on a given
   arch are logged via the existing `EINVAL` handler in `add_rule_safely`.
+
+## Addendum (2026-07): Landlock backend implemented
+
+The implement option from the Correction section above has now been taken. A
+`LandlockBackend` exists at `picosentry/sandbox/l3/backends/landlock_backend.py`,
+using raw `ctypes` to call `landlock_create_ruleset(2)`, `landlock_add_rule(2)`,
+and `landlock_restrict_self(2)` — matching the existing seccomp `ctypes` style
+in `_seccomp_common.py`. Key properties:
+
+- **Kernel gate:** `_check_landlock_available()` checks `platform.uname().release >= 5.13` and returns a reason string on failure. The backend falls back to seccomp-only on kernels < 5.13 or non-Linux platforms.
+- **Fallback:** `LandlockBackend(fallback_to_seccomp=True)` (default) silently falls back to `SeccompBackend` when landlock is unavailable. Set `fallback_to_seccomp=False` to raise `LandlockUnavailable` instead.
+- **Registry:** `get_backend("landlock")` in `backends/__init__.py` returns a `LandlockBackend` if available, otherwise falls back to `SeccompBackend`.
+- **Tests:** `tests/sandbox/test_landlock_backend.py` validates kernel-version gate logic, fallback behavior, and arch-portable syscall number selection.
+- **CI matrix:** A `test-landlock` job is recommended on `ubuntu-24.04` (6.x kernel) to verify the landlock path, and on `ubuntu-22.04` (5.15 kernel) to verify seccomp-only fallback. `# ceiling: arm64 native sandbox CI blocked on runner availability`
+- **This is NOT a retraction of the Correction.** The Correction accurately documented that landlock was fiction at the time. This addendum records that the fiction is now real code with real tests.

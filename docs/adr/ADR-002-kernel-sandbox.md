@@ -43,3 +43,12 @@ backend requires its own test matrix on ≥5.13 kernels plus a fallback path.
 - seccomp-bpf is the only kernel sandbox; there is no filesystem path
   restriction layer beyond the child's CWD and the syscall allowlist.
 - Non-root container operation requires `CAP_SYS_ADMIN` or a privileged sidecar for seccomp filter installation.
+- **Arch-portability (2026-07 addendum):** seccomp filters are arch-portable by
+  construction — `resolve_syscall(lib, name, cache)` delegates name→number
+  resolution to libseccomp, which resolves per-arch at runtime. The core
+  allowlist syscalls (`read`, `write`, `openat`, `close`, `exit`,
+  `exit_group`, `rt_sigreturn`) are verified to resolve on all tested
+  architectures via `tests/sandbox/test_seccomp_common.py::TestArchPortability`.
+  arm64 scan is CI-verified (QEMU + native); arm64 sandbox is QEMU-verified
+  with native-runner as a future hardening step. Unknown syscalls on a given
+  arch are logged via the existing `EINVAL` handler in `add_rule_safely`.

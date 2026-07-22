@@ -95,9 +95,19 @@ jobs:
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       - name: Build and push multi-arch image
+        id: docker-push
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           docker buildx bake --set '*.tags=docker.io/kirkforge/picodome:v'"${TAG}" --push
+          DIGEST=$(docker buildx imagetools inspect "docker.io/kirkforge/picodome:v${TAG}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
+          echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
+
+      - name: Attest Docker image provenance
+        if: steps.docker-push.outputs.digest != ''
+        uses: actions/attest-build-provenance@v4
+        with:
+          subject-name: docker.io/kirkforge/picodome
+          subject-digest: ${{ steps.docker-push.outputs.digest }}
 
       - name: Verify image on Docker Hub
         run: |

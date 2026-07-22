@@ -310,7 +310,24 @@ class SeccompBackend(SandboxBackend):
         setup_lib(lib)
 
     def _build_filter(self, lib: ctypes.CDLL, policy: Policy) -> tuple:
+        import platform
+
         blocked: set[str] = set()
+
+        arch = platform.machine()
+        resolved_syscall_count = (
+            len(SAFE_SYSCALLS)
+            + len(NETWORK_SYSCALLS)
+            + len(FS_WRITE_SYSCALLS)
+            + len(FS_READ_SYSCALLS)
+            + len(PROCESS_SYSCALLS)
+        )
+        logger.info(
+            "seccomp filter: arch=%s resolved_syscall_count=%d policy_default=%s",
+            arch,
+            resolved_syscall_count,
+            policy.default_action.value if hasattr(policy.default_action, "value") else str(policy.default_action),
+        )
 
         if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL):
             default_action = SCMP_ACT_KILL_PROCESS

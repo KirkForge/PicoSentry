@@ -16,6 +16,7 @@ __all__ = [
     "_INTERNAL_ALL_PATTERNS",
     "_INTERNAL_EXTRA_PATTERNS",
     "_INTERNAL_PREFIX_PATTERNS",
+    "_MAVEN_INTERNAL_GROUP_PATTERNS",
     "_MAVEN_KNOWN_SAFE_ARTIFACTS",
     "_MAVEN_PUBLIC_GROUP_PREFIXES",
     "_NUGET_CONFIG",
@@ -45,6 +46,27 @@ _INTERNAL_EXTRA_PATTERNS = [
 ]
 
 _INTERNAL_ALL_PATTERNS = _INTERNAL_PREFIX_PATTERNS + _INTERNAL_EXTRA_PATTERNS
+
+_MAVEN_INTERNAL_GROUP_PATTERNS = [
+    r"\.acme\.|^acme\.|^com\.acme$",
+    r"\.corp\.|^corp\.|^com\.corp$",
+    r"\.company\.|^company\.|^com\.company$",
+    r"\.internal\.|^com\.internal\.|^io\.internal\.",
+    r"\.private\.|^com\.private\.|^io\.private\.",
+    r"\.local\.|^com\.local\.",
+    r"\.my\.|^com\.my\.",
+    r"^com\.acme\.",
+    r"^com\.corp\.",
+    r"^com\.company\.",
+    r"^com\.internal\.",
+    r"^com\.private\.",
+    r"^com\.local\.",
+    r"^com\.my\.",
+    r"^io\.acme\.|^io\.corp\.",
+    r"^net\.internal\.|^net\.private\.",
+    r"^com\.org$|^com\.org\.",
+    r"^org\.internal\.|^org\.private\.",
+]
 
 
 @dataclass(frozen=True)

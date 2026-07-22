@@ -75,7 +75,8 @@ picosentry/serve/logs/
 .picodome/
 
 # Runtime backup directories (production DB + logs — one git add . away from a leak)
-picosentry/serve/backups/temp_*/
+picosentry/serve/backups/*
+!picosentry/serve/backups/.gitkeep
 
 # --- Agent work files (per-session, not tracked) ---
 # NOTE: AGENTS.md and state.md are TRACKED — do not gitignore them.

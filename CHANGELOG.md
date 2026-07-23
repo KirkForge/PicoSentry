@@ -4,6 +4,14 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Added
+- `docs/PENTEST-README.md`: pentest engagement guide (checklist, scope, firm selection, sharing protocol, findings template, triage workflow)
+- Corpus expanded from 1048 to 1855 JSON fixtures (1094 pos / 157 neg / 7 tricky)
+- Maven typosquat fixtures: 41→131, CVE: 2→9, DEPC: 3→8, BUILD: 2→5, negative: 10→15
+- NuGet typosquat fixtures: 39→68, CVE: 2→4, DEPC: 3→6, negative: 10→15
+- RubyGems typosquat fixtures: 43→69, CVE: 2→4, DEPC: 1→4, negative: 10→15
+- Sigstore E2E verification evidence documented for v2.0.18 release (wheel + sdist signed, SLSA provenance verified)
+
 ### Enterprise: distributed Redis rate-limit backend
 
 - New `PICOSHOGUN_RATE_LIMIT_BACKEND=redis` option for `picosentry serve`,

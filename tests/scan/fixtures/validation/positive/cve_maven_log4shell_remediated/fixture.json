@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on org.apache.logging.log4j:log4j-core:2.14.1 (CVE-2021-44228: Log4Shell (unpatched log4j 2.14.1), fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

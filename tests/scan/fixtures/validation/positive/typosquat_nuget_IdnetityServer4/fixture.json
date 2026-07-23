@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "NuGet project depending on 'IdnetityServer4' \u2014 edit dist <=2 from 'IdentityServer4' (fires L2-NUGET-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-TYPO-001"
+  ]
+}

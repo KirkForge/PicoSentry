@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on org.yaml:snakeyaml:1.30 (CVE-2022-1471: SnakeYAML RCE (unsafe deserialization), fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

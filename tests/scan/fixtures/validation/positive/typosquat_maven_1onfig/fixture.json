@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact '1onfig' \u2014 edit dist <=2 from 'config' (Spring Cloud Config) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

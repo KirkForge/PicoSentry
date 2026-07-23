@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "NuGet project depending on Internal.Crypto without private source (fires L2-NUGET-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-DEPC-001"
+  ]
+}

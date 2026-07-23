@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "Maven project using antrun-plugin to execute arbitrary shell commands during build. Fires L2-BUILD-001.",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ],
+  "strict": true
+}

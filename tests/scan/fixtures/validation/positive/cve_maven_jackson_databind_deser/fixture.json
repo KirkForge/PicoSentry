@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on com.fasterxml.jackson.core:jackson-databind:2.9.10 (CVE-2020-25649: Jackson Databind deserialization RCE, fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

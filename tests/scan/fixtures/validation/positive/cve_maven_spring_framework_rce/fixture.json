@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on org.springframework:spring-webmvc:5.3.17 (CVE-2022-22965: Spring Framework RCE (Spring4Shell), fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

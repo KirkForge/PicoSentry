@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on org.springframework.security.oauth:spring-security-oauth2:2.5.1 (CVE-2024-22234: Spring Security OAuth2 RCE, fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

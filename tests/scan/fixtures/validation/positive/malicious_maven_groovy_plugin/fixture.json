@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "Maven project using GMaven2 to execute Groovy scripts inline. Fires L2-BUILD-001.",
+  "expected_rule_ids": [
+    "L2-BUILD-001"
+  ],
+  "strict": true
+}

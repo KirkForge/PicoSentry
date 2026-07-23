@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on org.apache.commons:commons-text:1.9 (CVE-2022-42889: Apache Commons Text RCE (Text4Shell), fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

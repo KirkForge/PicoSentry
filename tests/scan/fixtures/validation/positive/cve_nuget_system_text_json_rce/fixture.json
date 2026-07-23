@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "NuGet project depending on System.Text.Json 8.0.0 (CVE-2024-30105: .NET System.Text.Json RCE, fires L2-NUGET-ADV-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-ADV-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact '0esilience4j' \u2014 edit dist <=2 from 'resilience4j' (Resilience4j) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

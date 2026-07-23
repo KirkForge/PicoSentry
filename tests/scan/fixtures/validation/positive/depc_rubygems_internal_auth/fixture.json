@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem depending on internal_auth without private source (fires L2-RUBYGEMS-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-DEPC-001"
+  ]
+}

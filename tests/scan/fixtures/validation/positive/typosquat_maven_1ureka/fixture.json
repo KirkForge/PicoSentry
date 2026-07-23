@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact '1ureka' \u2014 edit dist <=2 from 'eureka' (Eureka Client) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

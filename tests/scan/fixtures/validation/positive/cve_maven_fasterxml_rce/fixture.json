@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on com.fasterxml.jackson.core:jackson-databind:2.13.4 (CVE-2022-42003: FasterXML Jackson Databind RCE, fires L2-MAVEN-ADV-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

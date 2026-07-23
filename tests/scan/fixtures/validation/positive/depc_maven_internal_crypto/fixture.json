@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven project depending on com.internal:crypto-utils:1.3.0 without private repo (fires L2-MAVEN-DEPC-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-DEPC-001"
+  ]
+}

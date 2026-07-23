@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem depending on sidekiq 6.4.0 (CVE-2024-22190: Sidekiq RCE via Web UI, fires L2-RUBYGEMS-ADV-001).",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-ADV-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "NuGet project depending on Newtonsoft.Json 13.0.1 (CVE-2024-21907: Newtonsoft.Json deserialization DoS, fires L2-NUGET-ADV-001).",
+  "expected_rule_ids": [
+    "L2-NUGET-ADV-001"
+  ]
+}

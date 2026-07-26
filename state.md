@@ -3,9 +3,20 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `3f8af02` (main)
+- Head: `a6caa7fc` (main)
 - Tests: 4248+ scan tests pass, corpus 4163 JSON files (2827 pos / 187 neg)
-- Last updated: 2026-07-25
+- Last updated: 2026-07-26
+
+## ACTION REQUIRED before next release
+
+**Docker Hub secrets are missing.** The cosign signing step in `.github/workflows/release.yml` will fail at Docker Hub login until these are added:
+
+1. Go to **GitHub repo → Settings → Secrets and variables → Actions**
+2. Add repository secret: `DOCKERHUB_USERNAME` = your Docker Hub username
+3. Add repository secret: `DOCKERHUB_TOKEN` = a Docker Hub access token (not your password — create one at https://hub.docker.com/settings/security)
+4. After adding, push a new `v*` tag to re-trigger the release workflow and verify both `release` and `docker` jobs pass
+
+This is the only blocker between current state and a clean A-grade release.
 
 ## Session 2026-07-25 changes
 

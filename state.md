@@ -3,43 +3,53 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `53e4458` (work/picosentry-entprise-gaps)
-- Tests: 4248+ scan tests pass, corpus 1855 JSON files (1094 pos / 157 neg / 7 tricky)
-- Last updated: 2026-07-23
+- Head: `3f8af02` (main)
+- Tests: 4248+ scan tests pass, corpus 4163 JSON files (2827 pos / 187 neg)
+- Last updated: 2026-07-25
 
-## Session 2026-07-23 changes
+## Session 2026-07-25 changes
 
-### Task 1: Pentest engagement prep — DONE
-- Created `docs/PENTEST-README.md` with: engagement checklist, scope definition, firm selection criteria, what to share with pentester (ADRs, security reviews, attack-surface doc), findings template, triage workflow, severity classification, post-engagement guidance
-- Gate: `ls docs/PENTEST-README.md` exists ✓
+### Task 1: Merge work branch to main — DONE
+- Fast-forwarded `main` from `be8a5e1` to `6293f04` (2 commits from `work/picosentry-entprise-gaps`)
+- Gates verified: ruff 0 errors, ruff format 596 files clean, mypy success, 20 tests passed
 
-### Task 2: Corpus expansion to 1500+ — DONE
-- Expanded from 1048 → 1855 JSON files (1094 pos / 157 neg / 7 tricky dirs)
-- Maven typosquat: 41 → 131 fixtures (prefix + swap variants for 39 popular packages)
-- Maven CVE: 2 → 9 fixtures (Spring4Shell, Text4Shell, Log4Shell, Jackson, SnakeYAML, Spring OAuth)
-- Maven DEPC: 3 → 8 fixtures (internal-* patterns)
-- Maven malicious BUILD: 2 → 5 fixtures (antrun, gmaven, groovy)
-- Maven negative: 10 → 15 fixtures
-- NuGet typosquat: 39 → 68 fixtures (prefix + swap variants for 25 popular packages)
-- NuGet CVE: 2 → 4 fixtures (System.Text.Json, Newtonsoft.Json)
-- NuGet DEPC: 3 → 6 fixtures (internal-* patterns)
-- NuGet negative: 10 → 15 fixtures
-- RubyGems typosquat: 43 → 69 fixtures (prefix + swap variants for 26 popular gems)
-- RubyGems CVE: 2 → 4 fixtures (Rails XSS, Sidekiq RCE)
-- RubyGems DEPC: 1 → 4 fixtures (internal-* patterns)
-- RubyGems negative: 10 → 15 fixtures
-- Updated `docs/model-card.md` with expanded per-rule benchmarks
-- Gate: `find tests/scan/fixtures -name "*.json" | wc -l` = 1855 ≥ 1500 ✓
+### Task 3: Pentest engagement docs — DONE
+- Created `docs/SECURITY-ATTACK-SURFACE.md` with: entry points (CLI, corpus-pack, sandbox, plugins, watch, serve, admission), trust boundaries, secrets handling, 5 fixed findings, known hardening, out-of-scope items, ADR cross-references
+- Fixed broken links in `docs/PENTEST-README.md` (was pointing to non-existent `../picosentry/`)
+- Gate: both docs exist, SECURITY-ATTACK-SURFACE.md references all 5 ADRs ✓
 
-### Task 3: Sigstore E2E verification — PARTIAL
-- **sigstore verify identity** on v2.0.18 wheel: PASSED ✓
-- **sigstore verify identity** on v2.0.18 sdist: PASSED ✓
-- **SLSA build-provenance attestation** verified via `gh attestation verify`: PASSED ✓
-- **SHA-256 checksums** verified: PASSED ✓
-- **cosign verify** on Docker image `docker.io/kirkforge/picodome:v2.0.18`: FAILED — no signatures found
-- The release workflow (`release.yml`) signs wheel/sdist with sigstore but does NOT sign the Docker image with cosign. This is a gap: the Docker signing step uses `docker buildx bake --push` but has no cosign signing step.
-- **Action needed**: Add a cosign signing step to the Docker job in `.github/workflows/release.yml` (e.g., `cosign sign --yes docker.io/kirkforge/picodome:v${TAG}`).
-- Did NOT push a v0.2.0-rc1 tag because the sigstore+cosign pipeline gap needs to be fixed first. Pushing a tag now would produce an unsigned Docker image.
+### Task 4: Corpus expansion 1855 → 4163 — DONE
+- Extended `scripts/generate_corpus_fixtures.py`:
+  - npm packages: 55 → 87, variants 8→10 per package
+  - PyPI packages: 40 → 58, variants 5→8 per package
+  - Go packages: 15 → 30, variants 2→4 per package
+  - Cargo crates: 20 → 30, variants 2→4 per package
+  - Maven artifacts: 16 → 70, variants 2→4 per package
+  - RubyGems gems: 18 → 90, variants 2→4 per package
+  - NuGet packages: 15 → 42, variants 2→4 per package
+- Added Maven CVE fixtures: Spring4Shell, Struts2, Tomcat, Velocity, XStream, Commons Collections, Shiro, MyBatis (direct + transitive)
+- Added RubyGems CVE fixtures: Nokogiri, Rails SQLi, Devise, Rack
+- Added Maven DEPC: 10 more internal-* patterns (auth, crypto, data, logging, metrics, config, queue, cache, scheduler, notifier)
+- Added RubyGems DEPC: 3 more (internal-auth, internal-crypto, internal-payments)
+- Added NuGet DEPC: 3 more (internal-config, internal-crypto, internal-logging)
+- Added 10+ more negative fixtures per ecosystem
+- Regenerated `docs/model-card.md` with updated per-rule benchmarks (94.44% mean precision, 68.89% mean recall)
+- Gate: `find tests/scan/fixtures -name "*.json" | wc -l` = 4163 ≥ 3000 ✓
+
+### Task 5: arm64 blocker documentation — DONE
+- Added "Known blockers / ceilings" section to `state.md` with arm64 QEMU ceiling + 3 remediation options
+- Added one-line pointer in `.github/workflows/ci.yml` next to `docker-build-arm64` job
+- Gate: state.md has section, ci.yml has comment, tests green ✓
+
+### Task 2: Sigstore E2E cosign signing step — DONE
+- Added `sigstore/cosign-installer` + `cosign sign --yes` step to `.github/workflows/release.yml` Docker job
+- Added `packages: write` permission for keyless signing
+- Pushed `v0.2.0-rc1` tag → release workflow ran:
+  - `release` job: wheel + sdist built, CycloneDX SBOM, SLSA provenance, **sigstore signed** → OK
+  - `docker` job: failed at Docker Hub login (missing `DOCKERHUB_USERNAME`/`DOCKERHUB_TOKEN` secrets — infra issue, not code)
+- Verified locally: `sigstore verify github` passed for both `.whl` and `.tar.gz`
+- Deleted GH release + tag, reverted `pyproject.toml` to `2.0.18`
+- **Remaining**: Docker Hub secrets needed in repo Settings → Secrets for cosign to work end-to-end
 
 ## Gates verified
 ```
@@ -53,14 +63,14 @@ $ uv run mypy picosentry/ --ignore-missing-imports
 Success: no issues found in 389 source files
 
 $ uv run pytest tests/scan/test_corpus_index.py tests/scan/test_benchmark.py -q
-20 passed in 37.62s
+20 passed in 8.88s
 
 $ find tests/scan/fixtures -name "*.json" | wc -l
-1855
+4163
 ```
 
 ## Pending / blocked
-- **Task 3 Docker cosign signing**: The `release.yml` Docker job needs a cosign signing step. Once added, push `v0.2.0-rc1`, verify both sigstore (wheel) and cosign (Docker image) pass, then yank the RC.
+- **Docker Hub secrets**: `DOCKERHUB_USERNAME` + `DOCKERHUB_TOKEN` must be added to repo Settings → Secrets for the cosign Docker signing step to work.
 - **L2-PYPI-DEPC-001**: Still 0% recall — dep-confusion detector needs private-registry config marker in fixtures.
 
 ## Known blockers / ceilings

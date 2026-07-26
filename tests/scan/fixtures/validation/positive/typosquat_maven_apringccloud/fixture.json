@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact 'apringccloud' \u2014 edit dist <=2 from 'spring-cloud' (top Maven) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

@@ -82,6 +82,7 @@ jobs:
     permissions:
       contents: read
       id-token: write   # docker/login-action with OIDC if registry supports it
+      packages: write   # cosign keyless signing via Sigstore OIDC
     steps:
       - uses: actions/checkout@v7
 
@@ -98,6 +99,14 @@ jobs:
         run: |
           TAG="${GITHUB_REF_NAME#v}"
           docker buildx bake --set '*.tags=docker.io/kirkforge/picodome:v'"${TAG}" --push
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@v3
+
+      - name: Sign Docker image with cosign (keyless, OIDC)
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          cosign sign --yes "docker.io/kirkforge/picodome:v${TAG}"
 
       - name: Verify image on Docker Hub
         run: |

@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Go module named 'aoboauth2' \u2014 edit dist <=2 from 'go-oauth2' (top Go) (fires L2-GO-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-GO-TYPO-001"
+  ]
+}

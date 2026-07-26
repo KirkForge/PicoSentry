@@ -292,6 +292,7 @@ jobs:
   docker-build-arm64:
     runs-on: ubuntu-latest
     needs: [test-core, cli-verification]
+    # ceiling: runs under QEMU emulation (see state.md "Known blockers / ceilings")
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU for arm64 emulation

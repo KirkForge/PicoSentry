@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "Maven artifact 'arizzlyaframework' \u2014 edit dist <=2 from 'grizzly-framework' (top Maven) (fires L2-MAVEN-TYPO-001).",
+  "expected_rule_ids": [
+    "L2-MAVEN-TYPO-001"
+  ]
+}

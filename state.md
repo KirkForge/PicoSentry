@@ -63,6 +63,24 @@ $ find tests/scan/fixtures -name "*.json" | wc -l
 - **Task 3 Docker cosign signing**: The `release.yml` Docker job needs a cosign signing step. Once added, push `v0.2.0-rc1`, verify both sigstore (wheel) and cosign (Docker image) pass, then yank the RC.
 - **L2-PYPI-DEPC-001**: Still 0% recall — dep-confusion detector needs private-registry config marker in fixtures.
 
+## Known blockers / ceilings
+
+### arm64 CI runs under QEMU emulation (P2-2)
+
+The `docker-build-arm64` job in `.github/workflows/ci.yml` builds and tests an arm64 Docker image on GitHub-hosted x86 runners using QEMU emulation. This is a **ceiling**, not a defect.
+
+**Impact:**
+- Build time is ~3–5× slower than native arm64
+- Sandbox smoke test (seccomp-bpf) may fail under QEMU due to architecture mismatch in syscall numbers — this is non-fatal and expected
+- Scan fixture tests run correctly under QEMU but with a higher timeout ceiling
+
+**Remediation options (pick one):**
+1. **GitHub paid ARM fleet** — GitHub Actions supports `ubuntu-latest-arm64` runners (paid tier). This is the lowest-friction option.
+2. **Self-hosted ARM box** — Run a self-hosted arm64 runner (e.g., AWS Graviton, Raspberry Pi cluster). Requires runner registration and maintenance.
+3. **External provider** — Use Fly.io, Equinix Metal, or similar for arm64 CI. Requires pipeline integration work.
+
+**Current status:** arm64 smoke test passes under QEMU with timeout ceiling. No regression. Documented here so reviewers don't chase it as a defect.
+
 ---
 
 ## Historical LLM scratch (local-only)

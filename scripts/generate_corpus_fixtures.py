@@ -100,6 +100,52 @@ NPM_TOP_PKGS = [
     "yargs",
     "zustand",
     "zod",
+    "axios",
+    "fastify",
+    "hapi",
+    "koa",
+    "nest",
+    "next",
+    "nuxt",
+    "gatsby",
+    "webpack-dev-server",
+    "jest",
+    "chai",
+    "sinon",
+    "cypress",
+    "playwright",
+    "storybook",
+    "babel",
+    "postcss",
+    "tailwindcss",
+    "sass",
+    "less",
+    "styled-components",
+    "emotion",
+    "tailwind",
+    "d3",
+    "three",
+    "pixi",
+    "phaser",
+    "electron",
+    "tauri",
+    "capacitor",
+    "cordova",
+    "react-native",
+    "expo",
+    "ionic",
+    "svelte",
+    "solid",
+    "vue",
+    "angular",
+    "ember",
+    "backbone",
+    "jquery",
+    "underscore",
+    "moment",
+    "dayjs",
+    "luxon",
+    "date-fns",
 ]
 
 PYPI_TOP_PKGS = [
@@ -143,6 +189,25 @@ PYPI_TOP_PKGS = [
     "pyyaml",
     "orjson",
     "httpx",
+    "aiohttp",
+    "starlette",
+    "typer",
+    "rich",
+    "pyjwt",
+    "python-jose",
+    "passlib",
+    "bcrypt",
+    "paramiko",
+    "fabric",
+    "invoke",
+    "ansible",
+    "pytest-cov",
+    "pytest-xdist",
+    "pytest-mock",
+    "pytest-asyncio",
+    "pytest-django",
+    "pytest-flask",
+    "pytest-fastapi",
 ]
 
 GO_TOP_PKGS = [
@@ -161,6 +226,21 @@ GO_TOP_PKGS = [
     "kit",
     "kratos",
     "micro",
+    "go-kit",
+    "go-micro",
+    "go-redis",
+    "go-cache",
+    "go-jwt",
+    "go-oauth2",
+    "go-grpc",
+    "go-http",
+    "go-websocket",
+    "go-middleware",
+    "go-logger",
+    "go-metrics",
+    "go-config",
+    "go-queue",
+    "go-pubsub",
 ]
 
 CARGO_TOP_CRATES = [
@@ -184,6 +264,16 @@ CARGO_TOP_CRATES = [
     "sqlx",
     "diesel",
     "chrono",
+    "serde_json",
+    "tokio-util",
+    "tokio-stream",
+    "async-trait",
+    "pin-project",
+    "bytes",
+    "futures-util",
+    "futures-core",
+    "mio",
+    "socket2",
 ]
 
 MAVEN_TOP_ARTIFACTS = [
@@ -203,6 +293,56 @@ MAVEN_TOP_ARTIFACTS = [
     "caffeine",
     "netty",
     "kafka-clients",
+    "spring-web",
+    "spring-core",
+    "spring-context",
+    "spring-beans",
+    "spring-security",
+    "spring-data-jpa",
+    "spring-data-redis",
+    "spring-cloud",
+    "spring-batch",
+    "spring-integration",
+    "maven-plugin-api",
+    "maven-core",
+    "maven-compiler-plugin",
+    "surefire-plugin",
+    "failsafe-plugin",
+    "maven-surefire-plugin",
+    "commons-collections",
+    "commons-math3",
+    "commons-text",
+    "commons-compress",
+    "commons-csv",
+    "bcpkix-jdk18on",
+    "bcprov-jdk18on",
+    "bcutil-jdk18on",
+    "jackson-core",
+    "jackson-annotations",
+    "jackson-dataformat-yaml",
+    "jackson-module-kotlin",
+    "jackson-datatype-jsr310",
+    "okhttp3",
+    "retrofit2",
+    "okio",
+    "ktor-server-core",
+    "ktor-client-core",
+    "micrometer-core",
+    "prometheus-java",
+    "dropwizard-core",
+    "dropwizard-jetty",
+    "jetty-server",
+    "jetty-servlet",
+    "tomcat-embed-core",
+    "tomcat-embed-el",
+    "undertow-core",
+    "grizzly-framework",
+    "netty-buffer",
+    "netty-codec",
+    "netty-handler",
+    "netty-transport",
+    "snappy-java",
+    "lz4-java",
 ]
 
 RUBYGEMS_TOP_GEMS = [
@@ -224,6 +364,73 @@ RUBYGEMS_TOP_GEMS = [
     "will_paginate",
     "carrierwave",
     "faker",
+    "dotenv",
+    "jwt",
+    "devise-jwt",
+    "doorkeeper",
+    "rolify",
+    "simple_form",
+    "formtastic",
+    "turbolinks",
+    "stimulus",
+    "webpacker",
+    "jsbundling-rails",
+    "cssbundling-rails",
+    "importmap-rails",
+    "hotwire-rails",
+    "turbo-rails",
+    "viewcomponent",
+    "action-cable",
+    "active-storage",
+    "action-mailbox",
+    "action-text",
+    "jbuilder",
+    "blueprinter",
+    "alba",
+    "jsonapi-serializer",
+    "grape",
+    "graphql",
+    "rspec-rails",
+    "factory_bot_rails",
+    "shoulda-matchers",
+    "database_cleaner",
+    "webmock",
+    "vcr",
+    "capybara",
+    "selenium-webdriver",
+    "cuprite",
+    "rspec-retry",
+    "parallel_tests",
+    "knapsack_pro",
+    "bullet",
+    "rack-mini-profiler",
+    "brakeman",
+    "bundler-audit",
+    "rubocop",
+    "rubocop-rails",
+    "rubocop-rspec",
+    "standard",
+    "reek",
+    "flog",
+    "flay",
+    "simplecov",
+    "coverband",
+    "lograge",
+    "semantic_logger",
+    "sidekiq-cron",
+    "sidekiq-scheduler",
+    "sidekiq-unique-jobs",
+    "redis-rails",
+    "redis-store",
+    "connection_pool",
+    "hiredis",
+    "oj",
+    "yajl-ruby",
+    "multi_json",
+    "fast_jsonapi",
+    "active_model_serializers",
+    "rabl",
+    "panko_serializer",
 ]
 
 NUGET_TOP_PKGS = [
@@ -242,6 +449,35 @@ NUGET_TOP_PKGS = [
     "Polly",
     "BenchmarkDotNet",
     "Refit",
+    "MassTransit",
+    "Hangfire",
+    "SignalR",
+    "IdentityModel",
+    "IdentityServer4",
+    "ClosedXML",
+    "CsvHelper",
+    "Humanizer",
+    "JsonLogic",
+    "Mapster",
+    "Scrutor",
+    "Bogus",
+    "FakerSharp",
+    "AngleSharp",
+    "HtmlAgilityPack",
+    "Markdig",
+    "Pipelines.Sockets.Unofficial",
+    "System.Threading.Channels",
+    "StackExchange.Redis",
+    "EasyCaching",
+    "Lamar",
+    "StructureMap",
+    "Autofac",
+    "Ninject",
+    "Unity",
+    "DryIoc",
+    "SimpleInjector",
+    "Castle.Core",
+    "DynamicProxy",
 ]
 
 
@@ -283,8 +519,8 @@ def typosquat_variants(name):
 def generate_typosquat_fixtures():
     """Generate typosquat fixtures for all ecosystems."""
     count = 0
-    for pkg in NPM_TOP_PKGS[:55]:
-        for v in typosquat_variants(pkg)[:8]:
+    for pkg in NPM_TOP_PKGS:
+        for v in typosquat_variants(pkg)[:10]:
             dirname = f"typosquat_npm_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -308,8 +544,8 @@ def generate_typosquat_fixtures():
             )
             count += 1
 
-    for pkg in PYPI_TOP_PKGS[:30]:
-        for v in typosquat_variants(pkg)[:5]:
+    for pkg in PYPI_TOP_PKGS:
+        for v in typosquat_variants(pkg)[:8]:
             dirname = f"typosquat_pypi_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -335,7 +571,7 @@ dependencies = ["{v}>=1.0.0"]
             count += 1
 
     for pkg in GO_TOP_PKGS:
-        for v in typosquat_variants(pkg)[:2]:
+        for v in typosquat_variants(pkg)[:4]:
             dirname = f"typosquat_go_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -354,7 +590,7 @@ dependencies = ["{v}>=1.0.0"]
             count += 1
 
     for pkg in CARGO_TOP_CRATES:
-        for v in typosquat_variants(pkg)[:2]:
+        for v in typosquat_variants(pkg)[:4]:
             dirname = f"typosquat_cargo_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -377,7 +613,7 @@ edition = "2021"
             count += 1
 
     for pkg in MAVEN_TOP_ARTIFACTS:
-        for v in typosquat_variants(pkg)[:2]:
+        for v in typosquat_variants(pkg)[:4]:
             dirname = f"typosquat_maven_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -402,7 +638,7 @@ edition = "2021"
             count += 1
 
     for pkg in RUBYGEMS_TOP_GEMS:
-        for v in typosquat_variants(pkg)[:2]:
+        for v in typosquat_variants(pkg)[:4]:
             dirname = f"typosquat_rubygems_{v}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -429,7 +665,7 @@ end
             count += 1
 
     for pkg in NUGET_TOP_PKGS:
-        for v in typosquat_variants(pkg)[:2]:
+        for v in typosquat_variants(pkg)[:4]:
             dirname = f"typosquat_nuget_{v.replace('.', '_').replace(' ', '_')}"
             if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                 continue
@@ -1470,6 +1706,285 @@ end
         "desc": "RubyGem depending on internal-gem without private gem server (fires L2-RUBYGEMS-DEPC-001).",
         "rules": ["L2-RUBYGEMS-DEPC-001"],
     },
+    {
+        "name": "depc_maven_internal_auth",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>auth</artifactId><version>1.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:auth without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_crypto",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>crypto</artifactId><version>2.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:crypto without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_data",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>data</artifactId><version>3.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:data without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_logging",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>logging</artifactId><version>1.1.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:logging without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_metrics",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>metrics</artifactId><version>1.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:metrics without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_config",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>config</artifactId><version>2.1.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:config without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_queue",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>queue</artifactId><version>1.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:queue without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_cache",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>cache</artifactId><version>1.2.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:cache without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_scheduler",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>scheduler</artifactId><version>1.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:scheduler without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_maven_internal_notifier",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.myapp</groupId>
+  <artifactId>my-app</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.internal</groupId><artifactId>notifier</artifactId><version>1.0.0</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project depending on com.internal:notifier without private repo (fires L2-MAVEN-DEPC-001).",
+        "rules": ["L2-MAVEN-DEPC-001"],
+    },
+    {
+        "name": "depc_rubygems_internal_auth",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'internal-auth'\n",
+            "my_app.gemspec": """Gem::Specification.new do |s|
+  s.name = "my_app"
+  s.version = "0.1.0"
+  s.add_dependency "internal-auth"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem depending on internal-auth without private gem server (fires L2-RUBYGEMS-DEPC-001).",
+        "rules": ["L2-RUBYGEMS-DEPC-001"],
+    },
+    {
+        "name": "depc_rubygems_internal_crypto",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'internal-crypto'\n",
+            "my_app.gemspec": """Gem::Specification.new do |s|
+  s.name = "my_app"
+  s.version = "0.1.0"
+  s.add_dependency "internal-crypto"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem depending on internal-crypto without private gem server (fires L2-RUBYGEMS-DEPC-001).",
+        "rules": ["L2-RUBYGEMS-DEPC-001"],
+    },
+    {
+        "name": "depc_rubygems_internal_payments",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'internal-payments'\n",
+            "my_app.gemspec": """Gem::Specification.new do |s|
+  s.name = "my_app"
+  s.version = "0.1.0"
+  s.add_dependency "internal-payments"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem depending on internal-payments without private gem server (fires L2-RUBYGEMS-DEPC-001).",
+        "rules": ["L2-RUBYGEMS-DEPC-001"],
+    },
+    {
+        "name": "depc_nuget_internal_config",
+        "files": {
+            "InternalConfig.csproj": """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>InternalConfig</PackageId>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Internal.Config" Version="1.0.0" />
+  </ItemGroup>
+</Project>
+""",
+        },
+        "desc": "NuGet package depending on Internal.Config without private source (fires L2-NUGET-DEPC-001).",
+        "rules": ["L2-NUGET-DEPC-001"],
+    },
+    {
+        "name": "depc_nuget_internal_crypto",
+        "files": {
+            "InternalCrypto.csproj": """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>InternalCrypto</PackageId>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Internal.Crypto" Version="2.0.0" />
+  </ItemGroup>
+</Project>
+""",
+        },
+        "desc": "NuGet package depending on Internal.Crypto without private source (fires L2-NUGET-DEPC-001).",
+        "rules": ["L2-NUGET-DEPC-001"],
+    },
+    {
+        "name": "depc_nuget_internal_logging",
+        "files": {
+            "InternalLogging.csproj": """<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <PackageId>InternalLogging</PackageId>
+    <Version>1.0.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Internal.Logging" Version="1.1.0" />
+  </ItemGroup>
+</Project>
+""",
+        },
+        "desc": "NuGet package depending on Internal.Logging without private source (fires L2-NUGET-DEPC-001).",
+        "rules": ["L2-NUGET-DEPC-001"],
+    },
 ]
 
 
@@ -1952,6 +2467,333 @@ end
         "desc": "RubyGem with transitive rack dependency in CVE range (fires L2-RUBYGEMS-ADV-001).",
         "rules": ["L2-RUBYGEMS-ADV-001"],
     },
+    {
+        "name": "cve_maven_spring4shell",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-spring4shell</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.springframework</groupId><artifactId>spring-beans</artifactId><version>5.3.15</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Spring Framework in CVE range (Spring4Shell, fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_spring4shell_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-spring4shell-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>2.6.2</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive Spring Framework dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_struts2_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-struts2</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.struts</groupId><artifactId>struts2-core</artifactId><version>2.3.30</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Struts2 in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_struts2_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-struts2-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.struts</groupId><artifactId>struts2-spring-plugin</artifactId><version>2.3.30</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive Struts2 dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_tomcat_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-tomcat</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.tomcat.embed</groupId><artifactId>tomcat-embed-core</artifactId><version>9.0.60</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Tomcat in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_tomcat_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-tomcat-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.springframework.boot</groupId><artifactId>spring-boot-starter-web</artifactId><version>2.6.6</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive Tomcat dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_velocity_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-velocity</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.velocity</groupId><artifactId>velocity-engine-core</artifactId><version>2.3</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Velocity in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_xstream_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-xstream</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>com.thoughtworks.xstream</groupId><artifactId>xstream</artifactId><version>1.4.17</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with XStream in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_xstream_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-xstream-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.springframework</groupId><artifactId>spring-context</artifactId><version>5.3.15</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive XStream dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_commons_collections_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-commons-collections</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>commons-collections</groupId><artifactId>commons-collections</artifactId><version>3.2.1</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Commons Collections in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_commons_collections_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-commons-collections-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.commons</groupId><artifactId>commons-compress</artifactId><version>1.20</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive Commons Collections dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_shiro_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-shiro</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.shiro</groupId><artifactId>shiro-core</artifactId><version>1.4.1</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with Shiro in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_shiro_transitive",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-shiro-trans</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.apache.shiro</groupId><artifactId>shiro-spring</artifactId><version>1.4.1</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with transitive Shiro dependency in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_maven_mybatis_rce",
+        "files": {
+            "pom.xml": """<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>cve-mybatis</artifactId>
+  <version>1.0.0</version>
+  <dependencies>
+    <dependency><groupId>org.mybatis</groupId><artifactId>mybatis</artifactId><version>3.5.6</version></dependency>
+  </dependencies>
+</project>
+""",
+        },
+        "desc": "Maven project with MyBatis in CVE range (fires L2-MAVEN-ADV-001).",
+        "rules": ["L2-MAVEN-ADV-001"],
+    },
+    {
+        "name": "cve_rubygems_nokogiri_rce",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'nokogiri', '~> 1.11.0'\n",
+            "cve_nokogiri.gemspec": """Gem::Specification.new do |s|
+  s.name = "cve_nokogiri"
+  s.version = "0.1.0"
+  s.add_dependency "nokogiri", "~> 1.11.0"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem with nokogiri in CVE range (fires L2-RUBYGEMS-ADV-001).",
+        "rules": ["L2-RUBYGEMS-ADV-001"],
+    },
+    {
+        "name": "cve_rubygems_nokogiri_transitive",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'rails', '~> 6.1.0'\n",
+            "cve_nokogiri_trans.gemspec": """Gem::Specification.new do |s|
+  s.name = "cve_nokogiri_trans"
+  s.version = "0.1.0"
+  s.add_dependency "rails", "~> 6.1.0"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem with transitive nokogiri dependency in CVE range (fires L2-RUBYGEMS-ADV-001).",
+        "rules": ["L2-RUBYGEMS-ADV-001"],
+    },
+    {
+        "name": "cve_rubygems_rails_sqli",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'rails', '~> 6.0.0'\n",
+            "cve_rails_sqli.gemspec": """Gem::Specification.new do |s|
+  s.name = "cve_rails_sqli"
+  s.version = "0.1.0"
+  s.add_dependency "rails", "~> 6.0.0"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem with rails in CVE range for SQL injection (fires L2-RUBYGEMS-ADV-001).",
+        "rules": ["L2-RUBYGEMS-ADV-001"],
+    },
+    {
+        "name": "cve_rubygems_devise_bypass",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'devise', '~> 4.7.0'\n",
+            "cve_devise.gemspec": """Gem::Specification.new do |s|
+  s.name = "cve_devise"
+  s.version = "0.1.0"
+  s.add_dependency "devise", "~> 4.7.0"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem with devise in CVE range (fires L2-RUBYGEMS-ADV-001).",
+        "rules": ["L2-RUBYGEMS-ADV-001"],
+    },
+    {
+        "name": "cve_rubygems_rack_middleware",
+        "files": {
+            "Gemfile": "source 'https://rubygems.org'\ngem 'rack', '~> 2.0.0'\n",
+            "cve_rack_middleware.gemspec": """Gem::Specification.new do |s|
+  s.name = "cve_rack_middleware"
+  s.version = "0.1.0"
+  s.add_dependency "rack", "~> 2.0.0"
+  s.authors = ["Dev"]
+end
+""",
+        },
+        "desc": "RubyGem with rack 2.0.x in CVE range (fires L2-RUBYGEMS-ADV-001).",
+        "rules": ["L2-RUBYGEMS-ADV-001"],
+    },
 ]
 
 
@@ -2122,6 +2964,26 @@ NEGATIVE_RUBYGEMS_NAMES = [
     "clean_validator_gem",
     "clean_cache_gem",
     "clean_queue_gem",
+    "clean_view_helper",
+    "clean_route_handler",
+    "clean_middleware",
+    "clean_controller",
+    "clean_model",
+    "clean_serializer",
+    "clean_migrator",
+    "clean_seeds",
+    "clean_factory",
+    "clean_matcher",
+    "clean_subscriber",
+    "clean_worker",
+    "clean_scheduler",
+    "clean_notifier",
+    "clean_exporter",
+    "clean_importer",
+    "clean_transformer",
+    "clean_aggregator",
+    "clean_accumulator",
+    "clean_collector",
 ]
 
 NEGATIVE_NUGET_NAMES = [
@@ -2135,6 +2997,16 @@ NEGATIVE_NUGET_NAMES = [
     "CleanValidatorLib",
     "CleanCacheLib",
     "CleanQueueLib",
+    "CleanMetricsLib",
+    "CleanSchedulerLib",
+    "CleanNotifierLib",
+    "CleanExporterLib",
+    "CleanImporterLib",
+    "CleanTransformerLib",
+    "CleanAggregatorLib",
+    "CleanAccumulatorLib",
+    "CleanCollectorLib",
+    "CleanSerializerLib",
 ]
 
 

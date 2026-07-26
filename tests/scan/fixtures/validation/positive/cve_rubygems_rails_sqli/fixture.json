@@ -1,0 +1,7 @@
+{
+  "label": "positive",
+  "description": "RubyGem with rails in CVE range for SQL injection (fires L2-RUBYGEMS-ADV-001).",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-ADV-001"
+  ]
+}

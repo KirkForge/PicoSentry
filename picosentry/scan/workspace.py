@@ -220,6 +220,9 @@ def scan_workspace(
                 if _p.is_alive():
                     _p.terminate()
                     _p.join(timeout=1)
+                    if _p.is_alive():
+                        _p.kill()
+                        _p.join(timeout=1)
 
                     try:
                         while not _rq.empty():

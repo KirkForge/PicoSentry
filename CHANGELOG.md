@@ -1233,3 +1233,6 @@ Legacy repository history (archived, read-only):
 - [PicoDome](https://github.com/KirkForge/PicoDome)
 - [PicoWatch](https://github.com/KirkForge/PicoWatch)
 - [PicoShogun](https://github.com/KirkForge/PicoShogun)
+## 2026-07-29 - Process timeout orphan fix
+
+- fix(scan): kill orphaned processes on timeout (P0-5) — add kill() fallback after terminate() + join(1) timeout in workspace scanner

@@ -3,9 +3,40 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `a6caa7fc` (main)
+- Head: `bb579f08` (main)
 - Tests: 4248+ scan tests pass, corpus 4163 JSON files (2827 pos / 187 neg)
-- Last updated: 2026-07-26
+- Last updated: 2026-07-29
+
+## Session 2026-07-29: Codebase Analysis & Improvement
+
+### Comprehensive Analysis Complete
+- Analyzed entire codebase with gitnexus-exploring skill
+- Reviewed prior review.md findings (5 P0, 10 P1, 4 P2 issues)
+- **Finding:** All P0 issues from review.md already fixed in commit 587154b1
+- **New issue identified:** P0-5 process timeout orphans in workspace scanner
+
+### Task: Process Timeout Orphan Fix — DONE
+- Fixed `picosentry/scan/workspace.py:220-223` to add `kill()` fallback after `terminate()` + `join(1)` timeout
+- Gates verified: ruff 0 errors, ruff format 596 files clean, mypy success, 34 tests passed
+- Committed: `bb579f08` — "fix(scan): kill orphaned processes on timeout (P0-5)"
+- Updated CHANGELOG.md with one-liner
+
+### Overall Assessment: Grade A (Excellent)
+- Security-first architecture with robust assert_secure() gate
+- Deterministic scan guarantees (unique differentiator)
+- Clean modular design with no circular imports
+- 389 source files, 264 test files, 61K+ lines production code
+- Comprehensive test coverage (4163 corpus fixtures)
+
+### P1/P2 Issues Deferred
+- 10 P1 maintainability issues identified (boilerplate, duplicate classes, performance)
+- 3 P2 style issues identified (logger naming, rule registration, front-end types)
+- All are improvements, not correctness defects
+- Recommended for future sprints
+
+### Pending / Blocked
+- **Docker Hub secrets**: DOCKERHUB_USERNAME + DOCKERHUB_TOKEN must be added to repo Settings → Secrets for cosign Docker signing step
+- **ARM64 CI**: Documented ceiling in state.md — QEMU emulation is 3-5× slower than native
 
 ## ACTION REQUIRED before next release
 

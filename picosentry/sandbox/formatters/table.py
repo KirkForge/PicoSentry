@@ -79,9 +79,11 @@ def _l4_table(result: AnalysisResult) -> str:
         f"║ {'PICODOME — L4 BEHAVIORAL ANALYSIS':^{width - 4}} ║",
         "╠" + "═" * (width - 2) + "╣",
         f"║ {'Target:':<16} {result.target:<{width - 20}} ║",
-        f"║ {'Verdict:':<16} {verdict_icon}"
-        f" {result.overall_verdict.value}"
-        f"{'':<{width - 26 - len(result.overall_verdict.value)}} ║",
+        (
+            f"║ {'Verdict:':<16} {verdict_icon}"
+            f" {result.overall_verdict.value}"
+            f"{'':<{width - 26 - len(result.overall_verdict.value)}} ║"
+        ),
     ]
 
     if result.stats.duration_ms:

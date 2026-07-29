@@ -15,8 +15,10 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
     ),
     "watch": (
         "STABLE",
-        "LLM prompt-injection detection and output validation. "
-        "Deterministic regex + lexical classifier; not a semantic/LLM guarantee.",
+        (
+            "LLM prompt-injection detection and output validation. "
+            "Deterministic regex + lexical classifier; not a semantic/LLM guarantee."
+        ),
     ),
     "serve": (
         "BETA",
@@ -28,8 +30,10 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
     ),
     "admission": (
         "BETA",
-        "K8s admission webhook server. Validates pod security contexts and "
-        "optionally scans container images via the daemon.",
+        (
+            "K8s admission webhook server. Validates pod security contexts and "
+            "optionally scans container images via the daemon."
+        ),
     ),
     "corpus": (
         "STABLE",

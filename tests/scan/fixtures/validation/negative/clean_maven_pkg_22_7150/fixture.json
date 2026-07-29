@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Maven package 22",
+  "expected_clean": true
+}

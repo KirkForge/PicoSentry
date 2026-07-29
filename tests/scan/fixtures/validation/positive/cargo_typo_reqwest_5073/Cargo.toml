@@ -1,0 +1,6 @@
+[package]
+name = "reqwest"
+version = "1.0.0"
+
+[dependencies]
+reqwest = "1.0"

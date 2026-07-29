@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2022-22965: spring-core@5.3.18",
+  "expected_rule_ids": [
+    "L2-CVE-001"
+  ]
+}

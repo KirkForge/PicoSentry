@@ -1,0 +1,7 @@
+{
+  "name": "obfs-0-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"eval(compile(\"import os; os.system('id')\", \"<string>\", \"exec\"))\""
+  }
+}

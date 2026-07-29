@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Maven typosquat: log4 mimicking log4j",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: scikitlear mimicking scikit-learn",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

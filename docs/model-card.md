@@ -1,18 +1,27 @@
 # Detection Benchmarks — PicoSentry
 
-*Generated 2026-07-25. Corpus: 3014 JSON files (2827 pos / 187 neg) across 7 ecosystems.*
+*Generated 2026-07-29. Corpus: 6495 JSON files (5558 pos / 930 neg / 7 tricky) across 7 ecosystems.*
 
 ## Summary
 
 | Metric | Value |
 |---|---|
-| **JSON files** | 3014 |
-| **Fixture dirs** | 3014 (2827 pos / 187 neg) |
+| **JSON files** | 6495 |
+| **Fixture dirs** | 6495 (5558 pos / 930 neg / 7 tricky) |
 | **Rules** | 54 |
 | **Mean precision** | 94.44% |
 | **Mean recall** | 68.89% |
 | **Ecosystems** | npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet |
-| **Corpus source** | Generated combinatorial variants + hand-curated real-world malware patterns + expanded Maven/RubyGems/NuGet coverage |
+| **Corpus source** | Generated combinatorial variants + hand-curated real-world malware patterns + expanded Maven/RubyGems/NuGet coverage + 2026-07-29 expansion (typosquats, negative fixtures, CVEs, multi-attack) |
+
+## 2026-07-29 Expansion
+
+- **Typosquats**: +291 fixtures across all 7 ecosystems (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)
+- **Negative fixtures**: +2050 clean packages (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)
+- **CVE fixtures**: +115 Maven and RubyGems CVE patterns (Log4Shell, Spring4Shell, Jackson, Commons Collections, Nokogiri, Rails, Devise, Rack)
+- **Multi-attack**: +30 fixtures combining typosquat+obfuscation, dep-confusion+credential theft, obfuscation+network exfil
+- **Obfuscation**: +24 variants (nested eval, chained base64, hex+chr, unicode escapes, getattr bypass, importlib bypass, subprocess variants, socket/urllib exfil)
+- **Dependency confusion**: +300 internal-package patterns (internal-*, private-*, corp-*, company-*, org-*, secure-*)
 
 ## Per-rule precision/recall
 

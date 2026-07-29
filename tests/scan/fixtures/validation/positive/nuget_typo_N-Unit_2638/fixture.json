@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "NuGet typosquat: N-Unit mimicking NUnit",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

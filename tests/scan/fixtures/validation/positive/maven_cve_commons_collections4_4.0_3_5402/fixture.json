@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2015-6420: commons-collections4@4.0",
+  "expected_rule_ids": [
+    "L2-CVE-001"
+  ]
+}

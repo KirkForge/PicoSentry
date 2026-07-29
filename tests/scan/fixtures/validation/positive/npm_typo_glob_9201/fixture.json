@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "npm typosquat: glob mimicking glob",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

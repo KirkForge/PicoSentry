@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: pands mimicking pandas",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Cargo typosquat: reqwst mimicking reqwest",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

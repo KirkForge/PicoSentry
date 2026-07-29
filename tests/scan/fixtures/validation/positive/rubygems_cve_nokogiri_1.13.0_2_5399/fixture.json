@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "RubyGems CVE CVE-2022-23437: nokogiri@1.13.0",
+  "expected_rule_ids": [
+    "L2-CVE-001"
+  ]
+}

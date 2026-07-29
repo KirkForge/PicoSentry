@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "npm typosquat: fs-xtra mimicking fs-extra",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

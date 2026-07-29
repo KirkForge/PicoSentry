@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Maven typosquat: guavaa mimicking guava",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

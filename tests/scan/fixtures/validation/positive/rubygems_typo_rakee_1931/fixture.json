@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "RubyGems typosquat: rakee mimicking rake",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

@@ -1,0 +1,6 @@
+[package]
+name = "reqwst"
+version = "1.0.0"
+
+[dependencies]
+reqwst = "1.0"

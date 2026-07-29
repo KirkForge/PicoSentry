@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Maven typosquat: spring-boot-starter mimicking spring-boot-starter",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

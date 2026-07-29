@@ -1,0 +1,6 @@
+[package]
+name = "serde-jsn"
+version = "1.0.0"
+
+[dependencies]
+serde-jsn = "1.0"

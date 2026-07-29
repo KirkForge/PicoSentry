@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean PyPI package: safe-package-delta-16",
+  "expected_clean": true
+}

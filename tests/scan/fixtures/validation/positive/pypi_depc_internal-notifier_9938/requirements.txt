@@ -1,0 +1,1 @@
+internal-notifier==1.0.0

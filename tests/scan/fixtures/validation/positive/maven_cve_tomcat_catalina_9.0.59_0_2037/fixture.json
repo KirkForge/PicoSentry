@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2022-23181: tomcat-catalina@9.0.59",
+  "expected_rule_ids": [
+    "L2-CVE-001"
+  ]
+}

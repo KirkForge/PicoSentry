@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "NuGet typosquat: Microsoft.AspNet mimicking Microsoft.AspNetCore",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

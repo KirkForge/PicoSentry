@@ -1,8 +1,0 @@
-{
-  "label": "positive",
-  "description": "PyPI package with deprecated base64.decodestring (fires L2-PYPI-OBFS-002).",
-  "expected_rule_ids": [
-    "L2-PYPI-OBFS-002",
-    "L2-PYPI-POST-001"
-  ]
-}

@@ -1,8 +1,0 @@
-{
-  "label": "negative",
-  "description": "A clean ASP.NET Core project with standard NuGet packages. Should produce zero findings.",
-  "forbidden_rule_ids": [
-    "L2-BUILD-001",
-    "L2-NUGET-DEPC-001"
-  ]
-}

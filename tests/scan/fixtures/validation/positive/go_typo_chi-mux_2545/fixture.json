@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Go typosquat: chi-mux mimicking chi",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

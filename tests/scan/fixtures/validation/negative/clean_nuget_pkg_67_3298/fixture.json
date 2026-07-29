@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean NuGet package 67",
+  "expected_clean": true
+}

@@ -1,0 +1,6 @@
+[package]
+name = "serdde"
+version = "1.0.0"
+
+[dependencies]
+serdde = "1.0"

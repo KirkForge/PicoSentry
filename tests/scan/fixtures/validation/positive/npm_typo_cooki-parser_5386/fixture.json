@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "npm typosquat: cooki-parser mimicking cookie-parser",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

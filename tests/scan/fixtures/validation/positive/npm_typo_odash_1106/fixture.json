@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "npm typosquat: odash mimicking lodash",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

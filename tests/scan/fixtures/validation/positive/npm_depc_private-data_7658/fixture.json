@@ -1,0 +1,7 @@
+{
+  "label": "dep_confusion",
+  "description": "npm dependency confusion: private-data",
+  "expected_rule_ids": [
+    "L2-DEPC-001"
+  ]
+}

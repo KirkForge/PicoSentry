@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "RubyGems typosquat: bundler mimicking bundler",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

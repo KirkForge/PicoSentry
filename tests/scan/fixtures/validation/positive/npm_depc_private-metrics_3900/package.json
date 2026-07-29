@@ -1,0 +1,7 @@
+{
+  "name": "test-pkg",
+  "version": "1.0.0",
+  "dependencies": {
+    "private-metrics": "1.0.0"
+  }
+}

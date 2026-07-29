@@ -1,0 +1,7 @@
+{
+  "label": "dep_confusion",
+  "description": "PyPI dependency confusion: company-data",
+  "expected_rule_ids": [
+    "L2-PYPI-DEPC-001"
+  ]
+}

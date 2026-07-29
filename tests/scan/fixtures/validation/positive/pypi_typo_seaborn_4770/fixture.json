@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: seaborn mimicking seaborn",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

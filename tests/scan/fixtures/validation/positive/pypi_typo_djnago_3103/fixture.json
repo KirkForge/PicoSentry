@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: djnago mimicking django",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

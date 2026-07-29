@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "NuGet typosquat: Newtonsoft-Json mimicking Newtonsoft.Json",
+  "expected_rule_ids": [
+    "L2-TYPO-001"
+  ]
+}

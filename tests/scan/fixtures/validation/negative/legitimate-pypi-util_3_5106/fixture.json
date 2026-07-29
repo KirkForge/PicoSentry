@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean PyPI package: legitimate-pypi-util-3",
+  "expected_clean": true
+}

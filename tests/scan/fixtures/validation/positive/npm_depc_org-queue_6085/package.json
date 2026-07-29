@@ -1,0 +1,7 @@
+{
+  "name": "test-pkg",
+  "version": "1.0.0",
+  "dependencies": {
+    "org-queue": "1.0.0"
+  }
+}

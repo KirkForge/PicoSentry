@@ -1,0 +1,7 @@
+{
+  "label": "obfuscation",
+  "description": "pypi obfuscation variant 10",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-001"
+  ]
+}

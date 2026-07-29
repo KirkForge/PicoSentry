@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm package: safe-package-beta-2",
+  "expected_clean": true
+}

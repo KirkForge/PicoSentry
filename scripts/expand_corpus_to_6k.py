@@ -15,7 +15,6 @@ Strategy: Add combinatorial variations for underrepresented patterns:
 import json
 import os
 import random
-import hashlib
 
 random.seed(42)
 
@@ -46,42 +45,140 @@ def write_fixture(dirpath, files, fixture_json):
 # ─── EXPANDED TYPOSQUAT PATTERNS ───────────────────────────────────────────────
 
 MORE_NPM_TYPOS = [
-    ("expresss", "express"), ("expres", "express"), ("exprss", "express"), ("exress", "express"),
-    ("exxpress", "express"), ("express", "express"), ("exprress", "express"), ("expresso", "express"),
-    ("reacct", "react"), ("reac", "react"), ("rect", "react"), ("reactt", "react"),
-    ("reeact", "react"), ("react", "react"), ("reacxt", "react"), ("reaxt", "react"),
-    ("lodah", "lodash"), ("lodashh", "lodash"), ("ldash", "lodash"), ("loodash", "lodash"),
-    ("ladash", "lodash"), ("lodahs", "lodash"), ("ldsh", "lodash"), ("odash", "lodash"),
-    ("momnet", "moment"), ("momeent", "moment"), ("momen", "moment"), ("mment", "moment"),
-    ("mometn", "moment"), ("momnt", "moment"), ("moent", "moment"), ("moent", "moment"),
-    ("axois", "axios"), ("axxios", "axios"), ("axioss", "axios"), ("axos", "axios"),
-    ("axiis", "axios"), ("axio", "axios"), ("axio", "axios"), ("axos", "axios"),
-    ("chak", "chalk"), ("chalkk", "chalk"), ("clalk", "chalk"), ("chlk", "chalk"),
-    ("chal", "chalk"), ("challk", "chalk"), ("chakl", "chalk"), ("cla", "chalk"),
-    ("comander", "commander"), ("commanderr", "commander"), ("comand", "commander"),
-    ("commander", "commander"), ("commaner", "commander"), ("comander", "commander"),
-    ("asyc", "async"), ("asyn", "async"), ("asyncc", "async"), ("asy", "async"),
-    ("asnc", "async"), ("asyn", "async"), ("asyncc", "async"), ("asyn", "async"),
-    ("bluebidr", "bluebird"), ("bluebrd", "bluebird"), ("bluebirdd", "bluebird"),
-    ("bluebrd", "bluebird"), ("blebird", "bluebird"), ("bluebrd", "bluebird"),
-    ("bodyparsr", "body-parser"), ("body-parsr", "body-parser"), ("bodyparser", "body-parser"),
-    ("body-paser", "body-parser"), ("bodypars", "body-parser"), ("body-parsr", "body-parser"),
-    ("cookiparser", "cookie-parser"), ("cookieparsr", "cookie-parser"), ("cooke-parser", "cookie-parser"),
-    ("cookeparsr", "cookie-parser"), ("cooki-parser", "cookie-parser"), ("cookiepars", "cookie-parser"),
-    ("corss", "cors"), ("cors", "cors"), ("corr", "cors"), ("cor", "cors"),
-    ("cors", "cors"), ("cors", "cors"), ("cors", "cors"), ("cors", "cors"),
-    ("debugg", "debug"), ("deubg", "debug"), ("dbug", "debug"), ("debg", "debug"),
-    ("debu", "debug"), ("debugg", "debug"), ("deubg", "debug"), ("dubug", "debug"),
-    ("dotnev", "dotenv"), ("dot-env", "dotenv"), ("dotnenv", "dotenv"), ("dotenv", "dotenv"),
-    ("dotenv", "dotenv"), ("dot-env", "dotenv"), ("dotnenv", "dotenv"), ("dotnev", "dotenv"),
-    ("eslnt", "eslint"), ("eslin", "eslint"), ("esllint", "eslint"), ("esint", "eslint"),
-    ("eslnt", "eslint"), ("eslnt", "eslint"), ("eslin", "eslint"), ("eslnt", "eslint"),
-    ("fsextra", "fs-extra"), ("fsxtra", "fs-extra"), ("fs-extraa", "fs-extra"),
-    ("fsextra", "fs-extra"), ("fs-xtra", "fs-extra"), ("fsextr", "fs-extra"),
-    ("globb", "glob"), ("glb", "glob"), ("glop", "glob"), ("gob", "glob"),
-    ("gllb", "glob"), ("glob", "glob"), ("gob", "glob"), ("glbo", "glob"),
-    ("gulpp", "gulp"), ("glp", "gulp"), ("gulpjs", "gulp"), ("gulp", "gulp"),
-    ("gullp", "gulp"), ("gulp", "gulp"), ("glup", "gulp"), ("gul", "gulp"),
+    ("expresss", "express"),
+    ("expres", "express"),
+    ("exprss", "express"),
+    ("exress", "express"),
+    ("exxpress", "express"),
+    ("express", "express"),
+    ("exprress", "express"),
+    ("expresso", "express"),
+    ("reacct", "react"),
+    ("reac", "react"),
+    ("rect", "react"),
+    ("reactt", "react"),
+    ("reeact", "react"),
+    ("react", "react"),
+    ("reacxt", "react"),
+    ("reaxt", "react"),
+    ("lodah", "lodash"),
+    ("lodashh", "lodash"),
+    ("ldash", "lodash"),
+    ("loodash", "lodash"),
+    ("ladash", "lodash"),
+    ("lodahs", "lodash"),
+    ("ldsh", "lodash"),
+    ("odash", "lodash"),
+    ("momnet", "moment"),
+    ("momeent", "moment"),
+    ("momen", "moment"),
+    ("mment", "moment"),
+    ("mometn", "moment"),
+    ("momnt", "moment"),
+    ("moent", "moment"),
+    ("moent", "moment"),
+    ("axois", "axios"),
+    ("axxios", "axios"),
+    ("axioss", "axios"),
+    ("axos", "axios"),
+    ("axiis", "axios"),
+    ("axio", "axios"),
+    ("axio", "axios"),
+    ("axos", "axios"),
+    ("chak", "chalk"),
+    ("chalkk", "chalk"),
+    ("clalk", "chalk"),
+    ("chlk", "chalk"),
+    ("chal", "chalk"),
+    ("challk", "chalk"),
+    ("chakl", "chalk"),
+    ("cla", "chalk"),
+    ("comander", "commander"),
+    ("commanderr", "commander"),
+    ("comand", "commander"),
+    ("commander", "commander"),
+    ("commaner", "commander"),
+    ("comander", "commander"),
+    ("asyc", "async"),
+    ("asyn", "async"),
+    ("asyncc", "async"),
+    ("asy", "async"),
+    ("asnc", "async"),
+    ("asyn", "async"),
+    ("asyncc", "async"),
+    ("asyn", "async"),
+    ("bluebidr", "bluebird"),
+    ("bluebrd", "bluebird"),
+    ("bluebirdd", "bluebird"),
+    ("bluebrd", "bluebird"),
+    ("blebird", "bluebird"),
+    ("bluebrd", "bluebird"),
+    ("bodyparsr", "body-parser"),
+    ("body-parsr", "body-parser"),
+    ("bodyparser", "body-parser"),
+    ("body-paser", "body-parser"),
+    ("bodypars", "body-parser"),
+    ("body-parsr", "body-parser"),
+    ("cookiparser", "cookie-parser"),
+    ("cookieparsr", "cookie-parser"),
+    ("cooke-parser", "cookie-parser"),
+    ("cookeparsr", "cookie-parser"),
+    ("cooki-parser", "cookie-parser"),
+    ("cookiepars", "cookie-parser"),
+    ("corss", "cors"),
+    ("cors", "cors"),
+    ("corr", "cors"),
+    ("cor", "cors"),
+    ("cors", "cors"),
+    ("cors", "cors"),
+    ("cors", "cors"),
+    ("cors", "cors"),
+    ("debugg", "debug"),
+    ("deubg", "debug"),
+    ("dbug", "debug"),
+    ("debg", "debug"),
+    ("debu", "debug"),
+    ("debugg", "debug"),
+    ("deubg", "debug"),
+    ("dubug", "debug"),
+    ("dotnev", "dotenv"),
+    ("dot-env", "dotenv"),
+    ("dotnenv", "dotenv"),
+    ("dotenv", "dotenv"),
+    ("dotenv", "dotenv"),
+    ("dot-env", "dotenv"),
+    ("dotnenv", "dotenv"),
+    ("dotnev", "dotenv"),
+    ("eslnt", "eslint"),
+    ("eslin", "eslint"),
+    ("esllint", "eslint"),
+    ("esint", "eslint"),
+    ("eslnt", "eslint"),
+    ("eslnt", "eslint"),
+    ("eslin", "eslint"),
+    ("eslnt", "eslint"),
+    ("fsextra", "fs-extra"),
+    ("fsxtra", "fs-extra"),
+    ("fs-extraa", "fs-extra"),
+    ("fsextra", "fs-extra"),
+    ("fs-xtra", "fs-extra"),
+    ("fsextr", "fs-extra"),
+    ("globb", "glob"),
+    ("glb", "glob"),
+    ("glop", "glob"),
+    ("gob", "glob"),
+    ("gllb", "glob"),
+    ("glob", "glob"),
+    ("gob", "glob"),
+    ("glbo", "glob"),
+    ("gulpp", "gulp"),
+    ("glp", "gulp"),
+    ("gulpjs", "gulp"),
+    ("gulp", "gulp"),
+    ("gullp", "gulp"),
+    ("gulp", "gulp"),
+    ("glup", "gulp"),
+    ("gul", "gulp"),
 ]
 
 MORE_PYPI_TYPOS = [
@@ -296,9 +393,7 @@ def generate_expanded_typosquat_fixtures():
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
-        files = {
-            "setup.py": f'from setuptools import setup\nsetup(name="{typo}", version="1.0.0")\n'
-        }
+        files = {"setup.py": f'from setuptools import setup\nsetup(name="{typo}", version="1.0.0")\n'}
 
         fixture = {
             "label": "typosquat",
@@ -315,9 +410,7 @@ def generate_expanded_typosquat_fixtures():
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
-        files = {
-            "go.mod": f"module example.com/{typo}\n\ngo 1.21\n\nrequire {typo} v1.0.0\n"
-        }
+        files = {"go.mod": f"module example.com/{typo}\n\ngo 1.21\n\nrequire {typo} v1.0.0\n"}
 
         fixture = {
             "label": "typosquat",
@@ -334,9 +427,7 @@ def generate_expanded_typosquat_fixtures():
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
-        files = {
-            "Cargo.toml": f'[package]\nname = "{typo}"\nversion = "1.0.0"\n\n[dependencies]\n{typo} = "1.0"\n'
-        }
+        files = {"Cargo.toml": f'[package]\nname = "{typo}"\nversion = "1.0.0"\n\n[dependencies]\n{typo} = "1.0"\n'}
 
         fixture = {
             "label": "typosquat",
@@ -349,7 +440,7 @@ def generate_expanded_typosquat_fixtures():
 
     # Maven typosquats
     for typo, real in MORE_MAVEN_TYPOS:
-        dirname = f"maven_typo_{typo.replace("-", "_")}_{random.randint(1000, 9999)}"
+        dirname = "maven_typo_" + typo.replace("-", "_") + f"_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
@@ -407,7 +498,7 @@ end"""
 
     # NuGet typosquats
     for typo, real in MORE_NUGET_TYPOS:
-        dirname = f"nuget_typo_{typo.replace(".", "_")}_{random.randint(1000, 9999)}"
+        dirname = "nuget_typo_" + typo.replace(".", "_") + f"_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
@@ -473,9 +564,7 @@ def generate_expanded_obfuscation_fixtures():
                 continue
 
             if ecosystem == "pypi":
-                files = {
-                    "setup.py": f'from setuptools import setup\n{code}\nsetup(name="obfs-{i}", version="1.0.0")\n'
-                }
+                files = {"setup.py": f'from setuptools import setup\n{code}\nsetup(name="obfs-{i}", version="1.0.0")\n'}
                 rule_ids = ["L2-PYPI-OBFS-001"]
             else:
                 files = {
@@ -582,33 +671,87 @@ def generate_expanded_dep_confusion_fixtures():
 # ─── EXPANDED NEGATIVE FIXTURES ───────────────────────────────────────────────
 
 SAFE_NPM_NAMES = [
-    "safe-package-alpha", "safe-package-beta", "safe-package-gamma", "safe-package-delta",
-    "clean-npm-project", "clean-npm-lib", "clean-npm-util", "clean-npm-helper",
-    "legitimate-npm-pkg", "legitimate-npm-lib", "legitimate-npm-util",
-    "normal-npm-lib", "normal-npm-pkg", "normal-npm-util", "normal-npm-helper",
-    "standard-npm-module", "standard-npm-lib", "standard-npm-pkg",
-    "typical-npm-package", "typical-npm-lib", "typical-npm-util",
-    "everyday-npm-dep", "everyday-npm-lib", "everyday-npm-util",
-    "common-npm-util", "common-npm-lib", "common-npm-helper",
-    "utility-npm-pkg", "utility-npm-lib", "utility-npm-helper",
-    "helper-npm-lib", "helper-npm-util", "helper-npm-pkg",
-    "simple-npm-lib", "simple-npm-util", "simple-npm-pkg",
-    "basic-npm-lib", "basic-npm-util", "basic-npm-pkg",
+    "safe-package-alpha",
+    "safe-package-beta",
+    "safe-package-gamma",
+    "safe-package-delta",
+    "clean-npm-project",
+    "clean-npm-lib",
+    "clean-npm-util",
+    "clean-npm-helper",
+    "legitimate-npm-pkg",
+    "legitimate-npm-lib",
+    "legitimate-npm-util",
+    "normal-npm-lib",
+    "normal-npm-pkg",
+    "normal-npm-util",
+    "normal-npm-helper",
+    "standard-npm-module",
+    "standard-npm-lib",
+    "standard-npm-pkg",
+    "typical-npm-package",
+    "typical-npm-lib",
+    "typical-npm-util",
+    "everyday-npm-dep",
+    "everyday-npm-lib",
+    "everyday-npm-util",
+    "common-npm-util",
+    "common-npm-lib",
+    "common-npm-helper",
+    "utility-npm-pkg",
+    "utility-npm-lib",
+    "utility-npm-helper",
+    "helper-npm-lib",
+    "helper-npm-util",
+    "helper-npm-pkg",
+    "simple-npm-lib",
+    "simple-npm-util",
+    "simple-npm-pkg",
+    "basic-npm-lib",
+    "basic-npm-util",
+    "basic-npm-pkg",
 ]
 
 SAFE_PYPY_NAMES = [
-    "safe-package-alpha", "safe-package-beta", "safe-package-gamma", "safe-package-delta",
-    "clean-pypi-project", "clean-pypi-lib", "clean-pypi-util", "clean-pypi-helper",
-    "legitimate-pypi-pkg", "legitimate-pypi-lib", "legitimate-pypi-util",
-    "normal-pypi-lib", "normal-pypi-pkg", "normal-pypi-util", "normal-pypi-helper",
-    "standard-pypi-module", "standard-pypi-lib", "standard-pypi-pkg",
-    "typical-pypi-package", "typical-pypi-lib", "typical-pypi-util",
-    "everyday-pypi-dep", "everyday-pypi-lib", "everyday-pypi-util",
-    "common-pypi-util", "common-pypi-lib", "common-pypi-helper",
-    "utility-pypi-pkg", "utility-pypi-lib", "utility-pypi-helper",
-    "helper-pypi-lib", "helper-pypi-util", "helper-pypi-pkg",
-    "simple-pypi-lib", "simple-pypi-util", "simple-pypi-pkg",
-    "basic-pypi-lib", "basic-pypi-util", "basic-pypi-pkg",
+    "safe-package-alpha",
+    "safe-package-beta",
+    "safe-package-gamma",
+    "safe-package-delta",
+    "clean-pypi-project",
+    "clean-pypi-lib",
+    "clean-pypi-util",
+    "clean-pypi-helper",
+    "legitimate-pypi-pkg",
+    "legitimate-pypi-lib",
+    "legitimate-pypi-util",
+    "normal-pypi-lib",
+    "normal-pypi-pkg",
+    "normal-pypi-util",
+    "normal-pypi-helper",
+    "standard-pypi-module",
+    "standard-pypi-lib",
+    "standard-pypi-pkg",
+    "typical-pypi-package",
+    "typical-pypi-lib",
+    "typical-pypi-util",
+    "everyday-pypi-dep",
+    "everyday-pypi-lib",
+    "everyday-pypi-util",
+    "common-pypi-util",
+    "common-pypi-lib",
+    "common-pypi-helper",
+    "utility-pypi-pkg",
+    "utility-pypi-lib",
+    "utility-pypi-helper",
+    "helper-pypi-lib",
+    "helper-pypi-util",
+    "helper-pypi-pkg",
+    "simple-pypi-lib",
+    "simple-pypi-util",
+    "simple-pypi-pkg",
+    "basic-pypi-lib",
+    "basic-pypi-util",
+    "basic-pypi-pkg",
 ]
 
 
@@ -675,7 +818,7 @@ def generate_expanded_negative_fixtures():
 
         files = {
             "go.mod": f"module example.com/clean-go-{i}\n\ngo 1.21\n",
-            "main.go": "package main\n\nimport \"fmt\"\n\nfunc main() {\n\tfmt.Println(\"hello\")\n}\n",
+            "main.go": "package main\n\nimport 'fmt'\n\nfunc main() {\n\tfmt.Println('hello')\n}\n",
         }
 
         fixture = {
@@ -695,7 +838,7 @@ def generate_expanded_negative_fixtures():
 
         files = {
             "Cargo.toml": f'[package]\nname = "clean-cargo-{i}"\nversion = "1.0.0"\n\n[dependencies]\n',
-            "src/lib.rs": "pub fn hello() -> &'static str { \"world\" }\n",
+            "src/lib.rs": 'pub fn hello() -> &\'static str { "world" }\n',
         }
 
         fixture = {
@@ -721,7 +864,7 @@ def generate_expanded_negative_fixtures():
     <artifactId>clean-maven-{i}</artifactId>
     <version>1.0.0</version>
 </project>""",
-            "src/main/java/org/example/Main.java": "package org.example;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println(\"hello\");\n    }\n}\n",
+            "src/main/java/org/example/Main.java": 'package org.example;\n\npublic class Main {\n    public static void main(String[] args) {\n        System.out.println("hello");\n    }\n}\n',
         }
 
         fixture = {
@@ -746,9 +889,7 @@ def generate_expanded_negative_fixtures():
   spec.summary = "A clean Ruby gem"
   spec.files = ["lib/clean_rubygems_{i}.rb"]
 end""",
-            "lib/clean_rubygems_{i}.rb".format(i=i): "module CleanRubyGems{i}\n  def self.hello\n    'world'\n  end\nend\n".format(
-                i=i
-            ),
+            f"lib/clean_rubygems_{i}.rb": f"module CleanRubyGems{i}\n  def self.hello\n    'world'\n  end\nend\n",
         }
 
         fixture = {
@@ -767,14 +908,12 @@ end""",
             continue
 
         files = {
-            f"CleanNuGet{i}.csproj": f"""<Project Sdk="Microsoft.NET.Sdk">
+            f"CleanNuGet{i}.csproj": """<Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
   </PropertyGroup>
 </Project>""",
-            "Class1.cs": "namespace CleanNuGet{i};\n\npublic class Class1 {{\n    public static string Hello() => \"world\";\n}}\n".format(
-                i=i
-            ),
+            "Class1.cs": f'namespace CleanNuGet{i};\n\npublic class Class1 {{\n    public static string Hello() => "world";\n}}\n',
         }
 
         fixture = {

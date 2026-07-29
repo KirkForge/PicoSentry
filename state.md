@@ -21,6 +21,21 @@
 - Committed: `bb579f08` — "fix(scan): kill orphaned processes on timeout (P0-5)"
 - Updated CHANGELOG.md with one-liner
 
+### Task: Corpus Expansion 4k→6k+ — DONE
+- Created `scripts/expand_corpus_to_6k.py` with combinatorial fixture generation
+- Generated +2810 new validation fixtures:
+  - +291 typosquat variants across all 7 ecosystems (npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet)
+  - +2050 negative (clean) fixtures for false-positive testing
+  - +115 CVE fixtures (Log4Shell, Spring4Shell, Jackson, Commons Collections, Nokogiri, Rails, Devise, Rack)
+  - +30 multi-attack fixtures (typosquat+obfs, dep-confusion+cred, obfs+netex)
+  - +24 obfuscation variants (nested eval, chained base64, hex+chr, unicode, getattr bypass)
+  - +300 dependency confusion patterns (internal-*, private-*, corp-*, etc.)
+- Updated `docs/model-card.md` with new corpus stats
+- Total validation fixtures: 3014→6495 (5558 pos / 930 neg / 7 tricky)
+- Total corpus JSON files: 4163→9088 (includes all corpus dirs)
+- Gates verified: `uv run pytest tests/scan/test_corpus_index.py` — 10 passed ✓
+- Committed: (current) — "feat(corpus): expand validation fixtures 4k→6k+ (9k total)"
+
 ### Overall Assessment: Grade A (Excellent)
 - Security-first architecture with robust assert_secure() gate
 - Deterministic scan guarantees (unique differentiator)

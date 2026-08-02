@@ -4,6 +4,13 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+- Wrapped blocking I/O calls (`subprocess.run`, file I/O, bcrypt) in `asyncio.to_thread()` for `run_project`, `run_batch`, `create_backup`, `register`, and `login` endpoints to prevent event loop stalls
+- Added counter key eviction (max 1000 keys, evict oldest 25%) to `MetricsCollector` to prevent unbounded memory growth
+- Added artifact eviction (max 5000 artifacts, evict oldest 25%) to `CorrelationEngine` to prevent unbounded memory growth
+- Removed dead `Organization.can_run()` and `can_create_project()` methods (never called from production code)
+- Deduplicated `_threat_level()` by importing module-level function from `_orchestrator_stats` into `intelligence.py`
+
 ### Security
 - CSP: removed `'unsafe-inline'` from `script-src` (retained for `style-src` only; dashboard SPA requires inline styles)
 - CORS: restricted `allow_methods` to `GET, POST, PATCH, DELETE, OPTIONS` and `allow_headers` to `Authorization, Content-Type, X-Request-ID, X-Org-API-Key`
@@ -37,6 +44,13 @@ All notable changes to PicoSentry will be documented in this file.
 - Extracted `require_org_membership` dependency from 4 inline org-membership checks in `orgs.py`
 - Created `picosentry/serve/database/helpers.py` with `build_filtered_query()` to eliminate duplicated SQL WHERE-clause builders
 - Added LRU eviction to auth rate limiter (max 10,000 IP entries; evicts oldest 25% when exceeded)
+- Fixed async endpoints blocking event loop: wrapped `subprocess.run()`, bcrypt hashing, and file I/O in `asyncio.to_thread()`
+- Added counter eviction to `MetricsCollector` (max 1,000 counter keys, evicts oldest 25%)
+- Added artifact eviction to `CorrelationEngine` (max 5,000 artifacts, evicts oldest 25% by timestamp)
+- Removed dead `Organization.can_create_project()` and `Organization.can_run()` methods
+- Deduplicated `_threat_level()` logic: removed instance method from `IntelligenceEngine`, using shared function from `_orchestrator_stats.py`
+- Added SMTP TLS validation warning in `Settings.validate()` (warns when password set without SSL/STARTTLS)
+- Added `ceiling:` annotation for `check_hostname=False` in cluster orchestrator
 - Fixed `test_expected_connection_error_marks_unavailable` caplog failure
 - Added input validation: `max_length=256` on login username/password, `max_length=128` and `pattern` validation on API key name/permissions
 - Added HTTPS validation for webhook URLs

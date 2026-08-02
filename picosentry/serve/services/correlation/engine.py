@@ -42,6 +42,7 @@ class CorrelationEngine:
         self._chains: dict[str, KillChainTimeline] = {}
 
         self._max_events_per_artifact = 1000
+        self._max_artifacts = 5000
 
         self._max_events_per_minute = 10_000
         self._minute_bucket_start: float = 0.0
@@ -94,6 +95,15 @@ class CorrelationEngine:
             if len(events) > self._max_events_per_artifact:
                 self._events[event.artifact_id] = events[-self._max_events_per_artifact :]
 
+            if len(self._events) > self._max_artifacts:
+                oldest = sorted(
+                    self._events,
+                    key=lambda k: min(e.timestamp for e in self._events[k]),
+                )[: len(self._events) // 4]
+                for k in oldest:
+                    del self._events[k]
+                    self._chains.pop(k, None)
+
             self._chains.pop(event.artifact_id, None)
 
         logger.debug(
@@ -121,6 +131,15 @@ class CorrelationEngine:
                 if len(artifact_events) > self._max_events_per_artifact:
                     self._events[event.artifact_id] = artifact_events[-self._max_events_per_artifact :]
                 self._chains.pop(event.artifact_id, None)
+
+            if len(self._events) > self._max_artifacts:
+                oldest = sorted(
+                    self._events,
+                    key=lambda k: min(e.timestamp for e in self._events[k]),
+                )[: len(self._events) // 4]
+                for k in oldest:
+                    del self._events[k]
+                    self._chains.pop(k, None)
 
         if dropped:
             logger.warning(

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import threading
 import time
@@ -54,7 +55,8 @@ async def register(request: RegisterRequest, fastapi_request: Request):
     # self-elect.  ``RegisterRequest`` rejects a client-supplied ``role``
     # field at the Pydantic layer (``extra="forbid"``), so this is the
     # single source of truth for the new user's role.
-    user_id = auth_service.create_user(
+    user_id = await asyncio.to_thread(
+        auth_service.create_user,
         username=request.username,
         password=request.password,
         email=request.email,
@@ -73,7 +75,7 @@ class _LoginRequest(BaseModel):
 @router.post("/login", tags=["Authentication"], response_model=AuthLoginResponse)
 async def login(request: _LoginRequest, fastapi_request: Request):
     _check_auth_rate_limit(fastapi_request)
-    token = auth_service.authenticate(request.username, request.password)
+    token = await asyncio.to_thread(auth_service.authenticate, request.username, request.password)
     if not token:
         raise HTTPException(status_code=401, detail="Invalid credentials")
     user_info = auth_service.validate_token(token) or {}

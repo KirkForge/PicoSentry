@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -6,6 +7,8 @@ from typing import get_type_hints
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
+
+logger = logging.getLogger("picoshogun.config")
 
 BASE_DIR = Path(__file__).parent.parent
 
@@ -272,6 +275,13 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                 issues.append(
                     "SECURITY: Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1"
                 )
+
+        if (
+            self.alerts.email_smtp_password
+            and not self.alerts.email_smtp_use_ssl
+            and not self.alerts.email_smtp_starttls
+        ):
+            logger.warning("SMTP credentials configured without TLS/SSL — passwords will be sent in cleartext")
 
         if not self.is_production() and self.api.host == "0.0.0.0":
             issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 
 from fastapi import APIRouter, Depends, Query
@@ -26,7 +27,7 @@ router = APIRouter()
 @router.post("/backup", tags=["Backup"], response_model=BackupResponse)
 async def create_backup(user: dict = Depends(require_role("admin")), org: dict = Depends(get_current_org)):
     backup_mgr = BackupManager()
-    result = backup_mgr.create_backup()
+    result = await asyncio.to_thread(backup_mgr.create_backup)
     return {"status": "backup_created", "path": result}
 
 

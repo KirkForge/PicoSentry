@@ -117,16 +117,6 @@ class Organization:
         }
 
     @staticmethod
-    def can_create_project(org_id: int) -> bool:
-        usage = Organization.get_usage(org_id)
-        return usage.get("projects", {}).get("used", 0) < usage.get("projects", {}).get("limit", 0)
-
-    @staticmethod
-    def can_run(org_id: int) -> bool:
-        usage = Organization.get_usage(org_id)
-        return usage.get("runs_today", {}).get("used", 0) < usage.get("runs_today", {}).get("limit", 0)
-
-    @staticmethod
     def add_project(org_id: int, project_id: str) -> None:
         """Associate a project with an organization.
 

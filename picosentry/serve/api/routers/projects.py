@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -59,7 +60,7 @@ async def run_project(
     user: dict = Depends(require_permission(Permission.RUN_PROJECTS)),
 ):
     timeout = request.timeout if request else 300
-    result = orchestrator.run_project(project_id, timeout=timeout, org_id=org["id"])
+    result = await asyncio.to_thread(orchestrator.run_project, project_id, timeout=timeout, org_id=org["id"])
     if "error" in result:
         raise HTTPException(status_code=400, detail=result["error"])
     return result
@@ -73,7 +74,9 @@ async def run_batch(
 ):
     results = {}
     for pid in request.project_ids:
-        result = orchestrator.run_project(pid, timeout=request.timeout or 300, org_id=org["id"])
+        result = await asyncio.to_thread(
+            orchestrator.run_project, pid, timeout=request.timeout or 300, org_id=org["id"]
+        )
         results[pid] = result if "error" not in result else {"error": result["error"]}
     return results
 

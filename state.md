@@ -3,9 +3,65 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: (current, uncommitted)
+- Head: bdcc9876 (dev branch)
 - Tests: 1572 pass (22 skipped); ruff/mypy clean; all gates green
 - Last updated: 2026-08-02
+
+## Session 2026-08-02 (Round 9): Async Fixes, Cache Eviction, Dead Code, Dedup
+
+### Task: Fix async endpoints blocking event loop — DONE
+- `projects.py`: Wrapped `orchestrator.run_project()` in `asyncio.to_thread()` for `run_project` and `run_batch`
+- `admin.py`: Wrapped `BackupManager.create_backup()` in `asyncio.to_thread()`
+- `auth.py`: Wrapped `auth_service.create_user()` and `auth_service.authenticate()` in `asyncio.to_thread()`
+
+### Task: MetricsCollector counter eviction — DONE
+- Added `_max_counter_keys=1000` and `_counter_timestamps` dict
+- When counter keys exceed limit, evicts oldest 25%
+
+### Task: CorrelationEngine artifact eviction — DONE
+- Added `_max_artifacts=5000` limit
+- In `ingest()` and `ingest_many()`, evicts oldest 25% of artifacts by timestamp when exceeded
+- Also clears associated chains when evicting
+
+### Task: Remove dead Organization methods — DONE
+- Removed `can_create_project()` and `can_run()` from `Organization` class (never called from production code)
+
+### Task: Deduplicate _threat_level — DONE
+- Removed `_threat_level` instance method from `IntelligenceEngine`
+- Imported module-level `_threat_level` from `_orchestrator_stats.py`
+
+### Task: SMTP TLS validation — DONE
+- Added warning log in `Settings.validate()` when SMTP password is set but neither SSL nor STARTTLS is enabled
+
+### Task: Cluster TLS comment — DONE
+- Added `ceiling:` honest-doc annotation for `check_hostname=False` in cluster orchestrator
+
+## Session 2026-08-02 (Round 9): Event Loop, Eviction, Dead Code, DRY
+
+### Task 1: Fix async endpoints blocking event loop — DONE
+- `projects.py`: wrapped `orchestrator.run_project()` in `asyncio.to_thread()` for `run_project` and `run_batch` endpoints
+- `admin.py`: wrapped `BackupManager.create_backup()` in `asyncio.to_thread()`
+- `auth.py`: wrapped `auth_service.create_user()` and `auth_service.authenticate()` in `asyncio.to_thread()`
+- Added `import asyncio` to all three files
+
+### Task 2: Add MetricsCollector counter eviction — DONE
+- Added `_max_counter_keys = 1000` and `_counter_timestamps: dict[str, float]` to `MetricsCollector.__init__`
+- In `counter()`, records timestamp on each increment; when key count exceeds 1000, evicts oldest 25%
+
+### Task 3: Add correlation engine artifact eviction — DONE
+- Added `_max_artifacts = 5000` to `CorrelationEngine.__init__`
+- In `ingest()` and `ingest_many()`, after adding events, evicts oldest 25% of artifacts when count exceeds 5000
+- Eviction uses `min(e.timestamp for e in self._events[k])` for ordering (timestamp is ISO 8601 str, sortable)
+
+### Task 4: Remove dead Organization.can_run() and can_create_project() — DONE
+- Removed both static methods from `orgs.py`
+- Neither was called from production code; `test_can_create_project_limits` only tested `Organization.TIERS`, not the removed methods
+
+### Task 5: Deduplicate _threat_level() — DONE
+- `_threat_level()` already existed as module-level function in `_orchestrator_stats.py`
+- Removed `_threat_level()` instance method from `IntelligenceEngine` in `intelligence.py`
+- Added `from picosentry.serve.services._orchestrator_stats import _threat_level` to `intelligence.py`
+- Changed `self._threat_level(total)` → `_threat_level(total)`
 
 ## Session 2026-08-02 (Round 8): Response Models, Docstrings, DRY Refactors, Cache Eviction
 

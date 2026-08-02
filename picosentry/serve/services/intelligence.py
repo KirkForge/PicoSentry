@@ -6,6 +6,7 @@ from collections import defaultdict
 from typing import Any, ClassVar
 
 from picosentry.serve.database.manager import db
+from picosentry.serve.services._orchestrator_stats import _threat_level
 
 from ._intelligence_data import (
     BANNER_PATTERNS,
@@ -358,17 +359,8 @@ class IntelligenceEngine:
         self.threat_scores[project_id] += weight * match_count
 
         total = sum(self.threat_scores.values())
-        level = self._threat_level(total)
+        level = _threat_level(total)
         logger.info("Aggregate threat: %.1f [%s] (%s sources)", total, level, len(self.threat_scores))
-
-    def _threat_level(self, score: float) -> str:
-        if score >= 50:
-            return "critical"
-        if score >= 20:
-            return "high"
-        if score >= 5:
-            return "medium"
-        return "low"
 
     def get_aggregate_score(self) -> float:
         with self._lock:

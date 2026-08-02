@@ -5,6 +5,7 @@ import json
 import logging
 import secrets
 import socket
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -96,27 +97,32 @@ class Webhook:
 
 
 class WebhookManager:
+    """Registers and dispatches webhook notifications with SSRF protection and DNS-rebind pinning."""
+
     def __init__(self, dns_resolver=None):
         self.dns_resolver = dns_resolver
         self.webhooks: dict[str, Webhook] = {}
+        self._lock = threading.RLock()
         self._load_webhooks()
 
     def _load_webhooks(self):
         rows = db.execute("SELECT * FROM webhooks WHERE active = 1")
-        for row in rows:
-            webhook = Webhook(
-                id=row["id"],
-                name=row["name"],
-                url=row["url"],
-                secret=row["secret"],
-                events=json.loads(row["events"]),
-                active=row["active"],
-                retries=row["retries"],
-                created_at=row["created_at"],
-                org_id=row.get("org_id"),
-                pinned_ips=None,
-            )
-            self.webhooks[row["name"]] = webhook
+        with self._lock:
+            self.webhooks.clear()
+            for row in rows:
+                webhook = Webhook(
+                    id=row["id"],
+                    name=row["name"],
+                    url=row["url"],
+                    secret=row["secret"],
+                    events=json.loads(row["events"]),
+                    active=row["active"],
+                    retries=row["retries"],
+                    created_at=row["created_at"],
+                    org_id=row.get("org_id"),
+                    pinned_ips=None,
+                )
+                self.webhooks[row["name"]] = webhook
 
     def create(
         self, name: str, url: str, events: list[str], secret: str | None = None, org_id: int | None = None
@@ -138,21 +144,23 @@ class WebhookManager:
 
         secret = secret or secrets.token_urlsafe(32)
 
-        webhook_id = db.execute_insert(
-            """
-            INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
-            VALUES (?, ?, ?, ?, 1, 0, ?)
-        """,
-            (name, url, secret, json.dumps(events), org_id),
-        )
+        with self._lock:
+            webhook_id = db.execute_insert(
+                """
+                INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
+                VALUES (?, ?, ?, ?, 1, 0, ?)
+            """,
+                (name, url, secret, json.dumps(events), org_id),
+            )
+            self._load_webhooks()
 
-        self._load_webhooks()
         logger.info("Webhook created: %s -> %s", name, url)
         return webhook_id
 
     def delete(self, webhook_id: int) -> bool:
-        db.execute("UPDATE webhooks SET active = 0 WHERE id = ?", (webhook_id,))
-        self._load_webhooks()
+        with self._lock:
+            db.execute("UPDATE webhooks SET active = 0 WHERE id = ?", (webhook_id,))
+            self._load_webhooks()
         return True
 
     def sign_payload(self, payload: dict, secret: str) -> str:
@@ -169,10 +177,28 @@ class WebhookManager:
             logger.warning("requests library not available, skipping webhooks")
             return results
 
-        for name, webhook in self.webhooks.items():
-            if event not in webhook.events:
-                continue
+        with self._lock:
+            dispatch_list = [
+                (
+                    name,
+                    Webhook(
+                        id=wh.id,
+                        name=wh.name,
+                        url=wh.url,
+                        secret=wh.secret,
+                        events=list(wh.events),
+                        active=wh.active,
+                        retries=wh.retries,
+                        created_at=wh.created_at,
+                        org_id=wh.org_id,
+                        pinned_ips=list(wh.pinned_ips) if wh.pinned_ips else None,
+                    ),
+                )
+                for name, wh in self.webhooks.items()
+                if event in wh.events
+            ]
 
+        for name, webhook in dispatch_list:
             event_payload: dict[str, Any] = {
                 "event": event,
                 "timestamp": datetime.now(timezone.utc).isoformat(),

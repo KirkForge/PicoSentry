@@ -1403,6 +1403,7 @@ watch-server = [
 
 [package.dev-dependencies]
 dev = [
+    { name = "pytest-timeout" },
     { name = "pytest-xdist" },
 ]
 
@@ -1442,7 +1443,10 @@ requires-dist = [
 provides-extras = ["scan", "watch-server", "serve", "otel", "sigstore", "grpc", "all", "dev"]
 
 [package.metadata.requires-dev]
-dev = [{ name = "pytest-xdist", specifier = ">=3.8.0" }]
+dev = [
+    { name = "pytest-timeout", specifier = ">=2.4.0" },
+    { name = "pytest-xdist", specifier = ">=3.8.0" },
+]
 
 [[package]]
 name = "platformdirs"

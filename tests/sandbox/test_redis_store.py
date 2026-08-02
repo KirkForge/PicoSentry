@@ -220,8 +220,7 @@ class TestRedisStoreExceptionNarrowing:
         store = RedisScanJobStore(redis_url="redis://localhost:1/0")
 
         if redis_store._redis is None:
-            # No redis package installed: inject a minimal fake that raises an
-            # operational error covered by the base _REDIS_CLIENT_ERRORS tuple.
+
             class _FakeRedis:
                 @staticmethod
                 def from_url(_url, **_kwargs):
@@ -235,11 +234,17 @@ class TestRedisStoreExceptionNarrowing:
 
             monkeypatch.setattr(redis_store._redis, "from_url", _boom)
 
-        with caplog.at_level(logging.WARNING, logger="picodome.daemon.redis_store"):
-            assert not store.available
+        picodome_logger = logging.getLogger("picodome")
+        saved_propagate = picodome_logger.propagate
+        picodome_logger.propagate = True
+        try:
+            with caplog.at_level(logging.WARNING, logger="picodome.daemon.redis_store"):
+                assert not store.available
 
-        assert not store._available
-        assert any("Redis connection failed" in r.message for r in caplog.records)
+            assert not store._available
+            assert any("Redis connection failed" in r.message for r in caplog.records)
+        finally:
+            picodome_logger.propagate = saved_propagate
 
     def test_unexpected_error_propagates(self, monkeypatch):
         from picosentry.sandbox.daemon import redis_store

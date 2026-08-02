@@ -129,8 +129,8 @@ class PicoDomePostRoutesMixin:
                 return
             body = self.rfile.read(content_length).decode("utf-8")
             data = json.loads(body)
-        except (json.JSONDecodeError, ValueError) as e:
-            self._send_error(ErrorCodes.INVALID_JSON, detail=str(e))
+        except (json.JSONDecodeError, ValueError):
+            self._send_error(ErrorCodes.INVALID_JSON, detail="Invalid JSON")
             return
 
         command = data.get("command")
@@ -253,9 +253,10 @@ class PicoDomePostRoutesMixin:
                 result=result,
             )
 
-            self._scan_count += 1
-            self._scan_total_ms += sandbox_result.duration_ms
-            self._alert_count += len(analysis_result.findings)
+            with self._stats_lock:
+                self._scan_count += 1
+                self._scan_total_ms += sandbox_result.duration_ms
+                self._alert_count += len(analysis_result.findings)
 
             try:
                 audit = get_audit_logger()
@@ -299,8 +300,8 @@ class PicoDomePostRoutesMixin:
                 return
             body = self.rfile.read(content_length).decode("utf-8")
             data = json.loads(body)
-        except (json.JSONDecodeError, ValueError) as e:
-            self._send_error(ErrorCodes.INVALID_JSON, detail=str(e))
+        except (json.JSONDecodeError, ValueError):
+            self._send_error(ErrorCodes.INVALID_JSON, detail="Invalid JSON")
             return
 
         from picosentry.sandbox.l3.policy import _policy_from_dict
@@ -320,8 +321,8 @@ class PicoDomePostRoutesMixin:
                 except OSError:
                     logger.exception("Failed to sign policy companion for %s", policy.name)
             self._send_json(pv.to_dict(), status=201)
-        except (ValueError, KeyError, TypeError) as e:
-            self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e))
+        except (ValueError, KeyError, TypeError):
+            self._send_error(ErrorCodes.INVALID_POLICY, detail="Invalid policy data")
         except (OSError, RuntimeError):
             logger.exception("Policy creation failed")
             self._send_error(ErrorCodes.INVALID_POLICY, detail="policy creation failed")

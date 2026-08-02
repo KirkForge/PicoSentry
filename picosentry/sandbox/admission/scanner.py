@@ -3,12 +3,18 @@ from __future__ import annotations
 import json
 import logging
 import os
-from urllib.error import URLError
-from urllib.request import Request, urlopen
+import urllib.error
+import urllib.request
 
 from typing import TYPE_CHECKING
 
-from picosentry.scan._network import assert_url_safe
+from picosentry.scan._network import (
+    InsecureURLError,
+    ResponseTooLargeError,
+    UnsafeURLError,
+    assert_url_safe,
+    safe_urlopen,
+)
 
 if TYPE_CHECKING:
     from picosentry.sandbox.admission import AdmissionRequest
@@ -108,15 +114,15 @@ class ImageScanner:
                 }
             ).encode("utf-8")
 
-            req = Request(
+            req = urllib.request.Request(
                 url,
                 data=payload,
                 headers={"Content-Type": "application/json"},
                 method="POST",
             )
 
-            response = urlopen(req, timeout=self.timeout)
-            result = json.loads(response.read())
+            _resp, body = safe_urlopen(req, timeout=int(self.timeout), allow_http=True)
+            result = json.loads(body)
 
             verdict = result.get("verdict", "CLEAN")
             findings = result.get("findings", [])
@@ -139,7 +145,7 @@ class ImageScanner:
             logger.debug("Image '%s' passed scan: %d findings, none blocking", image, len(findings))
             return True, ""
 
-        except URLError as exc:
+        except (urllib.error.URLError, OSError, TimeoutError) as exc:
             if self._fail_closed:
                 logger.exception(
                     "Cannot reach PicoDome daemon for image scan '%s' — denying (fail-closed)",
@@ -153,9 +159,8 @@ class ImageScanner:
             )
             return True, ""
 
-        except Exception as exc:
+        except (InsecureURLError, UnsafeURLError, ResponseTooLargeError, ValueError) as exc:
             if self._fail_closed:
-                logger.exception("Image scan failed for '")
                 return False, f"scan failed: image '{image}' scan error: {exc}"
             logger.warning("Image scan failed for '%s': %s — allowing", image, exc)
             return True, ""

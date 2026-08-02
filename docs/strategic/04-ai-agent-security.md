@@ -1,5 +1,7 @@
 # 04 — AI Agent Security Layer (MCP)
 
+> **Status: Deferred — not yet implemented. This document describes a future feature.**
+
 **Leverage:** Category ownership | **Effort:** Large | **Dependencies:** 02 (correlation) makes it stronger
 
 ---

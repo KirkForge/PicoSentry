@@ -186,14 +186,14 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             "load_errors": h.load_errors,
         }
 
-    @app.get("/metrics")
+    @app.get("/metrics", dependencies=([Depends(verify_api_key)] if api_key else []))
     async def get_metrics() -> PlainTextResponse:
         return PlainTextResponse(
             content=sink.render_prometheus(),
             media_type="text/plain",
         )
 
-    @app.get("/v1/rules")
+    @app.get("/v1/rules", dependencies=([Depends(verify_api_key)] if api_key else []))
     async def get_rules() -> list[dict[str, Any]]:
         return [
             {

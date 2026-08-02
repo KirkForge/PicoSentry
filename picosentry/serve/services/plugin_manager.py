@@ -6,6 +6,7 @@ import json
 import logging
 import os
 import re
+import threading
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -137,6 +138,8 @@ def _load_trusted_public_keys() -> set[str]:
 
 
 class PluginManager:
+    """Discovers, validates, and loads plugins with manifest verification and optional Ed25519 signing."""
+
     def __init__(self, plugin_dir: str | None = None, extra_plugin_dirs: list[str] | None = None):
         # The bundled plugin directory (shipped inside the wheel as
         # picosentry/serve/plugins/) is the lowest-priority source — it
@@ -175,6 +178,7 @@ class PluginManager:
             "alert": [],
         }
         self._loaded_plugin_paths: set[str] = set()
+        self._lock = threading.Lock()
         # Recursion guard: a plugin worker subprocess imports this module only
         # for PluginInterface/PluginMetadata. Discovering plugins there would
         # spawn a worker per plugin, each of which imports this module again —
@@ -318,7 +322,8 @@ class PluginManager:
             return False
 
     def _load_plugins(self):
-        dirs = self.resolved_dirs()
+        with self._lock:
+            dirs = self.resolved_dirs()
         loaded_count = 0
         for d in dirs:
             d_path = Path(d)
@@ -483,11 +488,13 @@ class PluginManager:
             logger.warning("Dispatch called with unknown hook '%s' — ignoring", hook)
             return []
 
-        # Hooks whose returned data is fed back into server-side detection state.
         WRITE_HOOKS = {"intelligence", "alert"}
 
+        with self._lock:
+            hooks = list(self.hooks.get(hook, []))
+
         results = []
-        for plugin_name in self.hooks.get(hook, []):
+        for plugin_name in hooks:
             plugin = self.plugins.get(plugin_name)
             if not plugin:
                 continue
@@ -517,8 +524,10 @@ class PluginManager:
         return results
 
     def get_status(self) -> dict[str, Any]:
+        with self._lock:
+            items = list(self.plugins.items())
         status: dict[str, Any] = {}
-        for name, plugin in self.plugins.items():
+        for name, plugin in items:
             try:
                 health = plugin.health_check()
                 status[name] = {
@@ -536,19 +545,20 @@ class PluginManager:
         return status
 
     def unload_all(self):
-        for name, plugin in self.plugins.items():
+        with self._lock:
+            items = list(self.plugins.items())
+        for name, plugin in items:
             try:
                 plugin.shutdown()
                 logger.info("Plugin unloaded: %s", name)
             except Exception:
-                # INTENTIONAL BROAD CATCH: shutdown failures must not prevent
-                # cleanup from completing.
                 logger.exception("Plugin %s shutdown failed", name)
 
-        self.plugins.clear()
-        self.metadata.clear()
-        for hook_list in self.hooks.values():
-            hook_list.clear()
+        with self._lock:
+            self.plugins.clear()
+            self.metadata.clear()
+            for hook_list in self.hooks.values():
+                hook_list.clear()
 
 
 plugin_manager = PluginManager()

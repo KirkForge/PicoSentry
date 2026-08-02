@@ -1,13 +1,14 @@
 """PicoWatch types tests."""
 
+import pytest
+
 from picosentry.watch.types import PromptScanResult, Rule, ValidationResult, Verdict
 
 
 class TestVerdict:
-    def test_values(self) -> None:
-        assert Verdict.PASS.value == "pass"
-        assert Verdict.WARN.value == "warn"
-        assert Verdict.BLOCK.value == "block"
+    @pytest.mark.parametrize("member,value", [("PASS", "pass"), ("WARN", "warn"), ("BLOCK", "block")])
+    def test_values(self, member, value):
+        assert Verdict[member].value == value
 
 
 class TestPromptScanResult:
@@ -23,38 +24,24 @@ class TestPromptScanResult:
         )
         assert result.score == 0.912346
 
-    def test_verdict_block(self) -> None:
+    @pytest.mark.parametrize(
+        "blocked,score,rules,expected",
+        [
+            (True, 0.9, ["inj_override_ignore"], Verdict.BLOCK),
+            (False, 0.5, ["inj_multiturn_game"], Verdict.WARN),
+            (False, 0.1, [], Verdict.PASS),
+        ],
+    )
+    def test_verdict(self, blocked, score, rules, expected) -> None:
         result = PromptScanResult(
-            blocked=True,
-            score=0.9,
-            rules_matched=["inj_override_ignore"],
+            blocked=blocked,
+            score=score,
+            rules_matched=rules,
             corpus_hash="abc",
             corpus_version="1.0",
             duration_ms=1.0,
         )
-        assert result.verdict == Verdict.BLOCK
-
-    def test_verdict_warn(self) -> None:
-        result = PromptScanResult(
-            blocked=False,
-            score=0.5,
-            rules_matched=["inj_multiturn_game"],
-            corpus_hash="abc",
-            corpus_version="1.0",
-            duration_ms=1.0,
-        )
-        assert result.verdict == Verdict.WARN
-
-    def test_verdict_pass(self) -> None:
-        result = PromptScanResult(
-            blocked=False,
-            score=0.1,
-            rules_matched=[],
-            corpus_hash="abc",
-            corpus_version="1.0",
-            duration_ms=1.0,
-        )
-        assert result.verdict == Verdict.PASS
+        assert result.verdict == expected
 
     def test_frozen(self) -> None:
         result = PromptScanResult(

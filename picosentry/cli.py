@@ -20,6 +20,7 @@ from picosentry.cli_commands import (
     corpus,
     daemon,
     diff,
+    doctor,
     health,
     init,
     rules,

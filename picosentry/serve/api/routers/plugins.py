@@ -3,6 +3,7 @@ import logging
 from fastapi import APIRouter, Depends
 
 from picosentry.serve.api.deps import get_current_user
+from picosentry.serve.api.models import PluginsResponse
 from picosentry.serve.services.plugin_manager import plugin_manager
 
 logger = logging.getLogger("picoshogun.plugins")
@@ -10,7 +11,7 @@ logger = logging.getLogger("picoshogun.plugins")
 router = APIRouter()
 
 
-@router.get("/plugins", tags=["Plugins"])
+@router.get("/plugins", tags=["Plugins"], response_model=PluginsResponse)
 async def list_plugins(user: dict = Depends(get_current_user)):
     return {
         "plugins": plugin_manager.get_status(),

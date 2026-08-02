@@ -110,6 +110,8 @@ class CorrelatedEvent:
     timestamp: str
     """ISO 8601 UTC timestamp of when the event was observed."""
 
+    org_id: str | None = None
+
     run_id: str | None = None
     """Serve orchestrator run ID for traceability."""
 
@@ -124,6 +126,7 @@ class CorrelatedEvent:
             "title": self.title,
             "detail": self.detail,
             "timestamp": self.timestamp,
+            "org_id": self.org_id,
             "run_id": self.run_id,
         }
 

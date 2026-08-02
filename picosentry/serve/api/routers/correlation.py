@@ -1,8 +1,17 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field
 
-from picosentry.serve.api.deps import require_role
+from picosentry.serve.api.deps import get_current_org, require_role
+from picosentry.serve.api.models import (
+    ChainListResponse,
+    ChainNarrativeResponse,
+    ChainsPersistResponse,
+    ChainsSummaryResponse,
+    EngineStatsResponse,
+    EventIngestResponse,
+)
 from picosentry.serve.services.correlation import correlation_engine
 
 logger = logging.getLogger("picoshogun.correlation")
@@ -10,11 +19,23 @@ logger = logging.getLogger("picoshogun.correlation")
 router = APIRouter(tags=["Correlation"])
 
 
-@router.get("/chains")
+class EventIngestRequest(BaseModel):
+    artifact_id: str = Field(..., max_length=512)
+    layer: str = Field(..., pattern="^(scan|sandbox_l3|sandbox_l4|watch)$")
+    rule_id: str = Field(..., max_length=128)
+    severity: str = Field(default="MEDIUM", pattern="^(INFO|LOW|MEDIUM|HIGH|CRITICAL)$")
+    confidence: str = Field(default="MEDIUM", pattern="^(LOW|MEDIUM|HIGH|EXACT)$")
+    target: str = Field(default="", max_length=512)
+    title: str = Field(default="", max_length=256)
+    detail: str = Field(default="", max_length=4096)
+
+
+@router.get("/chains", response_model=ChainListResponse)
 def list_chains(
     threshold: float = Query(0.0, ge=0.0, le=1.0, description="Minimum chain_score filter"),
     limit: int = Query(50, ge=1, le=500),
     user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
 ):
     if threshold > 0:
         chains = correlation_engine.critical_chains(threshold=threshold)
@@ -35,10 +56,11 @@ def list_chains(
     }
 
 
-@router.get("/chains/{artifact_id:path}")
+@router.get("/chains/{artifact_id:path}", response_model=ChainNarrativeResponse)
 def get_chain(
-    artifact_id: str,
+    artifact_id: str = Path(max_length=512),
     user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
 ):
     chain = correlation_engine.kill_chain(artifact_id)
     if chain is None:
@@ -49,10 +71,11 @@ def get_chain(
     return chain.to_dict()
 
 
-@router.get("/chains/{artifact_id:path}/narrative")
+@router.get("/chains/{artifact_id:path}/narrative", response_model=ChainNarrativeResponse)
 def get_chain_narrative(
-    artifact_id: str,
+    artifact_id: str = Path(max_length=512),
     user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
 ):
     chain = correlation_engine.kill_chain(artifact_id)
     if chain is None:
@@ -69,17 +92,11 @@ def get_chain_narrative(
     }
 
 
-@router.post("/events")
+@router.post("/events", response_model=EventIngestResponse)
 def ingest_event(
-    artifact_id: str = Query(..., description="Package@version identifier"),
-    layer: str = Query(..., description="Source layer (scan|sandbox_l3|sandbox_l4|watch)"),
-    rule_id: str = Query(..., description="Detector rule ID"),
-    severity: str = Query("MEDIUM", description="Event severity"),
-    confidence: str = Query("MEDIUM", description="Event confidence"),
-    target: str = Query("", description="Scan target / project name"),
-    title: str = Query("", description="Human-readable title"),
-    detail: str = Query("", description="Evidence / context"),
+    body: EventIngestRequest,
     user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
 ):
     from datetime import datetime, timezone
 
@@ -87,48 +104,44 @@ def ingest_event(
     from picosentry.serve.services.correlation import CorrelatedEvent
 
     try:
-        sev = Severity(severity.upper())
+        sev = Severity(body.severity.upper())
     except ValueError as err:
-        raise HTTPException(status_code=400, detail=f"Invalid severity: {severity}") from err
+        raise HTTPException(status_code=400, detail=f"Invalid severity: {body.severity}") from err
 
     try:
-        conf = Confidence(confidence.upper())
+        conf = Confidence(body.confidence.upper())
     except ValueError as err:
-        raise HTTPException(status_code=400, detail=f"Invalid confidence: {confidence}") from err
-
-    valid_layers = {"scan", "sandbox_l3", "sandbox_l4", "watch"}
-    if layer not in valid_layers:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Invalid layer: {layer}. Must be one of: {', '.join(sorted(valid_layers))}",
-        )
+        raise HTTPException(status_code=400, detail=f"Invalid confidence: {body.confidence}") from err
 
     event = CorrelatedEvent(
-        artifact_id=artifact_id,
-        layer=layer,
-        rule_id=rule_id,
+        artifact_id=body.artifact_id,
+        layer=body.layer,
+        rule_id=body.rule_id,
         severity=sev,
         confidence=conf,
-        target=target or artifact_id,
-        title=title or f"{layer}/{rule_id}",
-        detail=detail,
+        target=body.target or body.artifact_id,
+        title=body.title or f"{body.layer}/{body.rule_id}",
+        detail=body.detail,
         timestamp=datetime.now(timezone.utc).isoformat(),
+        org_id=org["id"],
     )
     correlation_engine.ingest(event)
 
     return {"status": "ok", "event": event.to_dict()}
 
 
-@router.get("/chains/summary")
+@router.get("/chains/summary", response_model=ChainsSummaryResponse)
 def chains_summary(
     user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
 ):
     return correlation_engine.chains_summary()
 
 
-@router.post("/chains/persist")
+@router.post("/chains/persist", response_model=ChainsPersistResponse)
 def persist_chains(
     user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
 ):
     event_count = correlation_engine.persist_events()
     chain_count = correlation_engine.persist_chains_cache()
@@ -140,8 +153,9 @@ def persist_chains(
     }
 
 
-@router.get("/engine/stats")
+@router.get("/engine/stats", response_model=EngineStatsResponse)
 def engine_stats(
     user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
 ):
     return correlation_engine.stats()

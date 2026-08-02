@@ -16,6 +16,8 @@ class Metric:
 
 
 class MetricsCollector:
+    """Collects and exposes application metrics in Prometheus and dictionary formats."""
+
     def __init__(self):
         self.metrics: dict[str, list[Metric]] = defaultdict(list)
         self.counters: dict[str, float] = defaultdict(float)

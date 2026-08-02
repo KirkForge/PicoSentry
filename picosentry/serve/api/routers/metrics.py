@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import PlainTextResponse
 
 from picosentry.serve.api.deps import get_current_org, require_permission
+from picosentry.serve.api.models import MetricsResponse
 from picosentry.serve.services.metrics import metrics
 from picosentry.serve.services.rbac import Permission
 
@@ -12,7 +13,7 @@ logger = logging.getLogger("picoshogun.metrics")
 router = APIRouter()
 
 
-@router.get("/metrics", tags=["Metrics"])
+@router.get("/metrics", response_model=MetricsResponse, tags=["Metrics"])
 async def get_metrics(
     format: str = Query("json", pattern="^(json|prometheus)$"),
     org: dict = Depends(get_current_org),
@@ -31,7 +32,7 @@ async def get_prometheus_metrics(
     return PlainTextResponse(content=metrics.to_prometheus(org_id=org["id"]), media_type="text/plain")
 
 
-@router.get("/metrics/json", tags=["Metrics"])
+@router.get("/metrics/json", response_model=MetricsResponse, tags=["Metrics"])
 async def get_json_metrics(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_METRICS)),

@@ -16,27 +16,28 @@ class Organization:
 
     @staticmethod
     def create(name: str, slug: str, owner_user_id: int, tier: str = "free") -> int | None:
-        if db.execute_one("SELECT id FROM orgs WHERE slug = ?", (slug,)):
-            return None
-
         api_key = f"sk_live_{secrets.token_urlsafe(32)}"
         api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
 
-        org_id = db.execute_insert(
-            """
-            INSERT INTO orgs (name, slug, owner_id, tier, api_key_hash, is_active, created_at)
-            VALUES (?, ?, ?, ?, ?, 1, ?)
-        """,
-            (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)),
-        )
-
-        db.execute_insert(
-            """
-            INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
-            VALUES (?, ?, 'admin', ?, ?)
-        """,
-            (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)),
-        )
+        try:
+            with db.transaction() as conn:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO orgs (name, slug, owner_id, tier, api_key_hash, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, 1, ?)
+                """,
+                    (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)),
+                )
+                org_id = cursor.lastrowid
+                conn.execute(
+                    """
+                    INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
+                    VALUES (?, ?, 'admin', ?, ?)
+                """,
+                    (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)),
+                )
+        except Exception:
+            return None
 
         return org_id
 

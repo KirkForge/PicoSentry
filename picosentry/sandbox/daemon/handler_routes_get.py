@@ -205,12 +205,16 @@ class PicoDomeGetRoutesMixin:
 
     def _handle_metrics(self: PicoDomeHandler) -> None:
         uptime = int(time.time() - self._start_time)
-        avg_ms = self._scan_total_ms / max(self._scan_count, 1)
+        with self._stats_lock:
+            scan_count = self._scan_count
+            scan_total_ms = self._scan_total_ms
+            alert_count = self._alert_count
+        avg_ms = scan_total_ms / max(scan_count, 1)
 
         lines = [
             "# HELP picodome_scans_total Total number of scans executed",
             "# TYPE picodome_scans_total counter",
-            f"picodome_scans_total {self._scan_count}",
+            f"picodome_scans_total {scan_count}",
             "",
             "# HELP picodome_scan_duration_ms_avg Average scan duration in ms",
             "# TYPE picodome_scan_duration_ms_avg gauge",
@@ -218,7 +222,7 @@ class PicoDomeGetRoutesMixin:
             "",
             "# HELP picodome_alerts_total Total number of alerts generated",
             "# TYPE picodome_alerts_total counter",
-            f"picodome_alerts_total {self._alert_count}",
+            f"picodome_alerts_total {alert_count}",
             "",
             "# HELP picodome_uptime_seconds Daemon uptime in seconds",
             "# TYPE picodome_uptime_seconds gauge",
@@ -338,10 +342,14 @@ class PicoDomeGetRoutesMixin:
         audit = get_audit_logger()
         audit_stats = audit.get_stats()
 
+        with self._stats_lock:
+            scan_count = self._scan_count
+            scan_total_ms = self._scan_total_ms
+            alert_count = self._alert_count
         stats_data: dict[str, Any] = {
-            "scans_total": self._scan_count,
-            "scans_avg_ms": self._scan_total_ms / max(self._scan_count, 1),
-            "alerts_total": self._alert_count,
+            "scans_total": scan_count,
+            "scans_avg_ms": scan_total_ms / max(scan_count, 1),
+            "alerts_total": alert_count,
         }
         if not _ENTERPRISE_MODE:
             stats_data["version"] = __version__

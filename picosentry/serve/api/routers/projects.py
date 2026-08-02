@@ -1,17 +1,24 @@
 import logging
 from datetime import datetime, timezone
-from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
 
 from picosentry.serve.api.deps import get_current_org, require_permission
 from picosentry.serve.api.models import (
+    AlertAcknowledgeResponse,
     AlertResponse,
     BatchRunRequest,
+    BatchRunResponse,
+    CorrelationResponse,
     IntelligenceItem,
+    ProjectReportResponse,
     ProjectRunRequest,
+    ProjectRunResponse,
     ProjectStatus,
+    ReportSummaryResponse,
+    ThreatScoreResponse,
 )
+from picosentry.serve.database.helpers import build_filtered_query
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.orchestrator import orchestrator
 from picosentry.serve.services.rbac import Permission
@@ -34,7 +41,7 @@ async def list_projects(
 
 @router.get("/projects/{project_id}", response_model=ProjectStatus, tags=["Projects"])
 async def get_project(
-    project_id: str,
+    project_id: str = Path(max_length=128),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
@@ -44,9 +51,9 @@ async def get_project(
     return project
 
 
-@router.post("/projects/{project_id}/run", tags=["Projects"])
+@router.post("/projects/{project_id}/run", response_model=ProjectRunResponse, tags=["Projects"])
 async def run_project(
-    project_id: str,
+    project_id: str = Path(max_length=128),
     request: ProjectRunRequest | None = None,
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.RUN_PROJECTS)),
@@ -58,7 +65,7 @@ async def run_project(
     return result
 
 
-@router.post("/batch/run", tags=["Projects"])
+@router.post("/batch/run", response_model=BatchRunResponse, tags=["Projects"])
 async def run_batch(
     request: BatchRunRequest,
     org: dict = Depends(get_current_org),
@@ -71,9 +78,9 @@ async def run_batch(
     return results
 
 
-@router.get("/projects/{project_id}/export", tags=["Projects"])
+@router.get("/projects/{project_id}/export", response_model=ProjectStatus, tags=["Projects"])
 async def export_project(
-    project_id: str,
+    project_id: str = Path(max_length=128),
     format: str = Query("json", pattern="^(json|csv)$"),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
@@ -108,25 +115,18 @@ async def list_intelligence(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
 ):
-    query = "SELECT * FROM intelligence WHERE org_id = ?"
-    params: list[Any] = [org["id"]]
-    if source_project:
-        query += " AND source_project = ?"
-        params.append(source_project)
-    if intel_type:
-        query += " AND intel_type = ?"
-        params.append(intel_type)
-    if severity:
-        query += " AND severity = ?"
-        params.append(severity)
-    query += " ORDER BY created_at DESC LIMIT ?"
-    params.append(limit)
+    query, params = build_filtered_query(
+        "intelligence",
+        org["id"],
+        {"source_project": source_project, "intel_type": intel_type, "severity": severity},
+        limit,
+    )
 
-    rows = db.execute(query, tuple(params))
+    rows = db.execute(query, params)
     return [dict(r) for r in rows] if rows else []
 
 
-@router.get("/intelligence/correlations/{project_id}", tags=["Intelligence"])
+@router.get("/intelligence/correlations/{project_id}", response_model=CorrelationResponse, tags=["Intelligence"])
 async def get_correlations(
     project_id: str,
     org: dict = Depends(get_current_org),
@@ -139,7 +139,7 @@ async def get_correlations(
     return {"project_id": project_id, "correlations": [dict(r) for r in rows] if rows else []}
 
 
-@router.get("/intelligence/threat-score", tags=["Intelligence"])
+@router.get("/intelligence/threat-score", response_model=ThreatScoreResponse, tags=["Intelligence"])
 async def get_threat_score(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
@@ -164,22 +164,18 @@ async def list_alerts(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_ALERTS)),
 ):
-    query = "SELECT * FROM alerts WHERE org_id = ?"
-    params: list[Any] = [org["id"]]
-    if severity:
-        query += " AND severity = ?"
-        params.append(severity)
-    if project_id:
-        query += " AND project_id = ?"
-        params.append(project_id)
-    query += " ORDER BY created_at DESC LIMIT ?"
-    params.append(limit)
+    query, params = build_filtered_query(
+        "alerts",
+        org["id"],
+        {"severity": severity, "project_id": project_id},
+        limit,
+    )
 
-    rows = db.execute(query, tuple(params))
+    rows = db.execute(query, params)
     return [dict(r) for r in rows] if rows else []
 
 
-@router.post("/alerts/{alert_id}/acknowledge", tags=["Alerts"])
+@router.post("/alerts/{alert_id}/acknowledge", response_model=AlertAcknowledgeResponse, tags=["Alerts"])
 async def acknowledge_alert(
     alert_id: int,
     org: dict = Depends(get_current_org),
@@ -195,7 +191,7 @@ async def acknowledge_alert(
     return {"status": "acknowledged", "alert_id": alert_id}
 
 
-@router.get("/reports/summary", tags=["Reports"])
+@router.get("/reports/summary", response_model=ReportSummaryResponse, tags=["Reports"])
 async def get_summary_report(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
@@ -212,9 +208,9 @@ async def get_summary_report(
     }
 
 
-@router.get("/reports/project/{project_id}", tags=["Reports"])
+@router.get("/reports/project/{project_id}", response_model=ProjectReportResponse, tags=["Reports"])
 async def get_project_report(
-    project_id: str,
+    project_id: str = Path(max_length=128),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):

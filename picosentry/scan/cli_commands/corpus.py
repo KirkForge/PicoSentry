@@ -207,7 +207,7 @@ def cmd(args: argparse.Namespace) -> int:
             print(f"Signer: {signature.signer_identity}")
             print(f"Digest: sha256:{signature.digest[:16]}")
             return 0
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Error signing corpus pack: {e}", file=sys.stderr)
             return 1
 

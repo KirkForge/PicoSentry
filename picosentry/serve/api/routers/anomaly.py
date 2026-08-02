@@ -1,9 +1,18 @@
 import logging
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from typing import Annotated
 
-from picosentry.serve.api.deps import require_permission
+from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from pydantic import BaseModel, Field
+
+from picosentry.serve.api.deps import get_current_org, require_permission
+from picosentry.serve.api.models import AnomalyAlertItem, AnomalyCheckResponse, AnomalyRuleResponse
 from picosentry.serve.services.rbac import Permission
+
+
+class AnomalyRuleUpdateRequest(BaseModel):
+    enabled: bool | None = None
+    threshold: float | None = Field(None, ge=0.0, le=1.0)
 
 
 def _get_anomaly_detector():
@@ -17,22 +26,27 @@ logger = logging.getLogger("picoshogun.anomaly")
 router = APIRouter(prefix="/anomaly")
 
 
-@router.get("/rules", tags=["Anomaly"])
-async def list_anomaly_rules(user: dict = Depends(require_permission(Permission.READ_ANOMALY))):
-    return _get_anomaly_detector().get_rules()
+@router.get("/rules", tags=["Anomaly"], response_model=list[AnomalyRuleResponse])
+async def list_anomaly_rules(
+    user: dict = Depends(require_permission(Permission.READ_ANOMALY)),
+    org: dict = Depends(get_current_org),
+):
+    return _get_anomaly_detector().get_rules(org_id=str(org["id"]))
 
 
-@router.get("/alerts", tags=["Anomaly"])
+@router.get("/alerts", tags=["Anomaly"], response_model=list[AnomalyAlertItem])
 async def list_anomaly_alerts(
     limit: int = Query(50, ge=1, le=200),
     user: dict = Depends(require_permission(Permission.READ_ANOMALY)),
+    org: dict = Depends(get_current_org),
 ):
-    return _get_anomaly_detector().get_alerts(limit=limit)
+    return _get_anomaly_detector().get_alerts(limit=limit, org_id=str(org["id"]))
 
 
-@router.post("/check", tags=["Anomaly"])
+@router.post("/check", response_model=AnomalyCheckResponse, tags=["Anomaly"])
 async def trigger_anomaly_check(
     user: dict = Depends(require_permission(Permission.WRITE_ANOMALY)),
+    org: dict = Depends(get_current_org),
 ):
     detector = _get_anomaly_detector()
     alerts = detector.check_rules()
@@ -51,20 +65,20 @@ async def trigger_anomaly_check(
     }
 
 
-@router.patch("/rules/{rule_id}", tags=["Anomaly"])
+@router.patch("/rules/{rule_id}", response_model=AnomalyRuleResponse, tags=["Anomaly"])
 async def update_anomaly_rule(
-    rule_id: str,
-    enabled: bool | None = None,
-    threshold: float | None = None,
+    rule_id: Annotated[str, Path(max_length=64)],
+    body: AnomalyRuleUpdateRequest,
     user: dict = Depends(require_permission(Permission.WRITE_ANOMALY)),
+    org: dict = Depends(get_current_org),
 ):
     updates: dict = {}
-    if enabled is not None:
-        updates["enabled"] = enabled
-    if threshold is not None:
-        updates["threshold"] = threshold
+    if body.enabled is not None:
+        updates["enabled"] = body.enabled
+    if body.threshold is not None:
+        updates["threshold"] = body.threshold
     if not updates:
-        raise HTTPException(400, "No updates provided")
+        raise HTTPException(status_code=400, detail="No updates provided")
     if not _get_anomaly_detector().update_rule(rule_id, **updates):
-        raise HTTPException(404, f"Rule '{rule_id}' not found")
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
     return {"status": "updated", "rule_id": rule_id}

@@ -4,7 +4,7 @@ import logging
 import os
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, ClassVar
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
@@ -111,189 +111,44 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
     verify_determinism: bool = False
     verbose: bool = False
 
-    @property
-    def rules_dir(self) -> Path:
-        return self.prompt_guard.rules_dir
+    _DELEGATE_MAP: ClassVar[dict[str, str]] = {
+        "rules_dir": "prompt_guard",
+        "threshold_block": "prompt_guard",
+        "threshold_warn": "prompt_guard",
+        "classifier_enabled": "prompt_guard",
+        "classifier_blend_factor": "prompt_guard",
+        "max_prompt_size": "prompt_guard",
+        "max_output_size": "prompt_guard",
+        "corpus_version": "prompt_guard",
+        "fail_closed": "prompt_guard",
+        "schema_dir": "output_guard",
+        "max_json_schema_nodes": "output_guard",
+        "max_json_schema_depth": "output_guard",
+        "otel_endpoint": "telemetry",
+        "audit_retention_days": "telemetry",
+        "host": "server",
+        "admin_host": "server",
+        "port": "server",
+        "admin_port": "server",
+        "api_key": "server",
+        "admin_auth_enabled": "server",
+        "enable_docs": "server",
+        "rate_limit": "server",
+        "rate_limit_window": "server",
+    }
 
-    @rules_dir.setter
-    def rules_dir(self, value: Path) -> None:
-        self.prompt_guard.rules_dir = value
+    def __getattr__(self, name: str) -> Any:
+        sub = type(self)._DELEGATE_MAP.get(name)
+        if sub is not None:
+            return getattr(getattr(self, sub), name)
+        raise AttributeError(f"'{type(self).__name__}' object has no attribute '{name}'")
 
-    @property
-    def threshold_block(self) -> float:
-        return self.prompt_guard.threshold_block
-
-    @threshold_block.setter
-    def threshold_block(self, value: float) -> None:
-        self.prompt_guard.threshold_block = value
-
-    @property
-    def threshold_warn(self) -> float:
-        return self.prompt_guard.threshold_warn
-
-    @threshold_warn.setter
-    def threshold_warn(self, value: float) -> None:
-        self.prompt_guard.threshold_warn = value
-
-    @property
-    def classifier_enabled(self) -> bool:
-        return self.prompt_guard.classifier_enabled
-
-    @classifier_enabled.setter
-    def classifier_enabled(self, value: bool) -> None:
-        self.prompt_guard.classifier_enabled = value
-
-    @property
-    def classifier_blend_factor(self) -> float:
-        return self.prompt_guard.classifier_blend_factor
-
-    @classifier_blend_factor.setter
-    def classifier_blend_factor(self, value: float) -> None:
-        self.prompt_guard.classifier_blend_factor = value
-
-    @property
-    def max_prompt_size(self) -> int:
-        return self.prompt_guard.max_prompt_size
-
-    @max_prompt_size.setter
-    def max_prompt_size(self, value: int) -> None:
-        self.prompt_guard.max_prompt_size = value
-
-    @property
-    def max_output_size(self) -> int:
-        return self.prompt_guard.max_output_size
-
-    @max_output_size.setter
-    def max_output_size(self, value: int) -> None:
-        self.prompt_guard.max_output_size = value
-
-    @property
-    def corpus_version(self) -> str:
-        return self.prompt_guard.corpus_version
-
-    @corpus_version.setter
-    def corpus_version(self, value: str) -> None:
-        self.prompt_guard.corpus_version = value
-
-    @property
-    def fail_closed(self) -> bool:
-        return self.prompt_guard.fail_closed
-
-    @fail_closed.setter
-    def fail_closed(self, value: bool) -> None:
-        self.prompt_guard.fail_closed = value
-
-    @property
-    def schema_dir(self) -> Path | None:
-        return self.output_guard.schema_dir
-
-    @schema_dir.setter
-    def schema_dir(self, value: Path | None) -> None:
-        self.output_guard.schema_dir = value
-
-    @property
-    def max_json_schema_nodes(self) -> int:
-        return self.output_guard.max_json_schema_nodes
-
-    @max_json_schema_nodes.setter
-    def max_json_schema_nodes(self, value: int) -> None:
-        self.output_guard.max_json_schema_nodes = value
-
-    @property
-    def max_json_schema_depth(self) -> int:
-        return self.output_guard.max_json_schema_depth
-
-    @max_json_schema_depth.setter
-    def max_json_schema_depth(self, value: int) -> None:
-        self.output_guard.max_json_schema_depth = value
-
-    @property
-    def otel_endpoint(self) -> str | None:
-        return self.telemetry.otel_endpoint
-
-    @otel_endpoint.setter
-    def otel_endpoint(self, value: str | None) -> None:
-        self.telemetry.otel_endpoint = value
-
-    @property
-    def audit_retention_days(self) -> int:
-        return self.telemetry.audit_retention_days
-
-    @audit_retention_days.setter
-    def audit_retention_days(self, value: int) -> None:
-        self.telemetry.audit_retention_days = value
-
-    @property
-    def host(self) -> str:
-        return self.server.host
-
-    @host.setter
-    def host(self, value: str) -> None:
-        self.server.host = value
-
-    @property
-    def admin_host(self) -> str:
-        return self.server.admin_host
-
-    @admin_host.setter
-    def admin_host(self, value: str) -> None:
-        self.server.admin_host = value
-
-    @property
-    def port(self) -> int:
-        return self.server.port
-
-    @port.setter
-    def port(self, value: int) -> None:
-        self.server.port = value
-
-    @property
-    def admin_port(self) -> int:
-        return self.server.admin_port
-
-    @admin_port.setter
-    def admin_port(self, value: int) -> None:
-        self.server.admin_port = value
-
-    @property
-    def api_key(self) -> str | None:
-        return self.server.api_key
-
-    @api_key.setter
-    def api_key(self, value: str | None) -> None:
-        self.server.api_key = value
-
-    @property
-    def admin_auth_enabled(self) -> bool:
-        return self.server.admin_auth_enabled
-
-    @admin_auth_enabled.setter
-    def admin_auth_enabled(self, value: bool) -> None:
-        self.server.admin_auth_enabled = value
-
-    @property
-    def enable_docs(self) -> bool:
-        return self.server.enable_docs
-
-    @enable_docs.setter
-    def enable_docs(self, value: bool) -> None:
-        self.server.enable_docs = value
-
-    @property
-    def rate_limit(self) -> int:
-        return self.server.rate_limit
-
-    @rate_limit.setter
-    def rate_limit(self, value: int) -> None:
-        self.server.rate_limit = value
-
-    @property
-    def rate_limit_window(self) -> int:
-        return self.server.rate_limit_window
-
-    @rate_limit_window.setter
-    def rate_limit_window(self, value: int) -> None:
-        self.server.rate_limit_window = value
+    def __setattr__(self, name: str, value: Any) -> None:
+        sub = type(self)._DELEGATE_MAP.get(name)
+        if sub is not None:
+            setattr(getattr(self, sub), name, value)
+        else:
+            super().__setattr__(name, value)
 
     def assert_secure(self) -> None:
         import os as _os

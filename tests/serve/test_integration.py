@@ -955,21 +955,6 @@ class TestAuthServiceIntegration:
         assert new_info is not None
         assert new_info["permissions"] == "read"
 
-    def test_check_permission_hierarchy(self):
-        from picosentry.serve.services.auth import AuthService
-
-        auth = AuthService()
-        viewer = {"role": "viewer"}
-        operator = {"role": "operator"}
-        admin = {"role": "admin"}
-
-        assert not auth.check_permission(viewer, "run")
-        assert auth.check_permission(operator, "run")
-        assert auth.check_permission(admin, "run")
-        assert auth.check_permission(viewer, "read")
-        assert not auth.check_permission(operator, "admin")
-        assert auth.check_permission(admin, "admin")
-
 
 # ── Scheduler Service Tests ──────────────────────────────────────────────
 

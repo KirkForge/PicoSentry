@@ -17,9 +17,7 @@
 
 ---
 
-**Catch malicious packages before they bite.** PicoSentry is an offline supply-chain scanner that detects obfuscation, typosquatting, dependency confusion, post-install exfiltration, known IOCs, and CVEs across 7 ecosystems — no internet required.
-
-> Kernel sandbox enforcement and LLM prompt/output guards are included as stable capabilities.
+**Catch malicious packages before they bite.** Offline supply-chain scanner — obfuscation, typosquatting, dependency confusion, exfiltration, IOCs, CVEs across 7 ecosystems. No internet required.
 
 ---
 
@@ -30,28 +28,7 @@ pip install picosentry
 picosentry scan ./your-project
 ```
 
-That's it. Works offline, deterministic, no phone-home.
-
-### See it in action
-
-```bash
-git clone https://github.com/KirkForge/PicoSentry.git
-cd PicoSentry
-picosentry scan examples/pypi-obfuscated-setup/
-```
-
-```text
-🦞 PicoSentry
-Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.0.5 | Corpus: vef6b3b3115bb
-Scan ID: 08057439b4ba08d8
-
-Packages scanned: 0
-Files scanned:     2
-Duration:          20ms
-```
-
-The scan fires 5+ findings across obfuscation, post-install, and exfiltration rules. Re-run and the `Scan ID` and `Corpus` digest match exactly — that's the determinism guarantee.
+Works offline, deterministic, no phone-home.
 
 ---
 
@@ -60,16 +37,15 @@ The scan fires 5+ findings across obfuscation, post-install, and exfiltration ru
 | Rule | What it catches | Example |
 |------|----------------|---------|
 | L2-TYPO-001 | Typosquatted package names | `reqursts` instead of `requests` |
-| L2-DEPC-001 | Dependency confusion (private → public) | `internal-pkg` not on registry |
-| L2-PYPI-OBFS-001 | Dynamic execution in setup.py | `exec()` / `eval()` in install scripts |
-| L2-PYPI-OBFS-002 | Base64-decoded payloads in source | `base64.b64decode(...)` + dynamic use |
+| L2-DEPC-001 | Dependency confusion | `internal-pkg` not on registry |
+| L2-PYPI-OBFS-001 | Dynamic execution in setup.py | `exec()`/`eval()` in install scripts |
+| L2-PYPI-OBFS-002 | Base64-decoded payloads | `base64.b64decode(...)` + dynamic use |
 | L2-PYPI-POST-001 | Post-install code execution | `setup.py` runs code at install time |
 | L2-NETEX-001 | Network calls during install | `urllib.request`, `curl`, `wget` at install |
 | L2-IOC-001 | Known IOC behavior patterns | Hardcoded C2 host, exfil URL patterns |
 | L2-CVE-001 | Known CVEs in dependency tree | OSV-matched vulnerabilities |
 
-**54 rules across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
-Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
+**50 rules** across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet. Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 ---
 
@@ -97,7 +73,7 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 | 7 ecosystems | ✅ | partial | ✅ | ✅ | partial |
 | Kernel sandbox | ✅ | ❌ | ❌ | ❌ | ❌ |
 
-**PicoSentry's edge:** offline + deterministic + malicious-behavior rules in one package. Other tools have wider CVE coverage or broader container scanning — PicoSentry focuses on catching *malicious intent*, not just known vulnerabilities.
+Offline + deterministic + malicious-behavior rules in one package.
 
 ---
 
@@ -105,61 +81,61 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 1048 fixtures |
-| `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
-| `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
-| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
-| `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
-| `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
-| `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
-| Cross-layer correlation | **Stable** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested in CI |
-| Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
-| Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
-| Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 1048 fixtures (899 pos / 142 neg), 54 rules, 94.44% prec, 73.79% recall — see docs/model-card.md |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
+| `picosentry scan` | **Stable** | 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
+| `picosentry sandbox` | **Stable** | seccomp-bpf; gRPC + HTTP; L4 behavioral analysis |
+| `picosentry watch` | **Stable** | Regex + lexical classifier for prompt injection (L5) and output validation (L6) |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres |
+| `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS |
+| `picosentry admission` | **Beta** | K8s admission webhook; fail-closed by default |
+| `picosentry corpus` | **Stable** | Export/import/validate/sign IoC packs; 3 built-in |
+| Cross-layer correlation | **Stable** | Links findings across scan + sandbox + watch layers |
+| Plugin system | **Stable** | Ed25519 signature verify; unsigned plugins when signing not required |
+| Postgres backend | **Stable** | psycopg2 pool + dialect helpers; PG 15/16 CI |
+| Cluster mode | **Beta** | Gossip over HTTP(S); monotonic versioning; 3-node integration test |
+| Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg / 7 tricky), 50 rules, 94.44% prec, 68.89% recall |
+| Docker image | **Stable** | `kirkforge/picodome:v2.0.18`; multi-arch, non-root |
+| PyPI package | **Stable** | v2.0.18 |
 
-"Beta" means it works, has regression and security tests, and is suitable for controlled production use. See the per-component security reviews in [`docs/`](docs/).
+"Beta" = works, has regression + security tests, suitable for controlled production use. Per-component reviews in [`docs/`](docs/).
 
 ---
 
 ## Install
 
 ```bash
-pip install picosentry                # core (lightweight, offline-ready)
+pip install picosentry                # core (offline-ready)
 pip install picosentry[scan]          # + online corpus management
-pip install picosentry[serve]         # + API server + dashboard
-pip install picosentry[all]           # everything
+pip install picosentry[serve]          # + API server + dashboard
+pip install picosentry[all]            # everything
 ```
 
-**Docker:** `docker pull kirkforge/picodome:v2.0.18` — multi-arch (amd64 + arm64), non-root.
+**Docker:** `docker pull kirkforge/picodome:v2.0.18` — multi-arch, non-root.
 
 ---
 
 ## More
 
-- **[Technical manual](docs/manual.md)** — full install options, gRPC transport, plugin system, corpus management, repository structure, and sandbox details
+- **[Technical manual](docs/manual.md)** — install, gRPC, plugins, corpus, sandbox
 - **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
-- **[Detection benchmarks](docs/model-card.md)** — 1048 fixtures, 54 rules, precision/recall per rule
-- **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component security analysis
-- **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
+- **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 50 rules, precision/recall
+- **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component analysis
+- **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, deploy plugins
 
 ---
 
 ## Design principles
 
-- **Deterministic** — same inputs + same policy = same SHA-256 output. No randomness, no network dependence.
-- **Offline by default** — no phone-home, no remote API calls at scan time. Works in air-gapped environments.
-- **Lightweight core** — default install pulls only `pyyaml`. Heavy deps are gated behind extras.
-- **Typed** — full Python type annotations, `py.typed` shipped.
+- **Deterministic** — same inputs + same policy = same SHA-256 output
+- **Offline by default** — no phone-home, no remote API calls
+- **Lightweight core** — default install pulls only `pyyaml`
+- **Typed** — full annotations, `py.typed` shipped
 
 ---
 
 ## Getting help
 
-- **Issues / features:** [GitHub Issues](https://github.com/KirkForge/PicoSentry/issues)
-- **Security issues** (do **not** file a public issue): see [SECURITY.md](SECURITY.md) or open a [private vulnerability report](https://github.com/KirkForge/PicoSentry/security/advisories/new)
+- **Issues:** [GitHub Issues](https://github.com/KirkForge/PicoSentry/issues)
+- **Security** (not a public issue): [SECURITY.md](SECURITY.md) or [private report](https://github.com/KirkForge/PicoSentry/security/advisories/new)
 - **Discussion:** [GitHub Discussions](https://github.com/KirkForge/PicoSentry/discussions)
 - **Contributing:** [CONTRIBUTING.md](CONTRIBUTING.md)
 

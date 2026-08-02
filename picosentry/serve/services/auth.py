@@ -27,6 +27,8 @@ logger = logging.getLogger("picoshogun.Auth")
 
 
 class AuthService:
+    """Manages user authentication, JWT token generation, and API key lifecycle."""
+
     # Defense-in-depth: refuse to instantiate the auth service with a secret
     # key that is empty, a known placeholder, or too short to resist brute
     # force.  assert_secure() is the startup gate; this check protects tests
@@ -93,16 +95,23 @@ class AuthService:
 
     def authenticate(self, username: str, password: str) -> str | None:
         normalized = self._normalize_username(username)
-        user = self._db.execute_one("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
 
-        # Generic failure path: do not reveal whether the username exists.
-        if not user or not self._verify_password(password, user["password_hash"]):
-            logger.warning("Auth failed: invalid credentials")
-            return None
+        with self._db.transaction() as conn:
+            cursor = conn.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
+            row = cursor.fetchone()
+            if isinstance(row, dict):
+                user = row
+            elif row:
+                cols = [desc[0] for desc in cursor.description]
+                user = dict(zip(cols, row, strict=False))
+            else:
+                user = None
 
-        self._db.execute_insert(
-            "UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(timezone.utc), user["id"])
-        )
+            if not user or not self._verify_password(password, user["password_hash"]):
+                logger.warning("Auth failed: invalid credentials")
+                return None
+
+            conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(timezone.utc), user["id"]))
 
         token = self._generate_token(user["id"], user["username"], user["role"])
 
@@ -149,20 +158,20 @@ class AuthService:
 
     def create_user(self, username: str, password: str, email: str | None = None, role: str = "viewer") -> int | None:
         normalized = self._normalize_username(username)
-
-        existing = self._db.execute_one("SELECT id FROM users WHERE username = ?", (normalized,))
-        if existing:
-            return None
-
         password_hash = self._hash_password(password)
 
-        user_id = self._db.execute_insert(
-            """
-            INSERT INTO users (username, password_hash, email, role)
-            VALUES (?, ?, ?, ?)
-        """,
-            (normalized, password_hash, email, role),
-        )
+        try:
+            with self._db.transaction() as conn:
+                cursor = conn.execute(
+                    """
+                    INSERT INTO users (username, password_hash, email, role)
+                    VALUES (?, ?, ?, ?)
+                """,
+                    (normalized, password_hash, email, role),
+                )
+                user_id = cursor.lastrowid
+        except Exception:
+            return None
 
         logger.info("User created: %s (role: %s)", normalized, role)
         return user_id
@@ -251,30 +260,24 @@ class AuthService:
         if not key:
             return None
 
-        with self._db.transaction() as conn:
-            conn.execute(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
-            )
-
         new_api_key = secrets.token_urlsafe(32)
         key_hash = hashlib.sha256(new_api_key.encode()).hexdigest()
         expires = datetime.now(timezone.utc) + timedelta(days=90)
 
-        self._db.execute_insert(
-            """
-            INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
-            VALUES (?, ?, ?, ?, ?)
-        """,
-            (key_hash, user_id, key["name"] or "rotated-key", key["permissions"] or "read", expires),
-        )
+        with self._db.transaction() as conn:
+            conn.execute(
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
+            )
+            conn.execute(
+                """
+                INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
+                VALUES (?, ?, ?, ?, ?)
+            """,
+                (key_hash, user_id, key["name"] or "rotated-key", key["permissions"] or "read", expires),
+            )
 
         logger.info("API key rotated for user %s, key_id %s", user_id, key_id)
         return new_api_key
-
-    def check_permission(self, user: dict[str, Any], required: str) -> bool:
-        role = user.get("role", "viewer")
-        permissions = {"viewer": ["read"], "operator": ["read", "run"], "admin": ["read", "run", "write", "admin"]}
-        return required in permissions.get(role, [])
 
     def cleanup_expired_keys(self) -> int:
         now = datetime.now(timezone.utc)

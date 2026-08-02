@@ -180,7 +180,7 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
                         packages.append((name, version, f"{name}@{version}", lock_path))
             except OSError as exc:
                 logger.warning("Could not read lock file %s: %s", lock_path, exc)
-            except Exception as exc:
+            except (ValueError, TypeError, KeyError) as exc:
                 logger.warning("Skipping lock file %s due to parse error: %s", lock_path, exc)
 
     return packages

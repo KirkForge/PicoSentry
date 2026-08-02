@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends
 
 from picosentry.serve.api.deps import get_current_org, require_permission
+from picosentry.serve.api.models import DashboardSummaryResponse
 from picosentry.serve.database.manager import db
 from picosentry.serve.services.orchestrator import orchestrator
 from picosentry.serve.services.rbac import Permission
@@ -13,7 +14,7 @@ logger = logging.getLogger("picoshogun.dashboard")
 router = APIRouter()
 
 
-@router.get("/dashboard/summary", tags=["Dashboard"])
+@router.get("/dashboard/summary", response_model=DashboardSummaryResponse, tags=["Dashboard"])
 async def dashboard_summary(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),

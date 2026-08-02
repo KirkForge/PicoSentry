@@ -4,6 +4,119 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Security
+- CSP: removed `'unsafe-inline'` from `script-src` (retained for `style-src` only; dashboard SPA requires inline styles)
+- CORS: restricted `allow_methods` to `GET, POST, PATCH, DELETE, OPTIONS` and `allow_headers` to `Authorization, Content-Type, X-Request-ID, X-Org-API-Key`
+- Added `get_current_org` dependency to all admin, correlation, anomaly, and scan API endpoints to capture org context for audit trail and prevent cross-tenant data access
+- Added `org_id` field to `CorrelatedEvent` dataclass for future persistence-layer org filtering
+- In-memory rate limiter (5 req/min per IP) now also covers `/auth/api-key` creation
+- WebSocket `/ws` now rejects unauthenticated connections immediately (code 4001) instead of accepting them and deferring auth
+- Sandbox env denylist now strips `PICOSHOGUN_ALLOW_INSECURE_SECRET`, `PICOSHOGUN_SKIP_SECURE_ASSERT`, and `PICOSHOGUN_API_KEY` to prevent security bypass leakage
+- `webhook_sink.py` now uses `safe_urlopen()` and `assert_url_safe()` from `scan._network` instead of raw `urlopen()`
+- `auth.py:create_user()` and `orgs.py:create()` now use single-transaction INSERT with IntegrityError catch (eliminates TOCTOU race on username/slug uniqueness)
+- `auth.py:rotate_api_key()` now uses a single transaction for revoke+insert (eliminates window with no valid key)
+- `auth.py:authenticate()` now uses a single transaction for SELECT+UPDATE last_login
+- `plugin_manager.py` now uses `threading.Lock` to protect `dispatch()`, `get_status()`, `_load_plugins()`, and `unload_all()` from concurrent access
+- `anomaly.py` HTTPException calls now use keyword args (`status_code=`, `detail=`) for consistency
+- `health.py` readiness probe now uses `HTTPException` for 503 instead of bare `JSONResponse`
+- Sanitized JSON decode errors in `handler_routes_post.py`: replaced `detail=str(e)` with generic messages
+- Added `max_length=512` to `ScanRequest.target`
+- Added `min_length=1` to `SandboxRunRequest.command` and `_LoginRequest.username`/`_LoginRequest.password`
+- Added `Path(max_length=128)` to project_id params
+- Changed scheduler `job_id` path param from `str` to `int` (422 on bad input instead of 500)
+- Added `max_length` constraints to admin log query params (`level`, `source`, `search`)
+- Removed unused `SandboxRunRequest.policy_file` field
+- **IntelligenceEngine**: Parameterized `time_window_hours` in `find_correlations()` SQLite query; added `threading.Lock` for `patterns` and `threat_scores` dicts
+- **LogManager**: Added lock to `query()`, `get_stats()`, and `cleanup()` to prevent file read/write races with `rotate()`
+- **PicoDomeHandler**: Added `_stats_lock` (`threading.Lock`) to protect scan/alert counters from concurrent request handlers
+- **DatabaseManager**: Added `_validate_param_count()` to catch `?`/params mismatches before SQL execution
+- Removed dead `AuthService.check_permission()` method (RBAC module used instead)
+- Removed dead `trace_span` and `trace_async_span` decorators from `observability.py`
+- Added 22 Pydantic response models and applied `response_model=` to 27 endpoints
+- Added class-level docstrings to all 11 service classes
+- Extracted `require_org_membership` dependency from 4 inline org-membership checks in `orgs.py`
+- Created `picosentry/serve/database/helpers.py` with `build_filtered_query()` to eliminate duplicated SQL WHERE-clause builders
+- Added LRU eviction to auth rate limiter (max 10,000 IP entries; evicts oldest 25% when exceeded)
+- Fixed `test_expected_connection_error_marks_unavailable` caplog failure
+- Added input validation: `max_length=256` on login username/password, `max_length=128` and `pattern` validation on API key name/permissions
+- Added HTTPS validation for webhook URLs
+- Added `Query` validation constraints: health history `limit` (ge=1, le=1000), audit purge `retention_days` (ge=1), correlation `artifact_id` (max_length=512), anomaly `rule_id` (max_length=64)
+- Sanitized sandbox error messages to prevent internal path disclosure
+- Sanitized scan target error messages to prevent path probing
+- PicoWatch: `/v1/rules` and `/metrics` endpoints now require auth when `api_key` is configured
+- Replaced broad `except Exception:` with specific exception types in 6 scan/CLI modules
+
+### Changed
+- **scheduler.py**: Added `threading.RLock` to all `self.jobs` and `self.running` access (was declared but never acquired — race condition)
+- **webhooks.py**: Added `threading.RLock` to `WebhookManager` for thread-safe webhook create/dispatch/delete
+- **sqlite_store.py**: Hardened SQL column name interpolation with explicit `COLUMN_SANITIZER` mapping
+- Added org_id filtering to `audit_cleanup.get_audit_stats()` and `purge_audit_logs()` (SQL WHERE clause)
+- Added `org_id` field to `Event` dataclass and `get_history()` org filtering in `event_bus.py`
+- Added `org_id` fields to `AnomalyRule` and `AnomalyAlert` dataclasses; org-scoped `get_rules()` and `get_alerts()`
+- Admin router now passes `org_id` to audit stats, audit purge, and event history
+- Anomaly router now passes `org_id` to `get_rules()` and `get_alerts()`
+- Consolidated duplicate `ScanStats` dataclass: `_core/models.ScanStats` is now the single source of truth with `rule_timings_ms` field added; `scan/models.ScanStats` removed in favor of import
+- `ScanStats` is now mutable (was frozen) to support `ScanResult.recompute_stats()` mutation
+- `POST /auth/register`, `POST /auth/api-key`, `POST /orgs`, `POST /webhooks`, `POST /scheduler/jobs` now return HTTP 201 instead of 200
+- `POST /chains/events` now uses a Pydantic request body (`EventIngestRequest`) instead of query parameters
+- `PATCH /anomaly/rules/{rule_id}` now uses a Pydantic request body (`AnomalyRuleUpdateRequest`) instead of query parameters
+- Narrowed broad `except Exception:` to specific exception types in 6 scan/CLI modules
+- **PicoWatchConfig**: Replaced 22 property getter/setter pairs (~132 lines) with `__getattr__`/`__setattr__` delegation via `_DELEGATE_MAP`, reducing config.py from 596 to 451 lines
+- **WebSocket manager**: Added `asyncio.Lock` to `WebSocketManager` for thread-safe connect/subscribe/disconnect/broadcast
+- **Anomaly detector**: Added `threading.Lock` to `AnomalyDetector` for thread-safe rules/alerts access
+- **orchestrator.py**: Replaced f-string SQL interpolation for `org_filter` with parameterized `AND org_id = ?` + `params.append()`
+- Added 27 Pydantic response models for API endpoints (auth, orgs, webhooks, scheduler, correlation, anomaly, health, admin, plugins)
+- Applied `response_model=` to 24 endpoints
+- **DatabaseManager**: Added `_validate_param_count()` to catch `?`/params mismatches before SQL execution
+- Fixed `test_expected_connection_error_marks_unavailable` caplog failure: save/restore `picodome` logger `propagate` flag to prevent cross-test logging state pollution
+- **Input validation**: Added `max_length=512` to `ScanRequest.target`, `min_length=1` to `SandboxRunRequest.command`, `Path(max_length=128)` to project_id params, `max_length` constraints to admin log query params, `min_length=1` to login fields
+- **Scheduler**: Changed `job_id` path param from `str` to `int` — FastAPI validates and returns 422 on bad input instead of 500
+- **IntelligenceEngine**: Added `threading.Lock` to protect `patterns` and `threat_scores` dicts from concurrent access
+- **PicoDomeHandler**: Added `_stats_lock` (`threading.Lock`) to protect `_scan_count`, `_scan_total_ms`, `_alert_count` class-level counters from concurrent request handlers
+- Removed unused `SandboxRunRequest.policy_file` field
+- **IntelligenceEngine**: Parameterized `time_window_hours` in `find_correlations()` SQLite query (PostgreSQL INTERVAL literal kept as f-string with explicit `int()` cast)
+- **LogManager**: Added lock to `query()`, `get_stats()`, and `cleanup()` to prevent file read/write races with `rotate()`
+- Removed dead `AuthService.check_permission()` method (RBAC module used instead)
+- Removed dead `trace_span` and `trace_async_span` decorators from `observability.py`
+- Sanitized JSON decode errors in `handler_routes_post.py`: replaced `detail=str(e)` with generic messages
+- PicoWatch conftest: wrapped `shutdown_tracing()` in `try/except ImportError` for graceful teardown without `[otel]` extra
+
+### Removed
+- `ConnectionPool` class from `serve/database/manager.py` (dead abstract class; concrete pools are in `pools.py`)
+- `CorpusPack.sign()` method from `scan/corpus_share.py` (replaced by `seal()` and `sign_cryptographically()`)
+- `'unsafe-inline'` from CSP `script-src` directive
+
+### Documentation
+- Added API documentation for correlation, anomaly, scheduler, admin, and WebSocket endpoints to `docs/INTERNAL_API.md`
+
+### Security
+- `sandbox/admission/scanner.py`: replaced raw `urlopen()` with `safe_urlopen()` from `scan._network` to gain HTTPS enforcement, SSRF protection, and response-size limits
+- `sandbox/webhooks.py`: replaced ad-hoc `_is_blocked_url()` with `assert_url_safe()` from `scan._network`; webhook deliveries now use `safe_urlopen()` for consistent SSRF/size protection
+- `scan/daemon/tls.py`: documented that `ssl.CERT_NONE` is intentional for no-mTLS mode
+
+### Changed
+- Narrowed `except Exception` to specific exception types in `scan/cli_service.py` (cache ops: `OSError, ValueError, TypeError, KeyError`), `scan/fleet.py` (policy loading: `OSError, ValueError`), `scan/rules/advisory_check.py` (lockfile parsing: `ValueError, TypeError, KeyError`), `scan/cli_commands/advisories.py`, `scan/cli_commands/corpus.py`, `scan/cli_commands/policy.py`, `scan/cli_commands/update.py` (CLI error handlers: `OSError, ValueError`)
+- Added `# noqa: BLE001` is unnecessary since BLE001 is not in the project's ruff config; removed all such comments
+- Reformatted multi-line imports in `sandbox/admission/scanner.py` and `sandbox/webhooks.py` per line-length rules
+- `picosentry/_core/doctor.py`: self-verify/repair module with 10 checks (rule count, aliases, detector registrations, fixture count, corpus validity, imports, picodome not tracked, no secrets, experimental claims, version consistency) and 1 repair action (pycache cleanup)
+- `picosentry/cli_commands/doctor.py`: CLI integration (`picosentry doctor [--repair] [--json]`)
+- `docs/TECHNICAL_MANUAL.md`: comprehensive technical manual replacing docs/manual.md
+- `tests/test_doctor.py`: 22 tests for the doctor module
+
+### Changed
+- Documentation audit: corrected stale "54 rules" → "50 rules", "1048 fixtures" → "6495 fixtures", "73.79% recall" → "68.89% recall" across experimental.py, manual.md, ARCHITECTURE.md, SECURITY-ATTACK-SURFACE.md, ADR-001, model-card.md, README.md
+- Simplified README.md (170 → 145 lines)
+- Simplified tests: parametrized watch/test_prompt_guard.py (28 tests → 3+parametrized), serve/test_api.py (merged redundant tests), serve/test_correlation.py (parametrized enum tests), watch/test_types.py (parametrized verdict tests)
+- Marked strategic docs 03 (reachability/VEX/remediation) and 04 (AI agent security) as "Deferred — not yet implemented"
+- Marked typosquat_utils.py deferred functions (homoglyph_score, scope_confusion_score, typosquat_score) in strategic doc 01
+- Clarified cross-layer correlation Phase 3/4 status in strategic doc 02
+- Added BENCHMARKS.md note pointing to model-card.md for current data
+
+### Fixed
+- ADR-001 corrected "54 rules" → "50 rules"
+- docs/manual.md corrected "49 L2 rule_ids" → "50 L2 rule_ids"
+- docs/ARCHITECTURE.md corrected "53 rules" → "50 rules"
+
 ### Added
 - `docs/PENTEST-README.md`: pentest engagement guide (checklist, scope, firm selection, sharing protocol, findings template, triage workflow)
 - Corpus expanded from 1048 to 1855 JSON fixtures (1094 pos / 157 neg / 7 tricky)
@@ -1233,6 +1346,9 @@ Legacy repository history (archived, read-only):
 - [PicoDome](https://github.com/KirkForge/PicoDome)
 - [PicoWatch](https://github.com/KirkForge/PicoWatch)
 - [PicoShogun](https://github.com/KirkForge/PicoShogun)
+## 2026-08-02 - Test suite parametrization sweep
+
+- refactor(tests): parametrize repetitive test functions in test_prompt_guard, test_api, test_correlation, test_types — 218 lines removed, same coverage
 ## 2026-07-29 - Process timeout orphan fix
 
 - fix(scan): kill orphaned processes on timeout (P0-5) — add kill() fallback after terminate() + join(1) timeout in workspace scanner

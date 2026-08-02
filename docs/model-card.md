@@ -8,7 +8,7 @@
 |---|---|
 | **JSON files** | 6495 |
 | **Fixture dirs** | 6495 (5558 pos / 930 neg / 7 tricky) |
-| **Rules** | 54 |
+| **Rules** | 50 |
 | **Mean precision** | 94.44% |
 | **Mean recall** | 68.89% |
 | **Ecosystems** | npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet |
@@ -88,7 +88,7 @@
 2. **L2-PYPI-DEPC-001** shows 0% recall — the dep-confusion detector requires a private-registry configuration marker that the generated fixtures do not include. L2-NUGET-DEPC-001 has fixtures with internal-style package IDs and fires at 100% recall.
 3. **L2-MAVEN-DEPC-001** shows 0% recall — the Maven dep-confusion detector requires specific internal-group patterns that the generated fixtures may not trigger.
 4. **L2-MANI-002** (optional dependency lifecycle) has 0% recall — the detector looks for a specific combination of optionalDependencies + lifecycle scripts that the generated fixture does not trigger.
-5. **Zero false positives** across all 54 rules on the 187 negative fixtures — the precision floor is 100% for every rule that fires.
+5. **Zero false positives** across all 50 rules on the 930 negative fixtures — the precision floor is 100% for every rule that fires.
 6. The corpus is synthetically generated from combinatorial templates. Real-world malware may exhibit patterns not covered here. The `datasets/malware/` directory contains 16,402+ real OSV advisories for offline benchmarking.
 7. **Corpus expanded 2026-07-25**: Total JSON files 1855→3014. Maven typosquat 110→127, NuGet typosquat 68→167, RubyGems typosquat 69→245, Go typosquat 26→52, Cargo typosquat 40→118, PyPI typosquat 150→472. Added Maven CVE (Spring4Shell, Struts2, Tomcat, Velocity, XStream, Commons Collections, Shiro, MyBatis), RubyGems CVE (Nokogiri, Rails SQLi, Devise, Rack). Maven DEPC 5→13, RubyGems DEPC 4→4, NuGet DEPC 6→6.
 

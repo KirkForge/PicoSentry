@@ -484,7 +484,7 @@ def cmd(args: argparse.Namespace) -> int:
     for ecosystem in ecosystems:
         try:
             names, source_url, used_builtin = _fetch_ecosystem(ecosystem, top_n, getattr(args, "source_url", None))
-        except Exception as e:
+        except (OSError, ValueError, RuntimeError) as e:
             print(f"Error fetching {ecosystem}: {e}", file=sys.stderr)
             failed.append(ecosystem)
             continue

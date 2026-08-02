@@ -5,8 +5,7 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
-from picosentry._core.models import FindingProtocol, Severity, Verdict
-from picosentry._core.models import ScanStats as _ScanStats
+from picosentry._core.models import FindingProtocol, ScanStats, Severity, Verdict
 
 
 __all__ = [
@@ -50,9 +49,6 @@ class Finding:  # rationale: sandbox finding, frozen for determinism, empty find
         if not deterministic and self.finding_id:
             d["finding_id"] = self.finding_id
         return dict(sorted(d.items()))
-
-
-ScanStats = _ScanStats
 
 
 def _now_ms() -> float:

@@ -67,12 +67,6 @@ class CorpusPack:
             "sealed_at": datetime.now(timezone.utc).isoformat(),
         }
 
-    def sign(self, signer: str) -> None:
-        raise NotImplementedError(
-            "CorpusPack.sign() is removed — use seal() for content-integrity "
-            "stamps or sign_cryptographically() for real cryptographic signatures."
-        )
-
     def sign_cryptographically(
         self, method: str = "sigstore", secret_key: str = "", password: str = ""
     ) -> SignatureBundle:

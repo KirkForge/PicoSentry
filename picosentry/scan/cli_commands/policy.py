@@ -83,7 +83,7 @@ def cmd(args: argparse.Namespace) -> int:
                 print("Cryptographic signature verified.")
             print(f"Policy bundle saved to {output}")
             print(f"Apply with: picosentry scan . --policy {output}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Error fetching policy: {e}", file=sys.stderr)
             return 1
         return 0
@@ -98,7 +98,7 @@ def cmd(args: argparse.Namespace) -> int:
         try:
             push_policy(args.url, policy_path, api_key=args.api_key)
             print("Policy bundle pushed successfully.")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Error pushing policy: {e}", file=sys.stderr)
             return 1
         return 0

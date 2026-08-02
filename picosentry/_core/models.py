@@ -35,13 +35,14 @@ class Confidence(str, Enum):
     LOW = "LOW"
 
 
-@dataclass(frozen=True)
+@dataclass
 class ScanStats:
     packages_scanned: int = 0
     files_scanned: int = 0
     duration_ms: int = 0
     findings_by_severity: dict[str, int] = field(default_factory=dict)
     findings_by_rule: dict[str, int] = field(default_factory=dict)
+    rule_timings_ms: dict[str, int] = field(default_factory=dict)
 
     def to_dict(self, deterministic: bool = False) -> dict:
         d: dict = {
@@ -52,6 +53,8 @@ class ScanStats:
         }
         if not deterministic:
             d["duration_ms"] = self.duration_ms
+        if self.rule_timings_ms:
+            d["rule_timings_ms"] = dict(sorted(self.rule_timings_ms.items()))
         return dict(sorted(d.items()))
 
 

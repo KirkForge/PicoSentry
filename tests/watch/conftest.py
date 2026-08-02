@@ -21,11 +21,10 @@ def _skip_watch_secure_assert(monkeypatch: pytest.MonkeyPatch) -> None:
 
 @pytest.fixture(autouse=True)
 def _shutdown_watch_otel() -> Generator[None, None, None]:
-    """Shut down any OpenTelemetry provider created by PicoWatch tests.
-
-    Stops background OTLP export threads so the pytest process exits cleanly.
-    """
     yield
-    from picosentry.watch.telemetry.otel import shutdown_tracing
+    try:
+        from picosentry.watch.telemetry.otel import shutdown_tracing
 
-    shutdown_tracing()
+        shutdown_tracing()
+    except ImportError:
+        pass

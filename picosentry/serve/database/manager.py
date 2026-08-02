@@ -41,17 +41,6 @@ sqlite3.register_converter("TIMESTAMP", _convert_timestamp)
 logger = logging.getLogger("picoshogun.DB")
 
 
-class ConnectionPool:
-    def acquire(self):
-        raise NotImplementedError
-
-    def release(self, conn):
-        raise NotImplementedError
-
-    def close_all(self):
-        raise NotImplementedError
-
-
 class DatabaseManager:
     def __init__(self, db_path: Path | None = None, backend: str | None = None):
         self._backend = backend or settings.database.backend
@@ -72,6 +61,13 @@ class DatabaseManager:
     @property
     def dialect(self) -> SQLDialect:
         return SQLDialect(self._backend)
+
+    def _validate_param_count(self, sql: str, params: tuple) -> None:
+        expected = sql.count("?")
+        if expected != len(params):
+            raise ValueError(
+                f"Parameter count mismatch: SQL has {expected} placeholders but {len(params)} parameters were provided"
+            )
 
     def _prepare_sql(self, sql: str) -> str:
         """Translate SQLite-isms in runtime SQL for the active backend."""
@@ -103,6 +99,7 @@ class DatabaseManager:
         SQLite: conn.execute() returns cursor directly.
         Postgres: needs cursor = conn.cursor(); cursor.execute().
         """
+        self._validate_param_count(sql, params)
         sql = self._prepare_sql(sql)
         if isinstance(self._pool, SQLitePool):
             return conn.execute(sql, params)

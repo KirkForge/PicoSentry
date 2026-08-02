@@ -265,7 +265,7 @@ class FleetManager:
                 try:
                     policy = Policy.from_file(policy_path)
                     policy_digest = f"sha256:{policy.digest}" if hasattr(policy, "digest") and policy.digest else ""
-                except Exception as e:
+                except (OSError, ValueError) as e:
                     logger.warning("Failed to load policy from %s: %s", policy_path, e)
 
         rollout = RolloutPolicy(

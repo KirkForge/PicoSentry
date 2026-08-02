@@ -278,8 +278,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "X-Org-API-Key"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(DDoSShieldMiddleware, enabled=settings.security.ddos_shield_enabled)

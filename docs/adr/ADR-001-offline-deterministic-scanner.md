@@ -9,7 +9,7 @@ Supply-chain scanning must be fast, reproducible, and usable in air-gapped or CI
 
 ## Decision
 
-All detection logic (54 rules across 7 ecosystems) runs offline against a local rule catalog. No model calls are made during a scan. The prompt-injection classifier (`picosentry watch`) uses a deterministic regex + lexical approach, not an LLM.
+All detection logic (50 rules across 7 ecosystems) runs offline against a local rule catalog. No model calls are made during a scan. The prompt-injection classifier (`picosentry watch`) uses a deterministic regex + lexical approach, not an LLM.
 
 ## Rationale
 

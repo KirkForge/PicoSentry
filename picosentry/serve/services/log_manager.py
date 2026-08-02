@@ -9,6 +9,8 @@ logger = logging.getLogger("picoshogun.LogManager")
 
 
 class LogManager:
+    """Rotates, compresses, and cleans up log files with size and retention limits."""
+
     def __init__(
         self, log_dir: str | None = None, max_size_mb: int = 100, max_files: int = 10, retention_days: int = 30
     ):
@@ -74,20 +76,21 @@ class LogManager:
         if self.retention_days <= 0:
             return 0
 
-        cutoff = datetime.now() - timedelta(days=self.retention_days)
-        removed = 0
+        with self._lock:
+            cutoff = datetime.now() - timedelta(days=self.retention_days)
+            removed = 0
 
-        for log_file in self._get_log_files():
-            if log_file.suffix == ".gz":
-                mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
-                if mtime < cutoff:
-                    log_file.unlink()
-                    removed += 1
+            for log_file in self._get_log_files():
+                if log_file.suffix == ".gz":
+                    mtime = datetime.fromtimestamp(log_file.stat().st_mtime)
+                    if mtime < cutoff:
+                        log_file.unlink()
+                        removed += 1
 
-        if removed > 0:
-            logger.info("Cleaned up %s old log files", removed)
+            if removed > 0:
+                logger.info("Cleaned up %s old log files", removed)
 
-        return removed
+            return removed
 
     def _get_log_files(self) -> list[Path]:
         if not self.log_dir.exists():
@@ -95,24 +98,25 @@ class LogManager:
         return [p for p in self.log_dir.iterdir() if p.suffix in (".log", ".gz")]
 
     def get_stats(self) -> dict:
-        files = self._get_log_files()
-        total_size = sum(f.stat().st_size for f in files)
+        with self._lock:
+            files = self._get_log_files()
+            total_size = sum(f.stat().st_size for f in files)
 
-        return {
-            "directory": str(self.log_dir),
-            "file_count": len(files),
-            "total_size_mb": round(total_size / (1024 * 1024), 2),
-            "max_size_mb": self.max_size / (1024 * 1024),
-            "retention_days": self.retention_days,
-            "files": [
-                {
-                    "name": f.name,
-                    "size": f.stat().st_size,
-                    "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
-                }
-                for f in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
-            ],
-        }
+            return {
+                "directory": str(self.log_dir),
+                "file_count": len(files),
+                "total_size_mb": round(total_size / (1024 * 1024), 2),
+                "max_size_mb": self.max_size / (1024 * 1024),
+                "retention_days": self.retention_days,
+                "files": [
+                    {
+                        "name": f.name,
+                        "size": f.stat().st_size,
+                        "modified": datetime.fromtimestamp(f.stat().st_mtime).isoformat(),
+                    }
+                    for f in sorted(files, key=lambda p: p.stat().st_mtime, reverse=True)
+                ],
+            }
 
     def query(
         self, level: str | None = None, source: str | None = None, search: str | None = None, limit: int = 100
@@ -129,28 +133,29 @@ class LogManager:
             if safe_level:
                 level_pattern = re.compile(rf"^{re.escape(safe_level)}\b", re.IGNORECASE)
 
-        for log_file in self._get_log_files():
-            if log_file.suffix != ".log":
-                continue
-            try:
-                with log_file.open() as f:
-                    for raw_line in f:
-                        line = raw_line.strip()
-                        if not line:
-                            continue
-                        if level_pattern and not level_pattern.search(line):
-                            continue
-                        if source and source.lower() not in line.lower():
-                            continue
-                        if search and search.lower() not in line.lower():
-                            continue
-                        entries.append({"file": log_file.name, "line": line})
-                        if len(entries) >= limit:
-                            return entries
-            except (OSError, UnicodeDecodeError):
-                logger.warning("Failed to read log file %s", log_file, exc_info=True)
-                continue
-        return entries
+        with self._lock:
+            for log_file in self._get_log_files():
+                if log_file.suffix != ".log":
+                    continue
+                try:
+                    with log_file.open() as f:
+                        for raw_line in f:
+                            line = raw_line.strip()
+                            if not line:
+                                continue
+                            if level_pattern and not level_pattern.search(line):
+                                continue
+                            if source and source.lower() not in line.lower():
+                                continue
+                            if search and search.lower() not in line.lower():
+                                continue
+                            entries.append({"file": log_file.name, "line": line})
+                            if len(entries) >= limit:
+                                return entries
+                except (OSError, UnicodeDecodeError):
+                    logger.warning("Failed to read log file %s", log_file, exc_info=True)
+                    continue
+            return entries
 
     def auto_rotate(self) -> None:
         for log_file in self._get_log_files():

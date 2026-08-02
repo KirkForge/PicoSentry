@@ -28,6 +28,8 @@ ALLOWED_COLUMNS = frozenset(
     }
 )
 
+COLUMN_SANITIZER = {col: col for col in ALLOWED_COLUMNS}
+
 logger = logging.getLogger("picodome.daemon.sqlite_store")
 
 _DEFAULT_DB_PATH = Path.home() / ".picodome" / "jobs.db"
@@ -149,13 +151,13 @@ class SQLiteScanJobStore:
             values = []
             for key, value in kwargs.items():
                 if key == "command" and isinstance(value, list):
-                    set_clauses.append(f"{key} = ?")
+                    set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
                     values.append(json.dumps(value))
                 elif value is None:
-                    set_clauses.append(f"{key} = ?")
+                    set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
                     values.append("")
                 else:
-                    set_clauses.append(f"{key} = ?")
+                    set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
                     values.append(str(value))
 
             if "status" in kwargs and kwargs["status"] in ("completed", "failed"):

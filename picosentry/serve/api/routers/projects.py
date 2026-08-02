@@ -189,7 +189,7 @@ async def acknowledge_alert(
         (alert_id, org["id"]),
     )
     if not alert:
-        raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
+        raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' not found")
     db.execute_insert("UPDATE alerts SET sent = 1 WHERE id = ?", (alert_id,))
     return {"status": "acknowledged", "alert_id": alert_id}
 

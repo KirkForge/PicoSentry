@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any
 
 import pydantic
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 try:
     from pydantic import Extra  # type: ignore[attr-defined,unused-ignore]
@@ -167,7 +167,7 @@ class SandboxRunResponse(BaseModel):
 
 
 class AuthRegisterResponse(BaseModel):
-    user_id: str
+    user_id: int
     username: str
     role: str
 
@@ -175,7 +175,7 @@ class AuthRegisterResponse(BaseModel):
 class AuthLoginResponse(BaseModel):
     access_token: str
     token_type: str
-    user_id: str | None = None
+    user_id: int | None = None
     role: str | None = None
 
 
@@ -218,7 +218,7 @@ class OrgCreateResponse(BaseModel):
 
 
 class WebhookResponse(BaseModel):
-    id: str
+    id: int
     url: str
     events: list[str]
 
@@ -271,8 +271,15 @@ class BackupResponse(BaseModel):
     path: str
 
 
+class BackupEntry(BaseModel):
+    name: str
+    path: str
+    size: int
+    created: str
+
+
 class BackupListResponse(BaseModel):
-    backups: list[str]
+    backups: list[BackupEntry]
 
 
 class LogFileEntry(BaseModel):
@@ -319,7 +326,7 @@ class AuditPurgeResponse(BaseModel):
 
 
 class EventHistoryItem(BaseModel):
-    id: str
+    id: int
     type: str
     source: str
     payload: dict[str, Any]
@@ -496,6 +503,13 @@ class OrgDetailResponse(BaseModel):
     created_at: str
     usage: dict[str, Any]
 
+    @field_validator("created_at", mode="before")
+    @classmethod
+    def _coerce_datetime(cls, v):
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
+
 
 class OrgMemberItem(BaseModel):
     model_config = {"extra": "allow"}
@@ -506,6 +520,13 @@ class OrgMemberItem(BaseModel):
     last_login: str | None = None
     role: str
     joined_at: str | None = None
+
+    @field_validator("last_login", "joined_at", mode="before")
+    @classmethod
+    def _coerce_datetime(cls, v):
+        if isinstance(v, datetime):
+            return v.isoformat()
+        return v
 
 
 class OrgMemberListResponse(BaseModel):

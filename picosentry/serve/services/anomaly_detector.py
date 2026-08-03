@@ -132,7 +132,7 @@ class AnomalyDetector:
         self._running = False
         self._thread: threading.Thread | None = None
         self._check_interval = 60  # seconds
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._load_rules()
 
     def _load_rules(self):
@@ -369,7 +369,7 @@ class AnomalyDetector:
         try:
             rows = self.db.execute(
                 """
-                SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at
+                SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at, org_id
                 FROM anomaly_alerts
                 ORDER BY created_at DESC
                 LIMIT ?
@@ -386,11 +386,12 @@ class AnomalyDetector:
                     "severity": r[5],
                     "description": r[6],
                     "timestamp": r[7],
+                    "org_id": r[8],
                 }
                 for r in rows
             ]
             if org_id is not None:
-                results = [a for a in results if a.get("org_id") == org_id]
+                results = [a for a in results if a.get("org_id") is None or a.get("org_id") == org_id]
             return results
         except _DB_BOUNDARY_ERRORS:
             logger.warning("Failed to load anomaly alerts; returning empty list", exc_info=True)
@@ -400,7 +401,7 @@ class AnomalyDetector:
         with self._lock:
             rules_snapshot = [asdict(r) for r in self.rules]
         if org_id is not None:
-            rules_snapshot = [r for r in rules_snapshot if r.get("org_id") == org_id]
+            rules_snapshot = [r for r in rules_snapshot if r.get("org_id") is None or r.get("org_id") == org_id]
         return rules_snapshot
 
     def update_rule(self, rule_id: str, **kwargs) -> bool:

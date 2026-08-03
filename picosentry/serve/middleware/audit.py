@@ -106,8 +106,10 @@ class AuditMiddleware(BaseHTTPMiddleware):
             try:
                 db.execute_insert(
                     """
-                    INSERT INTO audit_log (action, user_id, resource_type, resource_id, details, ip_address, user_agent)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                    INSERT INTO audit_log
+                        (action, user_id, resource_type, resource_id,
+                         details, ip_address, user_agent, org_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         method,
@@ -117,6 +119,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         json.dumps(details),
                         ip_address,
                         user_agent,
+                        None,
                     ),
                 )
             except _AUDIT_DB_ERRORS:

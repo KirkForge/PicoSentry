@@ -79,6 +79,10 @@ async def update_anomaly_rule(
         updates["threshold"] = body.threshold
     if not updates:
         raise HTTPException(status_code=400, detail="No updates provided")
-    if not _get_anomaly_detector().update_rule(rule_id, **updates):
+    detector = _get_anomaly_detector()
+    if not detector.update_rule(rule_id, **updates):
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
-    return {"status": "updated", "rule_id": rule_id}
+    matching = [r for r in detector.get_rules(org_id=str(org["id"])) if r["id"] == rule_id]
+    if not matching:
+        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found after update")
+    return matching[0]

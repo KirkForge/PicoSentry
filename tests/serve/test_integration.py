@@ -36,6 +36,15 @@ def client():
     return TestClient(app)
 
 
+@pytest.fixture(autouse=True)
+def _reset_auth_rate_limit():
+    from picosentry.serve.api.routers.auth import _AUTH_RATE_LIMIT
+
+    _AUTH_RATE_LIMIT.clear()
+    yield
+    _AUTH_RATE_LIMIT.clear()
+
+
 def _login(client, username, password):
     """Log in and return the access token."""
     resp = client.post("/auth/login", json={"username": username, "password": password})
@@ -91,7 +100,7 @@ def _register_and_login(client, role="admin", suffix=None):
         json={"name": f"Integration Org {role} {tag}", "slug": slug},
         headers=_auth_headers(token),
     )
-    assert resp.status_code in (200, 409), f"Default org creation failed: {resp.text}"
+    assert resp.status_code in (201, 409), f"Default org creation failed: {resp.text}"
 
     return token, username
 
@@ -189,7 +198,7 @@ class TestRBACEnforcement:
             },
             headers=_auth_headers(token),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
 
     def test_viewer_cannot_delete_scheduler_job(self, client):
         token, _ = _register_and_login(client, role="viewer", suffix=int(time.time() * 1000))
@@ -216,7 +225,7 @@ class TestAPIKeyLifecycle:
     def test_create_and_validate_api_key(self, client):
         token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
         resp = client.post("/auth/api-key", json={"name": "test_key"}, headers=_auth_headers(token))
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         api_key = resp.json().get("api_key")
         assert api_key
 
@@ -298,7 +307,7 @@ class TestOrgTenantIsolation:
             },
             headers=_auth_headers(token),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         org_id = resp.json()["id"]
 
         resp = client.get(f"/orgs/{org_id}/members", headers=_auth_headers(token))
@@ -320,7 +329,7 @@ class TestOrgTenantIsolation:
             },
             headers=_auth_headers(token_a),
         )
-        assert resp_a.status_code == 200
+        assert resp_a.status_code == 201
         org_id_a = resp_a.json()["id"]
 
         token_b, _ = _register_and_login(client, suffix=tag + 1)
@@ -360,7 +369,7 @@ class TestOrgTenantIsolation:
             },
             headers=_auth_headers(token),
         )
-        assert resp1.status_code == 200
+        assert resp1.status_code == 201
 
         resp2 = client.post(
             "/orgs",
@@ -408,7 +417,7 @@ class TestSchedulerWhitelist:
             headers=_auth_headers(token),
         )
         # The scheduler raises ValueError → API returns 400
-        assert resp.status_code in (200, 400)
+        assert resp.status_code in (201, 400)
 
     def test_valid_commands_accepted(self, client):
         from picosentry.serve.services.scheduler import scheduler
@@ -463,7 +472,7 @@ class TestWebhooksIntegration:
             },
             headers=_auth_headers(token),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
 
     def test_create_webhook_with_custom_name(self, client):
         token, _ = _register_and_login(client, role="operator", suffix=int(time.time() * 1000))
@@ -476,7 +485,7 @@ class TestWebhooksIntegration:
             },
             headers=_auth_headers(token),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
 
     def test_webhook_rejects_localhost(self, client):
         token, _ = _register_and_login(client, role="operator", suffix=int(time.time() * 1000))
@@ -690,12 +699,12 @@ class TestAnomalyDetection:
 
     def test_update_anomaly_rule(self, client):
         token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
-        resp = client.patch("/anomaly/rules/high_error_rate?threshold=20", headers=_auth_headers(token))
+        resp = client.patch("/anomaly/rules/high_error_rate", json={"threshold": 0.5}, headers=_auth_headers(token))
         assert resp.status_code == 200
 
     def test_update_nonexistent_rule(self, client):
         token, _ = _register_and_login(client, suffix=int(time.time() * 1000))
-        resp = client.patch("/anomaly/rules/nonexistent_rule?enabled=false", headers=_auth_headers(token))
+        resp = client.patch("/anomaly/rules/nonexistent_rule", json={"enabled": False}, headers=_auth_headers(token))
         assert resp.status_code == 404
 
 
@@ -1181,7 +1190,7 @@ class TestSchedulerEnableDisable:
             },
             headers=_auth_headers(token),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         job_id = resp.json().get("job_id")
 
         if job_id:
@@ -1203,7 +1212,7 @@ class TestSchedulerEnableDisable:
             },
             headers=_auth_headers(token_op),
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         job_id = resp.json().get("job_id")
 
         if job_id:
@@ -1395,8 +1404,8 @@ class TestTenantDataIsolation:
         resp1 = client.post("/orgs", json={"name": "Multi Org 1", "slug": slug1}, headers=_auth_headers(token))
         resp2 = client.post("/orgs", json={"name": "Multi Org 2", "slug": slug2}, headers=_auth_headers(token))
 
-        assert resp1.status_code == 200
-        assert resp2.status_code == 200
+        assert resp1.status_code == 201
+        assert resp2.status_code == 201
 
         # User should see both orgs
         resp = client.get("/orgs", headers=_auth_headers(token))
@@ -1414,13 +1423,13 @@ class TestTenantDataIsolation:
         token_a, _ = _register_and_login(client, role="operator", suffix=tag)
         slug_a = f"tenant-data-a-{tag}"
         resp_a = client.post("/orgs", json={"name": "Tenant Data A", "slug": slug_a}, headers=_auth_headers(token_a))
-        assert resp_a.status_code == 200
+        assert resp_a.status_code == 201
         org_a_id = resp_a.json()["id"]
 
         token_b, _ = _register_and_login(client, role="operator", suffix=tag + 1)
         slug_b = f"tenant-data-b-{tag}"
         resp_b = client.post("/orgs", json={"name": "Tenant Data B", "slug": slug_b}, headers=_auth_headers(token_b))
-        assert resp_b.status_code == 200
+        assert resp_b.status_code == 201
         org_b_id = resp_b.json()["id"]
 
         assert org_a_id != org_b_id
@@ -1497,13 +1506,13 @@ class TestTenantDataIsolation:
         token_a, _ = _register_and_login(client, role="operator", suffix=tag)
         slug_a = f"tenant-ack-a-{tag}"
         resp_a = client.post("/orgs", json={"name": "Tenant Ack A", "slug": slug_a}, headers=_auth_headers(token_a))
-        assert resp_a.status_code == 200
+        assert resp_a.status_code == 201
         org_a_id = resp_a.json()["id"]
 
         token_b, _ = _register_and_login(client, role="operator", suffix=tag + 1)
         slug_b = f"tenant-ack-b-{tag}"
         resp_b = client.post("/orgs", json={"name": "Tenant Ack B", "slug": slug_b}, headers=_auth_headers(token_b))
-        assert resp_b.status_code == 200
+        assert resp_b.status_code == 201
         org_b_id = resp_b.json()["id"]
         assert org_a_id != org_b_id
 

@@ -5,6 +5,16 @@ All notable changes to PicoSentry will be documented in this file.
 ## [Unreleased]
 
 ### Fixed
+- Fixed response model type mismatches: `ProjectStatus.id` str (was int), `ScanRuleItem.id` str (was int), `AnomalyRuleResponse.id` str (was int), `BackupListResponse.backups` list[BackupEntry] (was list[str]), `OrgDetailResponse.created_at` datetime→str coercion via field_validator
+- Fixed 200→201 status code assertions in integration tests for POST create endpoints (`/auth/register`, `/auth/api-key`, `/orgs`, `/webhooks`, `/scheduler/jobs`)
+- Fixed auth rate limiter accumulation across tests — added autouse fixture to clear `_AUTH_RATE_LIMIT` between tests
+- Fixed `anomaly_detector.Lock` → `RLock` deadlock in `update_rule()` → `_save_rules()` nested lock
+- Fixed `get_rules()` and `get_alerts()` org_id filtering to include global (org_id=None) rules/alerts
+- Fixed `update_anomaly_rule` endpoint to return the updated rule instead of `{"status": "updated"}`
+- Fixed test assertions: anomaly rule update now sends JSON body instead of query params, threshold 0.5 instead of 20
+- Added DB migrations for `org_id` column on `audit_log` and `anomaly_alerts` tables
+- Added `org_id` column to audit_log INSERT in middleware
+- Fixed PicoWatch test_server tests to verify auth-required endpoints return 401 without API key
 - Wrapped blocking I/O calls (`subprocess.run`, file I/O, bcrypt) in `asyncio.to_thread()` for `run_project`, `run_batch`, `create_backup`, `register`, and `login` endpoints to prevent event loop stalls
 - Added counter key eviction (max 1000 keys, evict oldest 25%) to `MetricsCollector` to prevent unbounded memory growth
 - Added artifact eviction (max 5000 artifacts, evict oldest 25%) to `CorrelationEngine` to prevent unbounded memory growth

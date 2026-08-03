@@ -671,6 +671,34 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
     """,
     ),
+    Migration(
+        11,
+        "add_org_id_to_audit_log",
+        """
+        ALTER TABLE audit_log ADD COLUMN org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(org_id, created_at);
+    """,
+        postgres_sql="""
+        ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_audit_log_org ON audit_log(org_id, created_at);
+    """,
+    ),
+    Migration(
+        12,
+        "add_org_id_to_anomaly_alerts",
+        """
+        ALTER TABLE anomaly_alerts ADD COLUMN org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_org ON anomaly_alerts(org_id, created_at);
+    """,
+        postgres_sql="""
+        ALTER TABLE anomaly_alerts ADD COLUMN IF NOT EXISTS org_id INTEGER;
+
+        CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_org ON anomaly_alerts(org_id, created_at);
+    """,
+    ),
 ]
 
 __all__ = [

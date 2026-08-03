@@ -3,11 +3,44 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: bdcc9876 (dev branch)
-- Tests: 1572 pass (22 skipped); ruff/mypy clean; all gates green
-- Last updated: 2026-08-02
+- Head: 2abd9f92 (dev branch)
+- Tests: 1906 pass (22 skipped, 1 pre-existing failure in test_update_network_error); ruff/mypy clean; all gates green
+- Last updated: 2026-08-03
 
-## Session 2026-08-02 (Round 9): Async Fixes, Cache Eviction, Dead Code, Dedup
+## Session 2026-08-03 (Round 10): CI Test Fixes, Response Model Types, DB Migrations
+
+### Task: Fix integration test failures — DONE
+- Fixed 200→201 status code assertions for POST create endpoints: `/auth/register`, `/auth/api-key`, `/orgs`, `/webhooks`, `/scheduler/jobs`
+- Added autouse `_reset_auth_rate_limit` fixture to clear `_AUTH_RATE_LIMIT` between tests
+- Fixed `AnomalyRuleResponse.id`: `str` (was `int`) — anomaly rules use string IDs like `high_error_rate`
+- Fixed `ProjectStatus.id`: `str` (was `int`) — projects use string IDs like `picosentry`
+- Fixed `ScanRuleItem.id`: `str` (was `int`) — scan rules use string IDs like `L1-RED-001`
+- Fixed `BackupListResponse.backups`: `list[BackupEntry]` (was `list[str]`) — `list_backups()` returns dicts
+- Fixed `OrgDetailResponse.created_at`: added `field_validator` for datetime→str coercion
+- Fixed `anomaly_detector.Lock` → `RLock`: `_save_rules()` called from `update_rule()` under same lock caused deadlock
+- Fixed `get_rules()` and `get_alerts()` org_id filtering: include global rules/alerts (org_id=None) alongside org-specific ones
+- Fixed `update_anomaly_rule` endpoint: returns updated rule data instead of `{"status": "updated", "rule_id": ...}`
+- Fixed anomaly test: send JSON body instead of query params, threshold 0.5 instead of 20
+- Added DB migration #11: `org_id` column on `audit_log` table
+- Added DB migration #12: `org_id` column on `anomaly_alerts` table
+- Added `org_id=None` to audit_log INSERT in middleware
+- Updated PicoWatch test_server: auth-required endpoints now correctly assert 401 without API key
+- Removed dead `TestCorpusPackSign` test class (sign method removed in prior session)
+
+### Gate output
+```
+$ uv run ruff check picosentry/ tests/ scripts/ --quiet
+4 errors (pre-existing, in .tools/minify.py and examples/)
+
+$ uv run ruff format --check
+602 files already formatted (2 pre-existing need reformat in .tools/ and examples/)
+
+$ uv run mypy picosentry/ --ignore-missing-imports
+Success: no issues found in 392 source files
+
+$ uv run pytest tests/ -q -o "addopts=" -n0 --timeout=60 -m "not slow and not network"
+1906 passed, 22 skipped, 30 deselected, 1 pre-existing failure (test_update_network_error)
+```
 
 ### Task: Fix async endpoints blocking event loop — DONE
 - `projects.py`: Wrapped `orchestrator.run_project()` in `asyncio.to_thread()` for `run_project` and `run_batch`

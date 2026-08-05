@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 
 class Severity(str, Enum):
@@ -55,18 +55,9 @@ class ScanStats:
         return dict(sorted(d.items()))
 
 
-@runtime_checkable
-class FindingProtocol(Protocol):
-    rule_id: str
-    severity: Severity
-
-    def to_dict(self, deterministic: bool = ..., *, deterministic_output: bool = ...) -> dict[str, Any]: ...
-
-
 __all__ = [
     "SEVERITY_ORDER",
     "Confidence",
-    "FindingProtocol",
     "ScanStats",
     "Severity",
     "Verdict",

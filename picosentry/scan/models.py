@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from picosentry._core.models import SEVERITY_ORDER, Confidence, FindingProtocol, Severity
+from picosentry._core.models import SEVERITY_ORDER, Confidence, Severity
 
 
 __all__ = [
@@ -15,7 +15,6 @@ __all__ = [
     "BaselineResult",
     "Confidence",
     "Finding",
-    "FindingProtocol",
     "RuleExecution",
     "ScanResult",
     "ScanStats",

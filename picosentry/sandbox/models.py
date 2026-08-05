@@ -5,14 +5,13 @@ import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 
-from picosentry._core.models import FindingProtocol, Severity, Verdict
+from picosentry._core.models import Severity, Verdict
 from picosentry._core.models import ScanStats as _ScanStats
 
 
 __all__ = [
     "BehavioralVerdict",
     "Finding",
-    "FindingProtocol",
     "ScanStats",
     "Severity",
     "Verdict",

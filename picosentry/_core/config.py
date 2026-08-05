@@ -60,6 +60,9 @@ def assert_secure(
     _MIN_SECRET_KEY_LENGTH = 32
 
     insecure_secret_override = os.environ.get("ALLOW_INSECURE_SECRET", "").lower() in ("true", "1", "yes")
+    if insecure_secret_override and is_production:
+        logger.critical("Security: ALLOW_INSECURE_SECRET ignored in production — override disabled")
+        insecure_secret_override = False
     if not insecure_secret_override:
         if secret_key in _WEAK_SECRET_DENYLIST:
             violations.append(

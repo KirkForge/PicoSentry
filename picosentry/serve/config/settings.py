@@ -284,11 +284,16 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     def assert_secure(self) -> None:
 
         if _env("SKIP_SECURE_ASSERT", "") == "1":
-            __import__("logging").getLogger("picoshogun.config").warning(
-                "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. "
-                "This bypasses startup security checks."
-            )
-            return
+            if self.is_production():
+                __import__("logging").getLogger("picoshogun.config").critical(
+                    "Security: PICOSHOGUN_SKIP_SECURE_ASSERT ignored in production — security checks cannot be skipped"
+                )
+            else:
+                __import__("logging").getLogger("picoshogun.config").warning(
+                    "SECURITY ASSERT SKIPPED: PICOSHOGUN_SKIP_SECURE_ASSERT=1 is set. "
+                    "This bypasses startup security checks."
+                )
+                return
 
         cors_origin_str = ",".join(self.api.cors_origins) if self.api.cors_origins else ""
         custom_checks: list[SecureBootCheck] = [

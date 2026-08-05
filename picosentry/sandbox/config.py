@@ -187,10 +187,17 @@ class PicoDomeConfig:
         import os as _os
 
         if _os.environ.get("PICODOME_SKIP_SECURE_ASSERT") == "1":
-            logger.warning(
-                "SECURITY ASSERT SKIPPED: PICODOME_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
-            )
-            return
+            env = _os.environ.get("PICODOME_ENV", "development")
+            if env in ("production", "staging"):
+                logger.critical(
+                    "Security: PICODOME_SKIP_SECURE_ASSERT ignored in %s — security checks cannot be skipped",
+                    env,
+                )
+            else:
+                logger.warning(
+                    "SECURITY ASSERT SKIPPED: PICODOME_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                )
+                return
 
         custom_checks: list[SecureBootCheck] = [_MtlsCertCheck(self)]
         _core_assert_secure(

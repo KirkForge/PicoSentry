@@ -5,6 +5,8 @@ import os
 import platform
 import threading
 
+import re
+
 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 from picosentry.sandbox.l3.models import Policy, SandboxResult
 from picosentry.sandbox.l3.policy import default_policy
@@ -17,6 +19,48 @@ if TYPE_CHECKING:
     from picosentry.sandbox.l3.backends.base import SandboxBackend
 
 logger = logging.getLogger("picodome.l3.engine")
+
+# Env vars that must never leak into sandboxed children. Matches the denylist
+# used by the HTTP scan path (serve/api/routers/scans.py) plus pattern-based
+# stripping for anything that looks like a secret/password/token/key.
+_ENV_DENYLIST: frozenset[str] = frozenset(
+    {
+        "SECRET_KEY",
+        "DATABASE_URL",
+        "PICOSHOGUN_SECRET_KEY",
+        "PICODOME_API_TOKENS",
+        "PICOWATCH_API_KEY",
+        "PICOSHOGUN_REDIS_URL",
+        "PICODOME_REDIS_URL",
+        "SHOGUN_DATABASE_URL",
+        "PICOSHOGUN_DATABASE_URL",
+        "PICODOME_POLICY_SIGNING_KEY",
+        "DISCORD_WEBHOOK_URL",
+        "SLACK_WEBHOOK_URL",
+        "PICOSHOGUN_SMTP_PASSWORD",
+        "AWS_SECRET_ACCESS_KEY",
+        "AWS_ACCESS_KEY_ID",
+        "GITHUB_TOKEN",
+    }
+)
+
+_ENV_DENY_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"(_SECRET|_PASSWORD|_TOKEN|_KEY)$", re.IGNORECASE),
+)
+
+
+def _strip_env(env: dict[str, str]) -> dict[str, str]:
+    """Return a copy of *env* with secret-bearing keys removed."""
+    stripped: dict[str, str] = {}
+    for key, value in env.items():
+        if key in _ENV_DENYLIST:
+            logger.debug("Stripping env var %s from sandbox child", key)
+            continue
+        if any(pat.search(key) for pat in _ENV_DENY_PATTERNS):
+            logger.debug("Stripping env var %s from sandbox child (pattern match)", key)
+            continue
+        stripped[key] = value
+    return stripped
 
 
 class BackendUnavailableError(RuntimeError):
@@ -96,6 +140,11 @@ def _detect_backend(
 ) -> SandboxBackend:
     if allow_degraded is None:
         allow_degraded = os.environ.get("PICODOME_ALLOW_DEGRADED", "").lower() in ("1", "true", "yes")
+    if allow_degraded:
+        env_mode = os.environ.get("PICODOME_ENV", os.environ.get("PICOSHOGUN_ENV", "development"))
+        if env_mode in ("production", "staging"):
+            logger.critical("Security: PICODOME_ALLOW_DEGRADED ignored in %s — degraded backends not permitted", env_mode)
+            allow_degraded = False
 
     system = platform.system()
     available: list[str] = ["subprocess"]
@@ -245,6 +294,15 @@ def sandbox_run(
 ) -> SandboxResult:
     if policy is None:
         policy = default_policy()
+
+    # When called directly (env=None), backends inherit the full host
+    # environment via os.environ.copy(). Strip secrets before they reach
+    # the child. When the caller passes an explicit env dict, they control
+    # the content — but we still strip known-secret patterns.
+    if env is None:
+        env = _strip_env(dict(os.environ))
+    else:
+        env = _strip_env(env)
 
     if backend is None:
         if allow_degraded is not None:

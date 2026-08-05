@@ -10,6 +10,8 @@ from collections import OrderedDict
 from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
+from picosentry._core.config import SecurityViolation
+
 logger = logging.getLogger("picosentry.auth")
 
 
@@ -471,3 +473,25 @@ class RateLimiter:
                 return 0
             deficit = 1.0 - tokens
             return max(1, int(deficit / self.rps) + 1)
+
+
+class AuthDisabledCheck:
+    """SecureBootCheck: warn when auth is disabled and bind address is not localhost."""
+
+    def __init__(self, auth_mode: str, bind_host: str) -> None:
+        self._auth_mode = auth_mode
+        self._bind_host = bind_host
+
+    def check(self) -> SecurityViolation | None:
+        if self._auth_mode != "off":
+            return None
+        if self._bind_host in ("127.0.0.1", "localhost", "::1"):
+            return None
+        return SecurityViolation(
+            check="auth_disabled_nonlocal",
+            message=(
+                f"Authentication is disabled (PICOSENTRY_AUTH_MODE=off) but binding to "
+                f"non-localhost address {self._bind_host} — any network client has read access"
+            ),
+            severity="WARN",
+        )

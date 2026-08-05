@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import logging
 import os
 from pathlib import Path
+
+from picosentry._core.security import constant_time_compare
 
 logger = logging.getLogger("picodome.auth")
 
@@ -22,10 +23,6 @@ class AuthError(Exception):
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode("utf-8")).hexdigest()
-
-
-def _constant_time_equal(a: str, b: str) -> bool:
-    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
 
 
 class Role:

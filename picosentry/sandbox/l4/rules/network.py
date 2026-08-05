@@ -1,6 +1,6 @@
 import re
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -25,11 +25,11 @@ SUSPICIOUS_TLDS = {".xyz", ".tk", ".ml", ".cf", ".ga", ".gq", ".top", ".pw", ".c
 def detect_network_anomalies(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-NET-001",
             severity=Severity.HIGH,
             message=f"Connection to suspicious port: {call.address}:{call.port}",
@@ -47,7 +47,7 @@ def detect_network_anomalies(
         for part in parts:
             if len(part) > 30 and re.match(r"^[a-zA-Z0-9]+$", part):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-NET-002",
                         severity=Severity.HIGH,
                         message=f"DNS tunneling indicator — long encoded subdomain: {hostname}",
@@ -58,7 +58,7 @@ def detect_network_anomalies(
                 break
 
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-NET-003",
                 severity=Severity.MEDIUM,
                 message=f"DNS query to suspicious TLD: {hostname}",
@@ -72,7 +72,7 @@ def detect_network_anomalies(
     if len(profile.network_calls) > 20:
         addresses = [c.address for c in profile.network_calls]
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-NET-004",
                 severity=Severity.MEDIUM,
                 message=f"High volume of network connections: {len(profile.network_calls)}",
@@ -92,7 +92,7 @@ def detect_network_anomalies(
                 if _PRIVATE_IP_RE.match(c.address) and c.address not in ("127.0.0.1", "0.0.0.0")
             ]
             findings.extend(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-NET-005",
                     severity=Severity.MEDIUM,
                     message=f"Connection to private IP in zero-network baseline: {call.address}",

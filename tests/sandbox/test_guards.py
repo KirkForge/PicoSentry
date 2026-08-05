@@ -3,7 +3,7 @@
 import hashlib
 import json
 
-from picosentry.sandbox.models import Finding, Severity, Verdict
+from picosentry.sandbox.models import SandboxFinding, Severity, Verdict
 
 
 def _validate_findings_deterministic(findings: list) -> list:
@@ -53,7 +53,7 @@ def _validate_no_randomness(obj1, obj2) -> bool:
 
 class TestValidateFindingsDeterministic:
     def test_clean_finding_passes(self):
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-001",
             severity=Severity.HIGH,
             message="Clean",
@@ -64,7 +64,7 @@ class TestValidateFindingsDeterministic:
         assert errors == []
 
     def test_finding_with_uuid4_in_evidence_fails(self):
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-002",
             severity=Severity.HIGH,
             message="Has UUID",
@@ -75,7 +75,7 @@ class TestValidateFindingsDeterministic:
         assert "UUID" in errors[0]
 
     def test_finding_with_timestamp_in_evidence_fails(self):
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-003",
             severity=Severity.HIGH,
             message="Has timestamp",
@@ -86,8 +86,8 @@ class TestValidateFindingsDeterministic:
         assert "timestamp" in errors[0].lower()
 
     def test_multiple_findings_all_checked(self):
-        f1 = Finding(rule_id="R1", severity=Severity.LOW, message="ok")
-        f2 = Finding(
+        f1 = SandboxFinding(rule_id="R1", severity=Severity.LOW, message="ok")
+        f2 = SandboxFinding(
             rule_id="R2",
             severity=Severity.HIGH,
             message="bad",
@@ -98,7 +98,7 @@ class TestValidateFindingsDeterministic:
 
     def test_finding_with_normal_hex_passes(self):
         """Normal hex strings that aren't UUIDs should pass."""
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-004",
             severity=Severity.MEDIUM,
             message="Normal hex",
@@ -109,7 +109,7 @@ class TestValidateFindingsDeterministic:
 
     def test_finding_with_short_timestamp_like_string_passes(self):
         """Short date strings (not ISO timestamps) should pass."""
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-005",
             severity=Severity.LOW,
             message="Date only",
@@ -239,8 +239,8 @@ class TestValidateNoRandomness:
         """Auto-generated finding_id makes Findings non-deterministic."""
         from picosentry.sandbox.models import _generate_finding_id
 
-        f1 = Finding(rule_id="R1", severity=Severity.LOW, message="m", finding_id=_generate_finding_id())
-        f2 = Finding(rule_id="R1", severity=Severity.LOW, message="m", finding_id=_generate_finding_id())
+        f1 = SandboxFinding(rule_id="R1", severity=Severity.LOW, message="m", finding_id=_generate_finding_id())
+        f2 = SandboxFinding(rule_id="R1", severity=Severity.LOW, message="m", finding_id=_generate_finding_id())
         # finding_id auto-generates UUIDs, so they differ
         assert f1.finding_id != f2.finding_id
 
@@ -276,7 +276,7 @@ class TestGuardIntegration:
 
     def test_finding_evidence_no_uuid(self):
         """Finding evidence should not leak UUIDs."""
-        f = Finding(
+        f = SandboxFinding(
             rule_id="TEST-EV",
             severity=Severity.CRITICAL,
             message="Test",

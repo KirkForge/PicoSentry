@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -51,13 +51,13 @@ SUSPICIOUS_INSTALL_PATTERNS = (
 
 def detect_dependency_confusion(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-DEP-001",
                 severity=Severity.HIGH,
                 message=f"DNS query to suspicious registry: {dns.hostname}",
@@ -70,7 +70,7 @@ def detect_dependency_confusion(
 
         if hostname_lower.endswith((".local", ".internal")):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-001",
                     severity=Severity.HIGH,
                     message=f"DNS query to internal TLD: {dns.hostname}",
@@ -85,7 +85,7 @@ def detect_dependency_confusion(
 
         if exe_base in ("twine", "gem", "cargo") and ("upload" in all_args_str or "publish" in all_args_str):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-002",
                     severity=Severity.CRITICAL,
                     message=f"Package publish command during install: {spawn.executable} {' '.join(spawn.args[:5])}",
@@ -96,7 +96,7 @@ def detect_dependency_confusion(
 
         if exe_base == "npm" and "publish" in all_args_str:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-002",
                     severity=Severity.CRITICAL,
                     message=f"npm publish command during install: {spawn.executable} {' '.join(spawn.args[:5])}",
@@ -113,7 +113,7 @@ def detect_dependency_confusion(
             for pattern in SUSPICIOUS_INSTALL_PATTERNS:
                 if pattern in all_args_str:
                     findings.append(
-                        Finding(
+                        SandboxFinding(
                             rule_id="L4-DEP-003",
                             severity=Severity.HIGH,
                             message=f"Suspicious package install URL: {pattern.rstrip('=')} in {spawn.executable}",
@@ -125,7 +125,7 @@ def detect_dependency_confusion(
 
         if exe_base == "npm" and "http://" in all_args_str:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-003",
                     severity=Severity.MEDIUM,
                     message=f"npm install over HTTP (insecure): {spawn.executable}",
@@ -135,7 +135,7 @@ def detect_dependency_confusion(
             )
 
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-DEP-004",
             severity=Severity.HIGH,
             message=f"Registry override attempt: {pattern} in {spawn.executable}",
@@ -164,7 +164,7 @@ def detect_dependency_confusion(
             )
             if any(kw in addr_lower for kw in registry_keywords):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-DEP-005",
                         severity=Severity.MEDIUM,
                         message=f"Registry connection on non-standard port: {call.address}:{call.port}",
@@ -178,7 +178,7 @@ def detect_dependency_confusion(
         is_config_path = path_lower.endswith((".npmrc", "pip.conf")) or "pip.ini" in path_lower
         if op.operation in ("write", "create") and is_config_path:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-006",
                     severity=Severity.HIGH,
                     message=f"Package registry config modification ({op.operation}): {op.path}",
@@ -188,7 +188,7 @@ def detect_dependency_confusion(
             )
         elif op.operation == "read" and is_config_path:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-DEP-006",
                     severity=Severity.LOW,
                     message=f"Package registry config read: {op.path}",

@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -53,11 +53,11 @@ MINING_DNS_PATTERNS = (
 
 def detect_crypto_mining(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-CRYPTO-001",
             severity=Severity.CRITICAL,
             message=f"Connection to known mining pool port {call.port}: {call.address}:{call.port}",
@@ -72,7 +72,7 @@ def detect_crypto_mining(
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in MINING_BINARIES:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-CRYPTO-002",
                     severity=Severity.CRITICAL,
                     message=f"Crypto mining binary spawned: {spawn.executable}",
@@ -84,7 +84,7 @@ def detect_crypto_mining(
     for dns in profile.dns_queries:
         hostname_lower = dns.hostname.lower()
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-CRYPTO-003",
                 severity=Severity.HIGH,
                 message=f"DNS query to mining-related domain: {dns.hostname}",
@@ -100,7 +100,7 @@ def detect_crypto_mining(
     long_execution = profile.total_runtime_ms > 60000  # > 60s
     if long_execution and has_network and not has_mining_port:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-CRYPTO-004",
                 severity=Severity.MEDIUM,
                 message=f"Suspiciously long execution ({profile.total_runtime_ms}ms) with network activity",
@@ -122,7 +122,7 @@ def detect_crypto_mining(
         path_lower = op.path.lower()
         if any(d in path_lower for d in mining_config_dirs):
             findings.extend(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-CRYPTO-005",
                     severity=Severity.HIGH,
                     message=f"Mining configuration file access: {op.path}",
@@ -137,7 +137,7 @@ def detect_crypto_mining(
     for spawn in profile.spawns:
         all_args_str = " ".join(spawn.args).lower()
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-CRYPTO-006",
                 severity=Severity.HIGH,
                 message=f"Process spawned with mining arguments: {spawn.executable}",

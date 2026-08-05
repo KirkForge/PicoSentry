@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -26,8 +26,8 @@ PERSISTENCE_PATHS: list[tuple[str, str, Severity]] = [
 
 def detect_persistence(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         if op.operation not in ("write", "create", "chmod", "chown"):
@@ -35,7 +35,7 @@ def detect_persistence(
         for path_prefix, description, severity in PERSISTENCE_PATHS:
             if op.path == path_prefix or op.path.startswith(path_prefix) or op.path.endswith(path_prefix):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-PERSIST-001",
                         severity=severity,
                         message=f"Persistence path written ({op.operation}): {op.path} — {description}",
@@ -49,7 +49,7 @@ def detect_persistence(
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in cron_binaries:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PERSIST-002",
                     severity=Severity.HIGH,
                     message=f"Persistence command spawned: {spawn.executable}",
@@ -64,7 +64,7 @@ def detect_persistence(
             all_args = " ".join(spawn.args).lower()
             if any(kw in all_args for kw in ("enable", "start", "mask")):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-PERSIST-003",
                         severity=Severity.HIGH,
                         message=f"systemctl persistence command: {spawn.executable} {' '.join(spawn.args[:5])}",
@@ -78,7 +78,7 @@ def detect_persistence(
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in profile_editors:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PERSIST-004",
                     severity=Severity.MEDIUM,
                     message=f"User/profile modification command: {spawn.executable}",
@@ -93,7 +93,7 @@ def detect_persistence(
             all_args = " ".join(spawn.args).lower()
             if any(kw in all_args for kw in ("load", "enable")):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-PERSIST-005",
                         severity=Severity.HIGH,
                         message=f"macOS launchctl persistence: {spawn.executable} {' '.join(spawn.args[:5])}",

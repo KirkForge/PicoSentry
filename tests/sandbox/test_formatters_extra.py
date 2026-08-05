@@ -11,15 +11,15 @@ from picosentry.sandbox.formatters.sarif import format_sarif
 from picosentry.sandbox.formatters.table import format_table
 from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult
 from picosentry.sandbox.l4.models import AnalysisResult, BehavioralProfile, BehavioralVerdict
-from picosentry.sandbox.models import Finding, Severity, Verdict
+from picosentry.sandbox.models import SandboxFinding, Severity, Verdict
 
 
 def _make_findings():
     return [
-        Finding(
+        SandboxFinding(
             rule_id="L3-NET-001", severity=Severity.HIGH, message="Network call detected", location="/tmp", evidence={}
         ),
-        Finding(
+        SandboxFinding(
             rule_id="L3-PROC-001",
             severity=Severity.CRITICAL,
             message="Process spawn",

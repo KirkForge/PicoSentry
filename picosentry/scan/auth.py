@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import json
 import logging
 import threading
@@ -11,6 +10,7 @@ from dataclasses import dataclass, field
 from typing import Any, ClassVar
 
 from picosentry._core.config import SecurityViolation
+from picosentry._core.security import constant_time_compare
 
 logger = logging.getLogger("picosentry.auth")
 
@@ -234,10 +234,6 @@ class AuthResult:
         return AuthResult(ok=False, error=error)
 
 
-def _constant_time_compare(a: str, b: str) -> bool:
-    return hmac.compare_digest(a.encode("utf-8"), b.encode("utf-8"))
-
-
 def check_token_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
     if not config.token:
         return AuthResult.denied("No token configured. Set PICOSENTRY_AUTH_TOKEN or --auth-token.")
@@ -252,7 +248,7 @@ def check_token_auth(headers: dict[str, str], config: AuthConfig) -> AuthResult:
     else:
         return AuthResult.denied("Missing Authorization header. Use: Authorization: Bearer <token>")
 
-    if not _constant_time_compare(provided, config.token):
+    if not constant_time_compare(provided, config.token):
         return AuthResult.denied("Invalid token.")
 
     identity = f"token:{hashlib.sha256(provided.encode()).hexdigest()[:12]}"

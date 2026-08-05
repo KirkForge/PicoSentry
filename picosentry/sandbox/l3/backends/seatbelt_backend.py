@@ -19,7 +19,7 @@ from picosentry.sandbox.l3.models import (
     Verdict,
 )
 from picosentry.sandbox.l3.session import SandboxSession
-from picosentry.sandbox.models import _now_ms
+from picosentry._core.time import now_ms
 
 logger = logging.getLogger("picodome.l3.seatbelt")
 
@@ -94,7 +94,7 @@ class SeatbeltBackend(SandboxBackend):
         env: dict | None = None,
         session: SandboxSession | None = None,
     ) -> SandboxResult:
-        start_ms = _now_ms()
+        start_ms = now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
 
@@ -144,7 +144,7 @@ class SeatbeltBackend(SandboxBackend):
                             verdict=Verdict.KILL,
                             operation="process_timeout",
                             detail=f"Process exceeded {effective_timeout}s timeout",
-                            timestamp_ms=int(_now_ms() - start_ms),
+                            timestamp_ms=int(now_ms() - start_ms),
                         )
                     )
                 finally:
@@ -158,7 +158,7 @@ class SeatbeltBackend(SandboxBackend):
                             verdict=Verdict.DENY,
                             operation="seatbelt_violation",
                             detail=f"macOS sandbox violation: {stderr[:200]}",
-                            timestamp_ms=int(_now_ms() - start_ms),
+                            timestamp_ms=int(now_ms() - start_ms),
                         )
                     )
 
@@ -180,7 +180,7 @@ class SeatbeltBackend(SandboxBackend):
                     verdict=Verdict.DENY,
                     operation="exec_not_found",
                     detail=f"Command not found: {command[0] if command else '?'}",
-                    timestamp_ms=int(_now_ms() - start_ms),
+                    timestamp_ms=int(now_ms() - start_ms),
                 )
             )
             stdout, stderr, exit_code = "", "", -1
@@ -192,12 +192,12 @@ class SeatbeltBackend(SandboxBackend):
                     verdict=Verdict.KILL,
                     operation="seatbelt_error",
                     detail=str(e),
-                    timestamp_ms=int(_now_ms() - start_ms),
+                    timestamp_ms=int(now_ms() - start_ms),
                 )
             )
             stdout, stderr, exit_code = "", "", -1
 
-        duration_ms = int(_now_ms() - start_ms)
+        duration_ms = int(now_ms() - start_ms)
         overall = self._compute_verdict(events, exit_code)
 
         return SandboxResult(

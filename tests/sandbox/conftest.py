@@ -24,7 +24,7 @@ from picosentry.sandbox.l4.models import (
     TimingPoint,
 )
 from picosentry.sandbox.models import (
-    Finding,
+    SandboxFinding,
     Severity,
     Verdict,
 )
@@ -35,7 +35,7 @@ from picosentry.sandbox.models import (
 @pytest.fixture
 def clean_finding():
     """A finding with no uuid4 or timestamp — fully deterministic."""
-    return Finding(
+    return SandboxFinding(
         rule_id="TEST-001",
         severity=Severity.HIGH,
         message="Test finding",
@@ -46,7 +46,7 @@ def clean_finding():
 
 @pytest.fixture
 def critical_finding():
-    return Finding(
+    return SandboxFinding(
         rule_id="TEST-CRIT",
         severity=Severity.CRITICAL,
         message="Critical test finding",
@@ -57,7 +57,7 @@ def critical_finding():
 
 @pytest.fixture
 def medium_finding():
-    return Finding(
+    return SandboxFinding(
         rule_id="TEST-MED",
         severity=Severity.MEDIUM,
         message="Medium test finding",
@@ -68,7 +68,7 @@ def medium_finding():
 
 @pytest.fixture
 def info_finding():
-    return Finding(
+    return SandboxFinding(
         rule_id="TEST-INFO",
         severity=Severity.INFO,
         message="Info test finding",

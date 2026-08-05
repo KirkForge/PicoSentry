@@ -15,7 +15,7 @@ from picosentry.sandbox.guards import (
 )
 from picosentry.sandbox.l3.models import SandboxEvent, SandboxResult, Verdict
 from picosentry.sandbox.l4.models import AnalysisResult, BehavioralProfile, BehavioralVerdict
-from picosentry.sandbox.models import Finding, Severity
+from picosentry.sandbox.models import SandboxFinding, Severity
 
 
 def _make_sandbox_result(**overrides):
@@ -102,13 +102,13 @@ class TestDeterministicGuard:
 
 class TestValidateFindingsDeterministic:
     def test_clean_findings(self):
-        findings = [Finding(rule_id="R1", severity=Severity.HIGH, message="clean", location="/tmp", evidence={})]
+        findings = [SandboxFinding(rule_id="R1", severity=Severity.HIGH, message="clean", location="/tmp", evidence={})]
         violations = validate_findings_deterministic(findings)
         assert violations == []
 
     def test_finding_with_uuid_in_evidence(self):
         findings = [
-            Finding(
+            SandboxFinding(
                 rule_id="R1",
                 severity=Severity.HIGH,
                 message="found uuid",
@@ -121,7 +121,7 @@ class TestValidateFindingsDeterministic:
 
     def test_finding_with_timestamp(self):
         findings = [
-            Finding(
+            SandboxFinding(
                 rule_id="R1", severity=Severity.HIGH, message="2025-01-15T10:30:00Z found", location="/tmp", evidence={}
             )
         ]

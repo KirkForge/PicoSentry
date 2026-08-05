@@ -1,12 +1,12 @@
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
 def detect_baseline_drift(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     if not baselines:
         return findings
@@ -17,7 +17,7 @@ def detect_baseline_drift(
 
     if best is None:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-BASE-001",
                 severity=Severity.INFO,
                 message=f"No baseline match found for package '{profile.package}'",
@@ -31,7 +31,7 @@ def detect_baseline_drift(
 
     if drift.score >= 0.8:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-BASE-002",
                 severity=Severity.CRITICAL,
                 message=f"Severe baseline drift ({drift.score:.0%}) from '{baseline.name}': {drift.details}",
@@ -41,7 +41,7 @@ def detect_baseline_drift(
         )
     elif drift.score >= 0.4:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-BASE-003",
                 severity=Severity.MEDIUM,
                 message=f"Moderate baseline drift ({drift.score:.0%}) from '{baseline.name}': {drift.details}",

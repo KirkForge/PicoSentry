@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 from picosentry.sandbox.l3.models import SandboxResult
 from picosentry.sandbox.l4.models import AnalysisResult, BehavioralProfile, BehavioralVerdict
-from picosentry.sandbox.models import Finding, Severity, Verdict
+from picosentry.sandbox.models import SandboxFinding, Severity, Verdict
 from picosentry.sandbox.workspace import (
     PROJECT_MARKERS,
     SKIP_DIRS,
@@ -310,7 +310,7 @@ class TestScanWorkspace:
         )
         mock_engine = MagicMock()
         mock_engine.analyze.return_value = _make_analysis(
-            findings=[Finding(rule_id="L4-001", severity=Severity.HIGH, message="bad", location="/tmp", evidence={})],
+            findings=[SandboxFinding(rule_id="L4-001", severity=Severity.HIGH, message="bad", location="/tmp", evidence={})],
             verdict=BehavioralVerdict.SUSPICIOUS,
         )
         mock_engine_fn.return_value = mock_engine
@@ -405,7 +405,7 @@ class TestScanWorkspace:
         )
         mock_engine = MagicMock()
         mock_engine.analyze.return_value = _make_analysis(
-            findings=[Finding(rule_id="L4-002", severity=Severity.MEDIUM, message="meh", location="/tmp", evidence={})],
+            findings=[SandboxFinding(rule_id="L4-002", severity=Severity.MEDIUM, message="meh", location="/tmp", evidence={})],
             verdict=BehavioralVerdict.SUSPICIOUS,
         )
         mock_engine_fn.return_value = mock_engine

@@ -1,16 +1,16 @@
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
 def detect_timing_anomalies(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     if profile.total_runtime_ms < 5 and profile.exit_code == 0:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-TIME-001",
                 severity=Severity.MEDIUM,
                 message=f"Execution completed in {profile.total_runtime_ms}ms — unusually fast, possible no-op",
@@ -20,7 +20,7 @@ def detect_timing_anomalies(
         )
 
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-TIME-002",
             severity=Severity.MEDIUM,
             message=f"Timing point '{tp.label}' took {tp.elapsed_ms}ms — potential busy-wait or sleep",
@@ -37,7 +37,7 @@ def detect_timing_anomalies(
         best = find_best_baseline(profile, baselines)
         if best and best[1].timing_drift:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-TIME-003",
                     severity=Severity.HIGH,
                     message=f"Timing drift from baseline '{best[1].baseline_name}': {best[1].details}",

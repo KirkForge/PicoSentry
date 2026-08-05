@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -41,8 +41,8 @@ SUSPICIOUS_SPAWN_CONTEXTS = {
 def detect_process_anomalies(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for spawn in profile.spawns:
         exe = spawn.executable
@@ -50,7 +50,7 @@ def detect_process_anomalies(
 
         if exe_base in FORBIDDEN_SHELL_COMMANDS:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PROC-001",
                     severity=Severity.HIGH,
                     message=f"Shell spawned during execution: {exe}",
@@ -61,7 +61,7 @@ def detect_process_anomalies(
 
         if exe_base in REVERSE_SHELL_INDICATORS:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PROC-002",
                     severity=Severity.CRITICAL,
                     message=f"Reverse shell / C2 tool spawned: {exe}",
@@ -73,7 +73,7 @@ def detect_process_anomalies(
     if len(profile.spawns) > 5:
         spawn_names = [s.executable for s in profile.spawns]
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-PROC-003",
                 severity=Severity.MEDIUM,
                 message=f"Excessive process spawning: {len(profile.spawns)} processes spawned",
@@ -90,7 +90,7 @@ def detect_process_anomalies(
             spawn_extras = len(profile.spawns) - (max(best[0].expected_spawns, 0))
             if spawn_extras > 3:
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-PROC-004",
                         severity=Severity.MEDIUM,
                         message=f"Process spawn count exceeds baseline by {spawn_extras}",

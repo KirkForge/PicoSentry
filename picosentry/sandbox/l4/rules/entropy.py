@@ -1,21 +1,21 @@
 import math
 from collections import Counter
 
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
 def detect_entropy_anomalies(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         name = op.path.split("/")[-1] if "/" in op.path else op.path
         ent = _shannon_entropy(name)
         if ent > 4.5 and len(name) > 10:  # High entropy, long name = suspicious
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-ENTROPY-001",
                     severity=Severity.MEDIUM,
                     message=f"High-entropy filename ({ent:.1f} bits): {name}",
@@ -30,7 +30,7 @@ def detect_entropy_anomalies(
             ent = _shannon_entropy(host_part)
             if ent > 3.5:
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-ENTROPY-002",
                         severity=Severity.HIGH,
                         message=f"High-entropy DNS query ({ent:.1f} bits): {dns.hostname} — possible DGA or encoded C2",

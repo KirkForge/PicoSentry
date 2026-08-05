@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -39,8 +39,8 @@ ESCAPE_BINARIES = {
 
 def detect_container_escape(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         for esc_path, description, severity in ESCAPE_PATHS:
@@ -55,7 +55,7 @@ def detect_container_escape(
                     final_severity = Severity.HIGH
 
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-CONTAINER-001",
                         severity=final_severity,
                         message=f"Container escape path access ({op.operation}): {op.path} — {description}",
@@ -68,7 +68,7 @@ def detect_container_escape(
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in ESCAPE_BINARIES:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-CONTAINER-002",
                     severity=Severity.CRITICAL,
                     message=f"Container escape binary spawned: {spawn.executable}",
@@ -83,7 +83,7 @@ def detect_container_escape(
         "fd00:ec2::254",  # AWS IPv6 metadata
     }
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-CONTAINER-003",
             severity=Severity.CRITICAL,
             message=f"Cloud metadata endpoint access: {call.address}:{call.port}",
@@ -98,7 +98,7 @@ def detect_container_escape(
         path_lower = op.path.lower()
         if "/proc/self/mountinfo" in path_lower or "/proc/self/cgroup" in path_lower:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-CONTAINER-004",
                     severity=Severity.MEDIUM,
                     message=f"Container fingerprinting via /proc/self: {op.path}",
@@ -112,7 +112,7 @@ def detect_container_escape(
         all_args = " ".join(spawn.args).lower()
         exe_lower = spawn.executable.lower()
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-CONTAINER-005",
                 severity=Severity.HIGH,
                 message=f"Namespace manipulation command: {spawn.executable} {' '.join(spawn.args[:5])}",
@@ -125,7 +125,7 @@ def detect_container_escape(
 
     metadata_dns_patterns = ("metadata.google", "metadata.azure", "169.254.169.254")
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-CONTAINER-006",
             severity=Severity.HIGH,
             message=f"DNS query to cloud metadata hostname: {dns.hostname}",

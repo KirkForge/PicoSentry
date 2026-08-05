@@ -1,6 +1,6 @@
 import re
 
-from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -29,15 +29,15 @@ _INSTALL_EXEC_PATTERNS: list[tuple[str, str]] = [
 def detect_supply_chain_patterns(
     profile: BehavioralProfile,
     baselines: dict[str, Baseline] | None = None,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for spawn in profile.spawns:
         args_str = " ".join(spawn.args)
         for pattern, description in _OBFUSCATION_PATTERNS:
             if re.search(pattern, args_str):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-SC-001",
                         severity=Severity.HIGH,
                         message=f"Obfuscated payload in spawn args ({description}): {spawn.executable}",
@@ -50,7 +50,7 @@ def detect_supply_chain_patterns(
         for pattern, description in _INSTALL_EXEC_PATTERNS:
             if re.search(pattern, args_str):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-SC-002",
                         severity=Severity.CRITICAL,
                         message=f"Remote code execution pattern: {description}",
@@ -65,7 +65,7 @@ def detect_supply_chain_patterns(
         best = find_best_baseline(profile, baselines)
         if best and best[0].expected_network_calls == 0 and len(profile.network_calls) > 0:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-SC-003",
                     severity=Severity.HIGH,
                     message=(
@@ -86,7 +86,7 @@ def detect_supply_chain_patterns(
         best = find_best_baseline(profile, baselines)
         if best and best[0].expected_spawns == 0 and len(profile.spawns) > 0:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-SC-004",
                     severity=Severity.HIGH,
                     message=(f"Process spawning in zero-spawn baseline: {len(profile.spawns)} spawns detected"),
@@ -101,7 +101,7 @@ def detect_supply_chain_patterns(
 
     suspicious_keywords = {"pastebin", "webhook", "ipify", "ifconfig", "whatismyip", "checkip"}
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-SC-005",
             severity=Severity.HIGH,
             message=f"Suspicious DNS query during execution: {dns.hostname}",

@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -21,15 +21,15 @@ HONEYPOT_PATHS = [
 
 def detect_honeypot_touches(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
     import fnmatch
 
     for op in profile.fs_ops:
         for honeypot in HONEYPOT_PATHS:
             if fnmatch.fnmatch(op.path, honeypot):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-HONEY-001",
                         severity=Severity.CRITICAL,
                         message=f"Honeypot path accessed ({op.operation}): {op.path}",
@@ -44,7 +44,7 @@ def detect_honeypot_touches(
         exe_base = spawn.executable.split("/")[-1]
         if exe_base in priv_esc_binaries:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-HONEY-002",
                     severity=Severity.CRITICAL,
                     message=f"Privilege escalation binary spawned: {spawn.executable}",

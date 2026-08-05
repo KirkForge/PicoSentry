@@ -16,7 +16,7 @@ from picosentry.sandbox.l3.models import (
     Verdict,
 )
 from picosentry.sandbox.l3.session import SandboxSession
-from picosentry.sandbox.models import _now_ms
+from picosentry._core.time import now_ms
 
 logger = logging.getLogger("picodome.l3.subprocess")
 
@@ -38,7 +38,7 @@ class SubprocessBackend(SandboxBackend):
         return True
 
     def run_in_session(self, session: SandboxSession) -> SandboxResult:
-        start_ms = _now_ms()
+        start_ms = now_ms()
         events: list[SandboxEvent] = []
         exit_code = -1
         stdout = ""
@@ -102,7 +102,7 @@ class SubprocessBackend(SandboxBackend):
                         verdict=Verdict.KILL,
                         operation="process_timeout",
                         detail=f"Process exceeded {effective_timeout}s timeout",
-                        timestamp_ms=int(_now_ms() - start_ms),
+                        timestamp_ms=int(now_ms() - start_ms),
                     )
                 )
             finally:
@@ -120,7 +120,7 @@ class SubprocessBackend(SandboxBackend):
                     verdict=Verdict.DENY,
                     operation="exec_not_found",
                     detail=f"Command not found: {command[0] if command else '?'}",
-                    timestamp_ms=int(_now_ms() - start_ms),
+                    timestamp_ms=int(now_ms() - start_ms),
                 )
             )
         except PermissionError as e:
@@ -130,11 +130,11 @@ class SubprocessBackend(SandboxBackend):
                     verdict=Verdict.DENY,
                     operation="exec_permission_denied",
                     detail=str(e),
-                    timestamp_ms=int(_now_ms() - start_ms),
+                    timestamp_ms=int(now_ms() - start_ms),
                 )
             )
 
-        duration_ms = int(_now_ms() - start_ms)
+        duration_ms = int(now_ms() - start_ms)
         overall = self._compute_verdict(events, exit_code)
 
         return SandboxResult(

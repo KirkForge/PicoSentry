@@ -7,6 +7,7 @@ from typing import Any, cast
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
+from picosentry._core.config import validate_config_keys as _validate_config_keys
 
 logger = logging.getLogger("picodome.config")
 
@@ -139,33 +140,10 @@ class PicoDomeConfig:
         return merged
 
     def apply_severity_overrides(self, findings: list) -> list:
-        if not self.severity_overrides:
-            return findings
+        from picosentry._core.config import apply_severity_overrides
+        from picosentry.sandbox.models import SandboxFinding, Severity
 
-        from picosentry.sandbox.models import Finding, Severity
-
-        overridden = []
-        for finding in findings:
-            f = finding
-            if finding.rule_id in self.severity_overrides:
-                new_sev = self.severity_overrides[finding.rule_id]
-                try:
-                    sev_enum = Severity(new_sev.upper())
-                    f = Finding(
-                        rule_id=finding.rule_id,
-                        severity=sev_enum,
-                        message=finding.message,
-                        location=finding.location,
-                        evidence=finding.evidence,
-                    )
-                except ValueError:
-                    logger.warning(
-                        "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
-                        finding.rule_id,
-                        new_sev,
-                    )
-            overridden.append(f)
-        return overridden
+        return apply_severity_overrides(findings, self.severity_overrides, Severity, SandboxFinding, logger)
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -231,17 +209,6 @@ class _MtlsCertCheck:
                     severity="WARN",
                 )
         return None
-
-
-def _validate_config_keys(data: dict, config_path: Path) -> None:
-    unknown = sorted(set(data.keys()) - KNOWN_KEYS)
-    for key in unknown:
-        logger.warning(
-            "Unknown config key '%s' in %s — will be ignored. Did you mean one of: %s?",
-            key,
-            config_path,
-            ", ".join(sorted(KNOWN_KEYS)),
-        )
 
 
 _ENV_TO_ATTR = {
@@ -326,7 +293,7 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-    _validate_config_keys(data, config_path)
+    _validate_config_keys(data, KNOWN_KEYS, config_path, logger)
 
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(

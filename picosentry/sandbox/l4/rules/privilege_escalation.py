@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -36,8 +36,8 @@ SETUID_PATTERNS = ("chmod 4", "chmod 2", "chmod 6", "chmod 47", "chmod 27", "chm
 
 def detect_privilege_escalation(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         if op.operation not in ("write", "create", "chmod", "chown", "delete"):
@@ -45,7 +45,7 @@ def detect_privilege_escalation(
         for priv_path, severity in PRIV_ESC_PATHS.items():
             if op.path == priv_path or op.path.startswith(priv_path):
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-PRIVESC-001",
                         severity=severity,
                         message=f"Write to privilege-critical path ({op.operation}): {op.path}",
@@ -58,7 +58,7 @@ def detect_privilege_escalation(
         exe_base = spawn.executable.split("/")[-1].lower() if "/" in spawn.executable else spawn.executable.lower()
         if exe_base in PRIV_ESC_BINARIES:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PRIVESC-002",
                     severity=Severity.HIGH,
                     message=f"Privilege escalation binary spawned: {spawn.executable}",
@@ -72,7 +72,7 @@ def detect_privilege_escalation(
             for pattern in SETUID_PATTERNS:
                 if pattern in op.path:
                     findings.append(
-                        Finding(
+                        SandboxFinding(
                             rule_id="L4-PRIVESC-003",
                             severity=Severity.CRITICAL,
                             message=f"setuid/setgid chmod attempt: {op.path}",
@@ -88,7 +88,7 @@ def detect_privilege_escalation(
         all_args = " ".join(spawn.args).lower()
         if any(kw in exe_lower or kw in all_args for kw in cap_keywords):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PRIVESC-004",
                     severity=Severity.HIGH,
                     message=f"Linux capabilities manipulation: {spawn.executable} {spawn.args[:3]}",
@@ -103,7 +103,7 @@ def detect_privilege_escalation(
             "/etc/cron" in path_lower or path_lower.startswith(("/var/spool/cron", "/var/cron"))
         ):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-PRIVESC-005",
                     severity=Severity.HIGH,
                     message=f"Cron job manipulation ({op.operation}): {op.path}",

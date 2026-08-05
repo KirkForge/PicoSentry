@@ -1,20 +1,20 @@
 import re
 
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
 def detect_exfiltration(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     suspicious_tlds = {".xyz", ".tk", ".ml", ".cf", ".ga", ".gq", ".top", ".pw", ".cc"}
     private_ips = re.compile(r"^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)")
 
     for call in profile.network_calls:
         findings.extend(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-EXFIL-001",
                 severity=Severity.HIGH,
                 message=f"Network call to suspicious TLD: {call.address}",
@@ -27,7 +27,7 @@ def detect_exfiltration(
 
         if call.port not in (0, 80, 443, 8080, 8443) and not private_ips.match(call.address):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-EXFIL-002",
                     severity=Severity.MEDIUM,
                     message=f"Network call to non-standard port: {call.address}:{call.port}",
@@ -39,7 +39,7 @@ def detect_exfiltration(
     total_sent = sum(c.bytes_sent for c in profile.network_calls)
     if total_sent > 1000000:  # 1MB
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-EXFIL-003",
                 severity=Severity.HIGH,
                 message=f"Large outbound data transfer: {total_sent} bytes sent",
@@ -49,7 +49,7 @@ def detect_exfiltration(
         )
 
     findings.extend(
-        Finding(
+        SandboxFinding(
             rule_id="L4-EXFIL-004",
             severity=Severity.MEDIUM,
             message=f"DNS query to suspicious domain: {dns.hostname}",
@@ -77,7 +77,7 @@ def detect_exfiltration(
     ]
     if sensitive_reads and len(profile.network_calls) > 0:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-EXFIL-005",
                 severity=Severity.CRITICAL,
                 message=(

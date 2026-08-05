@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -31,14 +31,14 @@ SENSITIVE_ENV_VARS = {
 
 def detect_env_leak(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         path_lower = op.path.lower()
         if path_lower.endswith((".env", ".env.local", ".env.production")):
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-ENV-001",
                     severity=Severity.HIGH,
                     message=f"Access to .env file ({op.operation}): {op.path}",
@@ -53,7 +53,7 @@ def detect_env_leak(
             lower_addr = call.address.lower()
             if lower_val in lower_addr or var_name.lower() in lower_addr:
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-ENV-002",
                         severity=Severity.CRITICAL,
                         message=f"Sensitive env var {var_name} referenced in network address: {call.address}",
@@ -67,7 +67,7 @@ def detect_env_leak(
         exe_base = spawn.executable.split("/")[-1].lower()
         if exe_base in env_dump_commands:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-ENV-003",
                     severity=Severity.HIGH,
                     message=f"Environment dumping command spawned: {spawn.executable}",

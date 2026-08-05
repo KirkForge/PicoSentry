@@ -13,7 +13,7 @@ from picosentry.sandbox.l3.models import (
     SyscallAction,
     Verdict,
 )
-from picosentry.sandbox.models import _now_ms
+from picosentry._core.time import now_ms
 
 from ._audit import (
     _ARCH_X86_64,
@@ -86,7 +86,7 @@ def parse_seccomp_log(
                 verdict=verdict,
                 operation=operation,
                 detail=(f"{name} syscall (no path/address: SCMP_ACT_LOG does not capture args in v2.0.8)"),
-                timestamp_ms=int(_now_ms() - start_ms),
+                timestamp_ms=int(now_ms() - start_ms),
             )
         )
     return events

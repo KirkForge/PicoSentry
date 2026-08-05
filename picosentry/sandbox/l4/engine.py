@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import inspect
 import logging
-import time
 from collections.abc import Callable, Sequence
 
 from picosentry.sandbox.l4.baseline import load_all_baselines
@@ -13,14 +12,15 @@ from picosentry.sandbox.l4.models import (
     BehavioralProfile,
     BehavioralVerdict,
     DriftResult,
-    Finding,
+    SandboxFinding,
     ScanStats,
 )
+from picosentry._core.time import now_ms
 from picosentry.sandbox.models import Severity, _generate_finding_id
 
 logger = logging.getLogger("picodome.l4.engine")
 
-DetectorRule = Callable[..., list[Finding]]
+DetectorRule = Callable[..., list[SandboxFinding]]
 
 
 class L4Engine:
@@ -63,8 +63,8 @@ class L4Engine:
             list(selected.keys()),
         )
 
-        start_ms = _now_ms()
-        all_findings: list[Finding] = []
+        start_ms = now_ms()
+        all_findings: list[SandboxFinding] = []
 
         for rule_id, rule_fn in selected.items():
             try:
@@ -80,7 +80,7 @@ class L4Engine:
             filled_findings = []
             for finding in all_findings:
                 if not finding.finding_id:
-                    f = Finding(
+                    f = SandboxFinding(
                         rule_id=finding.rule_id,
                         severity=finding.severity,
                         message=finding.message,
@@ -93,7 +93,7 @@ class L4Engine:
                 filled_findings.append(f)
             all_findings = filled_findings
 
-        duration = int(_now_ms() - start_ms)
+        duration = int(now_ms() - start_ms)
 
         drift_results: list[DriftResult] = []
         best_match = find_best_baseline(profile, baselines)
@@ -180,7 +180,7 @@ def analyze(
     return engine.analyze(profile, baselines=baselines, rules=rules, deterministic=deterministic)
 
 
-def _compute_verdict(findings: list[Finding]) -> BehavioralVerdict:
+def _compute_verdict(findings: list[SandboxFinding]) -> BehavioralVerdict:
     if not findings:
         return BehavioralVerdict.CLEAN
     for f in findings:
@@ -190,7 +190,3 @@ def _compute_verdict(findings: list[Finding]) -> BehavioralVerdict:
         if f.severity == Severity.MEDIUM:
             return BehavioralVerdict.SUSPICIOUS
     return BehavioralVerdict.CLEAN
-
-
-def _now_ms() -> float:
-    return time.monotonic() * 1000

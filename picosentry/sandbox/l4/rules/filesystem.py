@@ -1,4 +1,4 @@
-from picosentry.sandbox.l4.models import BehavioralProfile, Finding
+from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
 
@@ -49,15 +49,15 @@ CRITICAL_DELETE_PATHS = {
 
 def detect_filesystem_anomalies(
     profile: BehavioralProfile,
-) -> list[Finding]:
-    findings: list[Finding] = []
+) -> list[SandboxFinding]:
+    findings: list[SandboxFinding] = []
 
     for op in profile.fs_ops:
         path = op.path
 
         if op.operation in ("write", "create"):
             findings.extend(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-FS-001",
                     severity=Severity.CRITICAL,
                     message=f"Write to protected system path: {path}",
@@ -79,7 +79,7 @@ def detect_filesystem_anomalies(
             )
             if matched_ext:
                 findings.append(
-                    Finding(
+                    SandboxFinding(
                         rule_id="L4-FS-002",
                         severity=Severity.MEDIUM,
                         message=f"Executable/shared library written outside /tmp: {path}",
@@ -90,7 +90,7 @@ def detect_filesystem_anomalies(
 
         if op.operation == "delete":
             findings.extend(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-FS-003",
                     severity=Severity.CRITICAL,
                     message=f"Deletion of critical system file: {path}",
@@ -103,7 +103,7 @@ def detect_filesystem_anomalies(
 
         if "../" in path or "..\\" in path:
             findings.append(
-                Finding(
+                SandboxFinding(
                     rule_id="L4-FS-004",
                     severity=Severity.HIGH,
                     message=f"Path traversal detected: {path}",
@@ -118,7 +118,7 @@ def detect_filesystem_anomalies(
     write_ops = [op for op in profile.fs_ops if op.operation in ("write", "create")]
     if len(write_ops) > 100:
         findings.append(
-            Finding(
+            SandboxFinding(
                 rule_id="L4-FS-006",
                 severity=Severity.MEDIUM,
                 message=f"Excessive filesystem writes: {len(write_ops)} write operations",

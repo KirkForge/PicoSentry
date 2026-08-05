@@ -334,6 +334,7 @@ def test_bench_determinism_verify(engine, small_project):
 # ── Report ───────────────────────────────────────────────
 
 
+@pytest.mark.skip(reason="benchmark is informational, no pass/fail condition")
 def test_bench_report():
     """Print performance target summary."""
     print("\n─── PicoSentry Performance Targets ───")
@@ -341,4 +342,3 @@ def test_bench_report():
         unit = "ms"
         print(f"  {name:<25s} ≤ {target:>5d}{unit}")
     print("──────────────────────────────────────")
-    assert True  # Always passes — informational only

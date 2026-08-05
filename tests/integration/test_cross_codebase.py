@@ -101,8 +101,8 @@ class TestInternalImports:
     def test_scan_engine_importable(self) -> None:
         from picosentry.scan.engine import ScanEngine, create_default_engine
 
-        assert create_default_engine is not None
-        assert ScanEngine is not None
+        assert hasattr(ScanEngine, "scan")
+        assert hasattr(create_default_engine, "__call__")
 
     def test_sandbox_l3_importable(self) -> None:
         from picosentry.sandbox.l3.engine import sandbox_run
@@ -112,12 +112,12 @@ class TestInternalImports:
     def test_watch_prompt_guard_importable(self) -> None:
         from picosentry.watch.prompt_guard import PromptGuard
 
-        assert PromptGuard is not None
+        assert hasattr(PromptGuard, "check")
 
     def test_serve_config_settings_importable(self) -> None:
         from picosentry.serve.config.settings import settings
 
-        assert settings is not None
+        assert hasattr(settings, "env")
 
 
 class TestUnifiedCLI:

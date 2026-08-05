@@ -84,6 +84,10 @@ jobs:
         # Drift gate: if a fixture was added/changed/removed without
         # re-rendering the doc, this step fails with the full diff.
         run: git diff --exit-code docs/BENCHMARKS.md
+      - name: Verify scan determinism
+        # Two scans of the same input must produce identical output.
+        # Exit 0: deterministic. Exit 4: results differ.
+        run: picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
 
   test-watch:
     runs-on: ubuntu-latest

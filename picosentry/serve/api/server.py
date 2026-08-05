@@ -240,23 +240,18 @@ app = FastAPI(
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    import os
+
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.error(
-        "Unhandled exception on %s %s [request_id=%s]: %s",
-        request.method,
-        request.url.path,
-        request_id,
-        exc,
-        exc_info=exc,
-    )
+    logger.exception("Unhandled error in API request")
+    if os.environ.get("PICOSHOGUN_ENV", "production") == "development":
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_server_error", "detail": str(exc), "request_id": request_id},
+        )
     return JSONResponse(
         status_code=500,
-        content={
-            "error": "internal_server_error",
-            "detail": "An unexpected error occurred. Please try again later.",
-            "request_id": request_id,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-        },
+        content={"error": "internal_server_error", "detail": "An unexpected error occurred"},
     )
 
 
@@ -273,6 +268,7 @@ app.add_middleware(
     backend=settings.security.rate_limit_backend,
     backend_url=settings.security.redis_url,
     exempt_paths={"/health", "/health/live", "/health/ready"},
+    trusted_proxies=settings.security.trusted_proxies,
 )
 app.add_middleware(
     CORSMiddleware,

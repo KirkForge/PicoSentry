@@ -11,6 +11,17 @@ from starlette.responses import JSONResponse
 logger = logging.getLogger("picoshogun.RateLimit")
 
 
+def _get_client_ip(request: Request, trusted_proxies: list[str] | None = None) -> str:
+    if trusted_proxies:
+        forwarded = request.headers.get("x-forwarded-for", "")
+        if forwarded:
+            ips = [ip.strip() for ip in forwarded.split(",")]
+            for ip in reversed(ips):
+                if ip not in trusted_proxies:
+                    return ip
+    return request.client.host if request.client else "unknown"
+
+
 class RateLimitMiddleware(BaseHTTPMiddleware):
     def __init__(
         self,
@@ -24,6 +35,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         backend_url: str = "redis://localhost:6379/0",
         backend_instance: Any | None = None,
         exempt_paths: set[str] | None = None,
+        trusted_proxies: list[str] | None = None,
     ):
         super().__init__(app)
         self.max_requests_per_ip = max_requests_per_ip
@@ -34,6 +46,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.backend_name = backend.lower()
         self.backend_url = backend_url
         self.exempt_paths = exempt_paths or set()
+        self.trusted_proxies = trusted_proxies or []
 
         self.ip_requests: dict[str, list] = defaultdict(list)
         self.org_requests: dict[str, list] = defaultdict(list)
@@ -201,7 +214,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             return await call_next(request)
 
         now = time.time()
-        client_ip = request.client.host if request.client else "unknown"
+        client_ip = _get_client_ip(request, self.trusted_proxies)
 
         with self._lock:
             self._evict_if_needed(now)

@@ -21,8 +21,8 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         ),
     ),
     "serve": (
-        "BETA",
-        "API server, dashboard, and orchestration. Security review and regression tests in place.",
+        "STABLE",
+        "API server, dashboard, and orchestration.",
     ),
     "daemon": (
         "BETA",

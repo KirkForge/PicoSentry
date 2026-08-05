@@ -78,14 +78,31 @@ async def liveness_probe():
 async def readiness_probe():
     from fastapi.responses import JSONResponse
 
+    checks: dict[str, str] = {}
+    ready = True
+
     try:
         from picosentry.serve.database.manager import db
 
         db.execute_one("SELECT 1")
+        checks["database"] = "ok"
+    except Exception:
+        logger.exception("Readiness probe: database check failed")
+        checks["database"] = "unavailable"
+        ready = False
+
+    try:
+        from picosentry.serve.services.plugin_manager import plugin_manager
+
+        checks["plugins"] = "loaded" if plugin_manager.plugins else "ok"
+    except Exception:
+        logger.exception("Readiness probe: plugin check failed")
+        checks["plugins"] = "not_loaded"
+        ready = False
+
+    if ready:
         return {"status": "ready"}
-    except (OSError, ValueError, RuntimeError):
-        logger.exception("Readiness probe failed")
-        return JSONResponse(status_code=503, content={"status": "not ready", "detail": "database unavailable"})
+    return JSONResponse(status_code=503, content={"status": "not_ready", "checks": checks})
 
 
 @router.get("/health/history", tags=["Health"])

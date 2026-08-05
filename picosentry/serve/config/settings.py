@@ -106,6 +106,9 @@ class SecurityConfig:
     scans_workspace_root: Path | None = field(
         default_factory=lambda: Path(p) if (p := _env("SCANS_WORKSPACE_ROOT", "").strip()) else None
     )
+    trusted_proxies: list[str] = field(
+        default_factory=lambda: [p.strip() for p in _env("TRUSTED_PROXIES", "").split(",") if p.strip()]
+    )
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":

@@ -134,14 +134,8 @@ def assert_secure(
     return violations
 
 
-@runtime_checkable
-class ConfigProtocol(Protocol):
-    def to_dict(self) -> dict[str, Any]: ...
-
-
 __all__ = [
     "SECURITY_EXIT_CODE",
-    "ConfigProtocol",
     "SecureBootCheck",
     "SecurityViolation",
     "assert_secure",

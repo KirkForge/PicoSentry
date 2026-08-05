@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import Any
 
 
 UUID_PATTERN = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}", re.IGNORECASE)
@@ -22,11 +22,6 @@ FORBIDDEN_IN_FINDINGS = frozenset(
 )
 
 _DEFAULT_EXCLUDE_FIELDS = ("run_id", "timestamp", "duration_ms", "scan_id")
-
-
-@runtime_checkable
-class DeterministicResult(Protocol):
-    def to_dict(self, deterministic: bool = ..., *, deterministic_output: bool = ...) -> dict[str, Any]: ...
 
 
 class DeterminismViolation(Exception):
@@ -115,8 +110,8 @@ def diff_results(
     except (json.JSONDecodeError, OSError) as e:
         return (2, f"Error reading result files: {e}")
 
-    det_hash_a = _deterministic_hash_raw(data_a, exclude_fields=exclude_fields)
-    det_hash_b = _deterministic_hash_raw(data_b, exclude_fields=exclude_fields)
+    det_hash_a = deterministic_hash(data_a, exclude_fields=exclude_fields)
+    det_hash_b = deterministic_hash(data_b, exclude_fields=exclude_fields)
 
     id_a = data_a.get(id_field, "unknown")
     id_b = data_b.get(id_field, "unknown")
@@ -184,16 +179,6 @@ def diff_results(
     return (1, "\n".join(lines))
 
 
-def _deterministic_hash_raw(
-    data: dict,
-    exclude_fields: tuple[str, ...] = _DEFAULT_EXCLUDE_FIELDS,
-) -> str:
-    det = {k: v for k, v in data.items() if k not in exclude_fields}
-    if "stats" in det and isinstance(det["stats"], dict):
-        det["stats"] = {k: v for k, v in det["stats"].items() if k not in ("duration_ms", "rule_timings_ms")}
-    return hashlib.sha256(json.dumps(det, sort_keys=True).encode()).hexdigest()
-
-
 def _check_value(value: Any, violations: list[str], path: str) -> None:
     if isinstance(value, str):
         if UUID_PATTERN.search(value):
@@ -216,7 +201,6 @@ __all__ = [
     "UUID_PATTERN",
     "DeterminismViolation",
     "DeterministicGuard",
-    "DeterministicResult",
     "deterministic_hash",
     "diff_results",
     "verify_determinism",

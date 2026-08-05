@@ -52,9 +52,6 @@ class TyposquatConfig:
 
     file_detection_fn: Callable[[Path], str] | None = None
 
-    def __hash__(self):
-        return hash(self.ecosystem)
-
 
 def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: TyposquatConfig) -> list[Finding]:
     findings: list[Finding] = []

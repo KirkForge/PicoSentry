@@ -71,9 +71,6 @@ class AdvisoryConfig:
     detect_project: Callable[[Path], bool]
     collect_packages: Callable[[Path], list[tuple[str, str, str, Path]]]
 
-    def __hash__(self):
-        return hash(self.ecosystem)
-
 
 def _collect_npm_packages(target: Path) -> list[tuple[str, str, str, Path]]:
     packages: list[tuple[str, str, str, Path]] = []

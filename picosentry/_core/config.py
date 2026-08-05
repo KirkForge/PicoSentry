@@ -4,6 +4,7 @@ import logging
 import os
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Protocol, runtime_checkable
 
 logger = logging.getLogger("picosentry._core.config")
@@ -134,9 +135,64 @@ def assert_secure(
     return violations
 
 
+def validate_config_keys(data: dict, known_keys: frozenset[str], config_path: Path, logger: logging.Logger) -> None:
+    unknown = sorted(set(data.keys()) - known_keys)
+    for key in unknown:
+        logger.warning(
+            "Unknown config key '%s' in %s — will be ignored. Did you mean one of: %s?",
+            key,
+            config_path,
+            ", ".join(sorted(known_keys)),
+        )
+
+
+def apply_severity_overrides(
+    findings: list,
+    severity_overrides: dict[str, str],
+    severity_enum: type,
+    finding_cls: type,
+    logger: logging.Logger,
+    *,
+    field_map: dict[str, str] | None = None,
+) -> list:
+    """Apply severity overrides to a list of findings.
+
+    ``severity_enum`` is the Severity enum class (scan or sandbox).
+    ``finding_cls`` is the Finding dataclass to reconstruct.
+    ``field_map`` maps finding attribute names to constructor parameter names.
+    If None, the constructor args are assumed to match the finding attributes.
+    """
+    if not severity_overrides:
+        return findings
+
+    overridden = []
+    for finding in findings:
+        f = finding
+        if finding.rule_id in severity_overrides:
+            new_sev = severity_overrides[finding.rule_id]
+            try:
+                sev_enum = severity_enum(new_sev.upper())
+                if field_map:
+                    kwargs = {v: getattr(finding, k) for k, v in field_map.items()}
+                else:
+                    kwargs = {k: getattr(finding, k) for k in finding.__dataclass_fields__}
+                kwargs["severity"] = sev_enum
+                f = finding_cls(**kwargs)
+            except ValueError:
+                logger.warning(
+                    "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
+                    finding.rule_id,
+                    new_sev,
+                )
+        overridden.append(f)
+    return overridden
+
+
 __all__ = [
     "SECURITY_EXIT_CODE",
     "SecureBootCheck",
     "SecurityViolation",
+    "apply_severity_overrides",
     "assert_secure",
+    "validate_config_keys",
 ]

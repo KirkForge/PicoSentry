@@ -6,6 +6,7 @@ from typing import TYPE_CHECKING, Any, cast
 
 from picosentry._core.config import SecureBootCheck, SecurityViolation
 from picosentry._core.config import assert_secure as _core_assert_secure
+from picosentry._core.config import validate_config_keys as _validate_config_keys
 
 if TYPE_CHECKING:
     from picosentry.scan.policy import Policy
@@ -239,38 +240,11 @@ class PicoSentryConfig:
         return merged
 
     def apply_severity_overrides(self, findings: list) -> list:
-        if not self.severity_overrides:
-            return findings
-
         from picosentry.scan.models import Finding, Severity
 
-        overridden = []
-        for finding in findings:
-            f = finding
-            if finding.rule_id in self.severity_overrides:
-                new_sev = self.severity_overrides[finding.rule_id]
-                try:
-                    sev_enum = Severity(new_sev.upper())
-                    f = Finding(
-                        rule_id=finding.rule_id,
-                        severity=sev_enum,
-                        confidence=finding.confidence,
-                        package=finding.package,
-                        file=finding.file,
-                        message=finding.message,
-                        evidence=finding.evidence,
-                        remediation=finding.remediation,
-                        references=finding.references,
-                        line=finding.line,
-                    )
-                except ValueError:
-                    logger.warning(
-                        "Invalid severity override for %s: %s (expected CRITICAL/HIGH/MEDIUM/LOW/INFO)",
-                        finding.rule_id,
-                        new_sev,
-                    )
-            overridden.append(f)
-        return overridden
+        from picosentry._core.config import apply_severity_overrides
+
+        return apply_severity_overrides(findings, self.severity_overrides, Severity, Finding, logger)
 
     def should_ignore_package(self, package_name: str) -> bool:
         return package_name in self.ignore_packages
@@ -281,17 +255,6 @@ class PicoSentryConfig:
         from fnmatch import fnmatch
 
         return any(fnmatch(file_path, pat) for pat in self.ignore_paths)
-
-
-def _validate_config_keys(data: dict, config_path: Path) -> None:
-    unknown = sorted(set(data.keys()) - KNOWN_KEYS)
-    for key in unknown:
-        logger.warning(
-            "Unknown config key '%s' in %s — will be ignored. Did you mean one of: %s?",
-            key,
-            config_path,
-            ", ".join(sorted(KNOWN_KEYS)),
-        )
 
 
 class _CorpusSignatureCheck:
@@ -348,7 +311,7 @@ def load_config(target_dir: Path) -> PicoSentryConfig:
         logger.warning("Config file %s is not a mapping, ignoring", config_path)
         return config
 
-    _validate_config_keys(data, config_path)
+    _validate_config_keys(data, KNOWN_KEYS, config_path, logger)
 
     if "version" in data and data["version"] != CONFIG_VERSION:
         logger.warning(

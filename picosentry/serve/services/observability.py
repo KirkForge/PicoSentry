@@ -1,6 +1,7 @@
 import logging
 import os
 
+from picosentry._core.tracing import NoOpInstrument, NoOpMeter, NoOpSpan, NoOpTracer
 from picosentry.serve.config.version import __version__
 
 logger = logging.getLogger("picoshogun.Observability")
@@ -107,39 +108,6 @@ def get_meter():
     return _meter
 
 
-class NoOpTracer:
-    def start_as_current_span(self, name, **kwargs):
-        from contextlib import nullcontext
-
-        return nullcontext(NoOpSpan())
-
-    def start_span(self, name, **kwargs):
-        return NoOpSpan()
-
-
-class NoOpSpan:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args):
-        pass
-
-    def set_attribute(self, key, value):
-        pass
-
-    def add_event(self, name, attributes=None):
-        pass
-
-    def set_status(self, status, description=""):
-        pass
-
-    def record_exception(self, exception, attributes=None):
-        pass
-
-    def end(self):
-        pass
-
-
 def _load_otlp_exporters():
     try:
         from opentelemetry.exporter.otlp.proto.grpc.metric_exporter import (
@@ -159,31 +127,6 @@ def _load_otlp_exporters():
         )
 
         return HttpSpanExporter, HttpMetricExporter, False
-
-
-class NoOpMeter:
-    def create_counter(self, name, **kwargs):
-        return NoOpInstrument()
-
-    def create_histogram(self, name, **kwargs):
-        return NoOpInstrument()
-
-    def create_gauge(self, name, **kwargs):
-        return NoOpInstrument()
-
-    def create_up_down_counter(self, name, **kwargs):
-        return NoOpInstrument()
-
-
-class NoOpInstrument:
-    def add(self, amount, attributes=None):
-        pass
-
-    def record(self, amount, attributes=None):
-        pass
-
-    def set(self, amount, attributes=None):
-        pass
 
 
 def setup_fastapi_instrumentation(app):

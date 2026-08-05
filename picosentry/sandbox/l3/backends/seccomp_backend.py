@@ -36,7 +36,7 @@ from picosentry.sandbox.l3.models import (
     Verdict,
 )
 from picosentry.sandbox.l3.session import SandboxSession
-from picosentry.sandbox.models import _now_ms
+from picosentry._core.time import now_ms
 
 logger = logging.getLogger("picodome.l3.seccomp")
 
@@ -135,7 +135,7 @@ class SeccompBackend(SandboxBackend):
         env: dict | None = None,
         session: SandboxSession | None = None,
     ) -> SandboxResult:
-        start_ms = _now_ms()
+        start_ms = now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
 
@@ -218,7 +218,7 @@ class SeccompBackend(SandboxBackend):
                             verdict=Verdict.KILL,
                             operation="process_timeout",
                             detail=f"Process exceeded {effective_timeout}s timeout",
-                            timestamp_ms=int(_now_ms() - start_ms),
+                            timestamp_ms=int(now_ms() - start_ms),
                         )
                     )
 
@@ -259,7 +259,7 @@ class SeccompBackend(SandboxBackend):
                             verdict=Verdict.KILL,
                             operation="seccomp_violation",
                             detail=diagnostic,
-                            timestamp_ms=int(_now_ms() - start_ms),
+                            timestamp_ms=int(now_ms() - start_ms),
                         )
                     )
 
@@ -272,7 +272,7 @@ class SeccompBackend(SandboxBackend):
                     verdict=Verdict.DENY,
                     operation="exec_not_found",
                     detail=f"Command not found: {command[0] if command else '?'}",
-                    timestamp_ms=int(_now_ms() - start_ms),
+                    timestamp_ms=int(now_ms() - start_ms),
                 )
             )
             stdout, stderr, exit_code = "", "", -1
@@ -288,7 +288,7 @@ class SeccompBackend(SandboxBackend):
             if session is not None:
                 session.resources.open_fds = [fd for fd in session.resources.open_fds if fd not in (out_r, err_r)]
 
-        duration_ms = int(_now_ms() - start_ms)
+        duration_ms = int(now_ms() - start_ms)
         overall = self._compute_verdict(events, exit_code)
 
         return SandboxResult(

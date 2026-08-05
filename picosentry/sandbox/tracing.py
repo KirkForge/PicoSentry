@@ -6,6 +6,8 @@ import sys
 from contextlib import contextmanager
 from typing import Any
 
+from picosentry._core.tracing import NoOpSpan, NoOpTracer
+
 logger = logging.getLogger("picodome.tracing")
 
 
@@ -22,37 +24,9 @@ try:
 except ImportError:
     pass
 
-
-class _NoopSpan:
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *args: Any) -> None:
-        pass
-
-    def set_attribute(self, key: str, value: Any) -> None:
-        pass
-
-    def add_event(self, name: str, attributes: dict[str, Any] | None = None) -> None:
-        pass
-
-    def set_status(self, status: Any) -> None:
-        pass
-
-    def record_exception(self, exception: Exception) -> None:
-        pass
-
-    def end(self) -> None:
-        pass
-
-
-class _NoopTracer:
-    def start_as_current_span(self, name: str, **kwargs: Any) -> _NoopSpan:
-        return _NoopSpan()
-
-    def start_span(self, name: str, **kwargs: Any) -> _NoopSpan:
-        return _NoopSpan()
-
+# Alias for backward compatibility with tests/internal references
+_NoopSpan = NoOpSpan
+_NoopTracer = NoOpTracer
 
 _tracer: _Tracer | _NoopTracer = _NoopTracer()
 _tracing_enabled = os.environ.get("PICODOME_TRACING_ENABLED", "").lower() in ("1", "true", "yes")

@@ -16,7 +16,8 @@ if TYPE_CHECKING:
     from .policy import Policy
 
 from picosentry import __version__ as _VERSION
-from ._engine_scan_helpers import _now_ms, count_installed_packages, count_relevant_files
+from picosentry._core.time import now_ms
+from ._engine_scan_helpers import count_installed_packages, count_relevant_files
 from .models import Finding, RuleExecution, ScanResult, ScanStats
 
 
@@ -274,7 +275,7 @@ class ScanEngine:
         from datetime import datetime, timezone
 
         wall_started = datetime.now(timezone.utc)
-        start_ms = _now_ms()
+        start_ms = now_ms()
         all_findings: list[Finding] = []
         rule_executions: list[RuleExecution] = []
         packages_scanned = 0
@@ -305,13 +306,13 @@ class ScanEngine:
                 rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
                 rule_ids_for_fn = fn_to_rule_ids[fn_id]
                 primary_rule_id = rule_ids_for_fn[0]
-                rule_start = _now_ms()
+                rule_start = now_ms()
                 try:
                     future = rule_executor.submit(_invoke_rule, rule_fn)
                     try:
                         findings = future.result(timeout=_effective_rule_timeout)
                     except FuturesTimeoutError:
-                        elapsed = int(_now_ms() - rule_start)
+                        elapsed = int(now_ms() - rule_start)
                         logger.warning(
                             "Rule %s exceeded %ss timebox — skipping",
                             primary_rule_id,
@@ -331,7 +332,7 @@ class ScanEngine:
                         continue
                     all_findings.extend(findings)
                     logger.debug("Rules %s: %d findings", rule_ids_for_fn, len(findings))
-                    elapsed = int(_now_ms() - rule_start)
+                    elapsed = int(now_ms() - rule_start)
                     for rid in rule_ids_for_fn:
                         rule_timings[rid] = elapsed
                         rule_executions.append(
@@ -345,7 +346,7 @@ class ScanEngine:
                 except BaseException as exc:
                     logger.exception("Rule %s raised an exception", primary_rule_id)
                     logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
-                    elapsed = int(_now_ms() - rule_start)
+                    elapsed = int(now_ms() - rule_start)
                     for rid in rule_ids_for_fn:
                         rule_timings[rid] = elapsed
                         rule_executions.append(
@@ -375,7 +376,7 @@ class ScanEngine:
                 stripped_findings.append(f)
         all_findings = stripped_findings
 
-        duration = _now_ms() - start_ms
+        duration = now_ms() - start_ms
 
         files_scanned = count_relevant_files(target_path)
 

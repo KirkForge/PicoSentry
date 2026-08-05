@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 
 from picosentry.sandbox.models import (
     BehavioralVerdict,
-    Finding,
+    SandboxFinding,
     ScanStats,
 )
 
@@ -192,7 +192,7 @@ class DriftResult:
 @dataclass(frozen=True)
 class AnalysisResult:
     target: str
-    findings: list[Finding] = field(default_factory=list)
+    findings: list[SandboxFinding] = field(default_factory=list)
     profile: BehavioralProfile | None = None
     drift_results: list[DriftResult] = field(default_factory=list)
     overall_verdict: BehavioralVerdict = BehavioralVerdict.CLEAN

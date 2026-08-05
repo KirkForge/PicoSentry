@@ -7,11 +7,12 @@ from enum import Enum
 
 from picosentry._core.models import Severity, Verdict
 from picosentry._core.models import ScanStats as _ScanStats
+from picosentry._core.time import now_ms
 
 
 __all__ = [
     "BehavioralVerdict",
-    "Finding",
+    "SandboxFinding",
     "ScanStats",
     "Severity",
     "Verdict",
@@ -19,7 +20,6 @@ __all__ = [
     "_generate_run_id",
     "_generate_timestamp",
     "_now_iso",
-    "_now_ms",
 ]
 
 
@@ -30,7 +30,7 @@ class BehavioralVerdict(str, Enum):
 
 
 @dataclass(frozen=True)
-class Finding:  # rationale: sandbox finding, frozen for determinism, empty finding_id by default
+class SandboxFinding:  # rationale: sandbox finding, frozen for determinism, empty finding_id by default
     rule_id: str
     severity: Severity
     message: str
@@ -53,9 +53,6 @@ class Finding:  # rationale: sandbox finding, frozen for determinism, empty find
 
 ScanStats = _ScanStats
 
-
-def _now_ms() -> float:
-    return time.monotonic() * 1000
 
 
 def _now_iso() -> str:

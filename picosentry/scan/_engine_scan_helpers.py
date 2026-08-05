@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import time
 from pathlib import Path
+
+from picosentry._core.time import now_ms
 
 
 _SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
@@ -62,10 +63,6 @@ _RELEVANT_FILE_NAMES = {
     "packages.lock.json",
     "nuget.config",
 }
-
-
-def _now_ms() -> float:
-    return time.monotonic() * 1000
 
 
 def count_relevant_files(target_path: Path) -> int:

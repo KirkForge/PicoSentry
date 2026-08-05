@@ -10,7 +10,7 @@ from picosentry.scan.auth import (
     AuthConfig,
     AuthResult,
     RateLimiter,
-    _constant_time_compare,
+    constant_time_compare,
     check_auth,
     check_oidc_auth,
     check_token_auth,
@@ -131,9 +131,9 @@ class TestCheckTokenAuth(unittest.TestCase):
         self.assertIn("No token", result.error)
 
     def test_constant_time_compare(self):
-        self.assertTrue(_constant_time_compare("abc", "abc"))
-        self.assertFalse(_constant_time_compare("abc", "abd"))
-        self.assertFalse(_constant_time_compare("short", "much-longer-string"))
+        self.assertTrue(constant_time_compare("abc", "abc"))
+        self.assertFalse(constant_time_compare("abc", "abd"))
+        self.assertFalse(constant_time_compare("short", "much-longer-string"))
 
 
 class TestCheckOidcAuth(unittest.TestCase):

@@ -12,34 +12,34 @@ from picosentry.sandbox.auth import (
     AuthError,
     Role,
     TokenAuth,
-    _constant_time_equal,
+    constant_time_compare,
     _hash_token,
 )
 
 
 class TestConstantTimeEqual:
-    """Tests for _constant_time_equal."""
+    """Tests for constant_time_compare."""
 
     def test_equal_strings(self):
-        assert _constant_time_equal("hello", "hello") is True
+        assert constant_time_compare("hello", "hello") is True
 
     def test_unequal_strings(self):
-        assert _constant_time_equal("hello", "world") is False
+        assert constant_time_compare("hello", "world") is False
 
     def test_empty_strings(self):
-        assert _constant_time_equal("", "") is True
+        assert constant_time_compare("", "") is True
 
     def test_one_empty(self):
-        assert _constant_time_equal("hello", "") is False
+        assert constant_time_compare("hello", "") is False
 
     def test_prefix_match_still_fails(self):
-        assert _constant_time_equal("picodome-admin-secret123", "picodome-admin-secret456") is False
+        assert constant_time_compare("picodome-admin-secret123", "picodome-admin-secret456") is False
 
     def test_uses_hmac_compare_digest(self):
         """Verify we're using hmac.compare_digest internally."""
         a = "test-token-123"
         b = "test-token-123"
-        assert _constant_time_equal(a, b) == hmac.compare_digest(a.encode(), b.encode())
+        assert constant_time_compare(a, b) == hmac.compare_digest(a.encode(), b.encode())
 
 
 class TestHashToken:
@@ -267,8 +267,8 @@ class TestTokenAuth:
             clear=False,
         ):
             TokenAuth()
-            # _constant_time_equal should be used, not `==`
+            # constant_time_compare should be used, not `==`
             # Verify by checking that the auth module imports hmac.compare_digest
             from picosentry.sandbox import auth as auth_module
 
-            assert hasattr(auth_module, "_constant_time_equal")
+            assert hasattr(auth_module, "constant_time_compare")

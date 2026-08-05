@@ -301,10 +301,17 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
         if _os.environ.get("PICOWATCH_SKIP_SECURE_ASSERT") == "1":
             import logging as _logging
 
-            _logging.getLogger("picowatch.config").warning(
-                "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
-            )
-            return
+            env = _os.environ.get("PICOWATCH_ENV", "development")
+            if env in ("production", "staging"):
+                _logging.getLogger("picowatch.config").critical(
+                    "Security: PICOWATCH_SKIP_SECURE_ASSERT ignored in %s — security checks cannot be skipped",
+                    env,
+                )
+            else:
+                _logging.getLogger("picowatch.config").warning(
+                    "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                )
+                return
 
         custom_checks: list[SecureBootCheck] = [_ApiKeyLengthCheck(self), _BindWithoutAuthCheck(self)]
         _core_assert_secure(

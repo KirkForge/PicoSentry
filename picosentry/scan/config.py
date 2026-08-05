@@ -151,17 +151,31 @@ class PicoSentryConfig:
         import os as _os
 
         if _os.environ.get("PICOSENTRY_SKIP_SECURE_ASSERT") == "1":
-            logger.warning(
-                "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. "
-                "This bypasses startup security checks."
-            )
-            return
+            env = _os.environ.get("PICOSENTRY_ENV", "development")
+            if env in ("production", "staging"):
+                logger.critical(
+                    "Security: PICOSENTRY_SKIP_SECURE_ASSERT ignored in %s — security checks cannot be skipped",
+                    env,
+                )
+            else:
+                logger.warning(
+                    "SECURITY ASSERT SKIPPED: PICOSENTRY_SKIP_SECURE_ASSERT=1 is set. "
+                    "This bypasses startup security checks."
+                )
+                return
 
-        custom_checks: list[SecureBootCheck] = [_CorpusSignatureCheck(self)]
+        from picosentry.scan.auth import AuthDisabledCheck
+
+        auth_mode = _os.environ.get("PICOSENTRY_AUTH_MODE", "off")
+        bind_host = _os.environ.get("PICOSENTRY_BIND_HOST", "127.0.0.1")
+        custom_checks: list[SecureBootCheck] = [
+            _CorpusSignatureCheck(self),
+            AuthDisabledCheck(auth_mode=auth_mode, bind_host=bind_host),
+        ]
         _core_assert_secure(
             checks=custom_checks,
             secret_key="",
-            bind_host="127.0.0.1",
+            bind_host=bind_host,
             cors_origin="",
             debug=False,
             env=_os.environ.get("PICOSENTRY_ENV", "development"),

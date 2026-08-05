@@ -115,6 +115,10 @@ PROCESS_SYSCALLS = {
 }
 
 
+# Removed from allowlist: prctl (can override seccomp via PR_SET_SECCOMP),
+# memfd_create (anonymous executable memory), io_uring_setup/io_uring_enter
+# (seccomp bypass on kernels <5.6). ponytail: re-add if a sandboxed workload
+# requires these and kernel version is guaranteed >=6.1.
 SAFE_SYSCALLS = {
     "read",
     "readv",
@@ -193,7 +197,6 @@ SAFE_SYSCALLS = {
     "epoll_pwait",
     "eventfd2",
     "arch_prctl",
-    "prctl",
     "prlimit64",
     "getrandom",
     "getrusage",
@@ -202,7 +205,6 @@ SAFE_SYSCALLS = {
     "sysinfo",
     "sched_yield",
     "sched_getaffinity",
-    "memfd_create",
     "capget",
     "capset",
     "wait4",
@@ -215,8 +217,6 @@ SAFE_SYSCALLS = {
     "statx",
     "getppid",
     "umask",
-    "io_uring_setup",
-    "io_uring_enter",
     "sched_getparam",
     "sched_getscheduler",
     "fadvise64",

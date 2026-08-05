@@ -45,12 +45,12 @@ class TestCreateSSLContext:
     def test_dev_mode_creates_context(self):
         # This test requires openssl on PATH
         import shutil
+        import ssl
 
         if not shutil.which("openssl"):
             pytest.skip("openssl not available")
-        _ = create_ssl_context(MTLSConfig(dev_mode=True))
-        # Dev SSL context should be created (or raise if openssl fails)
-        # We just verify it doesn't crash
+        ctx = create_ssl_context(MTLSConfig(dev_mode=True))
+        assert isinstance(ctx, ssl.SSLContext)
 
 
 class TestTLSConfigInfo:

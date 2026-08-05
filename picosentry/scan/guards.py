@@ -12,6 +12,9 @@ from picosentry._core.guards import (
     DeterministicGuard as _CoreGuard,
 )
 from picosentry._core.guards import (
+    diff_results as _core_diff_results,
+)
+from picosentry._core.guards import (
     verify_determinism as _core_verify_determinism,
 )
 from typing import TYPE_CHECKING
@@ -130,82 +133,11 @@ def diff_scans(
     path_b: Path,
     verbose: bool = False,
 ) -> tuple[int, str]:
-    if not path_a.is_file():
-        return (2, f"Error: {path_a} does not exist")
-    if not path_b.is_file():
-        return (2, f"Error: {path_b} does not exist")
-
-    try:
-        data_a = json.loads(path_a.read_text(encoding="utf-8"))
-        data_b = json.loads(path_b.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
-        return (2, f"Error reading scan files: {e}")
-
-    det_hash_a = _deterministic_hash_raw(data_a)
-    det_hash_b = _deterministic_hash_raw(data_b)
-
-    id_a = data_a.get("scan_id", "unknown")
-    id_b = data_b.get("scan_id", "unknown")
-
-    if det_hash_a == det_hash_b:
-        lines = [
-            "✓ Scans are IDENTICAL — determinism verified",
-            f"  scan_id: {id_a}",
-            f"  sha256:  {det_hash_a}",
-            f"  findings: {len(data_a.get('findings', []))}",
-        ]
-
-        full_hash_a = hashlib.sha256(json.dumps(data_a, sort_keys=True).encode()).hexdigest()
-        full_hash_b = hashlib.sha256(json.dumps(data_b, sort_keys=True).encode()).hexdigest()
-        if full_hash_a != full_hash_b:
-            lines.append(
-                f"  note: full JSON differs (timing: "
-                f"{data_a.get('stats', {}).get('duration_ms', '?')}ms vs "
-                f"{data_b.get('stats', {}).get('duration_ms', '?')}ms)"
-            )
-        return (0, "\n".join(lines))
-
-    lines = [
-        "✗ Scans DIFFER — determinism violation detected",
-        f"  scan_a: id={id_a} sha256={det_hash_a[:16]}...",
-        f"  scan_b: id={id_b} sha256={det_hash_b[:16]}...",
-        f"  findings_a: {len(data_a.get('findings', []))}",
-        f"  findings_b: {len(data_b.get('findings', []))}",
-    ]
-
-    for key in sorted(set(list(data_a.keys()) + list(data_b.keys()))):
-        if key == "findings":
-            continue
-        val_a = data_a.get(key)
-        val_b = data_b.get(key)
-        if val_a != val_b:
-            lines.append(f"  {key}: {val_a!r} → {val_b!r}")
-
-    if verbose:
-        findings_a = data_a.get("findings", [])
-        findings_b = data_b.get("findings", [])
-        set_a = {(f["rule_id"], f["package"], f.get("line", 0)) for f in findings_a}
-        set_b = {(f["rule_id"], f["package"], f.get("line", 0)) for f in findings_b}
-
-        added = set_b - set_a
-        removed = set_a - set_b
-
-        if removed:
-            lines.append(f"\n  Removed findings ({len(removed)}):")
-            for rule_id, pkg, line in sorted(removed):
-                lines.append(f"    - {rule_id} {pkg}:{line}")
-
-        if added:
-            lines.append(f"\n  Added findings ({len(added)}):")
-            for rule_id, pkg, line in sorted(added):
-                lines.append(f"    + {rule_id} {pkg}:{line}")
-
-    return (1, "\n".join(lines))
-
-
-def _deterministic_hash_raw(data: dict) -> str:
-    det = {k: v for k, v in data.items() if k in DETERMINISTIC_FIELDS}
-
-    if "stats" in det and isinstance(det["stats"], dict):
-        det["stats"] = {k: v for k, v in det["stats"].items() if k not in ("duration_ms", "rule_timings_ms")}
-    return hashlib.sha256(json.dumps(det, sort_keys=True).encode()).hexdigest()
+    return _core_diff_results(
+        path_a,
+        path_b,
+        verbose=verbose,
+        id_field="scan_id",
+        findings_key="findings",
+        exclude_fields=("run_id", "timestamp", "duration_ms", "scan_id"),
+    )

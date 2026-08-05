@@ -58,9 +58,6 @@ class DepConfusionConfig:
     check_single_segment: bool = False
     doc_url: str = "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
 
-    def __hash__(self):
-        return hash(self.ecosystem)
-
 
 _MAVEN_PUBLIC_GROUP_PREFIXES: frozenset[str] = frozenset(
     {

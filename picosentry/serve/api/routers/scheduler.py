@@ -32,7 +32,9 @@ async def create_scheduler_job(
             name=request.name,
             cron=request.cron,
             command=request.command,
-            params=request.params,
+            params=(request.params.model_dump() if hasattr(request.params, "model_dump") else request.params.dict())
+            if request.params
+            else None,
             enabled=request.enabled,
             org_id=org["id"],
         )

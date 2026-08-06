@@ -71,6 +71,7 @@ otel = [
     "opentelemetry-api>=1.20",
     "opentelemetry-sdk>=1.20",
     "opentelemetry-exporter-otlp>=1.20",
+    "opentelemetry-instrumentation-fastapi>=0.40b0",
 ]
 # Sigstore signing
 sigstore = [

@@ -210,6 +210,12 @@ class AuthService:
         if not key:
             return None
 
+        # Constant-time comparison guards against timing attacks even
+        # though the DB lookup already matched on key_hash.  In concurrent
+        # scenarios where multiple keys share a prefix, this is defense-in-depth.
+        if not hmac.compare_digest(key["key_hash"], key_hash):
+            return None
+
         # Reject keys whose permissions are not a subset of the allowlist.
         # Guards against pre-existing rows with invalid permission strings.
         key_perms = {p.strip() for p in key["permissions"].split(",") if p.strip()}

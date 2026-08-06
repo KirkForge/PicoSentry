@@ -8,6 +8,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         self.hsts_max_age = hsts_max_age
         self.csp = csp or (
             "default-src 'self'; "
+            # ponytail: unsafe-inline required for SPA dashboard; upgrade to nonce-based CSP when front-end supports it
             "script-src 'self' 'unsafe-inline'; "
             "style-src 'self' 'unsafe-inline'; "
             "img-src 'self' data:; "

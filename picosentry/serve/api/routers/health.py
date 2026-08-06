@@ -102,7 +102,7 @@ async def readiness_probe():
 
     if ready:
         return {"status": "ready"}
-    return JSONResponse(status_code=503, content={"status": "not_ready", "checks": checks})
+    return JSONResponse(status_code=503, content={"status": "not ready", "checks": checks})
 
 
 @router.get("/health/history", tags=["Health"])

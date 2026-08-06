@@ -8,7 +8,7 @@ from typing import Any
 
 try:
     from fastapi import Depends, FastAPI, Header, HTTPException, Request
-    from fastapi.responses import JSONResponse, PlainTextResponse
+    from fastapi.responses import JSONResponse, PlainTextResponse, Response
     from pydantic import BaseModel, Field
 except ImportError as _import_err:
     _missing = getattr(_import_err, "name", "")
@@ -135,6 +135,14 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         redoc_url=redoc_url,
     )
 
+    @app.exception_handler(Exception)
+    async def _watch_global_exception_handler(_request: Request, _exc: Exception):
+        logger.exception("Unhandled error in PicoWatch request")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "internal_server_error"},
+        )
+
     @app.middleware("http")
     async def security_headers_middleware(request: Request, call_next: Any) -> Any:
         response = await call_next(request)
@@ -219,11 +227,11 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 }
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 
-    @app.post("/v1/scan/prompt")
+    @app.post("/v1/scan/prompt", response_model=None)
     async def scan_prompt(
         body: PromptScanRequest,
         _auth: None = Depends(verify_api_key),
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | Response:
         text = body.text
 
         if len(text) > config.max_prompt_size:
@@ -232,7 +240,16 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                 detail=f"Input exceeds maximum size ({config.max_prompt_size} bytes). Rejecting immediately.",
             )
 
-        result = prompt_guard.check(text, context=body.context)
+        try:
+            result = prompt_guard.check(text, context=body.context)
+        except Exception:
+            logger.exception("Prompt guard evaluation failed")
+            if config.fail_closed:
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "evaluation_failed", "blocked": True},
+                )
+            raise
 
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 
@@ -259,11 +276,11 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
         return response
 
-    @app.post("/v1/scan/output")
+    @app.post("/v1/scan/output", response_model=None)
     async def scan_output(
         body: OutputScanRequest,
         _auth: None = Depends(verify_api_key),
-    ) -> dict[str, Any]:
+    ) -> dict[str, Any] | Response:
 
         if len(body.output) > config.max_output_size:
             raise HTTPException(
@@ -287,6 +304,14 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
         except SchemaTooLargeError as exc:
             raise HTTPException(status_code=413, detail=str(exc)) from exc
+        except Exception:
+            logger.exception("Output guard validation failed")
+            if config.fail_closed:
+                return JSONResponse(
+                    status_code=503,
+                    content={"error": "evaluation_failed", "valid": False},
+                )
+            raise
 
         request_id = body.request_id or f"req-{uuid.uuid4().hex[:16]}"
 

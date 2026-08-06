@@ -13,7 +13,7 @@ except ImportError:
 class ProjectRunRequest(BaseModel):
     project_id: str = Field(..., description="Project ID to run")
     timeout: int | None = Field(300, ge=10, le=3600)
-    parameters: dict[str, Any] | None = Field(None)
+    parameters: dict[str, str | int | float | bool] | None = Field(None)
 
 
 class BatchRunRequest(BaseModel):
@@ -110,11 +110,24 @@ class WebhookCreateRequest(BaseModel):
     secret: str | None = Field(default=None, min_length=16, max_length=128, description="HMAC signing secret")
 
 
+class SchedulerJobParams(BaseModel):
+    category: str | None = Field(None, pattern="^[a-z_]+$", max_length=100)
+    project_id: str | None = Field(None, max_length=100)
+    timeout: int | None = Field(None, ge=10, le=3600)
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
+
 class SchedulerJobCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="Job name")
     cron: str = Field(..., min_length=1, description="Cron expression or 'every N minute/hour/day'")
     command: str = Field(..., description="Job command: batch, run, report, backup, cleanup")
-    params: dict = Field(default={}, description="Job parameters (strings, numbers, booleans only)")
+    params: SchedulerJobParams | None = Field(default=None, description="Job parameters")
     enabled: bool = Field(default=True, description="Whether the job is active")
 
 

@@ -4,6 +4,33 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed (Beta→Production hardening)
+- **P0**: Sandbox subprocess backend now sets RLIMIT_AS, RLIMIT_FSIZE, RLIMIT_NOFILE resource limits via preexec_fn to prevent OOM/disk-fill attacks
+- **P0**: PicoWatch server now has a global exception handler to prevent stack trace leakage on unhandled errors
+- **P0**: CORS middleware now uses explicit method/header lists instead of wildcards with allow_credentials=True
+- **P0**: API key validation uses constant-time comparison (hmac.compare_digest) for defense-in-depth against timing attacks
+- **P0**: WebSocket query-string auth token now blocked in production (PICOSHOGUN_ENV=production) to prevent credential leakage in logs
+- **P0**: SchedulerJobCreateRequest.params now uses a strict SchedulerJobParams model with extra="forbid"
+- **P0**: Health readiness probe now returns "not ready" (consistent with test expectations)
+
+### Changed (Beta→Production hardening)
+- SQLite pool now reconnects stale connections with liveness check (SELECT 1)
+- PostgreSQL pool now uses connect_timeout=5 and reconnects stale connections
+- RequestIDMiddleware now validates X-Request-ID format and propagates ID via ContextVar to all logs
+- PicoWatch scan endpoints have fail-closed catch (503 + blocked=true) when PromptGuard/OutputGuard raise unexpected exceptions
+- gRPC QueryAudit no longer leaks internal error strings (returns generic "audit_query_failed")
+- CSP unsafe-inline now has a ponytail: ceiling comment documenting the upgrade path
+- AlertConfig now validates that webhook URLs use HTTPS
+- LoggingConfig now reads level and structured from env vars (PICOSHOGUN_LOG_LEVEL, PICOSHOGUN_LOG_STRUCTURED)
+- PicoWatch OTel service.version now uses the package version instead of hardcoded "1.0.1"
+- opentelemetry-instrumentation-fastapi added to the otel extra
+- shutdown_telemetry() now called during PicoShogun lifespan shutdown
+- ProjectRunRequest.parameters now constrains values to str|int|float|bool instead of Any
+
+### Added (Beta→Production hardening)
+- `.dockerignore` excluding build artifacts, test files, and dev tools from Docker context
+- `.env.example` documenting all PICOSHOGUN_*, PICODOME_*, PICOWATCH_* environment variables
+
 ### Added
 - `docs/PENTEST-README.md`: pentest engagement guide (checklist, scope, firm selection, sharing protocol, findings template, triage workflow)
 - Corpus expanded from 1048 to 1855 JSON fixtures (1094 pos / 157 neg / 7 tricky)

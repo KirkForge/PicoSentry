@@ -5,6 +5,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from picosentry.serve.middleware.request_id import _request_id_var
+
+
+class RequestIDFilter(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        record.request_id = _request_id_var.get("")
+        return True
+
 
 class JSONFormatter(logging.Formatter):
     def __init__(self, structured: bool = True):
@@ -51,8 +59,11 @@ def configure_logging(
 
     root_logger.handlers.clear()
 
+    request_id_filter = RequestIDFilter()
+
     console_handler = logging.StreamHandler(sys.stdout)
     console_handler.setFormatter(JSONFormatter(structured=structured))
+    console_handler.addFilter(request_id_filter)
     root_logger.addHandler(console_handler)
 
     if log_dir:
@@ -65,6 +76,7 @@ def configure_logging(
             backupCount=backup_count,
         )
         file_handler.setFormatter(JSONFormatter(structured=structured))
+        file_handler.addFilter(request_id_filter)
         root_logger.addHandler(file_handler)
 
     for noisy in ("uvicorn", "uvicorn.access", "urllib3", "requests", "httpcore"):

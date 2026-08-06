@@ -3,9 +3,36 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `bb579f08` (main)
-- Tests: 4248+ scan tests pass, corpus 4163 JSON files (2827 pos / 187 neg)
-- Last updated: 2026-07-29
+- Head: uncommitted changes on main (beta→production hardening)
+- Tests: 712+ serve/watch tests pass; 4248+ scan tests pass
+- Last updated: 2026-08-06
+
+## Session 2026-08-06: Beta→Production Hardening
+
+### Deep Analysis
+- Fanned out 5 subagents (error handling, observability, API security, test gaps, deployment)
+- Identified 6 P0, 8 P1, 5 P2 production-readiness issues
+
+### P0 Fixes (All Done)
+- **P0-1**: Sandbox subprocess RLIMIT_AS/FZONE/NOFILE via preexec_fn
+- **P0-2**: PicoWatch global exception handler (no stack trace leakage)
+- **P0-3**: CORS explicit methods/headers instead of wildcards with credentials
+- **P0-4**: API key hash constant-time comparison (hmac.compare_digest)
+- **P0-5**: WebSocket query-string auth blocked in production
+- **P0-6**: SchedulerJobCreateRequest.params strict Pydantic model (extra="forbid")
+- Bonus: Health readiness status string fixed ("not ready" vs "not_ready")
+
+### P1 Improvements (All Done)
+- SQLite/PostgreSQL pool reconnection + connect_timeout
+- RequestIDMiddleware: ContextVar propagation + format validation
+- PicoWatch fail-closed scan endpoints (503 + blocked/valid)
+- gRPC error sanitization, CSP ceiling comment, webhook HTTPS validation
+- LoggingConfig env var overrides, OTel version fix, shutdown_telemetry call
+- opentelemetry-instrumentation-fastapi in otel extra
+- ProjectRunRequest.parameters value type constraint
+
+### Infrastructure
+- .dockerignore and .env.example added
 
 ## Session 2026-07-29: Codebase Analysis & Improvement
 

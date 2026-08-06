@@ -56,3 +56,15 @@
 
 ## Escalation
 If you are stuck after 3 attempts, say so. Write "ESCALATE: <root cause unknown>" in `lessons.md`. The brain (frontier model) takes over. This is not a failure — it's the design: the Fiat knows when to call the tow truck.
+
+## Permanent conventions (from lessons.md)
+
+- **FastAPI return types**: When an endpoint may return `JSONResponse` (error path) alongside a dict (happy path), use `response_model=None` on the decorator to prevent `FastAPIError` at route registration.
+- **Pydantic v1/v2 compat**: Use `hasattr(obj, "model_dump")` guard or `pydantic.VERSION` check for model serialization. Never assume v2-only APIs.
+- **CORS with credentials**: Never use `allow_methods=["*"]` or `allow_headers=["*"]` with `allow_credentials=True`. Use explicit method/header lists.
+- **API key comparison**: Always use `hmac.compare_digest` for any secret/token comparison, even after DB lookup. Defense in depth.
+- **Request ID propagation**: Use `contextvars.ContextVar` + `logging.Filter` to inject request IDs into all structured log lines, not just explicit `logger.info()` calls.
+- **Database pool staleness**: Always add a `SELECT 1` liveness check in connection pool `acquire()`. Stale connections (deleted DB, WAL corruption) are a real production scenario.
+- **Resource limits on subprocesses**: Set `RLIMIT_AS`, `RLIMIT_FSIZE`, `RLIMIT_NOFILE` in `preexec_fn` for sandbox subprocesses. Configurable via `PICODOME_MEMORY_LIMIT_MB` and `PICODOME_FILE_SIZE_LIMIT_MB`.
+- **Websocket auth**: Never accept JWT tokens in query strings in production — they leak into proxy logs and browser history.
+- **Pydantic models for API input**: Always use `extra="forbid"` on request models. Never accept `dict` or `dict[str, Any]` for user-supplied parameters.

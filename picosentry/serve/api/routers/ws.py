@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
@@ -21,7 +22,9 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
         channel set so the receive loop drains, but no event ever
         reaches the client until they ``subscribe`` to specific channels.
       * Auth can happen two ways:
-          - query string ``?token=<jwt>`` at connect time, or
+          - query string ``?token=<jwt>`` at connect time — **development
+            only**; in production, use the in-band auth message to avoid
+            leaking credentials into proxy logs and browser history.
           - in-band ``{"action": "auth", "token": "<jwt>"}`` after connect.
         In both cases the client must still send ``subscribe`` to opt
         into broadcasts.  Authentication alone does not grant broadcast
@@ -30,11 +33,14 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
         in-band ``auth`` is connected with an empty channel set.  They
         can talk (the receive loop still runs), but they receive no
         events and ``subscribe`` is rejected until they authenticate.
-
-    This is a deliberate tightening from the previous behaviour, which
-    added every connect to ``channels=["*"]`` and therefore started
-    streaming broadcasts the instant the TCP handshake completed.
     """
+    # Query-string tokens leak into proxy logs and browser history.
+    # Only allow them in non-production environments.
+    if token and os.environ.get("PICOSHOGUN_ENV", "production") == "production":
+        await websocket.accept()
+        await websocket.close(code=4001, reason="Query-string auth not allowed in production; use in-band auth")
+        return
+
     user = None
     if token:
         user = auth_service.validate_token(token)

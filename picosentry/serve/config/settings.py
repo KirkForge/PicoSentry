@@ -117,18 +117,27 @@ class SecurityConfig:
 
 @dataclass
 class LoggingConfig:
-    level: str = "INFO"
+    level: str = field(default_factory=lambda: _env("LOG_LEVEL", "INFO"))
     format: str = "%(asctime)s | %(levelname)-8s | %(name)s | %(message)s"
     max_bytes: int = 10_000_000  # 10MB
     backup_count: int = 10
     log_dir: Path = BASE_DIR / "logs"
-    structured: bool = True  # JSON logging for production
+    structured: bool = field(default_factory=lambda: _env_bool("LOG_STRUCTURED", "true"))
 
 
 @dataclass
 class AlertConfig:
     discord_webhook: str | None = field(default_factory=lambda: os.environ.get("DISCORD_WEBHOOK_URL"))
     slack_webhook: str | None = field(default_factory=lambda: os.environ.get("SLACK_WEBHOOK_URL"))
+
+    def validate(self) -> list[str]:
+        issues = []
+        if self.discord_webhook and not self.discord_webhook.startswith("https://"):
+            issues.append(f"CONFIG: discord_webhook must use HTTPS, got: {self.discord_webhook[:30]}...")
+        if self.slack_webhook and not self.slack_webhook.startswith("https://"):
+            issues.append(f"CONFIG: slack_webhook must use HTTPS, got: {self.slack_webhook[:30]}...")
+        return issues
+
     email_smtp_host: str | None = field(default_factory=lambda: _env("SMTP_HOST"))
     email_smtp_port: int = field(default_factory=lambda: int(_env("SMTP_PORT", "587")))
     email_smtp_user: str | None = field(default_factory=lambda: _env("SMTP_USER"))
@@ -278,6 +287,8 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
 
         if not self.is_production() and self.api.host == "0.0.0.0":
             issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")
+
+        issues.extend(self.alerts.validate())
 
         return issues
 

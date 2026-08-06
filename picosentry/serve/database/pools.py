@@ -1,3 +1,4 @@
+import contextlib
 import logging
 import sqlite3
 import threading
@@ -19,7 +20,15 @@ class SQLitePool:
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
 
     def acquire(self) -> sqlite3.Connection:
-        if not hasattr(self._local, "conn") or self._local.conn is None:
+        conn = getattr(self._local, "conn", None)
+        if conn is not None:
+            try:
+                conn.execute("SELECT 1")
+            except sqlite3.Error:
+                with contextlib.suppress(Exception):
+                    conn.close()
+                conn = None
+        if conn is None:
             self._local.conn = sqlite3.connect(
                 str(self.db_path),
                 timeout=settings.database.timeout,
@@ -94,8 +103,16 @@ class PostgresPool:
 
     def acquire(self):
         self._ensure_psycopg2()
-        if not hasattr(self._local, "conn") or self._local.conn is None or self._local.conn.closed:
-            self._local.conn = self._psycopg2.connect(self._url)
+        conn = getattr(self._local, "conn", None)
+        if conn is not None and not conn.closed:
+            try:
+                conn.cursor().execute("SELECT 1")
+            except self._psycopg2.Error:
+                with contextlib.suppress(Exception):
+                    conn.close()
+                conn = None
+        if conn is None or conn.closed:
+            self._local.conn = self._psycopg2.connect(self._url, connect_timeout=5)
             self._local.conn.autocommit = False
         return self._local.conn
 

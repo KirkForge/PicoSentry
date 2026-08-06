@@ -1,6 +1,5 @@
 import logging
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, FastAPI, Request
@@ -218,6 +217,14 @@ async def lifespan(app: FastAPI):
     event_bus.shutdown()
     plugin_manager.unload_all()
     db.close()
+
+    try:
+        from picosentry.serve.services.observability import shutdown_telemetry
+
+        shutdown_telemetry()
+    except Exception:
+        pass
+
     logger.info("All background services stopped")
 
 
@@ -274,8 +281,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.api.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "X-API-Key", "X-Org-API-Key", "Content-Type", "X-Request-ID"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(DDoSShieldMiddleware, enabled=settings.security.ddos_shield_enabled)

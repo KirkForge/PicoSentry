@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import Any, TYPE_CHECKING
 
+from picosentry.watch import __version__
 
 if TYPE_CHECKING:
     from picosentry.watch.types import PromptScanResult, ValidationResult
@@ -23,7 +24,7 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
         from opentelemetry.sdk.trace import TracerProvider
         from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
-        resource = Resource.create({"service.name": service_name, "service.version": "1.0.1"})
+        resource = Resource.create({"service.name": service_name, "service.version": __version__})
         provider = TracerProvider(resource=resource)
 
         if endpoint:

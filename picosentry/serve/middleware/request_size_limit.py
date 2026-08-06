@@ -37,6 +37,8 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                     chunks.append(chunk)
                 # Replace the body with the buffered chunks so downstream
                 # handlers can still access request.body().
+                # ponytail: _body is Starlette's documented internal for
+                # pre-read body; no public API exists for this.
                 request._body = b"".join(chunks)
 
         return await call_next(request)

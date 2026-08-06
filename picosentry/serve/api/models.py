@@ -15,6 +15,13 @@ class ProjectRunRequest(BaseModel):
     timeout: int | None = Field(300, ge=10, le=3600)
     parameters: dict[str, str | int | float | bool] | None = Field(None)
 
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
 
 class BatchRunRequest(BaseModel):
     project_ids: list[str] = Field(..., min_length=1, max_length=20)
@@ -167,6 +174,13 @@ class SandboxRunRequest(BaseModel):
     policy_file: str | None = Field(None, description="Path to policy YAML file (default: built-in)")
     timeout: float | None = Field(None, ge=1, le=3600, description="Override wall-time limit (seconds)")
     format: str = Field("json", pattern="^(json|sarif)$")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
 
 
 class SandboxRunResponse(BaseModel):

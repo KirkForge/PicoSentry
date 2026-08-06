@@ -87,7 +87,10 @@ class BackupManager:
                     if member_path.startswith("..") or Path(member.name).is_absolute():
                         logger.warning("Skipping unsafe path in archive: %s", member.name)
                         continue
-                    tar.extract(member, str(temp_dir))
+                    if member.issym() or member.islnk():
+                        logger.warning("Skipping symlink in archive: %s", member.name)
+                        continue
+                    tar.extract(member, str(temp_dir), filter="data")
 
             meta_path = temp_dir / "metadata.json"
             if meta_path.exists():

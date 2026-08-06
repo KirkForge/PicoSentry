@@ -29,7 +29,7 @@ class MetricsCollector:
             )
 
             if len(self.metrics[name]) > 1000:
-                self.metrics[name] = self.metrics[name][-1000:]
+                self.metrics[name] = self.metrics[name][-500:]
 
     def counter(self, name: str, increment: float = 1.0, labels: dict[str, str] | None = None):
         with self._lock:

@@ -95,10 +95,10 @@ class PicoDomeServicer:
 
         except Exception as e:
             logger.exception("Scan RPC failed")
-            self._audit_log("SCAN_ERROR", detail=str(e))
+            self._audit_log("SCAN_ERROR", detail=type(e).__name__)
 
             error_result = {
-                "result_json": json.dumps({"error": str(e)}),
+                "result_json": json.dumps({"error": "scan_failed"}),
                 "exit_code": 1,
                 "verdict": "ERROR",
                 "job_id": "",

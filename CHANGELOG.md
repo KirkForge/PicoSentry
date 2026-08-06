@@ -4,6 +4,14 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed (Beta→Production hardening — session 3)
+- **P1**: MetricsCollector.gauge() eviction threshold fixed from [-1000:] to [-500:] for consistency
+- **P1**: gRPC servicer Scan error path no longer leaks str(e) — returns "scan_failed" instead
+- **P1**: SandboxRunRequest and ProjectRunRequest now enforce extra="forbid"
+- **P1**: Sandbox execution error no longer leaks exception detail to client
+- **P1**: Tar extraction now skips symlinks and uses filter="data" (CVE-2007-4559)
+- **P2**: RequestSizeLimitMiddleware _body usage documented as ponytail: no public API
+
 ### Fixed (Beta→Production hardening — session 2)
 - **P0**: SchedulerJobParams.model_dump() now uses exclude_none=True to prevent None values crashing _execute_job
 - **P0**: import resource now guarded with try/except for Windows compatibility

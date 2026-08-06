@@ -41,19 +41,20 @@ async def create_org(
     request: OrgCreateRequest,
     user: dict = Depends(get_current_user),
 ):
-    org_id = Organization.create(
+    result = Organization.create(
         name=request.name,
         slug=request.slug,
         owner_user_id=user["id"],
         tier=request.tier,
     )
-    if not org_id:
+    if not result:
         raise HTTPException(status_code=409, detail="Organization slug already exists")
     return {
-        "id": org_id,
+        "id": result["org_id"],
         "name": request.name,
         "slug": request.slug,
         "tier": request.tier,
+        "api_key": result["api_key"],
     }
 
 

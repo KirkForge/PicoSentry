@@ -45,11 +45,17 @@ class MetricsCollector:
                 )
             )
 
+            if len(self.metrics[name]) > 1000:
+                self.metrics[name] = self.metrics[name][-500:]
+
     def histogram(self, name: str, value: float, labels: dict[str, str] | None = None):
         with self._lock:
             self.metrics[name].append(
                 Metric(name=name, value=value, labels=labels or {}, timestamp=time.time(), metric_type="histogram")
             )
+
+            if len(self.metrics[name]) > 1000:
+                self.metrics[name] = self.metrics[name][-500:]
 
     def project_run(self, project_id: str, duration: float, status: str, org_id: int | None = None):
         labels = {"project": project_id}

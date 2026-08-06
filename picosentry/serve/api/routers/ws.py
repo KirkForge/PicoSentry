@@ -140,3 +140,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             # protocol surface narrow for a misuse to land on.
     except WebSocketDisconnect:
         ws_manager.disconnect(websocket)
+    except Exception:
+        logger.exception("Unexpected error in WebSocket handler")
+        ws_manager.disconnect(websocket)

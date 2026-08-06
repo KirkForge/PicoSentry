@@ -32,7 +32,11 @@ async def create_scheduler_job(
             name=request.name,
             cron=request.cron,
             command=request.command,
-            params=(request.params.model_dump() if hasattr(request.params, "model_dump") else request.params.dict())
+            params=(
+                request.params.model_dump(exclude_none=True)
+                if hasattr(request.params, "model_dump")
+                else {k: v for k, v in request.params.dict().items() if v is not None}
+            )
             if request.params
             else None,
             enabled=request.enabled,

@@ -4,7 +4,20 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## [Unreleased]
 
-### Fixed (Beta→Production hardening)
+### Fixed (Beta→Production hardening — session 2)
+- **P0**: SchedulerJobParams.model_dump() now uses exclude_none=True to prevent None values crashing _execute_job
+- **P0**: import resource now guarded with try/except for Windows compatibility
+- **P0**: preexec_fn env var parsing now catches ValueError on non-integer values
+- **P1**: _LoginRequest and CreateAPIKeyRequest now use extra="forbid" to reject unknown fields
+- **P1**: Organization.create() now returns api_key to caller (was silently discarded before)
+- **P1**: AnomalyDetector.alert_history now capped at 1000 entries (was unbounded memory leak)
+- **P1**: MetricsCollector counter/histogram lists now capped at 500 entries (was unbounded memory leak)
+- **P1**: RequestSizeLimitMiddleware now streams chunked bodies and rejects at the limit instead of buffering entire body
+- **P1**: WebSocket handler now catches all exceptions (not just WebSocketDisconnect) to prevent connection leaks
+- **P1**: Organization.get_by_api_key now uses hmac.compare_digest for defense-in-depth
+- **P2**: Scan 400 error message no longer leaks target path (CWE-200)
+
+### Fixed (Beta→Production hardening — session 1)
 - **P0**: Sandbox subprocess backend now sets RLIMIT_AS, RLIMIT_FSIZE, RLIMIT_NOFILE resource limits via preexec_fn to prevent OOM/disk-fill attacks
 - **P0**: PicoWatch server now has a global exception handler to prevent stack trace leakage on unhandled errors
 - **P0**: CORS middleware now uses explicit method/header lists instead of wildcards with allow_credentials=True

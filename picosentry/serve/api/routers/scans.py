@@ -79,7 +79,7 @@ async def create_scan(
         ) from None
 
     if not target.exists():
-        raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
+        raise HTTPException(status_code=400, detail="Target path does not exist")
 
     engine = _create_engine()
     result = engine.scan(target, rules=request.rules)

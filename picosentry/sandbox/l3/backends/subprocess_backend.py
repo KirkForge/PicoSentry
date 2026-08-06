@@ -3,8 +3,14 @@ from __future__ import annotations
 import logging
 import os
 import re
-import resource
 import subprocess
+
+try:
+    import resource
+
+    HAS_RESOURCE = True
+except ImportError:
+    HAS_RESOURCE = False
 
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -85,8 +91,14 @@ class SubprocessBackend(SandboxBackend):
                 }
 
             def _set_resource_limits() -> None:
-                memory_mb = int(os.environ.get("PICODOME_MEMORY_LIMIT_MB", _DEFAULT_MEMORY_LIMIT_MB))
-                file_size_mb = int(os.environ.get("PICODOME_FILE_SIZE_LIMIT_MB", _DEFAULT_FILE_SIZE_LIMIT_MB))
+                if not HAS_RESOURCE:
+                    return
+                try:
+                    memory_mb = int(os.environ.get("PICODOME_MEMORY_LIMIT_MB", _DEFAULT_MEMORY_LIMIT_MB))
+                    file_size_mb = int(os.environ.get("PICODOME_FILE_SIZE_LIMIT_MB", _DEFAULT_FILE_SIZE_LIMIT_MB))
+                except (ValueError, TypeError):
+                    memory_mb = _DEFAULT_MEMORY_LIMIT_MB
+                    file_size_mb = _DEFAULT_FILE_SIZE_LIMIT_MB
                 memory_bytes = memory_mb * 1024 * 1024
                 file_size_bytes = file_size_mb * 1024 * 1024
                 resource.setrlimit(resource.RLIMIT_AS, (memory_bytes, memory_bytes))

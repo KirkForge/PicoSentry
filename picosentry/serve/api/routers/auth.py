@@ -33,6 +33,8 @@ async def register(request: RegisterRequest):
 
 
 class _LoginRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     username: str
     password: str
 
@@ -52,6 +54,8 @@ async def login(request: _LoginRequest):
 
 
 class CreateAPIKeyRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     name: str = "default"
     permissions: str = "read"
 

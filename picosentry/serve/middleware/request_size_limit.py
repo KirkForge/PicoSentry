@@ -21,15 +21,22 @@ class RequestSizeLimitMiddleware(BaseHTTPMiddleware):
                 except (ValueError, TypeError):
                     pass
             else:
-                # No Content-Length means chunked or otherwise streaming body.
-                # Starlette buffers the body on first access; cap the buffer
-                # before passing the request down so a 10 GB chunked upload
-                # cannot exhaust worker memory (PicoSentry-MEDIUM-1).
-                body = await request.body()
-                if len(body) > self.max_body_bytes:
-                    return JSONResponse(
-                        {"error": "Request body too large", "max_bytes": self.max_body_bytes},
-                        status_code=413,
-                    )
+                # No Content-Length means chunked or streaming body.
+                # Read in chunks and stop as soon as we exceed the limit,
+                # rather than buffering the entire body into memory first
+                # (ponytail: streaming size check prevents OOM from chunked uploads).
+                total = 0
+                chunks: list[bytes] = []
+                async for chunk in request.stream():
+                    total += len(chunk)
+                    if total > self.max_body_bytes:
+                        return JSONResponse(
+                            {"error": "Request body too large", "max_bytes": self.max_body_bytes},
+                            status_code=413,
+                        )
+                    chunks.append(chunk)
+                # Replace the body with the buffered chunks so downstream
+                # handlers can still access request.body().
+                request._body = b"".join(chunks)
 
         return await call_next(request)

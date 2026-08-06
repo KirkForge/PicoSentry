@@ -319,6 +319,9 @@ class AnomalyDetector:
             )
 
         self.alert_history.append(alert)
+        # Evict old alerts to prevent unbounded memory growth
+        if len(self.alert_history) > 1000:
+            self.alert_history = self.alert_history[-500:]
 
     def _run_check_cycle(self):
         alerts = self.check_rules()

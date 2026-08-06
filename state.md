@@ -3,9 +3,43 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: uncommitted changes on main (beta→production hardening)
-- Tests: 712+ serve/watch tests pass; 4248+ scan tests pass
-- Last updated: 2026-08-06
+- Head: `e3037e81` (main) — beta→production hardening, bug fix round 2 pending commit
+- Tests: 106+ serve/watch tests pass; ruff check clean; mypy success
+- Last updated: 2026-08-07
+
+## Session 2026-08-07: Bug Fix Round 2
+
+### Deep Analysis
+- Fanned out 3 subagents (bug hunt in recent changes, remaining production gaps, test coverage)
+- Found P0 bug: SchedulerJobParams.model_dump() with None values crashes _execute_job
+- Found P0: import resource crashes on Windows
+- Found P1: Org.create() API key never returned to user
+- Found P1: Multiple memory leaks (AnomalyDetector.alert_history, MetricsCollector)
+- Found P1: RequestSizeLimitMiddleware OOM on chunked bodies
+- Found P1: WebSocket disconnect not called on all error paths
+- Found P0: _LoginRequest/CreateAPIKeyRequest missing extra="forbid"
+
+### Bugs Fixed
+- **P0**: SchedulerJobParams: model_dump(exclude_none=True) + dict comprehension fallback
+- **P0**: import resource: guarded with try/except for Windows, ValueError on bad env vars
+- **P1**: _LoginRequest + CreateAPIKeyRequest: added extra="forbid"
+- **P1**: Organization.create(): now returns {"org_id": ..., "api_key": ...} instead of just org_id
+- **P1**: AnomalyDetector.alert_history: capped at 1000 entries (was unbounded)
+- **P1**: MetricsCollector counter/histogram: capped at 500 entries (was unbounded)
+- **P1**: RequestSizeLimitMiddleware: streams chunked bodies, rejects at limit (was full-buffer OOM)
+- **P1**: WebSocket handler: catches all exceptions, not just WebSocketDisconnect
+- **P1**: Organization.get_by_api_key: added hmac.compare_digest for defense-in-depth
+- **P2**: Scan 400 error: removed target path from error message (CWE-200)
+
+### Remaining (Deferred to Future Sprints)
+- P1: Add RLIMIT_CPU to sandbox subprocess
+- P1: Add request_id to PicoWatch/PicoDome structured logs
+- P1: Constant-time comparison for org API key prefix check in deps.py
+- P1: Nonce-based CSP for dashboard (upgrade path documented)
+- P1: Tar extraction symlink hardening in BackupManager
+- P2: DDoS shield thread safety (async context)
+- P2: Rate limiter global lock during Redis I/O
+- P2: Audit middleware double DB hit per request
 
 ## Session 2026-08-06: Beta→Production Hardening
 

@@ -1,4 +1,5 @@
 import hashlib
+import hmac
 import secrets
 from datetime import datetime, timezone
 from typing import Any, ClassVar
@@ -15,9 +16,9 @@ class Organization:
     }
 
     @staticmethod
-    def create(name: str, slug: str, owner_user_id: int, tier: str = "free") -> int | None:
+    def create(name: str, slug: str, owner_user_id: int, tier: str = "free") -> dict[str, Any]:
         if db.execute_one("SELECT id FROM orgs WHERE slug = ?", (slug,)):
-            return None
+            return {}
 
         api_key = f"sk_live_{secrets.token_urlsafe(32)}"
         api_key_hash = hashlib.sha256(api_key.encode()).hexdigest()
@@ -38,12 +39,10 @@ class Organization:
             (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)),
         )
 
-        return org_id
+        return {"org_id": org_id, "api_key": api_key}
 
     @staticmethod
     def get_by_api_key(api_key: str) -> dict[str, Any] | None:
-        import hashlib
-
         key_hash = hashlib.sha256(api_key.encode()).hexdigest()
         row = db.execute_one(
             """
@@ -51,7 +50,12 @@ class Organization:
         """,
             (key_hash,),
         )
-        return dict(row) if row else None
+        if not row:
+            return None
+        # Defense-in-depth: constant-time comparison even after DB lookup
+        if not hmac.compare_digest(row["api_key_hash"], key_hash):
+            return None
+        return dict(row)
 
     @staticmethod
     def get_members(org_id: int) -> list[dict[str, Any]]:

@@ -198,6 +198,39 @@ class AnalysisResult:
     overall_verdict: BehavioralVerdict = BehavioralVerdict.CLEAN
     stats: ScanStats = field(default_factory=ScanStats)
 
+    def to_evidence_summary(self) -> dict:
+        evidence_items: list[dict] = []
+        if self.profile:
+            for nc in self.profile.network_calls:
+                evidence_items.append({"type": "network", "detail": f"{nc.address}:{nc.port}", "trigger": nc.protocol})
+            for dns in self.profile.dns_queries:
+                evidence_items.append({"type": "dns", "detail": dns.hostname, "trigger": ""})
+            for fs in self.profile.fs_ops:
+                evidence_items.append({"type": "filesystem", "detail": fs.path, "trigger": fs.operation})
+            for sp in self.profile.spawns:
+                detail = f"{sp.executable} {' '.join(sp.args)}".rstrip() if sp.args else sp.executable
+                evidence_items.append({"type": "process", "detail": detail, "trigger": ""})
+            for tp in self.profile.timing_points:
+                evidence_items.append({"type": "timing", "detail": f"{tp.label}={tp.elapsed_ms}ms", "trigger": ""})
+
+        drift_score = self.drift_results[0].score if self.drift_results else None
+
+        summary: dict = {
+            "verdict": self.overall_verdict.value.lower(),
+            "evidence": evidence_items,
+        }
+        if self.profile:
+            summary["network_calls"] = [nc.to_dict() for nc in self.profile.network_calls]
+            summary["dns_queries"] = [dns.to_dict() for dns in self.profile.dns_queries]
+            summary["filesystem_ops"] = [fs.to_dict() for fs in self.profile.fs_ops]
+            summary["process_spawns"] = [sp.to_dict() for sp in self.profile.spawns]
+            summary["timing_points"] = [tp.to_dict() for tp in self.profile.timing_points]
+            summary["total_runtime_ms"] = self.profile.total_runtime_ms
+            summary["exit_code"] = self.profile.exit_code
+        if drift_score is not None:
+            summary["drift_score"] = drift_score
+        return summary
+
     def to_dict(self, deterministic: bool = False) -> dict:
         return {
             "drift_results": [d.to_dict() for d in self.drift_results],

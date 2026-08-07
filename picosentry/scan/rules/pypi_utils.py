@@ -279,6 +279,30 @@ def parse_requirements_file(requirements_path: Path) -> list[tuple[str, str]]:
     return results
 
 
+_SETUP_PY_INSTALL_RE = re.compile(r"install_requires\s*=\s*\[([^\]]*)\]", re.DOTALL)
+_SETUP_PY_DEP_RE = re.compile(r"['\"]([^'\"]+)['\"]")
+
+
+def parse_setup_py(target: Path) -> set[str]:
+    setup_py = target / "setup.py"
+    if not setup_py.is_file():
+        return set()
+    try:
+        content = setup_py.read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return set()
+
+    names: set[str] = set()
+    for match in _SETUP_PY_INSTALL_RE.finditer(content):
+        block = match.group(1)
+        for dep_match in _SETUP_PY_DEP_RE.finditer(block):
+            raw = dep_match.group(1).strip()
+            name = _extract_pip_package_name(raw)
+            if name:
+                names.add(name)
+    return names
+
+
 def detect_pypi_project(target: Path) -> bool:
     if not target.is_dir():
         return False

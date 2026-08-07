@@ -1,0 +1,36 @@
+.picosentry-scan:
+  image: python:3.12-slim
+  stage: test
+  variables:
+    PICOSENTRY_PATH: "."
+    PICOSENTRY_FORMAT: "sarif"
+    PICOSENTRY_SEVERITY_THRESHOLD: "LOW"
+    PICOSENTRY_FAIL_ON_FINDINGS: "true"
+  before_script:
+    - pip install --no-cache-dir picosentry
+  script:
+    - |
+      ARGS=(scan "${PICOSENTRY_PATH}" --format "${PICOSENTRY_FORMAT}" --output picosentry-results.sarif)
+      if [ "${PICOSENTRY_SEVERITY_THRESHOLD}" != "LOW" ]; then
+        ARGS+=(--severity-threshold "${PICOSENTRY_SEVERITY_THRESHOLD}")
+      fi
+      picosentry "${ARGS[@]}" 2>/dev/null || EXIT_CODE=$?
+      FINDINGS_COUNT=$(python3 -c "import json; d=json.load(open('picosentry-results.sarif')); print(len(d.get('runs',[{}])[0].get('results',[])))" 2>/dev/null || echo "0")
+      echo "findings_count=${FINDINGS_COUNT}" >> picosentry-env.txt
+      if [ -n "${EXIT_CODE}" ] && [ "${EXIT_CODE}" -eq 2 ]; then
+        echo "PicoSentry scan failed with an internal error"
+        exit 2
+      fi
+      if [ "${PICOSENTRY_FAIL_ON_FINDINGS}" = "true" ] && [ "${FINDINGS_COUNT}" -gt 0 ]; then
+        echo "${FINDINGS_COUNT} finding(s) detected"
+        exit 1
+      fi
+  artifacts:
+    when: always
+    paths:
+      - picosentry-results.sarif
+    reports:
+      sast: picosentry-results.sarif
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH

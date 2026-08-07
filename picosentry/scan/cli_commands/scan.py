@@ -32,7 +32,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     scan_parser.add_argument(
         "--format",
         "-f",
-        choices=["json", "sarif", "table", "ml-context", "github", "cyclonedx"],
+        choices=["json", "sarif", "table", "ml-context", "github", "cyclonedx", "markdown"],
         default=None,
         help="Output format (default: table). 'github' writes SARIF file + prints markdown summary.",
     )
@@ -165,6 +165,19 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         "--offline",
         action="store_true",
         help="Run in offline mode (no network). Also enabled by PICOSENTRY_OFFLINE=1.",
+    )
+    scan_parser.add_argument(
+        "--intelligence",
+        choices=["offline", "connected"],
+        default="offline",
+        help="Intelligence mode: offline (default, local data only) or connected (fetch from OSV.dev)",
+    )
+    scan_parser.add_argument(
+        "--sbom",
+        type=str,
+        default=None,
+        help="Path to a CycloneDX or SPDX SBOM file. Packages from the SBOM are scanned "
+        "as if they were present in the target directory.",
     )
 
 

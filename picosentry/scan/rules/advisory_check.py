@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ..advisory import AdvisoryDB, default_advisory_dir
+from ..intelligence import IntelligenceMode, OSVClient
 from ..models import Confidence, Finding, Severity
 from .cargo_utils import detect_cargo_project, parse_cargo_lock, parse_cargo_toml
 from .go_utils import detect_go_project, parse_go_mod, parse_go_sum
@@ -334,8 +335,63 @@ _ECOSYSTEMS: list[AdvisoryConfig] = [
 ]
 
 
+_OSV_ECOSYSTEM_MAP: dict[str, str] = {
+    "npm": "npm",
+    "pypi": "PyPI",
+    "go": "Go",
+    "cargo": "crates.io",
+    "maven": "Maven",
+    "nuget": "NuGet",
+    "rubygems": "RubyGems",
+}
+
+
+def _merge_osv_findings(
+    local_findings: list[Finding],
+    osv_advisories: list,
+    config: AdvisoryConfig,
+    packages: list[tuple[str, str, str, Path]],
+    local_ids: set[str],
+) -> list[Finding]:
+    merged = list(local_findings)
+    seen = local_ids
+    for adv in osv_advisories:
+        if adv.id in seen:
+            continue
+        seen.add(adv.id)
+        severity = Severity.HIGH
+        with contextlib.suppress(ValueError):
+            severity = Severity(adv.severity)
+        fixed_hint = f" Upgrade to >= {adv.fixed_version}." if adv.fixed_version else ""
+        pkg_label = f"{adv.package_name}@unknown"
+        source = Path(".")
+        for pn, _pv, pl, sp in packages:
+            if pn == adv.package_name:
+                pkg_label = pl
+                source = sp
+                break
+        merged.append(
+            Finding(
+                rule_id=config.rule_id,
+                severity=severity,
+                confidence=Confidence.MEDIUM,
+                package=pkg_label,
+                file=str(source),
+                message=f"{adv.id}: {adv.summary}",
+                evidence=f"advisory={adv.id}, severity={adv.severity}, fixed={adv.fixed_version or 'N/A'}, source=osv",
+                remediation=(
+                    f"Vulnerability in {adv.package_name}.{fixed_hint} "
+                    f"See {adv.references[0] if adv.references else 'osv.dev'} for details."
+                ),
+                references=adv.references[:5] if adv.references else [],
+                ecosystem=config.ecosystem,
+            )
+        )
+    return merged
+
+
 def detect_all_advisory_vulnerabilities(
-    target: Path, corpus_dir: Path, advisory_db_path: str | None = None
+    target: Path, corpus_dir: Path, advisory_db_path: str | None = None, intelligence_mode: str = "offline"
 ) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -344,11 +400,29 @@ def detect_all_advisory_vulnerabilities(
         logger.debug("No advisory DB loaded — skipping advisory check")
         return findings
 
+    connected = intelligence_mode == IntelligenceMode.CONNECTED.value
+    osv_client = OSVClient() if connected else None
+
     for config in _ECOSYSTEMS:
         if not config.detect_project(target):
             continue
         packages = config.collect_packages(target)
-        if packages:
-            findings.extend(_check_packages(packages, db, config))
+        if not packages:
+            continue
+
+        eco_findings = _check_packages(packages, db, config)
+
+        if connected and osv_client is not None:
+            osv_eco = _OSV_ECOSYSTEM_MAP.get(config.ecosystem)
+            if osv_eco:
+                local_ids = {f.message.split(":")[0] for f in eco_findings if ":" in f.message}
+                for pkg_name, pkg_version, _pkg_label, _source in packages:
+                    try:
+                        osv_advisories = osv_client.query(osv_eco, pkg_name, pkg_version)
+                        eco_findings = _merge_osv_findings(eco_findings, osv_advisories, config, packages, local_ids)
+                    except Exception as exc:
+                        logger.warning("OSV query failed for %s/%s: %s", osv_eco, pkg_name, exc)
+
+        findings.extend(eco_findings)
 
     return findings

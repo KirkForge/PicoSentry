@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import re
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from ._dep_confusion_config import (
     DepConfusionConfig,
@@ -16,6 +17,9 @@ from ._dep_confusion_config import (
     _RUBYGEMS_CONFIG,
 )
 from ..models import Confidence, Finding, Severity
+
+if TYPE_CHECKING:
+    from ..package_intel import PackageIntel
 
 
 from .cargo_utils import detect_cargo_project, detect_private_cargo_registry, get_cargo_dep_names, parse_cargo_toml
@@ -31,7 +35,13 @@ from .nuget_utils import (
     detect_nuget_project,
     detect_private_nuget_source,
 )
-from .pypi_utils import detect_pypi_project, get_python_dep_names, load_pyproject_toml, parse_requirements_file
+from .pypi_utils import (
+    detect_pypi_project,
+    get_python_dep_names,
+    load_pyproject_toml,
+    parse_requirements_file,
+    parse_setup_py,
+)
 from .rubygems_utils import (
     detect_private_rubygems_source,
     detect_rubygems_project,
@@ -63,13 +73,19 @@ def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
     for pattern in _INTERNAL_ALL_PATTERNS:
         if re.search(pattern, artifact_id, re.IGNORECASE):
             return True
+        if group_id and re.search(pattern, group_id, re.IGNORECASE):
+            return True
 
-    if group_id and "." not in group_id and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", group_id):
-        return True
     if group_id:
         for prefix in _MAVEN_PUBLIC_GROUP_PREFIXES:
             if group_id.startswith(prefix):
                 return False
+        segments = group_id.split(".")
+        if len(segments) >= 2 and segments[-1] in ("internal", "private", "corp", "company", "myapp", "acme", "org"):
+            return True
+        if "." not in group_id and re.match(r"^[a-zA-Z][a-zA-Z0-9._-]*$", group_id):
+            return True
+
     return False
 
 
@@ -112,6 +128,9 @@ def _collect_pypi_deps(target: Path) -> set[str]:
         if req_path.is_file():
             for name, _version in parse_requirements_file(req_path):
                 deps.add(name)
+    setup_deps = parse_setup_py(target)
+    if setup_deps:
+        deps.update(setup_deps)
     return deps
 
 
@@ -222,7 +241,42 @@ def _get_maven_finding_file(target: Path, has_pom: bool) -> Path:
     return target / "build.gradle"
 
 
-def detect_all_dep_confusion(target: Path) -> list[Finding]:
+def _apply_depc_intel(finding: Finding, dep_name: str, package_intel: dict[str, PackageIntel] | None) -> Finding:
+    if package_intel is None:
+        return finding
+    intel = package_intel.get(dep_name)
+    if intel is None:
+        return finding
+    confidence = finding.confidence
+    evidence_parts = [finding.evidence]
+
+    if intel.has_install_scripts:
+        evidence_parts.append("install scripts present — code execution on install")
+
+    if not intel.has_integrity_hash:
+        evidence_parts.append("no integrity hash — exploitable")
+
+    if not intel.has_repository_url:
+        evidence_parts.append("no repository URL — unverifiable provenance")
+
+    if intel.risk_score > 0:
+        evidence_parts.append(f"risk_score={intel.risk_score:.2f}")
+
+    if not intel.has_repository_url:
+        confidence = Confidence.HIGH
+
+    if intel.risk_score < 0.1 and confidence == finding.confidence:
+        confidence = Confidence.MEDIUM
+
+    if evidence_parts == [finding.evidence] and confidence == finding.confidence:
+        return finding
+
+    from dataclasses import replace
+
+    return replace(finding, confidence=confidence, evidence="; ".join(evidence_parts))
+
+
+def detect_all_dep_confusion(target: Path, package_intel: dict[str, PackageIntel] | None = None) -> list[Finding]:
     findings: list[Finding] = []
 
     pkg_path = target / "package.json"
@@ -239,25 +293,29 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
 
                     if is_internal and not has_private:
                         findings.append(
-                            Finding(
-                                rule_id="L2-DEPC-001",
-                                severity=Severity.CRITICAL,
-                                confidence=Confidence.HIGH,
-                                package=dep_name,
-                                file=str(pkg_path),
-                                message=(
-                                    f"Internal-scoped dependency '{dep_name}' declared "
-                                    "without private registry configuration in .npmrc"
+                            _apply_depc_intel(
+                                Finding(
+                                    rule_id="L2-DEPC-001",
+                                    severity=Severity.CRITICAL,
+                                    confidence=Confidence.HIGH,
+                                    package=dep_name,
+                                    file=str(pkg_path),
+                                    message=(
+                                        f"Internal-scoped dependency '{dep_name}' declared "
+                                        "without private registry configuration in .npmrc"
+                                    ),
+                                    evidence=f"dependency: {dep_name}",
+                                    remediation=(
+                                        f"Add a registry override for '{dep_name}' in .npmrc "
+                                        "to prevent npm from resolving it from the public registry."
+                                    ),
+                                    references=[
+                                        "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4",
+                                        "https://docs.npmjs.com/cli/v10/configuring-npm/npmrc",
+                                    ],
                                 ),
-                                evidence=f"dependency: {dep_name}",
-                                remediation=(
-                                    f"Add a registry override for '{dep_name}' in .npmrc "
-                                    "to prevent npm from resolving it from the public registry."
-                                ),
-                                references=[
-                                    "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4",
-                                    "https://docs.npmjs.com/cli/v10/configuring-npm/npmrc",
-                                ],
+                                dep_name,
+                                package_intel,
                             )
                         )
 
@@ -271,24 +329,28 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                                 npmrc_text = ""
                             if f"{scope}:registry" not in npmrc_text:
                                 findings.append(
-                                    Finding(
-                                        rule_id="L2-DEPC-001",
-                                        severity=Severity.HIGH,
-                                        confidence=Confidence.MEDIUM,
-                                        package=dep_name,
-                                        file=str(target / ".npmrc"),
-                                        message=(
-                                            f"Scoped dependency '{dep_name}' may resolve "
-                                            "from public npm instead of private registry"
+                                    _apply_depc_intel(
+                                        Finding(
+                                            rule_id="L2-DEPC-001",
+                                            severity=Severity.HIGH,
+                                            confidence=Confidence.MEDIUM,
+                                            package=dep_name,
+                                            file=str(target / ".npmrc"),
+                                            message=(
+                                                f"Scoped dependency '{dep_name}' may resolve "
+                                                "from public npm instead of private registry"
+                                            ),
+                                            evidence=f"dependency: {dep_name}, scope: {scope}",
+                                            remediation=(
+                                                f"Add '{scope}:registry=<your-private-registry>' "
+                                                "to .npmrc to ensure correct resolution."
+                                            ),
+                                            references=[
+                                                "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
+                                            ],
                                         ),
-                                        evidence=f"dependency: {dep_name}, scope: {scope}",
-                                        remediation=(
-                                            f"Add '{scope}:registry=<your-private-registry>' "
-                                            "to .npmrc to ensure correct resolution."
-                                        ),
-                                        references=[
-                                            "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4"
-                                        ],
+                                        dep_name,
+                                        package_intel,
                                     )
                                 )
 
@@ -302,7 +364,7 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                 if dep_path in pinned:
                     continue
                 if _looks_internal_base(dep_path, go_config) and not has_private:
-                    findings.append(_make_finding(go_config, dep_path, dep_path, target, "go.mod"))
+                    findings.append(_make_finding(go_config, dep_path, dep_path, target, "go.mod", package_intel))
 
     if detect_cargo_project(target):
         cargo_deps = _collect_cargo_deps(target)
@@ -314,7 +376,9 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                 if crate_name in pinned:
                     continue
                 if _looks_internal_base(crate_name, cargo_config) and not has_private:
-                    findings.append(_make_finding(cargo_config, crate_name, crate_name, target, "Cargo.toml"))
+                    findings.append(
+                        _make_finding(cargo_config, crate_name, crate_name, target, "Cargo.toml", package_intel)
+                    )
 
     if detect_pypi_project(target):
         pypi_deps = _collect_pypi_deps(target)
@@ -324,7 +388,9 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
             for dep_name in sorted(pypi_deps):
                 if _looks_internal_base(dep_name, pypi_config) and not has_private:
                     manifest_file = "pyproject.toml" if (target / "pyproject.toml").exists() else str(target)
-                    findings.append(_make_finding(pypi_config, dep_name, dep_name, target, manifest_file))
+                    findings.append(
+                        _make_finding(pypi_config, dep_name, dep_name, target, manifest_file, package_intel)
+                    )
 
     maven_detected = detect_maven_project(target)
     if maven_detected:
@@ -372,7 +438,9 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                 if not pkg_id:
                     continue
                 if _looks_internal_base(pkg_id, nuget_config) and not has_private:
-                    findings.append(_make_finding(nuget_config, pkg_id, pkg_id, target, source or "nuget.config"))
+                    findings.append(
+                        _make_finding(nuget_config, pkg_id, pkg_id, target, source or "nuget.config", package_intel)
+                    )
 
     if detect_rubygems_project(target):
         gem_deps = _collect_rubygems_deps(target)
@@ -384,7 +452,9 @@ def detect_all_dep_confusion(target: Path) -> list[Finding]:
                 if gem_name in pinned:
                     continue
                 if _looks_internal_base(gem_name, rubygems_config) and not has_private:
-                    findings.append(_make_finding(rubygems_config, gem_name, gem_name, target, "Gemfile"))
+                    findings.append(
+                        _make_finding(rubygems_config, gem_name, gem_name, target, "Gemfile", package_intel)
+                    )
 
     return findings
 
@@ -395,23 +465,28 @@ def _make_finding(
     dep_name: str,
     target: Path,
     manifest_file: str,
+    package_intel: dict[str, PackageIntel] | None = None,
 ) -> Finding:
-    return Finding(
-        rule_id=config.rule_id,
-        severity=Severity.CRITICAL,
-        confidence=Confidence.HIGH,
-        package=package_ref,
-        file=str(target / manifest_file),
-        message=(
-            f"Internal-looking dependency '{dep_name}' declared "
-            f"without private {config.ecosystem} registry configuration"
+    return _apply_depc_intel(
+        Finding(
+            rule_id=config.rule_id,
+            severity=Severity.CRITICAL,
+            confidence=Confidence.HIGH,
+            package=package_ref,
+            file=str(target / manifest_file),
+            message=(
+                f"Internal-looking dependency '{dep_name}' declared "
+                f"without private {config.ecosystem} registry configuration"
+            ),
+            evidence=f"dependency: {dep_name}",
+            remediation=f"Configure a private registry for '{dep_name}' to prevent resolution from public sources.",
+            references=[
+                "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4",
+            ],
+            ecosystem=config.ecosystem,
         ),
-        evidence=f"dependency: {dep_name}",
-        remediation=f"Configure a private registry for '{dep_name}' to prevent resolution from public sources.",
-        references=[
-            "https://medium.com/@alex.birsan/dependency-confusion-4a5d6086b0d4",
-        ],
-        ecosystem=config.ecosystem,
+        dep_name,
+        package_intel,
     )
 
 

@@ -53,8 +53,11 @@ class CorpusIndex:
         *,
         priority_names: Iterable[str] | None = None,
     ) -> None:
-        self._names = sorted({name for name in names if isinstance(name, str)})
-        self._priority_names = frozenset({name for name in (priority_names or ()) if isinstance(name, str)})
+        priority = frozenset({name for name in (priority_names or ()) if isinstance(name, str)})
+        self._priority_names = priority
+        merged = {name for name in names if isinstance(name, str)}
+        merged.update(priority)
+        self._names = sorted(merged)
         self._tries: dict[int, _TrieNode] = {}
         for name in self._names:
             self._insert(name)

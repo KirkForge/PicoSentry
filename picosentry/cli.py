@@ -20,6 +20,7 @@ from picosentry.cli_commands import (
     corpus,
     daemon,
     diff,
+    firewall,
     health,
     init,
     rules,

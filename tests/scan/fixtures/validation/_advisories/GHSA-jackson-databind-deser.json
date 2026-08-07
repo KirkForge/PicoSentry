@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2017-7525",
+  "summary": "FasterXML Jackson Databind deserialization RCE (CVE-2017-7525)",
+  "details": "FasterXML Jackson Databind before 2.6.7.1 allows deserialization of untrusted data.",
+  "affected": [
+    {
+      "package": {"name": "jackson-databind", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "2.0.0"},
+            {"fixed": "2.6.7.1"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-502"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2017-7525"}
+  ]
+}

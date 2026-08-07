@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2017-9805",
+  "summary": "Apache Struts 2 RCE via OGNL injection (CVE-2017-9805)",
+  "details": "Apache Struts 2 before 2.5.13 allows remote code execution via OGNL injection in REST plugin.",
+  "affected": [
+    {
+      "package": {"name": "struts2-core", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "2.0.0"},
+            {"fixed": "2.5.13"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-94"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2017-9805"}
+  ]
+}

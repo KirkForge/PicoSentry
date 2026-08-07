@@ -19,6 +19,7 @@ from picosentry import __version__ as _VERSION
 from picosentry._core.time import now_ms
 from ._engine_scan_helpers import count_installed_packages, count_relevant_files
 from .models import Finding, RuleExecution, ScanResult, ScanStats
+from .package_intel import PackageIntel, PackageIntelligence
 
 
 DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
@@ -100,11 +101,13 @@ class ScanEngine:
         corpus_dir: Path | None = None,
         advisory_db_path: str | Path | None = None,
         max_workers: int | None = None,
+        intelligence_mode: str = "offline",
     ) -> None:
         self._rules: dict[str, DetectorRule] = {}
         self._corpus_dir = self._resolve_corpus_dir(corpus_dir)
         self._corpus_version = self._compute_corpus_version()
         self._advisory_db_path = str(advisory_db_path) if advisory_db_path is not None else None
+        self._intelligence_mode = intelligence_mode
         if max_workers is None:
             cpus = os.cpu_count() or 1
             max_workers = min(32, cpus * 2)
@@ -248,6 +251,27 @@ class ScanEngine:
 
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
 
+        if not _detected_npm:
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-POST-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-OBFS-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MANI-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-NETEX-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-CRED-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-LOCK-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-BUND-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-BUILD-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PROV-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MAINT-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PNPM-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-LICENSE-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-ENGIN-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-SIDELOAD-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-IOC-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-WORM-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-FORK-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-DEPC-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-TYPO-")}
+            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-ADV-")}
         if not _detected_pypi:
             selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PYPI-")}
         if not _detected_go:
@@ -283,6 +307,21 @@ class ScanEngine:
 
         packages_scanned = count_installed_packages(target_path)
 
+        package_intel: dict[str, PackageIntel] = {}
+        try:
+            _pkg_intel_analyzer = PackageIntelligence()
+            for _pkg_json_path in sorted(target_path.rglob("package.json")):
+                try:
+                    _pkg_data = json.loads(_pkg_json_path.read_text(encoding="utf-8", errors="replace"))
+                    if isinstance(_pkg_data, dict):
+                        _pkg_name = _pkg_data.get("name", "")
+                        if _pkg_name:
+                            package_intel[_pkg_name] = _pkg_intel_analyzer.analyze(_pkg_data, ecosystem="npm")
+                except (json.JSONDecodeError, OSError):
+                    continue
+        except Exception:
+            logger.debug("Package intel computation skipped", exc_info=True)
+
         fn_to_rule_ids: dict[int, list[str]] = {}
         for rule_id in selected_rules:
             fn_id = id(selected_rules[rule_id])
@@ -290,10 +329,24 @@ class ScanEngine:
 
         from concurrent.futures import TimeoutError as FuturesTimeoutError
 
-        def _invoke_rule(fn: Callable[..., list[Finding]]) -> list[Finding]:
+        def _invoke_rule(
+            fn: Callable[..., list[Finding]],
+            package_intel: dict[str, PackageIntel] | None = None,
+        ) -> list[Finding]:
+            sig = inspect.signature(fn)
+            params = list(sig.parameters.keys())
             if fn.__name__ == "detect_all_advisory_vulnerabilities":
-                return fn(target_path, self._corpus_dir, advisory_db_path=advisory_db_path or self._advisory_db_path)
-            param_count = len(inspect.signature(fn).parameters)
+                return fn(
+                    target_path,
+                    self._corpus_dir,
+                    advisory_db_path=advisory_db_path or self._advisory_db_path,
+                    intelligence_mode=self._intelligence_mode,
+                )
+            if "package_intel" in params and package_intel is not None:
+                if "corpus_dir" in params:
+                    return fn(target_path, self._corpus_dir, package_intel=package_intel)
+                return fn(target_path, package_intel=package_intel)
+            param_count = len(sig.parameters)
             if param_count >= 2:
                 return fn(target_path, self._corpus_dir)
             return fn(target_path)
@@ -308,7 +361,7 @@ class ScanEngine:
                 primary_rule_id = rule_ids_for_fn[0]
                 rule_start = now_ms()
                 try:
-                    future = rule_executor.submit(_invoke_rule, rule_fn)
+                    future = rule_executor.submit(_invoke_rule, rule_fn, package_intel)
                     try:
                         findings = future.result(timeout=_effective_rule_timeout)
                     except FuturesTimeoutError:
@@ -407,6 +460,7 @@ class ScanEngine:
             started_at=wall_started.isoformat(),
             completed_at=wall_completed.isoformat(),
             scanner_version=_VERSION,
+            package_intel=package_intel,
         )
 
         logger.info(
@@ -437,6 +491,7 @@ def create_default_engine(
     corpus_dir: Path | None = None,
     advisory_db_path: str | None = None,
     max_workers: int | None = None,
+    intelligence_mode: str = "offline",
 ) -> ScanEngine:
     """Create a default scan engine with the bundled rule set."""
     from .rules.advisory_check import detect_all_advisory_vulnerabilities
@@ -466,6 +521,7 @@ def create_default_engine(
         corpus_dir=corpus_dir,
         advisory_db_path=advisory_db_path,
         max_workers=max_workers,
+        intelligence_mode=intelligence_mode,
     )
 
     engine.register("L2-DEPC-001", detect_all_dep_confusion)

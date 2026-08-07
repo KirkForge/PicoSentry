@@ -153,6 +153,26 @@ class OrgMemberInviteRequest(BaseModel):
     role: str = Field("member", pattern="^(admin|member|viewer)$")
 
 
+class BehavioralEvidenceItem(BaseModel):
+    type: str
+    detail: str
+    trigger: str = ""
+
+
+class BehavioralEvidenceSummary(BaseModel):
+    verdict: str
+    confidence: float = 0.0
+    evidence: list[BehavioralEvidenceItem] = []
+    network_calls: list[dict[str, Any]] = []
+    dns_queries: list[dict[str, Any]] = []
+    filesystem_ops: list[dict[str, Any]] = []
+    process_spawns: list[dict[str, Any]] = []
+    timing_points: list[dict[str, Any]] = []
+    drift_score: float | None = None
+    total_runtime_ms: int = 0
+    exit_code: int = 0
+
+
 class ScanRequest(BaseModel):
     target: str = Field(..., description="Path to project directory to scan")
     rules: list[str] | None = Field(None, description="Subset of rule IDs to run")
@@ -167,6 +187,8 @@ class ScanResponse(BaseModel):
     findings_count: int
     findings: list[dict[str, Any]]
     stats: dict[str, Any]
+    package_intel: dict[str, Any] | None = None
+    behavioral_evidence: dict[str, Any] | None = None
 
 
 class SandboxRunRequest(BaseModel):

@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2020-1938",
+  "summary": "Apache Tomcat AJP file read/inclusion (Ghostcat, CVE-2020-1938)",
+  "details": "Apache Tomcat before 9.0.31 allows local file inclusion via AJP connector.",
+  "affected": [
+    {
+      "package": {"name": "tomcat", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "9.0.0"},
+            {"fixed": "9.0.31"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-22"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2020-1938"}
+  ]
+}

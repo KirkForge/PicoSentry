@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2020-8166",
+  "summary": "Rails SQL injection (CVE-2020-8166)",
+  "details": "Rails before 6.0.3.2 allows SQL injection in ActiveRecord.",
+  "affected": [
+    {
+      "package": {"name": "rails", "ecosystem": "rubygems"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "6.0.0"},
+            {"fixed": "6.0.3.2"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-89"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2020-8166"}
+  ]
+}

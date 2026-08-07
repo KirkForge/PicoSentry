@@ -164,6 +164,7 @@ norecursedirs = ["scripts", "plugins"]
 markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests that require network access",
+    "benchmark_realworld: marks real-world malware benchmark (deselect with '-m \"not benchmark_realworld\"')",
 ]
 filterwarnings = [
     # Starlette/httpx deprecation is a third-party decision (Pydantic's

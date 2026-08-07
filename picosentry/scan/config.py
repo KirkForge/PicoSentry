@@ -67,6 +67,7 @@ KNOWN_KEYS = frozenset(
         "daemon",
         "cache",
         "updates",
+        "intelligence",
     }
 )
 
@@ -123,6 +124,7 @@ class PicoSentryConfig:
         self.updates_allowed_sources: list[str] = []  # allowlist of URLs
         self.updates_require_integrity: bool = True  # fail-closed on bad signatures
         self.corpus_require_signature: bool = True  # reject unsigned corpus packs (fail-closed default)
+        self.intelligence: str = "offline"  # "offline" or "connected"
 
     def get_effective_policy(self) -> Policy | None:
         from picosentry.scan.policy import Policy
@@ -250,6 +252,8 @@ class PicoSentryConfig:
             merged.sarif_file = args.sarif_file
         if getattr(args, "log_format", None) is not None:
             merged.log_format = args.log_format
+        if getattr(args, "intelligence", None) is not None:
+            merged.intelligence = args.intelligence
 
         return merged
 

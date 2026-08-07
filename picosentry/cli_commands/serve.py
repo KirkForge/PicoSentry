@@ -42,10 +42,32 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         metavar="HEX_KEYS",
         help="Comma-separated Ed25519 public keys (hex) trusted for plugin signatures",
     )
+    serve_parser.add_argument(
+        "--production",
+        action="store_true",
+        help="Enforce production profile: refuse to start with insecure defaults",
+    )
+    serve_parser.add_argument(
+        "--profile",
+        choices=["production", "development"],
+        default=None,
+        help="Startup profile: 'production' enforces security checks, 'development' warns",
+    )
 
 
 def cmd(args: argparse.Namespace) -> int:
     emit_maturity_warning("serve")
+
+    profile = getattr(args, "profile", None) or ("production" if getattr(args, "production", False) else None)
+    if profile:
+        from picosentry.serve.config.settings import Settings
+        from picosentry.serve.profiles import enforce_production_profile, warn_development_profile
+
+        s = Settings.from_env()
+        if profile == "production":
+            enforce_production_profile(s)
+        elif profile == "development":
+            warn_development_profile(s)
 
     if args.host:
         os.environ["PICOSHOGUN_API_HOST"] = args.host

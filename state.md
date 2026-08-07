@@ -3,9 +3,303 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `e3037e81` (main) — beta→production hardening, bug fix round 2 pending commit
-- Tests: 106+ serve/watch tests pass; ruff check clean; mypy success
+- Head: pending commit — WO-7/8/9 complete, all bug fixes in
+- Tests: 350+ new tests pass; all gates green
+- Real-world corpus: 2029 fixtures across 7 ecosystems (1522 train / 507 held out)
 - Last updated: 2026-08-07
+
+## Session 2026-08-07i: WO-7/8/9 + Bug Fixes
+
+### WO-7: Expanded Real-World Corpus
+- All 7 ecosystems: npm (500), pypi (500), rubygems (500), nuget (500), go (18), cargo (9), maven (2)
+- 2029 total fixtures (1522 train / 507 held out)
+- Ecosystem-specific manifest generators and rule mappings
+
+### WO-8: Evidence Enrichment
+- L2-TYPO-001: evidence now includes "; anonymous maintainer", "; has install scripts", "; risk score X.XX", "; no repository URL"
+- L2-MAINT-001: evidence includes "maintainer_count=N", "domains=...", "no repository URL", "risk_score=X.XX"
+- L2-DEPC-001: evidence includes "; install scripts present", "; no integrity hash", "; no repository URL — unverifiable provenance"
+
+### WO-9: Connected Intelligence Mode
+- `picosentry/scan/intelligence.py`: OSVClient with SHA-256 cache, 24h TTL, query/bulk_query/refresh_cache
+- `IntelligenceMode` enum: OFFLINE (default) and CONNECTED (fetch from OSV.dev)
+- Advisory rules merge live OSV data with local data in connected mode
+- CLI flag: `picosentry scan --intelligence=connected`
+- 23 tests in `tests/scan/test_intelligence.py`
+
+### Bug Fixes (from bug hunt)
+- P0: SSRF in firewall proxy (path traversal, double-slash injection)
+- P0: Firewall scanner returns BLOCK on failure (was ALLOW)
+- P0: XML entity expansion DoS in SBOM parser
+- P0: CRLF header injection in firewall proxy
+- P1: QUARANTINE now proxies through with warning headers
+- P1: Firewall proxy caps error body at 1MB
+- P1: Cache stores verdict + findings tuples
+- P1: version_diff risk subtraction removed, floored at 0.0
+- P1: Markdown injection fixed with _md_escape()
+- P1: golang ecosystem maps to go extractors
+- P1: Unknown purl types return "unknown"
+- P1: npm rules gated on ecosystem detection
+
+## Session 2026-08-07h: Bug Hunt + Fix
+
+### P0 Security Fixes
+- SSRF in firewall proxy: path traversal and double-slash injection via unsanitized `_upstream_url`
+- Firewall scanner returns BLOCK on scan failure (was ALLOW, default-open)
+- XML entity expansion DoS in SBOM parser (billion laughs)
+- CRLF header injection from upstream Content-Type in firewall proxy
+
+### P1 Fixes
+- QUARANTINE verdict now proxies through with X-PicoSentry-Warning headers (was same 403 as BLOCK)
+- Firewall proxy caps error body reads at 1MB (was unbounded)
+- Cache hit now returns findings alongside verdict (was empty reasons)
+- version_diff risk subtraction removed (removed items should not reduce risk)
+- Markdown injection fixed: _md_escape() on user-controlled fields
+- golang ecosystem now maps to go extractors in PackageIntelligence (was falling back to npm)
+- Unknown purl types return "unknown" instead of raw string in SBOM parser
+- npm rules now gated on npm ecosystem detection like all other ecosystems
+
+## Session 2026-08-07h: P0 Security Bug Fixes
+
+### Bug 1: SSRF via unsanitized path concatenation (proxy.py)
+- Added `_safe_upstream_path()` to reject `..`, `//`, and non-`/`-prefixed paths
+- Both `_upstream_url` and `_guess_upstream` now use `urllib.parse.urljoin` with validated paths
+- Returns 400 for invalid paths
+
+### Bug 2: Scan failure returns ALLOW (scanner.py)
+- Changed exception handler to return `FirewallVerdict.BLOCK` with `ponytail:` ceiling comment
+
+### Bug 3: XML entity expansion DoS (sbom.py)
+- Added `defusedxml` import with fallback to size check (10MB) + `<!ENTITY`/`<!DOCTYPE` rejection
+- `_safe_xml_parse()` replaces direct `ElementTree.fromstring()` calls
+- `_MAX_XML_BYTES` constant with `ponytail:` ceiling comment
+
+### Bug 4: CRLF header injection (proxy.py)
+- Added `_sanitize_header()` to strip `\r` and `\n` from header values
+- Applied to Content-Type, X-PicoSentry-Verdict, X-PicoSentry-Reasons, and X-PicoSentry-Proxy
+
+### Bug 5: QUARANTINE treated same as BLOCK (proxy.py)
+- QUARANTINE now proxies through with 200 + `X-PicoSentry-Verdict: quarantine` and `X-PicoSentry-Reasons` headers
+- BLOCK still returns 403 with JSON body
+
+### Bug 6: Unbounded response body read (proxy.py)
+- Capped `exc.fp.read()` at 1MB (`_MAX_ERROR_BODY` constant)
+
+### Bug 7: Cache hit discards findings (scanner.py)
+- Cache now stores `(verdict, findings)` tuples instead of just verdict
+- Both verdict and findings returned on cache hit
+
+### Bug 8: Risk subtraction can make dangerous diffs appear CLEAN (version_diff.py)
+- Removed subtraction for `removed_scripts` and `removed_dependencies`
+- Floored `risk_delta` at 0.0
+
+### Bug 9: Markdown injection (markdown.py)
+- Added `_md_escape()` escaping `|`, `[`, and newlines
+- Applied to all user-controlled fields in findings table
+
+### Bug 10: golang ecosystem falls back to npm (package_intel.py)
+- Added `"golang"` mapping to `_ECOSYSTEM_EXTRACTORS` pointing to go extractors
+
+### Bug 11: Unknown purl type returns raw string (sbom.py)
+- `_ecosystem_from_purl` now returns `"unknown"` for unrecognized purl types
+
+### Bug 12: npm rules not gated on detection (engine.py)
+- Added npm ecosystem gating consistent with other ecosystems
+
+## Session 2026-08-07g: Review Gap Resolution
+
+### Gap 1: PackageIntelligence wired into rules
+- `ScanEngine.scan()` pre-computes `PackageIntel` per package, passes to rules via `package_intel` parameter
+- L2-MAINT-001 uses intel signals (maintainer_count, anonymous_maintainer, email_domains, install_scripts) with fallback
+- L2-TYPO-001 escalates severity for anonymous/no maintainers, boosts confidence for high risk, suppresses for well-maintained
+- L2-DEPC-001 adds evidence for install scripts, missing integrity, missing repo; lowers confidence for low-risk
+- `ScanResult.package_intel` and `ScanResponse.package_intel` exposed in API
+- 20 tests in `tests/scan/test_package_intel_wiring.py`
+
+### Gap 2: Behavioral evidence in API
+- `AnalysisResult.to_evidence_summary()` converts L4 sandbox data to structured dict
+- `BehavioralEvidenceItem` and `BehavioralEvidenceSummary` Pydantic models
+- `ScanResult.behavioral_evidence` propagated to API, SARIF, and Markdown
+- SARIF output includes `properties.behavioral_evidence`
+- Markdown formatter includes "Behavioral Evidence" table
+- 14 tests in `tests/scan/test_behavioral_evidence.py`
+
+### Gap 3: Package firewall / registry proxy
+- `picosentry.firewall` module: stdlib HTTP proxy for npm/PyPI registries
+- `FirewallProxy`, `FirewallConfig`, `FirewallScanner`, `VerdictCache`
+- `picosentry firewall` CLI command with configurable port and thresholds
+- ALLOW/QUARANTINE/BLOCK verdicts based on scan findings
+- 39 tests across `tests/firewall/`
+
+### Gap 4: Real-world benchmark
+- 747 train fixtures from OSV data (npm + PyPI)
+- 100% precision, 66.1% recall overall
+- PyPI malicious: 97.36% recall
+- npm compromised_lib: 50% recall (dominated by L2-ADV-001 offline limitation)
+- 6 rules exercised; Go, Cargo, Maven, RubyGems, NuGet not yet covered
+- Results in `datasets/realworld/BENCHMARK_RESULTS.json`
+- Model card updated with real-world benchmark results section
+
+## Session 2026-08-07h: Package Firewall Module
+
+### What Changed
+- `picosentry/firewall/__init__.py` — package init, exports key classes
+- `picosentry/firewall/cache.py` — `VerdictCache` with TTL, get/put/clear/stats
+- `picosentry/firewall/scanner.py` — `FirewallScanner` + `FirewallVerdict` + `classify_path()`
+- `picosentry/firewall/proxy.py` — `FirewallProxy` + `FirewallConfig` + `_ProxyHandler`
+- `picosentry/cli_commands/firewall.py` — `picosentry firewall` CLI command
+- `picosentry/cli.py` — registered firewall command
+- `picosentry/cli_commands/_maturity.py` — added BETA maturity badge for firewall
+- `tests/firewall/test_cache.py` — 7 tests
+- `tests/firewall/test_scanner.py` — 10 tests
+- `tests/firewall/test_proxy.py` — 22 tests (config, proxy, handler, classify_path)
+
+### Design
+- Stdlib-only HTTP proxy (`http.server` + `urllib.request`)
+- Intercepts npm and PyPI registry GET requests
+- Runs PicoSentry scan engine on fetched metadata
+- Returns ALLOW/QUARANTINE/BLOCK verdicts based on configurable severity thresholds
+- In-memory TTL cache for scanned packages
+- Static file extensions (`.ico`, `.css`, etc.) bypass scanning
+
+## Session 2026-08-07f: Review Response Sprint (Complete)
+
+### WO-1: Curated Real-World Malware Corpus
+- `scripts/build_realworld_corpus.py`: builds fixtures from `datasets/malware/` OSV data
+- `datasets/realworld/`: 1001 fixtures (747 train / 254 held out), 75/25 split
+- `tests/scan/test_realworld_benchmark.py`: precision ≥80% / recall ≥50% floor
+- `datasets/realworld/METADATA.json`: corpus manifest with counts and split info
+- Model card updated with real-world validation section
+
+### WO-2: SARIF Schema Validation
+- `tests/scan/test_sarif.py`: 6 schema validation tests (jsonschema + structural fallback)
+- Validates all required SARIF v2.1.0 fields
+
+### WO-3: GitHub Action (Composite)
+- `action.yml`: composite action, installs via pip, runs scan, uploads SARIF
+- `.github/workflows/picosentry-scan.yml`: example workflow with SARIF upload
+
+### WO-4: GitLab CI Template
+- `ci-templates/gitlab-picosentry.yml`: reusable `.picosentry-scan` job template
+
+### WO-5: PR Comment Bot + Markdown Formatter
+- `picosentry/scan/formatters/markdown.py`: `MarkdownFormatter` class
+- `scripts/post_pr_comment.py`: reads SARIF, posts markdown to GitHub PR
+- 17 tests in `tests/scan/test_markdown_formatter.py`
+
+### WO-6: SBOM Ingestion
+- `picosentry/scan/sbom.py`: parses CycloneDX JSON/XML and SPDX JSON
+- `--sbom` CLI flag on `picosentry scan`
+- 29 tests in `tests/scan/test_sbom.py`
+
+### Prior Session Work (also in this sprint)
+- P0-1: Model card rewritten with honest positioning
+- P0-2: PackageIntelligence module (17 signals, 66 tests)
+- P0-3: SARIF v2.1.0 output format (24 tests)
+- P1-1: VersionDiff module (46 tests)
+- P1-2: Production profile enforcement (21 tests)
+- P1-3: Low-recall rule fixes (dep-confusion, typosquat, advisory)
+- P2-1: Modular Docker targets
+
+## Session 2026-08-07e: SARIF Schema Validation + GitHub Action
+
+### What Changed
+- Added `TestSarifJsonSchemaValidation` class to `tests/scan/test_sarif.py` — 6 new tests:
+  - `test_full_output_validates_against_sarif_210_schema` — validates against official SARIF v2.1.0 JSON schema (falls back to structural check if network unavailable)
+  - `test_structural_completeness_empty_findings` — structural validation with no findings
+  - `test_structural_completeness_with_findings` — structural validation with findings
+  - `test_driver_version_matches_picosentry_version` — verifies `__version__` in driver
+  - `test_schema_uri_is_210` — verifies `_SARIF_SCHEMA` constant matches spec URI
+  - `test_schema_local_validation` — validates against inline JSON Schema draft-07 schema (works offline)
+- Created `action.yml` — composite GitHub Action for PicoSentry scan with SARIF upload
+- Created `.github/workflows/picosentry-scan.yml` — example workflow for Code Scanning
+- Updated `CHANGELOG.md` — added entries for new tests and GitHub Action
+
+## Session 2026-08-07d: Real-world Malware Benchmark Corpus
+
+### What Changed
+- Built `scripts/build_realworld_corpus.py` — reads OSV malware data, generates fixtures
+- Built `tests/scan/test_realworld_benchmark.py` — precision/recall test with floor assertions
+- Generated `datasets/realworld/` — 1001 fixtures (747 train / 254 held out), gitignored
+- Updated `docs/model-card.md` — added real-world validation section, updated limitation #4
+- Updated `pyproject.toml` — added `benchmark_realworld` pytest marker
+- Updated `.gitignore` — added `datasets/realworld/`
+
+### Corpus Details
+- Source: OSV/advisory data (DataDog, OSV, Backstabber datasets)
+- Ecosystems: npm (500), pypi (500), cargo (1)
+- Categories: compromised_lib (500), malicious (501)
+- Rule mappings: L2-MAINT-001, L2-ADV-001, L2-PYPI-POST-001, L2-PYPI-OBFS-001, L2-NETEX-001, L2-CRED-001
+- Deterministic 75/25 split (SHA-256 first byte < 192 → train)
+- L2-ADV-001 doesn't fire offline (no advisory DB) — documented in model card
+- Known limitation: L2-CRED-001 only scans JS files, not Ruby/etc.
+
+### Gates
+- `uv run ruff check` — all passed
+- `uv run ruff format --check` — all formatted
+- `uv run mypy` — success
+- `test_realworld_corpus_metadata_exists` — PASSED
+
+## Session 2026-08-07c: Review Response Sprint
+
+### Verified Review Claims
+- **54 rules**: Actually 48 L2 + 15 L4 = 63 total. "54" counts 4 CAMP benchmarks not in runtime.
+- **Sandbox evidence**: Already rich (network calls, DNS, filesystem ops, process spawns, timing, drift). NOT just pass/fail.
+- **Correlation engine**: Already exists with kill-chain mapping and cross-layer analysis.
+- **Zero FP**: Correct — but all synthetic. Review's critique is valid.
+- **Low recall**: Confirmed. Fixed dep-confusion, Go typosquat, advisory rules.
+
+### Changes Made
+
+**P0-1: Benchmark Honesty**
+- Rewrote `docs/model-card.md` with prominent synthetic benchmark disclosure
+- Three Detection Modes section, Recall by Category, Validation Limitations
+
+**P0-2: Package Intelligence Layer**
+- `picosentry/scan/package_intel.py`: 17 offline deterministic signals + composite risk score
+- 66 tests in `tests/scan/test_package_intel.py`
+
+**P0-3: SARIF Output Format**
+- `picosentry/scan/formatters/sarif.py`: SARIF v2.1.0 compliant, `--format sarif` CLI flag
+- 24 tests in `tests/scan/test_sarif.py`
+
+**P1-1: Version-Diff Detection**
+- `picosentry/scan/version_diff.py`: VersionDelta with behavioral diff + verdict
+- CLI: `picosentry diff --old old.json --new new.json`
+- 46 tests in `tests/scan/test_version_diff.py`
+
+**P1-2: Production Profile Enforcement**
+- `picosentry/serve/profiles.py`: 7 security checks, `--profile=production` refuses insecure config
+- 21 tests in `tests/serve/test_profiles.py`
+
+**P1-3: Low-Recall Rule Fixes** (from prior subagent session)
+- L2-PYPI-DEPC-001: setup.py parsing
+- L2-MAVEN-DEPC-001: group_id internal patterns
+- L2-RUBYGEMS-DEPC-001: underscore variants
+- L2-GO-TYPO-001: keyboard distance + missing packages
+- Advisory: embedded CVE fixtures
+
+**P2-1: Modular Docker Targets**
+- Dockerfile multi-stage: scanner/sandbox/server/all targets
+
+## Session 2026-08-07b: Low-Recall Rule Fixes
+
+### Root Causes Fixed
+- **L2-PYPI-DEPC-001 (0%→expected)**: `_collect_pypi_deps` didn't parse `setup.py` — now added `parse_setup_py()`
+- **L2-MAVEN-DEPC-001 (0%→expected)**: `_looks_internal_maven` only checked artifact_id, not group_id — now checks group_id against internal patterns and last-segment heuristic
+- **L2-RUBYGEMS-DEPC-001 (partial→expected)**: `_INTERNAL_ALL_PATTERNS` only matched hyphen forms — now includes underscore forms (`internal_`, `private_`, `corp_`, `company_`)
+- **L2-MAVEN-ADV-001 / L2-RUBYGEMS-ADV-001 (low→improved)**: Added 19 embedded CVE advisory JSON files in validation `_advisories/` so offline validation catches known CVEs
+- **L2-GO-TYPO-001 (43%→improved)**: Added `micro` and `kratos` to Go corpus; merged priority names into CorpusIndex trie; added `min_name_length=3` and `use_keyboard=True` for Go config; added ponytail ceiling comment to advisory_check.py
+
+### Files Changed
+- `picosentry/scan/rules/dep_confusion.py` — Maven group_id internal check, PyPI setup.py import
+- `picosentry/scan/rules/_dep_confusion_config.py` — Underscore patterns in `_INTERNAL_EXTRA_PATTERNS`
+- `picosentry/scan/rules/pypi_utils.py` — New `parse_setup_py()` function
+- `picosentry/scan/rules/advisory_check.py` — Ponytail ceiling comment
+- `picosentry/scan/rules/typosquat.py` — `min_name_length` and `use_keyboard` config for Go
+- `picosentry/scan/rules/corpus_index.py` — Merge priority_names into names set in CorpusIndex
+- `picosentry/scan/rules/_typosquat_corpus/go.py` — Added `micro` and `kratos`
+- `tests/scan/fixtures/validation/_advisories/` — 19 new CVE advisory JSON files
 
 ## Session 2026-08-07: Bug Fix Round 2
 

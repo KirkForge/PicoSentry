@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, is_dataclass
 from pathlib import Path
 from typing import Any
 
@@ -205,6 +205,8 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
     scanner_version: str = ""
     policy_result: Any = None
     rule_executions: list[RuleExecution] = field(default_factory=list)
+    package_intel: dict[str, Any] = field(default_factory=dict)
+    behavioral_evidence: dict[str, Any] | None = None
 
     def recompute_stats(self) -> None:
         by_sev: dict[str, int] = {}
@@ -269,6 +271,20 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
                 audit["scanner_version"] = self.scanner_version
             if audit:
                 d["audit"] = audit
+
+        if not deterministic_output and self.package_intel:
+            intel_dict: dict[str, Any] = {}
+            for k, v in self.package_intel.items():
+                if is_dataclass(v) and not isinstance(v, type):
+                    intel_dict[k] = asdict(v)
+                elif hasattr(v, "to_dict"):
+                    intel_dict[k] = v.to_dict()
+                else:
+                    intel_dict[k] = v
+            d["package_intel"] = intel_dict
+
+        if self.behavioral_evidence is not None:
+            d["behavioral_evidence"] = self.behavioral_evidence
 
         return dict(sorted(d.items()))
 

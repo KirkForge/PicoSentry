@@ -102,5 +102,7 @@ BUILTIN_GO_TOP_100: list[str] = sorted(
         "sys",
         "text",
         "time",
+        "micro",
+        "kratos",
     ]
 )

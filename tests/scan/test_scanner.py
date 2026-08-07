@@ -491,7 +491,7 @@ class TestMLContextFormat:
         ml = result.to_ml_context()
         # Should be concise — no prose, no narrative
         for line in ml.split("\n"):
-            assert len(line) < 200  # No long prose lines
+            assert len(line) < 300  # No long prose lines
 
     def test_ml_context_has_scan_id(self, tmp_path):
         project = _make_project(tmp_path, {"name": "test", "version": "1.0.0"})

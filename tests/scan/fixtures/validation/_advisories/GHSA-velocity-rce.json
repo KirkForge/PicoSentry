@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2017-15706",
+  "summary": "Apache Velocity template injection RCE (CVE-2017-15706)",
+  "details": "Apache Velocity before 2.0 allows remote code execution via template injection.",
+  "affected": [
+    {
+      "package": {"name": "velocity", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "1.0.0"},
+            {"fixed": "2.0"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-94"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2017-15706"}
+  ]
+}

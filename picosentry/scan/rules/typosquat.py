@@ -4,8 +4,9 @@ import logging
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import TYPE_CHECKING
 
-from ..models import Finding
+from ..models import Confidence, Finding, Severity
 from .cargo_utils import detect_cargo_project, get_cargo_dep_names, parse_cargo_toml
 from .go_utils import detect_go_project, get_module_short_name, parse_go_mod
 from .maven_utils import detect_maven_project, get_maven_dep_identifiers, parse_gradle_build, parse_pom_xml
@@ -31,6 +32,9 @@ from .corpus_index import check_typosquat_against_index, load_indexed_corpus
 from .typosquat_utils import typosquat_severity_confidence
 from .utils import get_dep_names, load_package_json
 
+if TYPE_CHECKING:
+    from ..package_intel import PackageIntel
+
 logger = logging.getLogger("picosentry.typosquat")
 
 __all__ = ["detect_all_typosquat"]
@@ -45,6 +49,10 @@ class TyposquatConfig:
     known_legitimate: frozenset[str] = field(default_factory=frozenset)
 
     use_short_name: bool = False
+
+    min_name_length: int = 3
+
+    use_keyboard: bool = False
 
     manifest_file: str = ""
 
@@ -75,10 +83,13 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         if not compare_name or compare_name in config.known_legitimate:
             continue
 
+        if len(compare_name) < config.min_name_length:
+            continue
+
         if compare_name in index:
             continue
 
-        close_matches = check_typosquat_against_index(compare_name, index)
+        close_matches = check_typosquat_against_index(compare_name, index, use_keyboard=config.use_keyboard)
         if close_matches:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(compare_name, best_match, best_dist)
@@ -248,9 +259,14 @@ _GO_CONFIG = TyposquatConfig(
             "internal",
             "cmd",
             "pkg",
+            "go",
+            "etcd",
+            "fmt",
         }
     ),
     use_short_name=True,
+    min_name_length=3,
+    use_keyboard=True,
     manifest_file="go.mod",
     collect_deps=_collect_go_deps,
 )
@@ -413,7 +429,48 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
 )
 
 
-def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
+def _enforce_evidence(finding: Finding, dep_name: str, package_intel: dict[str, PackageIntel] | None) -> Finding:
+    if package_intel is None:
+        return finding
+    intel = package_intel.get(dep_name)
+    if intel is None:
+        return finding
+    severity = finding.severity
+    confidence = finding.confidence
+    evidence_parts = [finding.evidence]
+
+    if intel.anonymous_maintainer:
+        evidence_parts.append("anonymous maintainer")
+    if intel.maintainer_count == 0:
+        evidence_parts.append("no maintainers")
+    if intel.has_install_scripts:
+        evidence_parts.append("has install scripts")
+    if intel.risk_score > 0.5:
+        evidence_parts.append(f"risk score {intel.risk_score:.2f}")
+    if not intel.has_repository_url:
+        evidence_parts.append("no repository URL")
+
+    if (intel.maintainer_count == 0 or intel.anonymous_maintainer) and severity != Severity.CRITICAL:
+        severity = Severity.CRITICAL
+
+    if intel.has_install_scripts and intel.has_postinstall_script:
+        evidence_parts.append("install + postinstall scripts present — code execution on install")
+
+    if intel.risk_score > 0.5 and confidence == Confidence.MEDIUM:
+        confidence = Confidence.HIGH
+
+    if intel.has_repository_url and intel.maintainer_count > 5 and severity == Severity.HIGH:
+        severity = Severity.MEDIUM
+        evidence_parts.append("well-maintained package with repository — likely legitimate")
+
+    from dataclasses import replace
+
+    return replace(finding, severity=severity, confidence=confidence, evidence="; ".join(evidence_parts))
+
+
+def _detect_npm_typosquat(
+    target: Path, corpus_dir: Path, package_intel: dict[str, PackageIntel] | None = None
+) -> list[Finding]:
     findings: list[Finding] = []
     index = load_indexed_corpus(corpus_dir, "npm", BUILTIN_TOP_100)
 
@@ -450,27 +507,31 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(pkg_name, best_match, best_dist)
             findings.append(
-                Finding(
-                    rule_id="L2-TYPO-001",
-                    severity=severity,
-                    confidence=confidence,
-                    package=pkg_name,
-                    file=str(root_pkg),
-                    message=(
-                        f"Package '{pkg_name}' may be a typosquat of popular package(s): "
-                        f"{', '.join(m[0] for m in close_matches)}"
+                _enforce_evidence(
+                    Finding(
+                        rule_id="L2-TYPO-001",
+                        severity=severity,
+                        confidence=confidence,
+                        package=pkg_name,
+                        file=str(root_pkg),
+                        message=(
+                            f"Package '{pkg_name}' may be a typosquat of popular package(s): "
+                            f"{', '.join(m[0] for m in close_matches)}"
+                        ),
+                        evidence=f"package_name({pkg_name}) is edit_distance {best_dist} from {best_match}",
+                        remediation=(
+                            f"Verify that '{pkg_name}' is the intended package, "
+                            f"not a misspelling of '{best_match}'. "
+                            "Check the npm page and author before installing."
+                        ),
+                        references=[
+                            "https://blog.npmjs.org/post/186451959906/typosquatting-on-npm",
+                            "https://snyk.io/blog/typosquatting-attacks-on-npm/",
+                        ],
+                        ecosystem="npm",
                     ),
-                    evidence=f"package_name({pkg_name}) is edit_distance {best_dist} from {best_match}",
-                    remediation=(
-                        f"Verify that '{pkg_name}' is the intended package, "
-                        f"not a misspelling of '{best_match}'. "
-                        "Check the npm page and author before installing."
-                    ),
-                    references=[
-                        "https://blog.npmjs.org/post/186451959906/typosquatting-on-npm",
-                        "https://snyk.io/blog/typosquatting-attacks-on-npm/",
-                    ],
-                    ecosystem="npm",
+                    pkg_name,
+                    package_intel,
                 )
             )
 
@@ -505,37 +566,43 @@ def _detect_npm_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
             best_match, best_dist = close_matches[0]
             severity, confidence = typosquat_severity_confidence(dep_name, best_match, best_dist)
             findings.append(
-                Finding(
-                    rule_id="L2-TYPO-001",
-                    severity=severity,
-                    confidence=confidence,
-                    package=dep_name,
-                    file=str(root_pkg),
-                    message=(
-                        f"Dependency '{dep_name}' may be a typosquat of popular package(s): "
-                        f"{', '.join(m[0] for m in close_matches)}"
+                _enforce_evidence(
+                    Finding(
+                        rule_id="L2-TYPO-001",
+                        severity=severity,
+                        confidence=confidence,
+                        package=dep_name,
+                        file=str(root_pkg),
+                        message=(
+                            f"Dependency '{dep_name}' may be a typosquat of popular package(s): "
+                            f"{', '.join(m[0] for m in close_matches)}"
+                        ),
+                        evidence=f"edit_distance({dep_name}, {best_match}) = {best_dist}",
+                        remediation=(
+                            f"Verify that '{dep_name}' is the intended package, "
+                            f"not a misspelling of '{best_match}'. "
+                            "Check the npm page and author before installing."
+                        ),
+                        references=[
+                            "https://blog.npmjs.org/post/186451959906/typosquatting-on-npm",
+                            "https://snyk.io/blog/typosquatting-attacks-on-npm/",
+                        ],
+                        ecosystem="npm",
                     ),
-                    evidence=f"edit_distance({dep_name}, {best_match}) = {best_dist}",
-                    remediation=(
-                        f"Verify that '{dep_name}' is the intended package, "
-                        f"not a misspelling of '{best_match}'. "
-                        "Check the npm page and author before installing."
-                    ),
-                    references=[
-                        "https://blog.npmjs.org/post/186451959906/typosquatting-on-npm",
-                        "https://snyk.io/blog/typosquatting-attacks-on-npm/",
-                    ],
-                    ecosystem="npm",
+                    dep_name,
+                    package_intel,
                 )
             )
 
     return findings
 
 
-def detect_all_typosquat(target: Path, corpus_dir: Path) -> list[Finding]:
+def detect_all_typosquat(
+    target: Path, corpus_dir: Path, package_intel: dict[str, PackageIntel] | None = None
+) -> list[Finding]:
     findings: list[Finding] = []
 
-    findings.extend(_detect_npm_typosquat(target, corpus_dir))
+    findings.extend(_detect_npm_typosquat(target, corpus_dir, package_intel))
 
     for config in (_GO_CONFIG, _CARGO_CONFIG, _PYPI_CONFIG, _MAVEN_CONFIG, _NUGET_CONFIG, _RUBYGEMS_CONFIG):
         findings.extend(_detect_all_typosquat_standard(target, corpus_dir, config))

@@ -51,7 +51,7 @@ class TestFormatGitHub:
         # SARIF file should exist and be valid
         sarif_data = json.loads(Path(sarif_path).read_text())
         assert sarif_data["version"] == "2.1.0"
-        assert sarif_data["runs"][0]["tool"]["driver"]["name"] == "picosentry"
+        assert sarif_data["runs"][0]["tool"]["driver"]["name"] == "PicoSentry"
         assert len(sarif_data["runs"][0]["results"]) == 1
 
     def test_summary_contains_metadata(self, tmp_path):

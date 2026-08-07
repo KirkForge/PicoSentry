@@ -175,3 +175,14 @@ class TestEngineConstraints:
         result = engine.scan(project)
         engine_findings = [f for f in result.findings if f.rule_id == "L2-ENGIN-001"]
         assert len(engine_findings) >= 1
+
+    def test_npm_rules_gated_without_package_json(self, tmp_path):
+        """npm rules should not run when no package.json exists."""
+        pypi_dir = tmp_path / "pypi_project"
+        pypi_dir.mkdir()
+        (pypi_dir / "pyproject.toml").write_text("[project]\nname = 'test'\n")
+        engine = create_default_engine()
+        result = engine.scan(pypi_dir)
+        npm_rule_ids = {"L2-POST-001", "L2-OBFS-001", "L2-OBFS-002", "L2-OBFS-003", "L2-OBFS-004"}
+        for f in result.findings:
+            assert f.rule_id not in npm_rule_ids

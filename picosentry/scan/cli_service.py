@@ -57,6 +57,7 @@ class ScanOrchestrator:
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.workspace_root = _workspace_root()
+        self._sbom_tmpdir: tempfile.TemporaryDirectory | None = None
         # Import the scan command module here (not at module top) to avoid a
         # circular import, and capture its worker reference so tests that patch
         # ``picosentry.scan.cli_commands.scan._scan_worker`` are honoured.
@@ -109,7 +110,11 @@ class ScanOrchestrator:
                 return None, cache, ""
 
             corpus_dir = Path(config.corpus) if config.corpus else None
-            temp_engine = create_default_engine(corpus_dir=corpus_dir, advisory_db_path=config.advisory_db)
+            temp_engine = create_default_engine(
+                corpus_dir=corpus_dir,
+                advisory_db_path=config.advisory_db,
+                intelligence_mode=config.intelligence,
+            )
             corpus_hash = temp_engine._corpus_version
             cached_data = cache.get(lockfile_hash, corpus_hash, __version__)
             if cached_data and "scan_id" in cached_data:
@@ -151,7 +156,11 @@ class ScanOrchestrator:
             return
         try:
             corpus_dir = Path(config.corpus) if config.corpus else None
-            te = create_default_engine(corpus_dir=corpus_dir, advisory_db_path=config.advisory_db)
+            te = create_default_engine(
+                corpus_dir=corpus_dir,
+                advisory_db_path=config.advisory_db,
+                intelligence_mode=config.intelligence,
+            )
             corpus_hash = te._corpus_version
             cache.put(lockfile_hash, corpus_hash, __version__, result.to_dict())
             logger.info("Cached scan result: lockfile=%s", lockfile_hash[:8])
@@ -178,7 +187,11 @@ class ScanOrchestrator:
             config = file_config.merge_cli(self.args)
 
         corpus_dir = Path(config.corpus) if config.corpus else None
-        engine = create_default_engine(corpus_dir=corpus_dir, advisory_db_path=config.advisory_db)
+        engine = create_default_engine(
+            corpus_dir=corpus_dir,
+            advisory_db_path=config.advisory_db,
+            intelligence_mode=config.intelligence,
+        )
 
         if self.args.timeout and self.args.timeout > 0:
             result_queue: multiprocessing.Queue = multiprocessing.Queue()
@@ -288,11 +301,100 @@ class ScanOrchestrator:
             return format_ml_context(result, token_budget=config.token_budget)
         if config.format == "cyclonedx":
             return format_cyclonedx(result)
+        if config.format == "markdown":
+            from picosentry.scan.formatters.markdown import format_markdown
+
+            return format_markdown(result)
         if config.format == "github":
             from picosentry.scan.formatters.github import format_github
 
             return format_github(result, sarif_path=config.sarif_file or "sarif.json")
         return format_table(result, color=not config.no_color)
+
+    def _prepare_sbom_target(self, sbom_path: str, original_target: Path) -> Path:
+        from picosentry.scan.sbom import parse_sbom
+
+        sbom = Path(sbom_path)
+        if not sbom.is_file():
+            print(f"Error: SBOM file not found: {sbom}", file=sys.stderr)
+            raise SystemExit(2)
+        refs = parse_sbom(sbom)
+        if not refs:
+            print(f"Error: SBOM contains no packages: {sbom}", file=sys.stderr)
+            raise SystemExit(2)
+        tmpdir = tempfile.TemporaryDirectory(prefix="picosentry-sbom-")
+        self._sbom_tmpdir = tmpdir
+        scan_dir = Path(tmpdir.name)
+        ecosystem_manifests: dict[str, list[dict]] = {}
+        for ref in refs:
+            ecosystem_manifests.setdefault(ref.ecosystem, []).append({"name": ref.name, "version": ref.version})
+        manifest_map = {
+            "npm": "package.json",
+            "pypi": "requirements.txt",
+            "golang": "go.mod",
+            "cargo": "Cargo.toml",
+            "maven": "pom.xml",
+            "rubygems": "Gemfile",
+            "nuget": "packages.config",
+        }
+        for eco, packages in ecosystem_manifests.items():
+            filename = manifest_map.get(eco, f"{eco}-packages.json")
+            filepath = scan_dir / filename
+            if eco == "npm":
+                deps = {p["name"]: p["version"] for p in packages}
+                filepath.write_text(json.dumps({"name": "sbom-scan", "version": "0.0.0", "dependencies": deps}))
+            elif eco == "pypi":
+                lines = [f"{p['name']}=={p['version']}" for p in packages]
+                filepath.write_text("\n".join(lines))
+            elif eco == "golang":
+                lines = ["module sbom-scan", "", "require ("]
+                for p in packages:
+                    lines.append(f"\t{p['name']} v{p['version']}")
+                lines.append(")")
+                filepath.write_text("\n".join(lines))
+            elif eco == "cargo":
+                lines = [
+                    "[package]",
+                    'name = "sbom-scan"',
+                    'version = "0.0.0"',
+                    "",
+                    "[dependencies]",
+                ]
+                for p in packages:
+                    lines.append(f'{p["name"]} = "{p["version"]}"')
+                filepath.write_text("\n".join(lines))
+            elif eco == "maven":
+                lines = [
+                    '<?xml version="1.0" encoding="UTF-8"?>',
+                    "<project>",
+                    "  <dependencies>",
+                ]
+                for p in packages:
+                    gid = p["name"]
+                    ver = p["version"]
+                    lines.append(f"    <dependency><groupId>{gid}</groupId><version>{ver}</version></dependency>")
+                lines.append("  </dependencies>")
+                lines.append("</project>")
+                filepath.write_text("\n".join(lines))
+            elif eco == "rubygems":
+                lines = ['source "https://rubygems.org"', ""]
+                for p in packages:
+                    lines.append(f'gem "{p["name"]}", "{p["version"]}"')
+                filepath.write_text("\n".join(lines))
+            elif eco == "nuget":
+                lines = ['<?xml version="1.0" encoding="utf-8"?>', "<packages>"]
+                for p in packages:
+                    lines.append(f'  <package id="{p["name"]}" version="{p["version"]}" />')
+                lines.append("</packages>")
+                filepath.write_text("\n".join(lines))
+            else:
+                filepath.write_text(json.dumps(packages, indent=2))
+        if original_target.is_dir():
+            existing = {f.name for f in scan_dir.iterdir()}
+            for item in original_target.iterdir():
+                if item.name not in existing and item.is_file():
+                    (scan_dir / item.name).write_bytes(item.read_bytes())
+        return scan_dir
 
     def run(self) -> int:
         """Execute a normal scan command and return an exit code."""
@@ -300,6 +402,10 @@ class ScanOrchestrator:
         if not target.exists():
             print(f"Error: target does not exist: {target}", file=sys.stderr)
             return 2
+
+        sbom_path = getattr(self.args, "sbom", None)
+        if sbom_path:
+            target = self._prepare_sbom_target(sbom_path, target)
 
         if self.args.verbose:
             temp_engine = create_default_engine()

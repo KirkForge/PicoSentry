@@ -39,6 +39,13 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         "STABLE",
         "Corpus marketplace — export, import, validate, sign, and list IoC packs.",
     ),
+    "firewall": (
+        "BETA",
+        (
+            "Registry proxy firewall. Intercepts npm/PyPI install requests, "
+            "scans package metadata with PicoSentry, and allows/quarantines/blocks."
+        ),
+    ),
 }
 
 

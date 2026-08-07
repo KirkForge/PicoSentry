@@ -1,0 +1,69 @@
+name: 'PicoSentry Security Scan'
+description: 'Scan dependencies for malicious packages and supply-chain attacks'
+inputs:
+  path:
+    description: 'Path to scan'
+    required: false
+    default: '.'
+  config:
+    description: 'Path to config file'
+    required: false
+    default: ''
+  sarif-file:
+    description: 'Path to write SARIF output'
+    required: false
+    default: 'picosentry-results.sarif'
+  fail-on-findings:
+    description: 'Fail the action if findings are detected'
+    required: false
+    default: 'true'
+  format:
+    description: 'Output format (json, sarif, cyclonedx)'
+    required: false
+    default: 'sarif'
+  severity-threshold:
+    description: 'Minimum severity to report (CRITICAL, HIGH, MEDIUM, LOW, INFO)'
+    required: false
+    default: 'LOW'
+outputs:
+  findings-count:
+    description: 'Number of findings detected'
+    value: ${{ steps.scan.outputs.findings_count }}
+  sarif-file:
+    description: 'Path to SARIF output file'
+    value: ${{ steps.scan.outputs.sarif_file }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Install PicoSentry
+      shell: bash
+      run: pip install --no-cache-dir picosentry
+
+    - name: Run PicoSentry scan
+      id: scan
+      shell: bash
+      run: |
+        ARGS=(scan "${{ inputs.path }}" --format sarif --output "${{ inputs.sarif-file }}")
+        if [ -n "${{ inputs.config }}" ]; then
+          ARGS+=(--config "${{ inputs.config }}")
+        fi
+        if [ -n "${{ inputs.severity-threshold }}" ]; then
+          ARGS+=(--severity-threshold "${{ inputs.severity-threshold }}")
+        fi
+
+        picosentry "${ARGS[@]}" 2>/dev/null || exit_code=$?
+
+        FINDINGS_COUNT=$(python3 -c "import json; d=json.load(open('${{ inputs.sarif-file }}')); print(len(d.get('runs',[{}])[0].get('results',[])))" 2>/dev/null || echo "0")
+
+        echo "findings_count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
+        echo "sarif_file=${{ inputs.sarif-file }}" >> "$GITHUB_OUTPUT"
+
+        if [ -n "${exit_code}" ] && [ "$exit_code" -eq 2 ]; then
+          echo "::error::PicoSentry scan failed with an internal error"
+          exit 2
+        fi
+
+        if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ "$FINDINGS_COUNT" -gt 0 ]; then
+          echo "::warning::$FINDINGS_COUNT finding(s) detected"
+          exit 1
+        fi

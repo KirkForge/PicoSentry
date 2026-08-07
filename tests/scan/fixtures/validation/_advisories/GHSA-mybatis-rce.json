@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2021-27564",
+  "summary": "Apache MyBatis SQL injection (CVE-2021-27564)",
+  "details": "Apache MyBatis before 3.5.7 allows SQL injection via OGNL expressions.",
+  "affected": [
+    {
+      "package": {"name": "mybatis", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "3.0.0"},
+            {"fixed": "3.5.7"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "HIGH",
+    "cwe_ids": ["CWE-89"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2021-27564"}
+  ]
+}

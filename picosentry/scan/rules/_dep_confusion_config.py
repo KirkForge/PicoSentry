@@ -42,6 +42,10 @@ _INTERNAL_EXTRA_PATTERNS = [
     r"-internal$",
     r"-private$",
     r"-local$",
+    r"internal[_-]",
+    r"private[_-]",
+    r"corp[_-]",
+    r"company[_-]",
 ]
 
 _INTERNAL_ALL_PATTERNS = _INTERNAL_PREFIX_PATTERNS + _INTERNAL_EXTRA_PATTERNS

@@ -92,6 +92,8 @@ async def create_scan(
         findings_count=len(result.findings),
         findings=[f.to_dict() for f in result.findings],
         stats=result.stats.to_dict(),
+        package_intel=result.package_intel or None,
+        behavioral_evidence=result.behavioral_evidence,
     )
 
 

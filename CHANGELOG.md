@@ -2,7 +2,102 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-07 - Evidence Enrichment + Connected Intelligence + Corpus Expansion
+
+### Added
+- Real-world malware corpus expanded to all 7 ecosystems (2029 fixtures: npm 500, pypi 500, rubygems 500, nuget 500, go 18, cargo 9, maven 2)
+- Evidence enrichment: L2-TYPO-001, L2-MAINT-001, L2-DEPC-001 now include PackageIntel signals in finding evidence strings (maintainer count, risk score, install scripts, repository URL)
+- Connected Intelligence mode: `picosentry scan --intelligence=connected` fetches live OSV.dev vulnerability data, merging with local advisories for higher recall
+- `OSVClient`: OSV.dev API client with SHA-256 cache, 24h TTL, bulk queries, graceful offline fallback
+- `IntelligenceMode` enum: OFFLINE (default, no network) and CONNECTED (fetch from OSV.dev)
+- Advisory rules (L2-*-ADV-001) use connected mode to boost recall from 12-67% to near-complete when OSV is available
+
+### Expanded
+- Real-world benchmark corpus: npm+PyPI → all 7 ecosystems (1522 train / 507 held out)
+- Ecosystem-specific manifest generators for Go, Cargo, Maven, RubyGems, NuGet
+
 ## [Unreleased]
+
+### Security
+- P0: Fixed SSRF in firewall proxy via unsanitized path concatenation (path traversal, double-slash injection)
+- P0: Fixed firewall scanner returning ALLOW on scan failure (now returns BLOCK, default-deny)
+- P0: Fixed XML entity expansion DoS in SBOM parser (billion laughs attack via ElementTree)
+- P0: Fixed CRLF header injection in firewall proxy from upstream Content-Type
+- P1: Fixed QUARANTINE verdict returning 403 same as BLOCK (now proxies through with warning headers)
+- P1: Fixed unbounded response body read in firewall proxy (1MB cap)
+- P1: Fixed cache hit discarding findings in firewall scanner (cache now stores verdict + findings)
+- P1: Fixed version_diff risk subtraction making dangerous diffs appear CLEAN (removed subtractions, floored at 0.0)
+- P1: Fixed markdown injection in formatter (escaped |, [, newlines in user-controlled fields)
+- P1: Fixed golang ecosystem falling back to npm extractors in PackageIntelligence
+- P1: Fixed unknown purl type returning raw string instead of "unknown" in SBOM parser
+- P1: Fixed npm rules not gated on npm ecosystem detection in scan engine
+
+### Security Fixes
+- **SSRF**: Validate proxy paths — reject `..`, `//`, and non-absolute paths; use `urljoin` for safe URL construction
+- **Default-deny**: Scan failures now return BLOCK instead of ALLOW
+- **XML entity expansion**: Reject `<!ENTITY`/`<!DOCTYPE` in XML; cap XML at 10MB; use `defusedxml` if available
+- **CRLF injection**: Strip `\r`/`\n` from all HTTP response headers
+- **Quarantine verdict**: Proxy through with warning headers instead of returning 403
+- **Unbounded read**: Cap upstream error body reads at 1MB
+- **Markdown injection**: Escape `|`, `[`, and newlines in user-controlled table fields
+
+### Bug Fixes
+- Cache now preserves findings on hit (was returning empty list)
+- Risk delta floored at 0.0 — removed items no longer reduce risk score
+- Added `golang` ecosystem mapping (was falling back to npm extractors)
+- Unknown purl types now return `"unknown"` instead of raw type string
+- npm-specific scan rules gated on `package.json`/`node_modules` detection
+
+### Added
+- Real-world benchmark results: 100% precision, 66.1% recall on 747 OSV-derived train fixtures (PyPI malicious 97.36% recall, npm compromised_lib 50% recall)
+- Package firewall module (`picosentry.firewall`): registry proxy that intercepts npm/PyPI install requests, scans package metadata with PicoSentry, and returns ALLOW/QUARANTINE/BLOCK verdicts
+- `picosentry firewall` CLI command: starts stdlib HTTP proxy on configurable port with configurable severity thresholds
+- `VerdictCache`: in-memory TTL cache for firewall verdicts keyed by (ecosystem, name, version)
+- `classify_path()`: route parser for npm (`/<pkg>`, `/<pkg>/<ver>`) and PyPI (`/pypi/<pkg>/json`, `/pypi/<pkg>/<ver>/json`) registry paths
+- Expose L4 behavioral evidence in scan API: `AnalysisResult.to_evidence_summary()` converts sandbox profile data (network calls, DNS queries, filesystem ops, process spawns, timing, drift) to structured evidence dict
+- `BehavioralEvidenceItem` and `BehavioralEvidenceSummary` Pydantic models in `picosentry/serve/api/models.py`
+- `ScanResult.behavioral_evidence` field (optional, backward-compatible) propagated to `ScanResponse`, SARIF, and Markdown formatters
+- SARIF output includes `properties.behavioral_evidence` on run when L4 evidence is available
+- Markdown formatter adds "Behavioral Evidence" table after findings when evidence is present
+- Wire `PackageIntelligence` into scan engine: pre-compute `PackageIntel` per package, pass to rules that opt in via `package_intel` parameter, store in `ScanResult.package_intel`
+- L2-MAINT-001 uses `PackageIntel` signals (`maintainer_count`, `anonymous_maintainer`, `maintainer_email_domains`, `has_install_scripts`) with fallback to manual extraction
+- L2-TYPO-001 escalates severity to CRITICAL for anonymous/no maintainers, boosts confidence for high risk_score, suppresses HIGH→MEDIUM for well-maintained packages
+- L2-DEPC-001 adds evidence for install scripts, missing integrity hash, missing repo URL; lowers confidence for low-risk packages
+- `ScanResult.package_intel` field (dict[str, Any], default empty; included in `to_dict()` when non-deterministic)
+- `ScanResponse.package_intel` field in serve API
+- `_invoke_rule()` now detects `package_intel` parameter and passes pre-computed intel
+
+### Added
+- SARIF v2.1.0 output format for GitHub/GitLab CI integration (`--format sarif`)
+- SARIF v2.1.0 JSON schema validation tests with `jsonschema` and structural fallback
+- Composite GitHub Action (`action.yml`) for PicoSentry security scan with SARIF upload to Code Scanning
+- Example workflow (`.github/workflows/picosentry-scan.yml`) for scheduled/PR/push scans
+- GitLab CI template (`ci-templates/gitlab-picosentry.yml`) for SAST integration
+- Markdown output format (`--format markdown`) for PR comment bot integration
+- PR comment script (`scripts/post_pr_comment.py`) — reads SARIF, posts markdown summary to GitHub PRs
+- SBOM ingestion: `picosentry scan --sbom <path>` accepts CycloneDX JSON/XML and SPDX JSON as input
+- Real-world malware benchmark corpus built from OSV data (`datasets/realworld/`, generated by `scripts/build_realworld_corpus.py`)
+- Benchmark test (`tests/scan/test_realworld_benchmark.py`, marker `benchmark_realworld`) with precision ≥80% / recall ≥50% floor assertions
+- `benchmark_realworld` pytest marker in `pyproject.toml`
+- Model card section on real-world validation with train/held-out split documentation
+- PackageIntelligence module: offline-first package metadata enrichment (maintainer, provenance, version, dependency, script, license signals + composite risk score)
+- VersionDiff module: compare two package versions and produce a behavioral delta (added/removed/changed scripts, dependencies, network patterns, obfuscation, credential access, risk score, verdict)
+- `picosentry diff --old <path> --new <path>` CLI for version diffing package manifests
+- Production profile enforcement: `--profile=production` refuses insecure settings (wildcard CORS, jsonl backend, no TLS, weak auth, no policy signing, no admin auth); `--profile=development` warns
+- Dockerfile multi-build-target support: `scanner`, `sandbox`, `server`, `all` (default) — reduces attack surface per-component
+- Model card rewritten with honest positioning: synthetic benchmark disclosure, rule count breakdown (50 L2 + 15 L4), zero-FP qualification, validation limitations, three detection modes
+
+### Fixed
+- L2-PYPI-DEPC-001: added setup.py dependency extraction so dep-confusion detection works on projects without pyproject.toml
+- L2-MAVEN-DEPC-001: fixed _looks_internal_maven to check group_id against internal patterns and segment-last heuristic
+- L2-RUBYGEMS-DEPC-001: added underscore variants to internal patterns (internal_, private_, corp_, company_) for RubyGems naming convention
+- L2-GO-TYPO-001: added missing popular packages (micro, kratos) to Go corpus, enabled keyboard distance for Go, set min_name_length=3, merged priority names into corpus index trie
+- L2-MAVEN-ADV-001 / L2-RUBYGEMS-ADV-001: added embedded CVE advisory fixtures for offline validation; added ponytail ceiling comment documenting offline-by-design limitation
+
+### Added
+- VersionDiff module: compare two package versions and produce a behavioral delta (added/removed/changed scripts, dependencies, network patterns, obfuscation, credential access, risk score, verdict)
+- `picosentry diff --old <path> --new <path>` CLI for version diffing package manifests
+- PackageIntelligence module: offline-first package metadata enrichment (maintainer, provenance, version, dependency, script, license signals + composite risk score)
 
 ### Fixed (Beta→Production hardening — session 3)
 - **P1**: MetricsCollector.gauge() eviction threshold fixed from [-1000:] to [-500:] for consistency

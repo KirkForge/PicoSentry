@@ -1,0 +1,25 @@
+{
+  "id": "CVE-2015-7501",
+  "summary": "Apache Commons Collections deserialization RCE (CVE-2015-7501)",
+  "details": "Apache Commons Collections 3.x before 3.2.2 allows remote code execution via deserialization.",
+  "affected": [
+    {
+      "package": {"name": "commons-collections", "ecosystem": "maven"},
+      "ranges": [
+        {
+          "events": [
+            {"introduced": "3.0.0"},
+            {"fixed": "3.2.2"}
+          ]
+        }
+      ]
+    }
+  ],
+  "database_specific": {
+    "severity": "CRITICAL",
+    "cwe_ids": ["CWE-502"]
+  },
+  "references": [
+    {"url": "https://nvd.nist.gov/vuln/detail/CVE-2015-7501"}
+  ]
+}

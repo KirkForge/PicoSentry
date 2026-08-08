@@ -92,6 +92,7 @@ def test_empty_metrics_have_zero_precision_recall() -> None:
 # ── Headline precision/recall floor (the regression canary) ──────────────
 
 
+@pytest.mark.timeout(180)
 def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
     """Every fixture passes and every expected rule fires.
 
@@ -116,6 +117,7 @@ def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
         raise AssertionError("Validation below floor:\n" + "\n".join(msg_lines))
 
 
+@pytest.mark.timeout(180)
 def test_validation_at_least_one_negative_fixture_produces_no_findings() -> None:
     """At least one negative fixture exists and produces zero findings across
     all rules. This is the FP-rate sanity check: a scanner that fires on

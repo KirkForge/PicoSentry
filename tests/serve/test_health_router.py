@@ -28,7 +28,7 @@ def test_ready_db_failure_returns_503(monkeypatch: pytest.MonkeyPatch) -> None:
     assert resp.status_code == 503
     data = resp.json()
     assert data["status"] == "not ready"
-    assert data["detail"] == "database unavailable"
+    assert data["checks"]["database"] == "unavailable"
 
 
 def test_ready_unexpected_error_returns_generic_500(monkeypatch: pytest.MonkeyPatch) -> None:

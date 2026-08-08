@@ -250,7 +250,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     import os
 
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.exception("Unhandled error in API request")
+    logger.exception("Unhandled error in API request")  # noqa: LOG004
     if os.environ.get("PICOSHOGUN_ENV", "production") == "development":
         return JSONResponse(
             status_code=500,

@@ -86,8 +86,7 @@ async def readiness_probe():
 
         db.execute_one("SELECT 1")
         checks["database"] = "ok"
-    except Exception:
-        logger.exception("Readiness probe: database check failed")
+    except (OSError, ValueError, RuntimeError):
         checks["database"] = "unavailable"
         ready = False
 
@@ -95,8 +94,7 @@ async def readiness_probe():
         from picosentry.serve.services.plugin_manager import plugin_manager
 
         checks["plugins"] = "loaded" if plugin_manager.plugins else "ok"
-    except Exception:
-        logger.exception("Readiness probe: plugin check failed")
+    except (OSError, ValueError, RuntimeError):
         checks["plugins"] = "not_loaded"
         ready = False
 

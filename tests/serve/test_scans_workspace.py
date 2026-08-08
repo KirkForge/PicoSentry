@@ -124,6 +124,8 @@ def test_operator_inside_workspace_returns_200(
             self.engine_version = "0.0.0-stub"
             self.findings: list = []
             self.stats = type("S", (), {"to_dict": staticmethod(dict)})()
+            self.package_intel = None
+            self.behavioral_evidence = None
 
     class _StubEngine:
         def scan(self, *args, **kwargs):

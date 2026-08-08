@@ -219,7 +219,7 @@ ignore = [
 # Intentional / pre-existing typographic and stylistic choices:
 # - E402 in the obfuscated PoC setup.py (the whole point is to look suspicious)
 # - RUF001 in security output formatters that intentionally use ℹ️ icons
-"examples/pypi-obfuscated-setup/setup.py" = ["E402"]
+"examples/pypi-obfuscated-setup/setup.py" = ["E402", "SIM105"]
 "picosentry/sandbox/grpc_transport/proto/*.py" = ["E", "F", "UP", "SIM", "B", "RUF", "Q000", "Q003", "Q004", "ISC", "ARG002"]
 "picosentry/_core/security_check.py" = ["RUF001"]
 "tests/sandbox/check_deploy_security.py" = ["RUF001"]

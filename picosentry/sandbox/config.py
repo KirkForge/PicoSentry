@@ -173,7 +173,8 @@ class PicoDomeConfig:
                 )
             else:
                 logger.warning(
-                    "SECURITY ASSERT SKIPPED: PICODOME_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                    "SECURITY ASSERT SKIPPED: PICODOME_SKIP_SECURE_ASSERT=1 "
+                    "is set. This bypasses startup security checks."
                 )
                 return
 

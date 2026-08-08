@@ -310,7 +310,9 @@ class TestScanWorkspace:
         )
         mock_engine = MagicMock()
         mock_engine.analyze.return_value = _make_analysis(
-            findings=[SandboxFinding(rule_id="L4-001", severity=Severity.HIGH, message="bad", location="/tmp", evidence={})],
+            findings=[
+                SandboxFinding(rule_id="L4-001", severity=Severity.HIGH, message="bad", location="/tmp", evidence={}),
+            ],
             verdict=BehavioralVerdict.SUSPICIOUS,
         )
         mock_engine_fn.return_value = mock_engine
@@ -405,7 +407,9 @@ class TestScanWorkspace:
         )
         mock_engine = MagicMock()
         mock_engine.analyze.return_value = _make_analysis(
-            findings=[SandboxFinding(rule_id="L4-002", severity=Severity.MEDIUM, message="meh", location="/tmp", evidence={})],
+            findings=[
+                SandboxFinding(rule_id="L4-002", severity=Severity.MEDIUM, message="meh", location="/tmp", evidence={}),
+            ],
             verdict=BehavioralVerdict.SUSPICIOUS,
         )
         mock_engine_fn.return_value = mock_engine

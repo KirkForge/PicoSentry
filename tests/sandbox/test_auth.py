@@ -7,12 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
+from picosentry._core.security import constant_time_compare
 from picosentry.sandbox.auth import (
     RBAC,
     AuthError,
     Role,
     TokenAuth,
-    constant_time_compare,
     _hash_token,
 )
 
@@ -268,7 +268,7 @@ class TestTokenAuth:
         ):
             TokenAuth()
             # constant_time_compare should be used, not `==`
-            # Verify by checking that the auth module imports hmac.compare_digest
-            from picosentry.sandbox import auth as auth_module
+            # Verify by checking that _core.security has constant_time_compare
+            from picosentry._core import security as security_module
 
-            assert hasattr(auth_module, "constant_time_compare")
+            assert hasattr(security_module, "constant_time_compare")

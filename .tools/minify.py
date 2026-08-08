@@ -24,6 +24,7 @@ What this script NEVER touches:
 
 This script is idempotent — running it twice on the same file is a no-op.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -38,7 +39,8 @@ from pathlib import Path
 # Match the directive keyword, then optionally ": " or just whitespace — this
 # catches `# noqa`, `# noqa: F401`, `# noqa,F401`, `# type: ignore`, etc.
 KEEP_COMMENT_RE = re.compile(
-    r"\s*(?:" + "|".join(
+    r"\s*(?:"
+    + "|".join(
         [
             r"noqa\b",
             r"type\s*:\s*ignore\b",
@@ -51,7 +53,8 @@ KEEP_COMMENT_RE = re.compile(
             r"ruff\s*:",
             r"fmt\s*:",
         ]
-    ) + r")",
+    )
+    + r")",
     re.IGNORECASE,
 )
 
@@ -86,11 +89,7 @@ def find_docstring_lines(source: str) -> set[int]:
             # an empty class/function body (SyntaxError). Keep the docstring.
             continue
         first = body[0]
-        if (
-            isinstance(first, ast.Expr)
-            and isinstance(first.value, ast.Constant)
-            and isinstance(first.value.value, str)
-        ):
+        if isinstance(first, ast.Expr) and isinstance(first.value, ast.Constant) and isinstance(first.value.value, str):
             for ln in range(first.lineno, (first.end_lineno or first.lineno) + 1):
                 line_set.add(ln)
     return line_set
@@ -166,7 +165,7 @@ def is_keep_comment(line: str) -> bool:
 def is_import_line(line: str) -> bool:
     """Return True if the line is an ``import`` or ``from ... import`` statement."""
     stripped = line.lstrip()
-    return stripped.startswith("import ") or stripped.startswith("from ") or stripped == "import" or stripped == "from"
+    return stripped.startswith(("import ", "from ")) or stripped in {"import", "from"}
 
 
 def preserve_import_group_blanks(text: str) -> str:
@@ -227,9 +226,12 @@ def minify_source(
         module_doc_lines: set[int] = set()
         try:
             tree = ast.parse(source)
-            if tree.body and isinstance(tree.body[0], ast.Expr) and isinstance(
-                tree.body[0].value, ast.Constant
-            ) and isinstance(tree.body[0].value.value, str):
+            if (
+                tree.body
+                and isinstance(tree.body[0], ast.Expr)
+                and isinstance(tree.body[0].value, ast.Constant)
+                and isinstance(tree.body[0].value.value, str)
+            ):
                 first = tree.body[0]
                 for ln in range(first.lineno, (first.end_lineno or first.lineno) + 1):
                     module_doc_lines.add(ln)
@@ -319,17 +321,12 @@ def main(argv: list[str] | None = None) -> int:
         if not root.exists():
             print(f"warning: {root} does not exist, skipping", file=sys.stderr)
             continue
-        if root.is_file():
-            candidates = [root]
-        else:
-            candidates = sorted(root.rglob("*.py"))
+        candidates = [root] if root.is_file() else sorted(root.rglob("*.py"))
         for py_file in candidates:
             if "__pycache__" in py_file.parts:
                 continue
             preserve = py_file in PRESERVE_MODULE_DOCSTRING_IN
-            orig_lines, new_lines = minify_file(
-                py_file, preserve_module_docstring=preserve, dry_run=args.dry_run
-            )
+            orig_lines, new_lines = minify_file(py_file, preserve_module_docstring=preserve, dry_run=args.dry_run)
             total_orig += orig_lines
             total_new += new_lines
             if orig_lines == new_lines:

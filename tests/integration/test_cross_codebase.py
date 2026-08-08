@@ -103,7 +103,7 @@ class TestInternalImports:
         from picosentry.scan.engine import ScanEngine, create_default_engine
 
         assert hasattr(ScanEngine, "scan")
-        assert hasattr(create_default_engine, "__call__")
+        assert callable(create_default_engine)
 
     def test_sandbox_l3_importable(self) -> None:
         from picosentry.sandbox.l3.engine import sandbox_run

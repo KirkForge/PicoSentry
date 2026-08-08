@@ -6,7 +6,6 @@ import logging
 import os
 from pathlib import Path
 
-from picosentry._core.security import constant_time_compare
 
 logger = logging.getLogger("picodome.auth")
 

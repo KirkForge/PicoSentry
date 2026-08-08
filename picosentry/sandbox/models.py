@@ -7,7 +7,6 @@ from enum import Enum
 
 from picosentry._core.models import Severity, Verdict
 from picosentry._core.models import ScanStats as _ScanStats
-from picosentry._core.time import now_ms
 
 
 __all__ = [
@@ -52,7 +51,6 @@ class SandboxFinding:  # rationale: sandbox finding, frozen for determinism, emp
 
 
 ScanStats = _ScanStats
-
 
 
 def _now_iso() -> str:

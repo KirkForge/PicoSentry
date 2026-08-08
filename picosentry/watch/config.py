@@ -309,7 +309,8 @@ class PicoWatchConfig:  # rationale: composed config with injectable sub-configs
                 )
             else:
                 _logging.getLogger("picowatch.config").warning(
-                    "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 is set. This bypasses startup security checks."
+                    "SECURITY ASSERT SKIPPED: PICOWATCH_SKIP_SECURE_ASSERT=1 "
+                    "is set. This bypasses startup security checks."
                 )
                 return
 

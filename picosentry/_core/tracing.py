@@ -28,24 +28,24 @@ class NoOpSpan:
 
 
 class NoOpTracer:
-    def start_as_current_span(self, name: str, **kwargs: Any):
+    def start_as_current_span(self, name: str, **kwargs: Any):  # noqa: ARG002
         return nullcontext(NoOpSpan())
 
-    def start_span(self, name: str, **kwargs: Any) -> NoOpSpan:
+    def start_span(self, name: str, **kwargs: Any) -> NoOpSpan:  # noqa: ARG002
         return NoOpSpan()
 
 
 class NoOpMeter:
-    def create_counter(self, name: str, **kwargs: Any):
+    def create_counter(self, name: str, **kwargs: Any):  # noqa: ARG002
         return NoOpInstrument()
 
-    def create_histogram(self, name: str, **kwargs: Any):
+    def create_histogram(self, name: str, **kwargs: Any):  # noqa: ARG002
         return NoOpInstrument()
 
-    def create_gauge(self, name: str, **kwargs: Any):
+    def create_gauge(self, name: str, **kwargs: Any):  # noqa: ARG002
         return NoOpInstrument()
 
-    def create_up_down_counter(self, name: str, **kwargs: Any):
+    def create_up_down_counter(self, name: str, **kwargs: Any):  # noqa: ARG002
         return NoOpInstrument()
 
 

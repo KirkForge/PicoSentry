@@ -44,9 +44,7 @@ _ENV_DENYLIST: frozenset[str] = frozenset(
     }
 )
 
-_ENV_DENY_PATTERNS: tuple[re.Pattern[str], ...] = (
-    re.compile(r"(_SECRET|_PASSWORD|_TOKEN|_KEY)$", re.IGNORECASE),
-)
+_ENV_DENY_PATTERNS: tuple[re.Pattern[str], ...] = (re.compile(r"(_SECRET|_PASSWORD|_TOKEN|_KEY)$", re.IGNORECASE),)
 
 
 def _strip_env(env: dict[str, str]) -> dict[str, str]:
@@ -143,7 +141,10 @@ def _detect_backend(
     if allow_degraded:
         env_mode = os.environ.get("PICODOME_ENV", os.environ.get("PICOSHOGUN_ENV", "development"))
         if env_mode in ("production", "staging"):
-            logger.critical("Security: PICODOME_ALLOW_DEGRADED ignored in %s — degraded backends not permitted", env_mode)
+            logger.critical(
+                "Security: PICODOME_ALLOW_DEGRADED ignored in %s — degraded backends not permitted",
+                env_mode,
+            )
             allow_degraded = False
 
     system = platform.system()
@@ -299,10 +300,7 @@ def sandbox_run(
     # environment via os.environ.copy(). Strip secrets before they reach
     # the child. When the caller passes an explicit env dict, they control
     # the content — but we still strip known-secret patterns.
-    if env is None:
-        env = _strip_env(dict(os.environ))
-    else:
-        env = _strip_env(env)
+    env = _strip_env(dict(os.environ)) if env is None else _strip_env(env)
 
     if backend is None:
         if allow_degraded is not None:

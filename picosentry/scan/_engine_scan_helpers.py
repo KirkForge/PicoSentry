@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from picosentry._core.time import now_ms
-
 
 _SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
 

@@ -1,7 +1,7 @@
 import logging
 import os
 
-from picosentry._core.tracing import NoOpInstrument, NoOpMeter, NoOpSpan, NoOpTracer
+from picosentry._core.tracing import NoOpMeter, NoOpTracer
 from picosentry.serve.config.version import __version__
 
 logger = logging.getLogger("picoshogun.Observability")

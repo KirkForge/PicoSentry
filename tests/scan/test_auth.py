@@ -6,11 +6,11 @@ import time
 import unittest
 from unittest.mock import patch
 
+from picosentry._core.security import constant_time_compare
 from picosentry.scan.auth import (
     AuthConfig,
     AuthResult,
     RateLimiter,
-    constant_time_compare,
     check_auth,
     check_oidc_auth,
     check_token_auth,

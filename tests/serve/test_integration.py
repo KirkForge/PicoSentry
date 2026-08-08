@@ -1010,10 +1010,10 @@ class TestOrganizationService:
         tag = int(time.time() * 1000)
         user_id = auth.create_user(f"org_dup_{tag}", "testpassword123", role="admin")
         slug = f"dup-org-{tag}"
-        org_id_1 = Organization.create("First Org", slug, user_id)
-        org_id_2 = Organization.create("Second Org", slug, user_id)
-        assert org_id_1 is not None
-        assert org_id_2 is None
+        result_1 = Organization.create("First Org", slug, user_id)
+        result_2 = Organization.create("Second Org", slug, user_id)
+        assert result_1 is not None
+        assert result_2 == {}
 
     def test_org_tiers(self):
         from picosentry.serve.services.orgs import Organization

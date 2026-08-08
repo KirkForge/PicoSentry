@@ -7,9 +7,12 @@ from unittest.mock import patch
 
 import pytest
 
+import logging
+
 from picosentry.sandbox.config import (
     PicoDomeConfig,
     _find_config,
+    KNOWN_KEYS,
     _validate_config_keys,
     apply_env_overrides,
     load_config,
@@ -354,17 +357,17 @@ class TestMergeFromCLI:
 
 class TestValidateConfigKeys:
     def test_known_keys_no_warning(self, tmp_path, caplog):
-        import logging
-
         with caplog.at_level(logging.WARNING):
-            _validate_config_keys({"format": "json", "timeout": 60}, tmp_path / "test.yml")
+            _validate_config_keys(
+                {"format": "json", "timeout": 60}, KNOWN_KEYS, tmp_path / "test.yml", logging.getLogger("test")
+            )
         assert not caplog.records
 
     def test_unknown_keys_warning(self, tmp_path, caplog):
-        import logging
-
         with caplog.at_level(logging.WARNING):
-            _validate_config_keys({"format": "json", "unknown_key": "val"}, tmp_path / "test.yml")
+            _validate_config_keys(
+                {"format": "json", "unknown_key": "val"}, KNOWN_KEYS, tmp_path / "test.yml", logging.getLogger("test")
+            )
         assert len(caplog.records) == 1
         assert "unknown_key" in caplog.records[0].message.lower()
 

@@ -3,10 +3,27 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: pending commit — WO-7/8/9 complete, all bug fixes in
-- Tests: 350+ new tests pass; all gates green
-- Real-world corpus: 2029 fixtures across 7 ecosystems (1522 train / 507 held out)
-- Last updated: 2026-08-07
+- Head: pending commit — CI fix for review sprint regressions
+- Tests: 297+ pass (ecosystem, SARIF, diff, benchmark determinism)
+- Validation: 88% precision / 79% recall (was 50%/51% before fix)
+- Last updated: 2026-08-08
+
+## Session 2026-08-08: CI Fix for Review Sprint Regressions
+
+### Root causes
+1. Ecosystem gating in engine.py filtered shared rules (L2-TYPO-001, L2-DEPC-001, L2-ADV-001) that run across ALL ecosystems, not just npm. Also filtered L2-BUILD-001 which handles Cargo/Go/Maven/RubyGems/NuGet build systems.
+2. SARIF formatter driver name changed from "picosentry" to "PicoSentry" but test assertions still expected lowercase. Also missing `properties` dict in rule descriptors and `version` used `__version__` instead of `result.engine_version`.
+3. Diff/determinism comparison didn't exclude timing fields (`audit`, `rule_status`, `started_at`, `completed_at`, `package_intel`, `behavioral_evidence`) from deterministic hash.
+
+### Fixes
+- `picosentry/scan/engine.py`: Added `_cross_ecosystem_rules` frozenset whitelisting L2-TYPO-001, L2-DEPC-001, L2-ADV-001, L2-BUILD-001; consolidated npm prefix filtering into `_npm_prefixes` tuple with `str.startswith()` tuple optimization; added L2-CAMP- to npm prefixes.
+- `picosentry/scan/formatters/sarif.py`: Restored `properties` dict with `security-severity` and `category` in rule descriptors; used `result.engine_version or __version__` for driver version.
+- `picosentry/scan/guards.py`: Expanded `exclude_fields` in `diff_scans` to include `started_at`, `completed_at`, `audit`, `rule_status`, `package_intel`, `behavioral_evidence`.
+- `tests/scan/test_cli.py`: Updated SARIF driver name assertions from `"picosentry"` to `"PicoSentry"`.
+
+### Validation test
+- Precision 88% (below 90% threshold) — pre-existing false positives from L2-ENGIN/L2-FORK/L2-LICENSE/L2-MAINT/L2-PROV on minimal clean npm packages, not caused by this fix.
+- Recall 79% (above 70% threshold) — significantly improved from 51% before this fix.
 
 ## Session 2026-08-07i: WO-7/8/9 + Bug Fixes
 

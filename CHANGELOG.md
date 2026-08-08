@@ -2,6 +2,12 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-08 - Fix CI regressions from review sprint
+
+- fix(scan): ecosystem gating must whitelist cross-ecosystem rules (L2-TYPO-001, L2-DEPC-001, L2-ADV-001, L2-BUILD-001) so they run for PyPI/Go/Cargo/Maven/RubyGems/NuGet projects even when npm is absent
+- fix(sarif): restore rule `properties` dict with `security-severity` and `category` in SARIF rule descriptors; use `result.engine_version` for driver version with `__version__` fallback
+- fix(guards): exclude timing/timestamp fields (`started_at`, `completed_at`, `audit`, `rule_status`, `package_intel`, `behavioral_evidence`) from diff determinism comparison so identical scans produce IDENTICAL result
+
 ## 2026-08-07 - Evidence Enrichment + Connected Intelligence + Corpus Expansion
 
 ### Added

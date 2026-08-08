@@ -251,27 +251,44 @@ class ScanEngine:
 
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
 
+        _cross_ecosystem_rules = frozenset(
+            {
+                "L2-TYPO-001",
+                "L2-DEPC-001",
+                "L2-ADV-001",
+                "L2-BUILD-001",
+            }
+        )
+
         if not _detected_npm:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-POST-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-OBFS-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MANI-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-NETEX-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-CRED-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-LOCK-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-BUND-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-BUILD-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PROV-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MAINT-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PNPM-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-LICENSE-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-ENGIN-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-SIDELOAD-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-IOC-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-WORM-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-FORK-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-DEPC-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-TYPO-")}
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-ADV-")}
+            _npm_prefixes = (
+                "L2-POST-",
+                "L2-OBFS-",
+                "L2-MANI-",
+                "L2-NETEX-",
+                "L2-CRED-",
+                "L2-LOCK-",
+                "L2-BUND-",
+                "L2-BUILD-",
+                "L2-PROV-",
+                "L2-MAINT-",
+                "L2-PNPM-",
+                "L2-LICENSE-",
+                "L2-ENGIN-",
+                "L2-SIDELOAD-",
+                "L2-IOC-",
+                "L2-WORM-",
+                "L2-FORK-",
+                "L2-DEPC-",
+                "L2-TYPO-",
+                "L2-ADV-",
+                "L2-CAMP-",
+            )
+            selected_rules = {
+                k: v
+                for k, v in selected_rules.items()
+                if k in _cross_ecosystem_rules or not k.startswith(_npm_prefixes)
+            }
         if not _detected_pypi:
             selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PYPI-")}
         if not _detected_go:

@@ -45,6 +45,10 @@ def _rule_descriptor(rule_id: str, finding: Finding) -> dict[str, Any]:
         "id": rule_id,
         "name": info.get("name", rule_id.lower().replace("l2-", "")),
         "shortDescription": {"text": info.get("description", finding.message)},
+        "properties": {
+            "security-severity": finding.severity.value,
+            "category": info.get("category", "unknown"),
+        },
     }
     help_uri = info.get("helpUri")
     if help_uri:
@@ -123,7 +127,7 @@ class SarifFormatter:
             "tool": {
                 "driver": {
                     "name": "PicoSentry",
-                    "version": __version__,
+                    "version": self.result.engine_version or __version__,
                     "informationUri": "https://github.com/KirkForge/PicoSentry",
                     "rules": self._collect_rules(),
                 }

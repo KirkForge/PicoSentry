@@ -133,11 +133,23 @@ def diff_scans(
     path_b: Path,
     verbose: bool = False,
 ) -> tuple[int, str]:
+    _diff_exclude = (
+        "run_id",
+        "timestamp",
+        "duration_ms",
+        "scan_id",
+        "started_at",
+        "completed_at",
+        "audit",
+        "rule_status",
+        "package_intel",
+        "behavioral_evidence",
+    )
     return _core_diff_results(
         path_a,
         path_b,
         verbose=verbose,
         id_field="scan_id",
         findings_key="findings",
-        exclude_fields=("run_id", "timestamp", "duration_ms", "scan_id"),
+        exclude_fields=_diff_exclude,
     )

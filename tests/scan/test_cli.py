@@ -62,7 +62,7 @@ class TestSARIFOutput:
         sarif = json.loads(format_sarif(result))
 
         driver = sarif["runs"][0]["tool"]["driver"]
-        assert driver["name"] == "picosentry"
+        assert driver["name"] == "PicoSentry"
         assert driver["version"] == "0.2.0"
 
     def test_sarif_finding_level_mapping(self):
@@ -910,7 +910,7 @@ class TestGitHubFormat:
         assert sarif_path.exists(), "SARIF file should be created"
         sarif_data = json.loads(sarif_path.read_text())
         assert sarif_data["version"] == "2.1.0"
-        assert sarif_data["runs"][0]["tool"]["driver"]["name"] == "picosentry"
+        assert sarif_data["runs"][0]["tool"]["driver"]["name"] == "PicoSentry"
 
     def test_github_format_markdown_summary(self, tmp_path):
         """--format github should print markdown summary to stdout."""

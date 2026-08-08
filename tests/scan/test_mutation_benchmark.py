@@ -85,6 +85,7 @@ class TestMutationBenchmark:
         )
 
     @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_structural_mutations_keep_high_recall(self):
         """Quote swaps, identifier renames, and line reordering should keep
         recall above the enterprise-beta floor."""
@@ -98,6 +99,7 @@ class TestMutationBenchmark:
         )
 
     @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_full_mutation_suite_recall_floor(self):
         """All enabled mutators together must not drop aggregate recall below
         the P5 #11 floor of 75%."""
@@ -108,6 +110,7 @@ class TestMutationBenchmark:
         )
 
     @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_mutated_negatives_do_not_inflate_precision(self):
         """Applying mutations to clean fixtures must not create false positives
         at a rate that collapses aggregate precision below 25%.
@@ -118,6 +121,8 @@ class TestMutationBenchmark:
             f"mutated negative precision too low: {report.aggregate_precision:.2%}\n" + report.to_text()
         )
 
+    @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_benchmark_report_has_required_fields(self):
         """The report shape is stable enough for dashboards and CI parsing."""
         config = MutationBenchmarkConfig(
@@ -136,6 +141,8 @@ class TestMutationBenchmark:
         ):
             assert key in d["summary"], f"Missing summary key {key!r}"
 
+    @pytest.mark.slow
+    @pytest.mark.timeout(180)
     def test_benchmark_text_report_renders(self):
         config = MutationBenchmarkConfig(
             mutators=("pad_whitespace",),

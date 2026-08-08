@@ -18,7 +18,19 @@ from picosentry.sandbox.models import SandboxFinding
 from picosentry.scan.formatters.markdown import format_markdown
 from picosentry.scan.formatters.sarif import format_sarif
 from picosentry.scan.models import ScanResult, ScanStats
-from picosentry.serve.api.models import BehavioralEvidenceItem, BehavioralEvidenceSummary
+
+try:
+    from picosentry.serve.api.models import BehavioralEvidenceItem, BehavioralEvidenceSummary
+except ImportError:
+    BehavioralEvidenceItem = None
+    BehavioralEvidenceSummary = None
+
+import pytest
+
+requires_serve = pytest.mark.skipif(
+    BehavioralEvidenceItem is None,
+    reason="serve extras not installed",
+)
 
 
 def _make_scan_result(behavioral_evidence=None, findings=None):
@@ -71,6 +83,7 @@ def _make_analysis_result():
     )
 
 
+@requires_serve
 class TestToEvidenceSummary:
     def test_full_profile(self):
         result = _make_analysis_result()
@@ -133,6 +146,7 @@ class TestToEvidenceSummary:
         assert "sh -c rm -rf /" in proc[0]["detail"]
 
 
+@requires_serve
 class TestBehavioralEvidenceSummary:
     def test_model_defaults(self):
         s = BehavioralEvidenceSummary(verdict="clean")
@@ -155,6 +169,7 @@ class TestBehavioralEvidenceSummary:
         assert s.drift_score == 0.87
 
 
+@requires_serve
 class TestSarifBehavioralEvidence:
     def test_sarif_without_behavioral_evidence(self):
         result = _make_scan_result()
@@ -178,6 +193,7 @@ class TestSarifBehavioralEvidence:
         assert len(run["properties"]["behavioral_evidence"]["evidence"]) == 2
 
 
+@requires_serve
 class TestMarkdownBehavioralEvidence:
     def test_markdown_without_behavioral_evidence(self):
         result = _make_scan_result()
@@ -207,6 +223,7 @@ class TestMarkdownBehavioralEvidence:
         assert "Behavioral Evidence" not in md
 
 
+@requires_serve
 class TestApiResponseBehavioralEvidence:
     def test_scan_response_without_behavioral_evidence(self):
         from picosentry.serve.api.models import ScanResponse

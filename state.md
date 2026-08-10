@@ -3,10 +3,63 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `4394549e` — CI round 4 fixes (working tree has uncommitted review-gap + improvement-loop diff)
-- Tests: All passing locally; CI has 2 pre-existing flaky tests (websocket auth, validation timeout)
+- Head: `6403eb88` (dev) — CI repair round 3 complete; 3 pending items committed & split
+- Tests: All passing locally (4592 passed on 3.10); CI needs re-run to confirm postgres/docker/deps jobs
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-10
+
+## Session 2026-08-10 (final): CI repair round 3 — COMPLETE
+
+### What was done
+- Committed + split the 3 pending items into clean commits:
+  - `426b8b69` fix(db): `_validate_param_count` counts both `?` and `%s` (postgres fix, was uncommitted)
+  - `fdbd0533` fix(test): isolate `picodome` logger state via autouse conftest fixture — root cause of test-matrix 3.10/3.11 flake: `test_logging_extra.setup_logging()` clears handlers + sets `propagate=False` on the shared `picodome` logger, so a sibling test in the same xdist worker (`test_daemon_store`) asserting on caplog saw empty records. Verified: `-n 2 --dist=loadfile` stress runs + full `tests/sandbox/` (1584 passed) + full suite (4592 passed).
+  - `6403eb88` chore(deps): bump transitive cryptography 48->50, pyasn1 0.6.3->0.6.4 in uv.lock (clears pip-audit dependency-audit findings; forces pyopenssl 26.4 + sigstore 4.5). pyproject.toml unchanged.
+- `.dockerignore` fix (README/COMMERCIAL-LICENSE removal) was already in `a15f0844`.
+
+### Verification (all green, head `6403eb88`)
+- `uv run ruff check` — 0 errors
+- `uv run ruff format --check` — clean
+- `uv run mypy picosentry/` — Success (407 source files)
+- `uv run pytest tests/ -m "not slow"` — 4592 passed, 18 skipped, 4 subtests passed (256s)
+- `uv export` shows `cryptography==50.0.0`, `pyasn1==0.6.4`
+
+### Pending / next steps
+- Re-run CI to confirm: postgres-live-test, dependency-audit, test-matrix (3.10/3.11), docker-build all pass. Local docker/postgres unavailable — needs CI.
+- dependency-audit may still flag `starlette 1.2.1` (separate finding, out of scope this round).
+
+## Session 2026-08-10 (late): dev merge + CI repair — INCOMPLETE, reboot here
+
+### What was done
+- Merged `origin/dev` (5 security-hardening commits) into `dev` as a proper 2-parent merge (`f7dee3c3`), then fixed all merge regressions in `9c3c3027`.
+- Pushed 3 commits to `dev`: `9c3c3027` (merge + test/status-code/org-gating/migration fixes), `9e9376c5` (CI `--extra dev` + postgres psycopg2), `a15f0844` (CI postgres placeholder, pip-audit, docker context).
+- Fixed many pre-existing test failures exposed by the merge (root causes, not skips):
+  - serve: POST /register, /orgs, /api-key, /scheduler/jobs now return 201; tests updated
+  - serve: scan/sandbox/admin endpoints gained `get_current_org`; test fixtures now create an org
+  - serve: health_history coerces created_at datetime→isoformat; backup endpoint returns path string
+  - serve: CreateAPIKeyRequest permissions pattern now 422s invalid values
+  - db: SQLitePool `isolation_level=None` so explicit BEGIN/COMMIT works on fresh DBs; migration runner catches `sqlite3.OperationalError` (idempotent duplicate-column)
+  - watch: /metrics and /v1/rules auth-gated when api_key set; tests updated
+  - scan: network-error tests raise `InsecureURLError` (a ValueError) not bare Exception
+  - README: status table regenerated from `experimental.py` source of truth
+
+### CI status (last run 31411240480)
+- ✅ lint, type-check, test-sandbox, cli-verification, determinism-check, test-scan
+- ❌ **postgres-live-test** — `_validate_param_count` counts `?` but postgres SQL uses `%s`. FIXED (counts both `?` and `%s`) in `426b8b69`.
+- ❌ **dependency-audit** — now WORKS but correctly fails: pip-audit found 11 real vulnerabilities (cryptography 48.0.0 → 50.0.0, pyasn1 0.6.3 → 0.6.4). Legitimate red, not a CI bug. FIXED via dep bump in `6403eb88` (cryptography 50, pyasn1 0.6.4). May still flag starlette 1.2.1 (separate, out of scope).
+- ❌ **test-matrix (3.10/3.11)** — pre-existing flake: `tests/sandbox/test_daemon_store.py::test_load_expected_oserror_starts_fresh` caplog assertion fails under xdist+coverage. Root cause: `setup_logging()` in `sandbox/logging.py:100` clears handlers + sets `propagate=False` on the shared `picodome` logger, starving caplog on a sibling test in the same worker. FIXED via autouse conftest isolation fixture in `fdbd0533`.
+- ❌ **docker-build / docker-build-arm64** — `.dockerignore` excluded `README.md`/`COMMERCIAL-LICENSE.md`. FIXED (removed both exclusions) in `a15f0844`.
+
+### Pending / next steps
+1. Commit + push the 2 uncommitted fixes, re-run CI.
+2. Fix the test-matrix flake: `root_logger.propagate = False` in `sandbox/logging.py` breaks caplog under xdist. Options: save/restore propagate in the test, or make `configure_logging` not clobber propagate.
+3. dependency-audit: bump `cryptography` (48→50) and `pyasn1` (0.6.3→0.6.4) in pyproject/uv.lock, or pin to fixed versions.
+4. Verify docker-build passes after `.dockerignore` fix (no local docker available — needs CI).
+
+### Notes for next session
+- The merge history has a stray single-parent commit `882ede51` (an earlier `git commit` before the proper 2-parent `f7dee3c3` was created via `commit-tree`). It's an ancestor of HEAD, harmless, but the graph is slightly messy.
+- `picosentry/serve/config/protocols.py` was intentionally deleted (unused, deleted on the main line).
+- Scratch `workplan-*.md` files are untracked (like gitignored `workplan.md`/`lessons.md`).
 
 ## Session 2026-08-10: Improvement loop (CI + test optimization + bug hunt)
 

@@ -2,6 +2,12 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-10 - CI repair round 3 (postgres + docker + deps + xdist flake)
+- fix(db): `_validate_param_count` counts both `?` and `%s` placeholders so postgres SQL (native `%s`) passes validation (was "0 placeholders but 1 parameter")
+- fix(ci): remove README.md + COMMERCIAL-LICENSE.md from .dockerignore so Dockerfile COPYs and the wheel build (pyproject `readme=`) work
+- chore(deps): bump transitive cryptography 48->50 and pyasn1 0.6.3->0.6.4 in uv.lock (clears pip-audit findings; forces pyopenssl 26.4 + sigstore 4.5)
+- fix(test): isolate `picodome` logger state via autouse conftest fixture so setup_logging's propagate=False/handler-clear can't starve caplog on a sibling xdist test (flaky test-matrix failure on 3.10/3.11)
+
 ## 2026-08-10 - CI repair + audit hash-chain fix + test optimization
 - fix(ci): dependency-audit job now works — `uv export` the full lockfile to a requirements file then `pip-audit` (uv.lock is not pip-audit-parseable); `--all-extras --all-groups` covers the full 116-pkg tree, `-e .` stripped
 - ci: drop redundant `test-watch`/`test-serve` jobs (pure subsets of `test-matrix`); keep test-scan/test-sandbox which run slow + malicious-workload tests the matrix excludes

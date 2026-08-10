@@ -18,15 +18,15 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: uv run ruff check picosentry/ tests/ scripts/
-      - run: uv run ruff format --check picosentry/ tests/ scripts/
+      - run: uv run --extra dev ruff check picosentry/ tests/ scripts/
+      - run: uv run --extra dev ruff format --check picosentry/ tests/ scripts/
 
   type-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: uv run mypy picosentry/
+      - run: uv run --extra dev mypy picosentry/
 
   test-scan:
     runs-on: ubuntu-latest
@@ -67,13 +67,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: uv pip install --extra serve --extra dev psycopg2-binary
       - name: Run Postgres live integration test
         env:
           PICOSHOGUN_DATABASE_BACKEND: postgres
           PICOSHOGUN_DATABASE_URL: postgresql://picoshogun:picoshogun-test@127.0.0.1:15432/picoshogun
         run: |
-          python - <<'PY'
+          uv run --extra serve --extra dev --with psycopg2-binary python - <<'PY'
           from picosentry.serve.database.manager import db
           from picosentry.serve.config.settings import settings
 

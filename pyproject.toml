@@ -62,7 +62,7 @@ serve = [
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "PyJWT>=2.8.0",
-    "passlib[bcrypt]>=1.7.4",
+    "bcrypt>=4.0.0",
     "python-multipart>=0.0.6",
     "croniter>=1.0.0",
 ]
@@ -184,6 +184,31 @@ filterwarnings = [
 [tool.pytest_asyncio.ini_options]
 asyncio_mode = "strict"
 asyncio_default_fixture_loop_scope = "function"
+
+[tool.coverage.run]
+branch = true
+source = ["picosentry"]
+omit = [
+    "picosentry/_cli_commands/*",
+    "picosentry/*/__main__.py",
+    "picosentry/scan/daemon/*",
+    "picosentry/sandbox/daemon/*",
+    "picosentry/serve/api/server.py",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+fail_under = 60
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@abc.abstractmethod",
+    "raise NotImplementedError",
+    "ponytail:",
+]
 
 [tool.ruff]
 target-version = "py310"

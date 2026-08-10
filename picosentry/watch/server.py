@@ -137,7 +137,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
 
     @app.exception_handler(Exception)
     async def _watch_global_exception_handler(_request: Request, _exc: Exception):
-        logger.exception("Unhandled error in PicoWatch request")  # noqa: LOG004
+        logger.exception("Unhandled error in PicoWatch request")
         return JSONResponse(
             status_code=500,
             content={"error": "internal_server_error"},

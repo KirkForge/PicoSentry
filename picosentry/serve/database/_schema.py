@@ -671,6 +671,20 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_correlation_chains_org ON correlation_chains(org_id);
     """,
     ),
+    Migration(
+        11,
+        "add_audit_hash_chain",
+        """
+        ALTER TABLE audit_log ADD COLUMN prev_hash TEXT DEFAULT '';
+        ALTER TABLE audit_log ADD COLUMN row_hash TEXT DEFAULT '';
+        CREATE INDEX IF NOT EXISTS idx_audit_hash ON audit_log(prev_hash);
+    """,
+        postgres_sql="""
+        ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS prev_hash TEXT DEFAULT '';
+        ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS row_hash TEXT DEFAULT '';
+        CREATE INDEX IF NOT EXISTS idx_audit_hash ON audit_log(prev_hash);
+    """,
+    ),
 ]
 
 __all__ = [

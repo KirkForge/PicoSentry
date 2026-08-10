@@ -2,7 +2,7 @@
 
 > **These benchmarks are measured against a synthetic regression corpus, not real-world malware.** They demonstrate rule coverage and regression prevention, not production detection rates. Real-world held-out benchmarking is an ongoing validation track.
 
-*Generated 2026-07-29. Corpus: 6495 JSON files (5558 pos / 930 neg / 7 tricky) across 7 ecosystems. See [Validation Limitations](#validation-limitations) for scope boundaries.*
+*Generated 2026-07-29. Corpus: 6,495 test fixtures (3,558 positive / 2,930 negative / 7 tricky) across 7 ecosystems. See [Validation Limitations](#validation-limitations) for scope boundaries.*
 
 ## Rule count
 
@@ -29,9 +29,9 @@ PicoSentry operates in three distinct modes. Benchmarks in this card cover only 
 
 | Metric | Value |
 |---|---|
-| **JSON files** | 6495 |
-| **Positive fixtures** | 5558 |
-| **Negative fixtures** | 930 |
+| **Test fixtures** | 6,495 |
+| **Positive fixtures** | 3,558 |
+| **Negative fixtures** | 2,930 |
 | **Tricky fixtures** | 7 |
 | **L2 rules benchmarked** | 54 (50 static + 4 campaign) |
 | **Mean precision** | 94.44% |
@@ -45,7 +45,7 @@ Low-recall rules are not uniformly distributed. This table summarizes the root c
 
 | Category | Rules | Recall range | Root cause |
 |---|---|---|---|
-| Advisory (`*-ADV-001`) | 5 | 12–67% | OSV advisory database unavailable in offline validation; requires `--advisory-db` or network access |
+| Advisory (`*-ADV-001`) | 7 | 12–67% | OSV advisory database unavailable in offline validation; requires `--advisory-db` or network access |
 | Dependency confusion (`*-DEPC-001`) | 3 | 0–33% | Requires private-registry configuration markers that synthetic fixtures lack |
 | Typosquat (Go, Maven) | 2 | 35–43% | Short module/artifact names cause edit-distance false negatives |
 | Manifest optional deps | 1 | 0% | Fixture does not trigger the specific optionalDependencies + scripts combination |

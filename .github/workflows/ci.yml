@@ -17,110 +17,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install ruff
-        run: pip install --no-cache-dir ruff
-      - name: Run ruff check
-        run: ruff check picosentry/ tests/ scripts/
-      - name: Run ruff format check
-        run: ruff format --check picosentry/ tests/ scripts/
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run ruff check picosentry/ tests/ scripts/
+      - run: uv run ruff format --check picosentry/ tests/ scripts/
 
   type-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install dev deps
-        run: pip install --no-cache-dir -e ".[dev]"
-      - name: Run mypy
-        run: mypy picosentry/ --ignore-missing-imports
-
-  test-core:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Install package
-        # `pytest tests/` (umbrella) collects every subdir — scan, watch,
-        # serve — so the install needs the deps for all of them. Fastapi
-        # (watch), PyJWT/passlib[bcrypt] (serve) live in the matching
-        # extras; `[all]` covers runtime deps and mirrors a real
-        # production install footprint. We also pull in `[dev]` for
-        # pytest/ruff/mypy — `.[all]` is runtime only.
-        run: pip install --no-cache-dir -e ".[all,dev]"
-      - name: Run core tests
-        run: python -m pytest tests/ -x --tb=short -q
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run mypy picosentry/
 
   test-scan:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package with scan deps
-        run: pip install --no-cache-dir -e ".[dev,scan]"
-      - name: Run scan tests
-        run: python -m pytest tests/scan/ -v --tb=short
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --extra scan --extra dev pytest tests/scan/ -v --tb=short
       - name: Regenerate REPORT.json
-        # Refresh the checked-in report so the doc-drift gate below
-        # compares against the *current* corpus, not the last release.
-        # continue-on-error: known gaps (advisory rules, network-dependent
-        # rules) cause exit code 1; the floor tests validate correctness.
         continue-on-error: true
-        run: picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
+        run: uv run --extra scan picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
       - name: Render per-rule table from REPORT.json
-        # Writes a fresh per-rule table into docs/BENCHMARKS.md between
-        # the BEGIN/END sentinels. Idempotent: a no-op run produces
-        # zero diff if the doc is already in sync.
-        run: python scripts/render_benchmarks.py
+        run: uv run python scripts/render_benchmarks.py
       - name: Verify docs/BENCHMARKS.md is in sync
-        # Drift gate: if a fixture was added/changed/removed without
-        # re-rendering the doc, this step fails with the full diff.
-        # continue-on-error: local rendering uses positive fixtures only;
-        # CI uses full validation including negatives, so numbers differ.
         continue-on-error: true
         run: git diff --exit-code docs/BENCHMARKS.md
       - name: Verify scan determinism
-        # Two scans of the same input must produce identical output.
-        # Exit 0: deterministic. Exit 4: results differ.
-        run: picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
-
-  test-watch:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package
-        # `[watch-server]` brings in fastapi + uvicorn, which the watch HTTP
-        # daemon and its tests require. `[otel]` provides the metrics imports
-        # used by the rate limiter and server modules under tests/watch/.
-        run: pip install --no-cache-dir -e ".[dev,watch-server,otel]"
-      - name: Run watch tests
-        run: python -m pytest tests/watch/ -v --tb=short
-
-  test-serve:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package with serve deps
-        run: pip install --no-cache-dir -e ".[dev,serve]"
-      - name: Run serve tests
-        run: python -m pytest tests/serve/ -v --tb=short
+        run: uv run --extra scan picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
 
   postgres-live-test:
     runs-on: ubuntu-latest
@@ -143,13 +66,8 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package with serve deps and psycopg2
-        run: |
-          pip install --no-cache-dir -e ".[dev,serve]"
-          pip install --no-cache-dir psycopg2-binary
+      - uses: astral-sh/setup-uv@v6
+      - run: uv pip install --extra serve --extra dev psycopg2-binary
       - name: Run Postgres live integration test
         env:
           PICOSHOGUN_DATABASE_BACKEND: postgres
@@ -198,16 +116,11 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package
-        run: pip install --no-cache-dir -e ".[dev]"
-      - name: Run sandbox tests (standard)
-        run: python -m pytest tests/sandbox/ -v --tb=short -m "not malicious_workload"
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --extra dev pytest tests/sandbox/ -v --tb=short -m "not malicious_workload"
       - name: Run sandbox malicious workload tests
         if: ${{ github.ref == 'refs/heads/main' }}
-        run: python -m pytest tests/sandbox/test_malicious_workloads.py -v --tb=short
+        run: uv run --extra dev pytest tests/sandbox/test_malicious_workloads.py -v --tb=short
         env:
           PICODOME_SANDBOX_TESTS: "1"
 
@@ -218,48 +131,38 @@ jobs:
         python-version: ['3.10', '3.11', '3.12', '3.13']
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - name: Install package
-        # `pytest tests/` (umbrella) collects every subdir — scan, watch,
-        # serve — so the install needs the deps for all of them.
-        # `.[all,dev]` covers runtime deps (mirrors a real production
-        # install footprint) plus the test tools in `[dev]`.
-        run: pip install --no-cache-dir -e ".[all,dev]"
-      - name: Run full test suite
-        run: python -m pytest tests/ -x --tb=short -q
+      - name: Run full test suite with coverage
+        run: uv run --extra all --extra dev pytest tests/ -m "not slow" --cov=picosentry --cov-report=xml --cov-report=term-missing
+      - name: Upload coverage
+        if: matrix.python-version == '3.12'
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
 
   cli-verification:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package
-        run: pip install --no-cache-dir -e .
-      - name: Verify CLI
-        run: |
-          picosentry --version
-          picosentry health
-          picosentry scan --help
-          picosentry sandbox --help
-          picosentry watch --help
-          picosentry serve --help
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --extra all picosentry --version
+      - run: uv run --extra all picosentry health
+      - run: uv run --extra all picosentry scan --help
+      - run: uv run --extra all picosentry sandbox --help
+      - run: uv run --extra all picosentry watch --help
+      - run: uv run --extra all picosentry serve --help
 
   determinism-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: actions/setup-python@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Install package
-        run: pip install --no-cache-dir -e .
+      - uses: astral-sh/setup-uv@v6
       - name: Verify shared enums are consistent
         run: |
-          python -c "
+          uv run python -c "
           from picosentry._core.models import Severity, Verdict
           from picosentry.scan.models import Severity as ScanSev
           from picosentry.sandbox.models import Severity as SandboxSev, Verdict as SandboxVerdict
@@ -274,7 +177,7 @@ jobs:
 
   docker-build:
     runs-on: ubuntu-latest
-    needs: [test-core, cli-verification]
+    needs: [test-matrix, cli-verification]
     steps:
       - uses: actions/checkout@v7
       - name: Build Docker image
@@ -301,8 +204,7 @@ jobs:
 
   docker-build-arm64:
     runs-on: ubuntu-latest
-    needs: [test-core, cli-verification]
-    # ceiling: runs under QEMU emulation (see state.md "Known blockers / ceilings")
+    needs: [test-matrix, cli-verification]
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU for arm64 emulation
@@ -317,3 +219,17 @@ jobs:
       - name: Verify arm64 image runs sandbox smoke
         run: |
           docker run --platform linux/arm64 --rm picosentry:test-arm64 sandbox --help > /dev/null && echo "PASS: sandbox --help on arm64" || echo "NOTE: sandbox --help may fail under QEMU emulation (seccomp arch mismatch) — this is expected; the release buildx bake builds natively"
+
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Export uv.lock as a requirements file
+        run: |
+          uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
+          grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
+      - name: Install pip-audit
+        run: uv pip install pip-audit
+      - name: Run pip-audit against lockfile
+        run: uv run pip-audit --no-deps -r requirements-audit.clean.txt --desc

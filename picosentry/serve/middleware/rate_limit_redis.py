@@ -56,6 +56,7 @@ class RedisRateLimitBackend:
             return client
         except ImportError:
             logger.warning("Redis package not installed; rate limit stays in-memory")
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis rate-limit backend connection failed: %s", exc)
 
@@ -86,6 +87,7 @@ class RedisRateLimitBackend:
             pipe.expire(key, self._window + 1)
             _, _, count, _ = pipe.execute()
             return int(count)
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis rate-limit update failed: %s", exc)
             self._available = False
@@ -110,6 +112,7 @@ class RedisRateLimitBackend:
             pipe.zcard(key)
             _, count = pipe.execute()
             return int(count)
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis rate-limit count failed: %s", exc)
             self._available = False
@@ -131,6 +134,7 @@ class RedisRateLimitBackend:
             else:
                 for key in client.scan_iter(match=f"{self._key_prefix}:*"):
                     client.delete(key)
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis rate-limit reset failed: %s", exc)
             self._available = False

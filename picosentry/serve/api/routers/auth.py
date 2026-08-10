@@ -1,7 +1,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from picosentry.serve.api.deps import auth_service, get_current_user
 from picosentry.serve.api.models import RegisterRequest
@@ -36,7 +36,7 @@ class _LoginRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     username: str
-    password: str
+    password: str = Field(..., min_length=1, max_length=72)
 
 
 @router.post("/login", tags=["Authentication"])

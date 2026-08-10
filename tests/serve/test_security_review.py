@@ -420,7 +420,7 @@ class TestAuditMiddlewareHardening:
             def validate_api_key(self, api_key):
                 return None
 
-        with caplog.at_level(logging.WARNING, logger="picoshogun.Audit"):
+        with caplog.at_level(logging.DEBUG, logger="picoshogun.Audit"):
             monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
             r = client.get("/health/live", headers={"Authorization": "Bearer bad-token"})
 
@@ -439,7 +439,7 @@ class TestAuditMiddlewareHardening:
             def validate_api_key(self, api_key):
                 raise RuntimeError("api key validator crashed")
 
-        with caplog.at_level(logging.WARNING, logger="picoshogun.Audit"):
+        with caplog.at_level(logging.DEBUG, logger="picoshogun.Audit"):
             monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
             r = client.get("/health/live", headers={"X-Api-Key": "bad-key"})
 

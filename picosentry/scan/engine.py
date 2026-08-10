@@ -413,7 +413,7 @@ class ScanEngine:
                                 findings_count=len(findings),
                             )
                         )
-                except BaseException as exc:
+                except Exception as exc:
                     logger.exception("Rule %s raised an exception", primary_rule_id)
                     logger.debug("Rule %s traceback", primary_rule_id, exc_info=True)
                     elapsed = int(now_ms() - rule_start)
@@ -428,6 +428,8 @@ class ScanEngine:
                                 error=f"{type(exc).__name__}: {exc}",
                             )
                         )
+                except BaseException:
+                    raise
 
         if rules is not None:
             selected_set = set(selected_rules.keys())

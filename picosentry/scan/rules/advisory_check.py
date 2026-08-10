@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import contextlib
+import http.client
+import json
 import logging
+import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -420,7 +423,13 @@ def detect_all_advisory_vulnerabilities(
                     try:
                         osv_advisories = osv_client.query(osv_eco, pkg_name, pkg_version)
                         eco_findings = _merge_osv_findings(eco_findings, osv_advisories, config, packages, local_ids)
-                    except Exception as exc:
+                    except (
+                        urllib.error.URLError,
+                        OSError,
+                        TimeoutError,
+                        json.JSONDecodeError,
+                        http.client.HTTPException,
+                    ) as exc:
                         logger.warning("OSV query failed for %s/%s: %s", osv_eco, pkg_name, exc)
 
         findings.extend(eco_findings)

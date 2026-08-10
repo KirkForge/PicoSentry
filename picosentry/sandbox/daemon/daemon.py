@@ -19,6 +19,7 @@ class _PicoDomeHTTPServer(HTTPServer):
     """Reusable socket address so the daemon can restart quickly in tests and production."""
 
     allow_reuse_address = True
+    timeout = 30
 
 
 class PicoDomeDaemon:

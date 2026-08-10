@@ -48,10 +48,8 @@ def run_daemon(
             warnings = enterprise_daemon_checks(auth_config.mode, host)
             for w in warnings:
                 logger.warning(w)
-                print(f"  WARNING: {w}")
         except EnterpriseViolation as e:
             logger.critical("Enterprise violation: %s", e)
-            print(f"ERROR: {e}", file=sys.stderr)
             audit(
                 "daemon.start_denied",
                 target=f"{host}:{port}",
@@ -60,18 +58,12 @@ def run_daemon(
                 fail_closed=True,
             )
             sys.exit(e.exit_code)
-        print("  Enterprise: ON (fail-closed enforced)")
     elif auth_config.mode == "off":
         if host not in ("127.0.0.1", "localhost", "::1"):
             logger.critical(
                 "SECURITY: auth=off on non-loopback interface %s — refusing to start. "
                 "Bind to 127.0.0.1 or enable authentication (PICOSENTRY_AUTH_MODE=token).",
                 host,
-            )
-            print(
-                f"  FATAL: auth=off on non-loopback {host} — refusing to start. "
-                "Bind to 127.0.0.1 or set PICOSENTRY_AUTH_MODE=token.",
-                file=sys.stderr,
             )
             audit(
                 "daemon.start_denied",
@@ -84,7 +76,6 @@ def run_daemon(
             "Daemon running with auth=off (loopback only). Not recommended for production. "
             "Set PICOSENTRY_ENTERPRISE_MODE=1 to enforce auth."
         )
-        print("  WARNING: auth=off (loopback only) — not recommended for production", file=sys.stderr)
 
     set_gauge("daemon.active_requests", 0)
     increment("daemon.start")
@@ -99,7 +90,6 @@ def run_daemon(
             logger.info("TLS enabled: cert=%s", tls_config.cert_file)
         except (FileNotFoundError, ssl.SSLError) as e:
             logger.critical("Failed to configure TLS: %s", e)
-            print(f"ERROR: Failed to configure TLS: {e}", file=sys.stderr)
             sys.exit(8)
 
     server = HTTPServer((host, port), HealthHandler)
@@ -122,17 +112,13 @@ def run_daemon(
 
     proto = "https" if ssl_ctx else "http"
     logger.info("PicoSentry daemon starting on %s://%s (%s)", proto, server_name, auth_summary)
-    print(f"PicoSentry daemon — {proto}://{server_name}")
-    print(f"  Auth:       {auth_config.mode}")
-    print(f"  Public:     {public}")
-    print(f"  Rate limit: {auth_config.rate_limit_rps or 'unlimited'} rps")
+    logger.info("  Public endpoints: %s", public)
     if ssl_ctx:
-        print(f"  TLS:        {tls_config.cert_file}")
-        if tls_config.is_mtls():
-            print(f"  mTLS CA:    {tls_config.mtls_ca}")
-    print(f"  Health:     {proto}://{server_name}/health")
-    print(f"  Readiness:  {proto}://{server_name}/ready")
-    print(f"  Metrics:    {proto}://{server_name}/metrics")
+        logger.info(
+            "  TLS: cert=%s%s", tls_config.cert_file, f", mTLS CA: {tls_config.mtls_ca}" if tls_config.is_mtls() else ""
+        )
+    logger.info("  Health: %s://%s/health", proto, server_name)
+    logger.info("  Metrics: %s://%s/metrics", proto, server_name)
 
     try:
         server.serve_forever()

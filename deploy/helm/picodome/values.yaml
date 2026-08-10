@@ -150,6 +150,9 @@ healthProbe:
   readiness:
     initialDelaySeconds: 3
     periodSeconds: 10
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 10
 # Horizontal Pod Autoscaler — scale based on CPU/memory utilization.
 # Requires metrics-server in the cluster.
 autoscaling:
@@ -162,6 +165,19 @@ autoscaling:
   scaleUpStabilizationSeconds: 60
 
 # PodDisruptionBudget — ensures minimum availability during voluntary disruptions.
+# Pod priority class (e.g. system-cluster-critical for critical workloads)
+priorityClassName: ""
+
+# Topology spread constraints — distribute pods across zones/nodes.
+# Uncomment and adjust for multi-AZ clusters:
+# topologySpreadConstraints:
+#   - maxSkew: 1
+#     topologyKey: topology.kubernetes.io/zone
+#     whenUnsatisfiable: ScheduleAnyway
+#     labelSelector:
+#       matchLabels:
+#         {{- include "picodome.selectorLabels" . | nindent 10 }}
+
 podDisruptionBudget:
   enabled: true
   minAvailable: 1

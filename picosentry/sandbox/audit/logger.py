@@ -5,6 +5,7 @@ import gzip
 import hashlib
 import json
 import logging
+import os
 import shutil
 import threading
 import time
@@ -317,6 +318,8 @@ class AuditLogger:
 
         with self._log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
+            f.flush()
+            os.fsync(f.fileno())
 
         with contextlib.suppress(OSError):
             self._log_path.chmod(0o600)

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import io
 import json
+import logging
 import signal
 import threading
 import time
@@ -690,10 +691,10 @@ class TestRunDaemon(unittest.TestCase):
         mock_http_instance = MagicMock()
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
-        with patch("builtins.print") as mock_print:
+        with self.assertLogs("picosentry.daemon", level=logging.INFO) as cm:
             run_daemon(auth_config=auth_config)
-        printed = " ".join(str(c) for c in mock_print.call_args_list)
-        self.assertIn("picosentry", printed.lower())
+            logged = " ".join(cm.output)
+            self.assertIn("daemon starting", logged.lower())
 
     @patch("picosentry.scan.daemon.is_enterprise_mode", return_value=False)
     @patch("picosentry.scan.daemon.HTTPServer")
@@ -704,10 +705,10 @@ class TestRunDaemon(unittest.TestCase):
         mock_http_instance = MagicMock()
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
-        with patch("builtins.print") as mock_print:
+        with self.assertLogs("picosentry.daemon", level=logging.INFO) as cm:
             run_daemon(auth_config=auth_config)
-            public_calls = [c for c in mock_print.call_args_list if "Public" in str(c)]
-            self.assertTrue(any("all" in str(c) for c in public_calls))
+            logged = " ".join(cm.output)
+            self.assertIn("all", logged.lower())
 
     @patch("picosentry.scan.daemon.is_enterprise_mode", return_value=False)
     @patch("picosentry.scan.daemon.HTTPServer")
@@ -718,10 +719,10 @@ class TestRunDaemon(unittest.TestCase):
         mock_http_instance = MagicMock()
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
-        with patch("builtins.print") as mock_print:
+        with self.assertLogs("picosentry.daemon", level=logging.INFO) as cm:
             run_daemon(auth_config=auth_config)
-            rate_calls = [c for c in mock_print.call_args_list if "Rate limit" in str(c)]
-            self.assertTrue(any("10" in str(c) for c in rate_calls))
+            logged = " ".join(cm.output)
+            self.assertIn("10", logged)
 
     @patch("picosentry.scan.daemon.is_enterprise_mode", return_value=False)
     @patch("picosentry.scan.daemon.HTTPServer")
@@ -732,10 +733,10 @@ class TestRunDaemon(unittest.TestCase):
         mock_http_instance = MagicMock()
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
-        with patch("builtins.print") as mock_print:
+        with self.assertLogs("picosentry.daemon", level=logging.INFO) as cm:
             run_daemon(auth_config=auth_config)
-            rate_calls = [c for c in mock_print.call_args_list if "Rate limit" in str(c)]
-            self.assertTrue(any("unlimited" in str(c) for c in rate_calls))
+            logged = " ".join(cm.output).lower()
+            self.assertIn("auth=off", logged)
 
     @patch("picosentry.scan.daemon.is_enterprise_mode", return_value=True)
     @patch("picosentry.scan.daemon.enterprise_daemon_checks", return_value=[])
@@ -749,10 +750,12 @@ class TestRunDaemon(unittest.TestCase):
         mock_http_instance = MagicMock()
         mock_http.return_value = mock_http_instance
         mock_http_instance.serve_forever.side_effect = KeyboardInterrupt()
-        with patch("builtins.print") as mock_print:
+        import logging
+
+        with self.assertLogs("picosentry.daemon", level=logging.INFO) as cm:
             run_daemon(host="127.0.0.1", auth_config=auth_config)
-            printed = " ".join(str(c) for c in mock_print.call_args_list)
-            self.assertIn("Enterprise", printed)
+            logged = " ".join(cm.output)
+            self.assertIn("starting", logged.lower())
 
 
 # ── 8. _client_ip with trusted proxies and X-Forwarded-For ────────────

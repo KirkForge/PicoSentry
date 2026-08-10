@@ -41,6 +41,7 @@ def test_discover_fixtures_under_repo_root() -> None:
 
 
 @pytest.mark.timeout(180)
+@pytest.mark.slow
 def test_validation_report_is_deterministic() -> None:
     """Two back-to-back runs produce identical reports (no randomness)."""
     r1 = run_validation()
@@ -93,6 +94,7 @@ def test_empty_metrics_have_zero_precision_recall() -> None:
 
 
 @pytest.mark.timeout(180)
+@pytest.mark.slow
 def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
     """Every fixture passes and every expected rule fires.
 
@@ -118,6 +120,7 @@ def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
 
 
 @pytest.mark.timeout(180)
+@pytest.mark.slow
 def test_validation_at_least_one_negative_fixture_produces_no_findings() -> None:
     """At least one negative fixture exists and produces zero findings across
     all rules. This is the FP-rate sanity check: a scanner that fires on

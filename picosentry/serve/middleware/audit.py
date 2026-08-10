@@ -1,6 +1,8 @@
+import hashlib
 import json
 import logging
 import sqlite3
+import threading
 from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -25,6 +27,34 @@ if psycopg2 is not None:
 
 
 _auth_svc = None
+_audit_lock = threading.Lock()
+
+
+class _AuditChain:
+    __slots__ = ("prev_hash",)
+
+    def __init__(self) -> None:
+        self.prev_hash: str = ""
+
+
+_audit_chain = _AuditChain()
+
+
+def _seed_chain(db) -> None:
+    """Resume the hash chain from the last committed row_hash.
+
+    The chain is in-memory only; without this the first row written after a
+    process restart would link to prev_hash="" even though the last committed
+    row has a non-empty row_hash, breaking tamper-evidence across restarts.
+    """
+    if _audit_chain.prev_hash:
+        return
+    try:
+        row = db.execute_one("SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1")
+    except _AUDIT_DB_ERRORS:
+        return
+    if row and row.get("row_hash"):
+        _audit_chain.prev_hash = row["row_hash"]
 
 
 def _get_auth_service():
@@ -72,14 +102,14 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     if payload:
                         _user_id = payload.get("user_id")
                 except (ValueError, KeyError, TypeError, RuntimeError):
-                    logger.exception("Token validation failed in audit middleware")
+                    logger.debug("Token validation failed in audit middleware")
             elif api_key:
                 try:
                     key_info = auth_svc.validate_api_key(api_key)
                     if key_info:
                         _user_id = key_info.get("user_id")
                 except (ValueError, KeyError, TypeError, RuntimeError):
-                    logger.exception("API key validation failed in audit middleware")
+                    logger.debug("API key validation failed in audit middleware")
 
         if _user_id is None:
             auth_header = request.headers.get("authorization", "")
@@ -104,21 +134,39 @@ class AuditMiddleware(BaseHTTPMiddleware):
         db = _get_db()
         if db:
             try:
-                db.execute_insert(
-                    """
-                    INSERT INTO audit_log (action, user_id, resource_type, resource_id, details, ip_address, user_agent)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                    """,
-                    (
+                details_json = json.dumps(details, sort_keys=True)
+                with _audit_lock:
+                    _seed_chain(db)
+                    parts = [
+                        _audit_chain.prev_hash,
                         method,
-                        _user_id if _user_id is not None else -1,
-                        "api",
+                        str(_user_id),
                         path,
-                        json.dumps(details),
-                        ip_address,
-                        user_agent,
-                    ),
-                )
+                        details_json,
+                        ip_address or "",
+                    ]
+                    canonical = "|".join(parts)
+                    row_hash = hashlib.sha256(canonical.encode()).hexdigest()
+                    db.execute_insert(
+                        """
+                        INSERT INTO audit_log (action, user_id, resource_type,
+                            resource_id, details, ip_address, user_agent,
+                            prev_hash, row_hash)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (
+                            method,
+                            _user_id if _user_id is not None else -1,
+                            "api",
+                            path,
+                            details_json,
+                            ip_address,
+                            user_agent,
+                            _audit_chain.prev_hash,
+                            row_hash,
+                        ),
+                    )
+                    _audit_chain.prev_hash = row_hash
             except _AUDIT_DB_ERRORS:
                 logger.exception("Audit DB insert failed")
 

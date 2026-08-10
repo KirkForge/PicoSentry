@@ -11,8 +11,10 @@ OSV format and loaded by ``picosentry.scan.advisory.AdvisoryDB``.
 
 from __future__ import annotations
 
+import http.client
 import json
 import logging
+import urllib.error
 import urllib.request
 import zipfile
 from dataclasses import dataclass
@@ -295,7 +297,7 @@ def load_osv_malicious(
         url = f"https://osv-vulnerabilities.storage.googleapis.com/{dump_name}/all.zip"
         try:
             body = _safe_get(url, timeout=180)
-        except Exception as exc:
+        except (urllib.error.URLError, OSError, TimeoutError, ConnectionError, http.client.HTTPException) as exc:
             logger.warning("Failed to download OSV dump for %s (bucket=%s): %s", eco, dump_name, exc)
             continue
 
@@ -341,7 +343,7 @@ def load_osv_malicious(
                             or ("https://osv.dev/",),
                         )
                     )
-        except Exception as exc:
+        except (zipfile.BadZipFile, json.JSONDecodeError, KeyError, ValueError, OSError) as exc:
             logger.warning("Failed to parse OSV dump for %s: %s", eco, exc)
             continue
 

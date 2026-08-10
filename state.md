@@ -3,10 +3,31 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `4394549e` — CI round 4 fixes
+- Head: `4394549e` — CI round 4 fixes (working tree has uncommitted review-gap + improvement-loop diff)
 - Tests: All passing locally; CI has 2 pre-existing flaky tests (websocket auth, validation timeout)
 - Validation: 85% precision / 60% recall (adjusted floors)
-- Last updated: 2026-08-08
+- Last updated: 2026-08-10
+
+## Session 2026-08-10: Improvement loop (CI + test optimization + bug hunt)
+
+### CI (`ci.yml`)
+- **dependency-audit job fixed**: `pip-audit -r uv.lock` was broken (uv.lock is not pip-audit-parseable). Now `uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt`, strip `-e .`, then `uv run pip-audit --no-deps -r requirements-audit.clean.txt --desc`. Covers full 116-pkg tree.
+- **Dropped redundant `test-watch`/`test-serve` jobs** — pure subsets of `test-matrix` (`pytest tests/ -m "not slow"` with `--extra all`); neither dir has slow-marked tests. Kept test-scan/test-sandbox (run slow + malicious-workload tests the matrix excludes).
+- Verified action majors (checkout@v7, setup-uv@v6) exist; paths-ignore only skips docs.
+
+### Test optimization (root cause, not skip)
+- **Collection hang**: pytest recursively walked `tests/scan/fixtures/` (7371 dirs / 96MB / 9107 JSONs, zero test files). `--timeout` doesn't apply to collection → looked like a hang. Fix: `collect_ignore_glob = ["fixtures/**"]` in `tests/scan/conftest.py`. Collection 81s+ → 4.6s.
+- **Full-suite hang**: `tests/scan/test_validation.py` had 3 non-slow tests each calling `run_validation()` (scans all 6495 fixtures, >300s each; deterministic runs it twice). Marked `@pytest.mark.slow` (the marker's documented purpose). Full `-m "not slow"` scan suite now completes in ~150s.
+
+### Bug hunt (recent review-gap changes)
+- **fix(serve/audit)**: audit hash chain was NOT tamper-evident across restarts — `_audit_chain.prev_hash` was in-memory only, never seeded from DB, so first post-restart row linked to `prev_hash=""`. Added `_seed_chain(db)` reading last committed `row_hash` on first write (inside `_audit_lock`). Removed dead `_prev_hash` global.
+- Verified correct (no change): bcrypt migration (all call sites use `bcrypt.hashpw/checkpw`, no passlib imports, `max_length=72` on passwords), server.py error handler (no stack leak), plugin_host setrlimit, redis liveness check, firewall header sanitization.
+
+### Pending
+- None from this session.
+
+### Blocked
+- None from this session.
 
 ## Session 2026-08-08b: CI Fix Rounds 2-4
 
@@ -548,3 +569,12 @@ The `docker-build-arm64` job in `.github/workflows/ci.yml` builds and tests an a
 ## Historical LLM scratch (local-only)
 
 # PicoSentry LLM scratch (local-only)
+
+## Session 2026-08-10: Test suite optimization
+### Changed
+- tests/scan/conftest.py: `collect_ignore_glob = ["fixtures/**"]` — stops pytest walking the 96MB / 7371-dir fixture tree. Collection 81s+ -> 4.58s.
+- tests/scan/test_validation.py: marked 3 run_validation() tests `@pytest.mark.slow` (each scans all 6495 validation fixtures; deterministic runs it twice; a single run >300s). Full `-m "not slow"` suite now completes in 142s instead of hanging.
+### Pending
+- None.
+### Blocked
+- None.

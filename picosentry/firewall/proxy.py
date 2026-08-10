@@ -84,7 +84,7 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             if exc.fp and hasattr(exc.fp, "read"):
                 self.wfile.write(exc.fp.read(_MAX_ERROR_BODY))
             return
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError):
             self.send_response(502)
             self.end_headers()
             self.wfile.write(b'{"error": "upstream unreachable"}')
@@ -176,7 +176,7 @@ class _ProxyHandler(BaseHTTPRequestHandler):
         except urllib.error.HTTPError as exc:
             self.send_response(exc.code)
             self.end_headers()
-        except Exception:
+        except (urllib.error.URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError):
             self.send_response(502)
             self.end_headers()
 

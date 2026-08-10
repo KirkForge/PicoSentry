@@ -280,7 +280,7 @@ def scan_workspace(
                 len(scan_result.findings),
                 scan_result.stats.duration_ms,
             )
-        except BaseException as e:
+        except Exception as e:
             result.failed_projects += 1
             error_msg = f"{rel}: {e}"
             result.errors.append(error_msg)

@@ -2,6 +2,17 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-10 - CI repair + audit hash-chain fix + test optimization
+- fix(ci): dependency-audit job now works — `uv export` the full lockfile to a requirements file then `pip-audit` (uv.lock is not pip-audit-parseable); `--all-extras --all-groups` covers the full 116-pkg tree, `-e .` stripped
+- ci: drop redundant `test-watch`/`test-serve` jobs (pure subsets of `test-matrix`); keep test-scan/test-sandbox which run slow + malicious-workload tests the matrix excludes
+- fix(serve/audit): seed the audit hash chain from the last committed `row_hash` on first write — the in-memory chain was not tamper-evident across process restarts (first post-restart row linked to `prev_hash=""`)
+- fix(test): exclude tests/scan/fixtures from pytest collection (96MB / 7371 dirs); collection 81s+ -> 4.6s
+- fix(test): mark full-corpus validation tests @pytest.mark.slow so `-m "not slow"` completes (was hanging)
+
+## 2026-08-10 - Test suite optimization (hang + slow collection)
+- Exclude tests/scan/fixtures from pytest collection (96MB / 7371 dirs); collection 81s+ -> 4.6s
+- Mark the full-corpus validation tests @pytest.mark.slow so `-m "not slow"` completes (was hanging)
+
 ## 2026-08-08 - Fix CI regressions from review sprint
 
 - fix(scan): ecosystem gating must whitelist cross-ecosystem rules (L2-TYPO-001, L2-DEPC-001, L2-ADV-001, L2-BUILD-001) so they run for PyPI/Go/Cargo/Maven/RubyGems/NuGet projects even when npm is absent

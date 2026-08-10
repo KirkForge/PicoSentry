@@ -1,4 +1,5 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -197,6 +198,17 @@ async def lifespan(app: FastAPI):
         org_id=None,
     )
 
+    if settings.database.backup_dir:
+        scheduler.add_job(
+            name="auto_backup",
+            cron="0 2 * * *",
+            command="backup",
+            params={},
+            enabled=True,
+            org_id=None,
+        )
+        logger.info("Automatic daily backup scheduled at 02:00 UTC")
+
     health_interval = settings.orchestrator.health_check_interval
     if health_interval > 0:
         scheduler.add_job(
@@ -222,8 +234,8 @@ async def lifespan(app: FastAPI):
         from picosentry.serve.services.observability import shutdown_telemetry
 
         shutdown_telemetry()
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Telemetry shutdown failed: %s", exc)
 
     logger.info("All background services stopped")
 
@@ -250,7 +262,7 @@ async def global_exception_handler(request: Request, exc: Exception):
     import os
 
     request_id = getattr(request.state, "request_id", "unknown")
-    logger.exception("Unhandled error in API request")  # noqa: LOG004
+    logger.exception("Unhandled error in API request")
     if os.environ.get("PICOSHOGUN_ENV", "production") == "development":
         return JSONResponse(
             status_code=500,
@@ -363,6 +375,8 @@ def main() -> None:
             port=settings.api.port,
             workers=settings.api.workers,
             reload=settings.api.reload,
+            timeout_keep_alive=int(os.environ.get("PICOSHOGUN_KEEP_ALIVE", "30")),
+            timeout_graceful_shutdown=int(os.environ.get("PICOSHOGUN_GRACEFUL_SHUTDOWN", "15")),
             **ssl_kwargs,
         )
     else:
@@ -370,6 +384,8 @@ def main() -> None:
             app,
             host=settings.api.host,
             port=settings.api.port,
+            timeout_keep_alive=int(os.environ.get("PICOSHOGUN_KEEP_ALIVE", "30")),
+            timeout_graceful_shutdown=int(os.environ.get("PICOSHOGUN_GRACEFUL_SHUTDOWN", "15")),
             **ssl_kwargs,
         )
 

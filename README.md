@@ -43,7 +43,7 @@ picosentry scan examples/pypi-obfuscated-setup/
 ```text
 🦞 PicoSentry
 Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.0.5 | Corpus: vef6b3b3115bb
+Engine: v2.0.18 | Corpus: vef6b3b3115bb
 Scan ID: 08057439b4ba08d8
 
 Packages scanned: 0
@@ -68,7 +68,7 @@ The scan fires 5+ findings across obfuscation, post-install, and exfiltration ru
 | L2-IOC-001 | Known IOC behavior patterns | Hardcoded C2 host, exfil URL patterns |
 | L2-CVE-001 | Known CVEs in dependency tree | OSV-matched vulnerabilities |
 
-**54 rules across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
+**54 L2 rules (69 with L4 behavioral detectors) across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
 Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 ---
@@ -105,10 +105,10 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 rules, 1048 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 54 L2 rules, 69 total (with L4 behavioral), 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
-| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
+| `picosentry serve` | **Stable** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
 | `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
@@ -116,7 +116,7 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 1048 fixtures (899 pos / 142 neg), 54 rules, 94.44% prec, 73.79% recall — see docs/model-card.md |
+| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg / 7 tricky), 54 L2 rules (69 with L4 behavioral), 94.44% prec, 68.89% recall — see docs/model-card.md |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
 
@@ -140,8 +140,13 @@ pip install picosentry[all]           # everything
 ## More
 
 - **[Technical manual](docs/manual.md)** — full install options, gRPC transport, plugin system, corpus management, repository structure, and sandbox details
+
+### CLI commands
+
+`picosentry scan` (core scanner), `sandbox` (isolation), `watch` (LLM guards), `serve` (API server), `daemon` (sandbox-as-a-service), `admission` (K8s webhook), `corpus` (IoC packs), `diff` (compare scans), `firewall` (network policy), `rules` (list/disable rules), `init` (project config), `health` (status check), `version`, `update`.
+
 - **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
-- **[Detection benchmarks](docs/model-card.md)** — 1048 fixtures, 54 rules, precision/recall per rule
+- **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 69 rules (54 L2 + 15 L4 behavioral), precision/recall per rule
 - **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component security analysis
 - **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
 

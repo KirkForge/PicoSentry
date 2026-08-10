@@ -16,6 +16,7 @@ import json
 import logging
 import os
 import re
+import resource
 import select
 import subprocess
 import sys
@@ -145,6 +146,17 @@ class PluginHost:
     def _python_executable(self) -> str:
         return sys.executable
 
+    @staticmethod
+    def _set_resource_limits() -> None:
+        memory_mb = int(os.environ.get("PICOSHOGUN_PLUGIN_MEMORY_LIMIT_MB", "256"))
+        file_size_mb = int(os.environ.get("PICOSHOGUN_PLUGIN_FILE_SIZE_LIMIT_MB", "50"))
+        try:
+            resource.setrlimit(resource.RLIMIT_AS, (memory_mb * 1024 * 1024, memory_mb * 1024 * 1024))
+            resource.setrlimit(resource.RLIMIT_FSIZE, (file_size_mb * 1024 * 1024, file_size_mb * 1024 * 1024))
+            resource.setrlimit(resource.RLIMIT_NOFILE, (256, 256))
+        except (ValueError, OSError):
+            pass
+
     def _start_worker(self) -> None:
         if self._proc is not None:
             return
@@ -166,9 +178,6 @@ class PluginHost:
             sorted(self._capabilities),
         )
 
-        # Restrict working directory to the plugin dir. Without the
-        # `filesystem` capability the worker can still read its own code,
-        # but it starts from its own directory rather than the server cwd.
         cwd = str(self.plugin_path)
 
         self._proc = subprocess.Popen(
@@ -179,6 +188,7 @@ class PluginHost:
             text=True,
             env=env,
             cwd=cwd,
+            preexec_fn=self._set_resource_limits,
         )
 
         # Wait for the ready message.

@@ -73,6 +73,7 @@ class RedisTokenBucketLimiter:
         except ImportError:
             logger.warning("Redis package not installed, using in-memory rate limiter")
             self._available = False
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis connection failed for rate limiter: %s", exc)
             self._available = False
@@ -109,6 +110,7 @@ class RedisTokenBucketLimiter:
                 ],
             )
             return bool(result)
+        # ponytail: broad catch — redis types unavailable if import fails
         except Exception as exc:
             logger.warning("Redis rate limit check failed: %s, falling back to in-memory", exc)
             self._available = False

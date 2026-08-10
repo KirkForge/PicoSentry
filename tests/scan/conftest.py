@@ -37,6 +37,11 @@ from picosentry.scan.models import (
 
 FIXTURES_DIR: Path = Path(__file__).parent / "fixtures"
 
+# pytest collects this whole directory recursively by default, and tests/scan/fixtures
+# holds 7000+ nested fixture dirs (~96MB). There are no test files inside — they are
+# scan inputs only. Exclude them so collection doesn't walk the entire tree.
+collect_ignore_glob = ["fixtures/**"]
+
 
 # ─── Project builders ──────────────────────────────────────────────────────
 

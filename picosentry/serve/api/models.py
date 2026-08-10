@@ -106,7 +106,7 @@ class RegisterRequest(BaseModel):
         model_config = {"extra": "forbid"}
 
     username: str = Field(..., min_length=3, max_length=50)
-    password: str = Field(..., min_length=8)
+    password: str = Field(..., min_length=8, max_length=72)
     email: str | None = Field(None)
 
 

@@ -3,30 +3,35 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `6403eb88` (dev) — CI repair round 3 complete; 3 pending items committed & split
-- Tests: All passing locally (4592 passed on 3.10); CI needs re-run to confirm postgres/docker/deps jobs
+- Head: `8c26a04b` (dev) — **CI fully green** (PicoSentry CI run 31421163207 all 14 jobs ✓; Admission Matrix run 31421161650 all 3 ✓)
+- Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-10
 
-## Session 2026-08-10 (final): CI repair round 3 — COMPLETE
+## Session 2026-08-10 (final): CI repair round 3 — COMPLETE, CI GREEN
 
-### What was done
-- Committed + split the 3 pending items into clean commits:
-  - `426b8b69` fix(db): `_validate_param_count` counts both `?` and `%s` (postgres fix, was uncommitted)
-  - `fdbd0533` fix(test): isolate `picodome` logger state via autouse conftest fixture — root cause of test-matrix 3.10/3.11 flake: `test_logging_extra.setup_logging()` clears handlers + sets `propagate=False` on the shared `picodome` logger, so a sibling test in the same xdist worker (`test_daemon_store`) asserting on caplog saw empty records. Verified: `-n 2 --dist=loadfile` stress runs + full `tests/sandbox/` (1584 passed) + full suite (4592 passed).
-  - `6403eb88` chore(deps): bump transitive cryptography 48->50, pyasn1 0.6.3->0.6.4 in uv.lock (clears pip-audit dependency-audit findings; forces pyopenssl 26.4 + sigstore 4.5). pyproject.toml unchanged.
-- `.dockerignore` fix (README/COMMERCIAL-LICENSE removal) was already in `a15f0844`.
+### What was done (commits)
+- `426b8b69` fix(db): `_validate_param_count` counts both `?` and `%s` (postgres fix, was uncommitted)
+- `fdbd0533` fix(test): isolate `picodome` logger state via autouse conftest fixture — root cause of test-matrix 3.10/3.11 flake: `test_logging_extra.setup_logging()` clears handlers + sets `propagate=False` on the shared `picodome` logger, so a sibling test in the same xdist worker (`test_daemon_store`) asserting on caplog saw empty records. Verified: `-n 2 --dist=loadfile` stress runs + full `tests/sandbox/` (1584 passed) + full suite (4592 passed).
+- `6403eb88` chore(deps): bump transitive cryptography 48->50, pyasn1 0.6.3->0.6.4 in uv.lock (clears pip-audit dependency-audit findings; forces pyopenssl 26.4 + sigstore 4.5). pyproject.toml unchanged.
+- `8c26a04b` fix(ci): unblock the last two failing jobs:
+  - .dockerignore stopped excluding `LICENSE`/`LICENSE-SUMMARY.md` (Dockerfile COPYs them → `/LICENSE: not found`)
+  - uv.lock bumped starlette 1.2.1 -> 1.6.0 (transitive via fastapi) → clears PYSEC-2026-248/249 (request.url host confusion, urlencoded DoS)
+- `.dockerignore` README/COMMERCIAL-LICENSE removal was already in `a15f0844`.
 
-### Verification (all green, head `6403eb88`)
+### CI result (head `8c26a04b`) — ✅ ALL GREEN
+- PicoSentry CI run 31421163207 — all 14 jobs passed: lint, type-check, test-scan, test-sandbox, cli-verification, determinism-check, dependency-audit, postgres-live-test (15+16), test-matrix (3.10/3.11/3.12/3.13), docker-build, docker-build-arm64.
+- PicoDome Admission Real-Cluster Matrix run 31421161650 — all 3 admission-kind jobs passed (v1.28.13, v1.29.8, v1.30.4). (Failed on the prior head; green on `8c26a04b`.)
+
+### Local verification (head `8c26a04b`)
 - `uv run ruff check` — 0 errors
 - `uv run ruff format --check` — clean
 - `uv run mypy picosentry/` — Success (407 source files)
 - `uv run pytest tests/ -m "not slow"` — 4592 passed, 18 skipped, 4 subtests passed (256s)
-- `uv export` shows `cryptography==50.0.0`, `pyasn1==0.6.4`
+- pip-audit on `uv export` (full tree): "No known vulnerabilities found"
 
 ### Pending / next steps
-- Re-run CI to confirm: postgres-live-test, dependency-audit, test-matrix (3.10/3.11), docker-build all pass. Local docker/postgres unavailable — needs CI.
-- dependency-audit may still flag `starlette 1.2.1` (separate finding, out of scope this round).
+- None blocking. Both PicoSentry CI and the Admission Real-Cluster Matrix workflow are green on `8c26a04b`.
 
 ## Session 2026-08-10 (late): dev merge + CI repair — INCOMPLETE, reboot here
 

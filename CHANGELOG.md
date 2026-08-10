@@ -2,10 +2,12 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
-## 2026-08-10 - CI repair round 3 (postgres + docker + deps + xdist flake)
+## 2026-08-10 - CI repair round 3 (postgres + docker + deps + xdist flake) — CI GREEN
+PicoSentry CI run 31421163207 is fully green (all 14 jobs) on head `8c26a04b`.
 - fix(db): `_validate_param_count` counts both `?` and `%s` placeholders so postgres SQL (native `%s`) passes validation (was "0 placeholders but 1 parameter")
-- fix(ci): remove README.md + COMMERCIAL-LICENSE.md from .dockerignore so Dockerfile COPYs and the wheel build (pyproject `readme=`) work
+- fix(ci): stop excluding `LICENSE`/`LICENSE-SUMMARY.md` in .dockerignore — the Dockerfile COPYs them (was `/LICENSE: not found`); README/COMMERCIAL-LICENSE removal landed earlier in `a15f0844`
 - chore(deps): bump transitive cryptography 48->50 and pyasn1 0.6.3->0.6.4 in uv.lock (clears pip-audit findings; forces pyopenssl 26.4 + sigstore 4.5)
+- chore(deps): bump transitive starlette 1.2.1->1.6.0 in uv.lock (clears PYSEC-2026-248/249: request.url host confusion + urlencoded body DoS)
 - fix(test): isolate `picodome` logger state via autouse conftest fixture so setup_logging's propagate=False/handler-clear can't starve caplog on a sibling xdist test (flaky test-matrix failure on 3.10/3.11)
 
 ## 2026-08-10 - CI repair + audit hash-chain fix + test optimization

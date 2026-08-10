@@ -254,7 +254,7 @@ class TestAuthEndpoints:
                 "password": "testpassword123",
             },
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         data = resp.json()
         assert "user_id" in data
         assert data["username"] == username
@@ -356,7 +356,7 @@ class TestAuthEndpoints:
                 "password": "testpassword123",
             },
         )
-        assert resp.status_code == 200, resp.text
+        assert resp.status_code == 201, resp.text
         assert resp.json()["role"] == "viewer"
 
         row = db.execute_one("SELECT role FROM users WHERE username = ?", (username,))
@@ -412,7 +412,7 @@ class TestSchedulerEndpoints:
             },
             headers=headers,
         )
-        assert resp.status_code == 200
+        assert resp.status_code == 201
         data = resp.json()
         assert "job_id" in data
 

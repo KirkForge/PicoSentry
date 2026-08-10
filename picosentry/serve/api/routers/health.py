@@ -116,7 +116,13 @@ async def health_history(limit: int = Query(50, ge=1, le=1000), user: dict = Dep
         "SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?",
         (limit,),
     )
-    return [dict(r) for r in rows] if rows else []
+    result = []
+    for r in rows or []:
+        item = dict(r)
+        if item.get("created_at") is not None:
+            item["created_at"] = item["created_at"].isoformat()
+        result.append(item)
+    return result
 
 
 @router.get("/status", response_model=SystemStatus, tags=["Status"])

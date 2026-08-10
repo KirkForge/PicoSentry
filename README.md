@@ -103,10 +103,10 @@ Offline + deterministic + malicious-behavior rules in one package.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 L2 rules, 65 total (with L4 behavioral), 6495 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
-| `picosentry serve` | **Stable** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
 | `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
@@ -114,7 +114,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg / 7 tricky), 50 L2 rules (65 with L4 behavioral), 94.44% prec, 68.89% recall — see docs/model-card.md |
+| Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg), 50 rules, 94.44% prec, 68.89% recall — see docs/model-card.md |
 | Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
 

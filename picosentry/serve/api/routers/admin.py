@@ -1,7 +1,7 @@
 import asyncio
 import logging
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from picosentry.serve.api.deps import get_current_org, require_role
 from picosentry.serve.api.models import (
@@ -28,7 +28,9 @@ router = APIRouter()
 async def create_backup(user: dict = Depends(require_role("admin")), org: dict = Depends(get_current_org)):
     backup_mgr = BackupManager()
     result = await asyncio.to_thread(backup_mgr.create_backup)
-    return {"status": "backup_created", "path": result}
+    if not result:
+        raise HTTPException(status_code=500, detail="Backup failed")
+    return {"status": "backup_created", "path": result["path"]}
 
 
 @router.get("/backups", tags=["Backup"], response_model=BackupListResponse)

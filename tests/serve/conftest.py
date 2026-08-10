@@ -127,8 +127,23 @@ def _reset_rate_limiter():
             pass
 
     _find_and_clear_rate_limiter(app)
+    _clear_auth_rate_limit()
     yield
     _find_and_clear_rate_limiter(app)
+    _clear_auth_rate_limit()
+
+
+def _clear_auth_rate_limit() -> None:
+    """Clear the module-level auth rate limiter in auth.py.
+
+    The middleware limiter is reset by ``_find_and_clear_rate_limiter``, but
+    the per-IP ``_AUTH_RATE_LIMIT`` dict in the auth router is separate and
+    accumulates across tests (5 req/min per IP), causing spurious 429s.
+    """
+    import picosentry.serve.api.routers.auth as auth_router
+
+    with auth_router._AUTH_RATE_LOCK:
+        auth_router._AUTH_RATE_LIMIT.clear()
 
 
 @pytest.fixture(autouse=True)

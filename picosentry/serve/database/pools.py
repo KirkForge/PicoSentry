@@ -34,6 +34,7 @@ class SQLitePool:
                 timeout=settings.database.timeout,
                 check_same_thread=False,
                 detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
+                isolation_level=None,
             )
             journal = settings.database.journal_mode.upper()
             sync_level = settings.database.synchronous.upper()

@@ -170,6 +170,8 @@ class TestUpdateCommand:
 
     def test_update_network_error(self, capsys):
         """Update command should handle network errors."""
+        from picosentry.scan._network import InsecureURLError
+
         with (
             patch("sys.argv", ["picosentry", "update", "--top", "5"]),
             # Patch where the call site is (post v2.1.0 refactor):
@@ -177,7 +179,7 @@ class TestUpdateCommand:
             # the source module's attribute is a separate binding.
             patch("picosentry.scan.cli_commands.update.safe_urlopen") as mock_url,
         ):
-            mock_url.side_effect = Exception("network error")
+            mock_url.side_effect = InsecureURLError("network error")
             rc = main()
         # Should return 1 on error
         assert rc == 1
@@ -195,6 +197,8 @@ class TestAdvisoriesCommand:
 
     def test_advisories_fetch_network_error(self, capsys):
         """Advisories fetch with network error should return 1."""
+        from picosentry.scan._network import InsecureURLError
+
         args = MagicMock()
         args.adv_action = "fetch"
         args.url = "https://example.com/advisories"
@@ -203,7 +207,7 @@ class TestAdvisoriesCommand:
         args.public_key = ""
         args.offline = False
         with patch("picosentry.scan.management.fetch_advisories") as mock_fetch:
-            mock_fetch.side_effect = Exception("network error")
+            mock_fetch.side_effect = InsecureURLError("network error")
             rc = _cmd_advisories(args)
         assert rc == 1
 

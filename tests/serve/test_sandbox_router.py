@@ -37,12 +37,15 @@ def _isolated_auth(tmp_path_factory):
 
 @pytest.fixture
 def fresh_operator(_isolated_auth) -> dict[str, Any]:
+    from picosentry.serve.services.orgs import Organization
+
     _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"sandbox_op_{suffix}"
     password = "TestPassword123!"
     user_id = auth.create_user(username, password, role="operator")
     assert user_id is not None
+    Organization.create(name=f"sandbox-org-{suffix}", slug=f"sandbox-org-{suffix}", owner_user_id=user_id, tier="free")
     token = auth.authenticate(username, password)
     assert token is not None
     return {"username": username, "password": password, "token": token, "user_id": user_id}

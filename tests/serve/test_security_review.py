@@ -56,7 +56,7 @@ def unique_user():
 @pytest.fixture
 def registered_user(client, unique_user):
     r = client.post("/auth/register", json=unique_user)
-    assert r.status_code == 200, r.text
+    assert r.status_code == 201, r.text
     return r.json()
 
 
@@ -86,6 +86,8 @@ class TestRegistration:
         """The register endpoint must not catch arbitrary exceptions and return 400."""
         import asyncio
 
+        from fastapi import Request
+
         from picosentry.serve.api.models import RegisterRequest
         from picosentry.serve.api.routers import auth as auth_router
 
@@ -94,8 +96,11 @@ class TestRegistration:
 
         monkeypatch.setattr(auth_router.auth_service, "create_user", _boom)
 
+        fake_request = Request(
+            {"type": "http", "method": "POST", "path": "/auth/register", "headers": [], "client": ("127.0.0.1", 0)}
+        )
         with pytest.raises(RuntimeError, match="database connection lost"):
-            asyncio.run(auth_router.register(RegisterRequest(**unique_user)))
+            asyncio.run(auth_router.register(RegisterRequest(**unique_user), fake_request))
 
     def test_registration_disabled_by_default_in_production(self, monkeypatch, unique_user):
         s = _reload_settings(
@@ -221,6 +226,7 @@ class TestScansWorkspace:
 
     def test_scan_inside_workspace_allowed(self, client, auth_token, monkeypatch, tmp_path):
         from picosentry.serve.api.deps import auth_service
+        from picosentry.serve.services.orgs import Organization
 
         suffix = uuid.uuid4().hex[:8]
         admin_id = auth_service.create_user(
@@ -229,6 +235,7 @@ class TestScansWorkspace:
             email=f"admin-{suffix}@example.com",
             role="admin",
         )
+        Organization.create(name=f"admin-org-{suffix}", slug=f"admin-org-{suffix}", owner_user_id=admin_id, tier="free")
         token = auth_service._generate_token(admin_id, f"admin-{suffix}", "admin")
         target = tmp_path / "safe-project"
         target.mkdir()
@@ -261,7 +268,7 @@ def _create_role_user(client, role):
         json={"name": f"Sec {role} org", "slug": slug},
         headers={"Authorization": f"Bearer {token}"},
     )
-    assert r.status_code in (200, 409), f"Default org creation failed: {r.text}"
+    assert r.status_code in (201, 409), f"Default org creation failed: {r.text}"
     return token
 
 

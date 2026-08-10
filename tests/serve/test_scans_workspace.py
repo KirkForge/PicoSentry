@@ -56,12 +56,15 @@ def fresh_admin(_isolated_auth) -> dict[str, Any]:
     """Operator account via the service layer.  The registration
     endpoint only creates viewers (P0 fix); elevated roles are
     provisioned here."""
+    from picosentry.serve.services.orgs import Organization
+
     _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"scan_admin_{suffix}"
     password = "TestPassword123!"
     user_id = auth.create_user(username, password, role="operator")
     assert user_id is not None
+    Organization.create(name=f"scan-org-{suffix}", slug=f"scan-org-{suffix}", owner_user_id=user_id, tier="free")
     token = auth.authenticate(username, password)
     assert token is not None
     return {"username": username, "password": password, "token": token, "user_id": user_id}
@@ -70,12 +73,15 @@ def fresh_admin(_isolated_auth) -> dict[str, Any]:
 @pytest.fixture
 def fresh_viewer(_isolated_auth) -> dict[str, Any]:
     """Viewer account via the (now viewer-only) registration endpoint."""
+    from picosentry.serve.services.orgs import Organization
+
     _, auth = _isolated_auth
     suffix = f"{int(time.time() * 1000)}_{uuid.uuid4().hex[:8]}"
     username = f"scan_viewer_{suffix}"
     password = "TestPassword123!"
     user_id = auth.create_user(username, password, role="viewer")
     assert user_id is not None
+    Organization.create(name=f"scan-org-{suffix}", slug=f"scan-org-{suffix}", owner_user_id=user_id, tier="free")
     token = auth.authenticate(username, password)
     assert token is not None
     return {"username": username, "password": password, "token": token, "user_id": user_id}

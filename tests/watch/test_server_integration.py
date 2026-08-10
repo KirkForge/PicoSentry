@@ -212,13 +212,13 @@ class TestDualPortServing:
         assert response.status_code == 200
 
     def test_api_has_metrics_endpoint(self, api_client: TestClient) -> None:
-        """Main API app has GET /metrics."""
-        response = api_client.get("/metrics")
+        """Main API app has GET /metrics (auth-gated when api_key is set)."""
+        response = api_client.get("/metrics", headers={"X-API-Key": "integration-test-key-that-is-at-least-32-ch"})
         assert response.status_code == 200
 
     def test_api_has_rules_endpoints(self, api_client: TestClient) -> None:
-        """Main API app has GET /v1/rules."""
-        response = api_client.get("/v1/rules")
+        """Main API app has GET /v1/rules (auth-gated when api_key is set)."""
+        response = api_client.get("/v1/rules", headers={"X-API-Key": "integration-test-key-that-is-at-least-32-ch"})
         assert response.status_code == 200
 
     def test_admin_has_health_endpoint(self, admin_client: TestClient) -> None:
@@ -310,10 +310,10 @@ class TestAuthEnforcement:
         assert response.status_code == 401
 
     def test_get_endpoints_no_auth(self, api_client: TestClient) -> None:
-        """GET endpoints do not require API key even when auth is configured."""
+        """GET endpoints require API key when auth is configured."""
         assert api_client.get("/v1/health").status_code == 200
-        assert api_client.get("/metrics").status_code == 200
-        assert api_client.get("/v1/rules").status_code == 200
+        assert api_client.get("/metrics").status_code == 401
+        assert api_client.get("/v1/rules").status_code == 401
 
 
 # ─── Rate limiting integration tests ─────────────────────────────────────

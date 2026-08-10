@@ -29,7 +29,7 @@ def viewer_token(client):
     username = f"viewer_{tag}"
     password = "testpassword123"
     resp = client.post("/auth/register", json={"username": username, "password": password})
-    if resp.status_code != 200:
+    if resp.status_code != 201:
         raise RuntimeError(f"registration failed: {resp.status_code} {resp.text}")
     resp = client.post("/auth/login", json={"username": username, "password": password})
     assert resp.status_code == 200, resp.text
@@ -80,15 +80,14 @@ class TestAuthRouter:
         resp = client.post(
             "/auth/api-key", json={"name": "test-key", "permissions": "read"}, headers=_headers(viewer_token)
         )
-        assert resp.status_code == 200, resp.text
+        assert resp.status_code == 201, resp.text
         data = resp.json()
         assert data["permissions"] == "read"
         assert "api_key" in data
 
     def test_create_api_key_rejects_invalid_permissions(self, client, viewer_token):
         resp = client.post("/auth/api-key", json={"name": "bad", "permissions": "hax"}, headers=_headers(viewer_token))
-        assert resp.status_code == 200, resp.text
-        assert resp.json()["api_key"] is None
+        assert resp.status_code == 422, resp.text
 
     def test_revoke_api_key_404_for_other_user(self, client, admin_token):
         # Admin revoking key id 99999 should 404.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from http.server import BaseHTTPRequestHandler
 from typing import TYPE_CHECKING
@@ -41,6 +42,7 @@ class PicoDomeHandler(
     job_store: PersistentScanJobStore | ScanJobStore | SQLiteScanJobStore = PersistentScanJobStore()
     rate_limiter: TokenBucketLimiter = TokenBucketLimiter()
     _start_time: float = time.time()
+    _stats_lock: threading.Lock = threading.Lock()
     _scan_count: int = 0
     _scan_total_ms: int = 0
     _alert_count: int = 0

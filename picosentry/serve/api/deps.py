@@ -79,3 +79,14 @@ async def get_current_org(
     if not user_orgs:
         raise HTTPException(status_code=403, detail="User not associated with any organization")
     return user_orgs[0]
+
+
+async def require_org_membership(
+    org_id: int,
+    user: dict = Depends(get_current_user),
+) -> dict:
+    orgs = Organization.list_orgs_for_user(user["id"])
+    org = next((o for o in orgs if o["id"] == org_id), None)
+    if not org:
+        raise HTTPException(status_code=403, detail="Not a member of this organization")
+    return org

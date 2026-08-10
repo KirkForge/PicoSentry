@@ -63,7 +63,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
                     "type": "auth",
                     "status": "ok",
                     "user_id": user.get("user_id"),
-                    "note": 'connected; send {"action": "subscribe", "channels": [...] } to receive events',
+                    "note": 'send {"action": "subscribe", "channels": [...]} to receive events',
                 }
             )
         )
@@ -74,8 +74,6 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             try:
                 msg = json.loads(data)
             except json.JSONDecodeError:
-                # Malformed payload — ignore rather than disconnect; a
-                # broken client shouldn't take out the room.
                 logger.debug("ws: ignoring non-JSON frame from %s", websocket.client)
                 continue
 
@@ -113,7 +111,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
 
             elif action == "subscribe" and authenticated:
                 channels = msg.get("channels") or ["*"]
-                ws_manager.subscribe(websocket, channels)
+                await ws_manager.subscribe(websocket, channels)
                 await websocket.send_text(
                     json.dumps(
                         {
@@ -136,10 +134,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
             elif action == "ping":
                 await websocket.send_text(json.dumps({"type": "pong"}))
 
-            # Unknown actions are ignored, not echoed.  Keeps the
-            # protocol surface narrow for a misuse to land on.
     except WebSocketDisconnect:
-        ws_manager.disconnect(websocket)
+        await ws_manager.disconnect(websocket)
     except Exception:
         logger.exception("Unexpected error in WebSocket handler")
-        ws_manager.disconnect(websocket)
+        await ws_manager.disconnect(websocket)

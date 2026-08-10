@@ -22,7 +22,7 @@ flowchart TB
     end
 
     scan -->|"files / metadata"| Engine["Scan engine\n(picosentry/scan)"]
-    Engine -->|"matches"| Rules["Detection rules\n(53 rules, 7 ecosystems)"]
+    Engine -->|"matches"| Rules["Detection rules\n(50 rules, 7 ecosystems)"]
     Engine -->|"findings"| Formatter["Output formatters\n(SARIF / CycloneDX / table)"]
 
     sandbox -->|"command + policy"| L3["L3 sandbox\nseccomp-bpf / seatbelt / subprocess"]

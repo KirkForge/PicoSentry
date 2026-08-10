@@ -96,8 +96,11 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 )
 
     def get_status(self, org_id: int | None = None) -> dict[str, Any]:
-        org_filter = "AND org_id = ?" if org_id is not None else ""
-        params_runs: list[Any] = [org_id] if org_id is not None else []
+        runs_where = f"WHERE run_start > {db.dialect.date_add_hours('now', -24)}"
+        params_runs: list[Any] = []
+        if org_id is not None:
+            runs_where += " AND org_id = ?"
+            params_runs.append(org_id)
         conn_stats = db.execute_one(
             f"""
             SELECT
@@ -105,27 +108,32 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
                 SUM(CASE WHEN status = 'failed' THEN 1 ELSE 0 END) as failed
             FROM project_runs
-            WHERE run_start > {db.dialect.date_add_hours("now", -24)}
-            {org_filter}
+            {runs_where}
         """,
             tuple(params_runs),
         )
 
-        params_intel: list[Any] = [org_id] if org_id is not None else []
+        intel_where = f"WHERE severity IN ('critical', 'high') AND created_at > {db.dialect.date_add_hours('now', -24)}"
+        params_intel: list[Any] = []
+        if org_id is not None:
+            intel_where += " AND org_id = ?"
+            params_intel.append(org_id)
         threats = db.execute_one(
             f"""
             SELECT COUNT(*) as count FROM intelligence
-            WHERE severity IN ('critical', 'high')
-            AND created_at > {db.dialect.date_add_hours("now", -24)}
-            {org_filter}
+            {intel_where}
         """,
             tuple(params_intel),
         )
 
-        params_alerts: list[Any] = [org_id] if org_id is not None else []
+        alerts_where = "WHERE sent = 0"
+        params_alerts: list[Any] = []
+        if org_id is not None:
+            alerts_where += " AND org_id = ?"
+            params_alerts.append(org_id)
         pending = db.execute_one(
             f"""
-            SELECT COUNT(*) as count FROM alerts WHERE sent = 0 {org_filter}
+            SELECT COUNT(*) as count FROM alerts {alerts_where}
         """,
             tuple(params_alerts),
         )
@@ -138,9 +146,13 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         if threats and (threats["count"] or 0) > 10:
             health = "critical"
 
-        params_running: list[Any] = [org_id] if org_id is not None else []
+        running_where = "WHERE status = 'running'"
+        params_running: list[Any] = []
+        if org_id is not None:
+            running_where += " AND org_id = ?"
+            params_running.append(org_id)
         running_row = db.execute_one(
-            f"SELECT COUNT(*) as c FROM project_runs WHERE status = 'running' {org_filter}",
+            f"SELECT COUNT(*) as c FROM project_runs {running_where}",
             tuple(params_running),
         )
         return {

@@ -446,6 +446,9 @@ class ClusterManager:
                 ctx.load_default_certs()
             if self._tls_cert_path and self._tls_key_path:
                 ctx.load_cert_chain(certfile=self._tls_cert_path, keyfile=self._tls_key_path)
+            # ceiling: cluster gossip uses self-signed certs with IP addresses;
+            # check_hostname=False is needed because peer URLs use IPs that don't
+            # match cert CN/SAN. Migrate to mTLS with proper hostnames to re-enable.
             ctx.check_hostname = False
             kwargs["context"] = ctx
 

@@ -98,9 +98,12 @@ class TestMetricsEndpoint:
         response = client_no_auth.get("/metrics")
         assert "text/plain" in response.headers.get("content-type", "")
 
-    def test_metrics_no_auth_required(self, client_with_auth: TestClient) -> None:
-        """Metrics endpoint should work without API key."""
+    def test_metrics_requires_auth_when_configured(self, client_with_auth: TestClient) -> None:
+        """Metrics endpoint requires API key when auth is configured."""
         response = client_with_auth.get("/metrics")
+        assert response.status_code == 401
+
+        response = client_with_auth.get("/metrics", headers={"X-API-Key": "test-secret-key-1234567890abcdef"})
         assert response.status_code == 200
 
 
@@ -129,9 +132,12 @@ class TestRulesEndpoint:
             assert "weight" in rule
             assert "description" in rule
 
-    def test_rules_no_auth_required(self, client_with_auth: TestClient) -> None:
-        """Rules listing should work without API key."""
+    def test_rules_require_auth_when_configured(self, client_with_auth: TestClient) -> None:
+        """Rules listing requires API key when auth is configured."""
         response = client_with_auth.get("/v1/rules")
+        assert response.status_code == 401
+
+        response = client_with_auth.get("/v1/rules", headers={"X-API-Key": "test-secret-key-1234567890abcdef"})
         assert response.status_code == 200
 
 
@@ -163,7 +169,8 @@ class TestRuleDetailEndpoint:
 
     def test_rule_detail_requires_api_key_when_configured(self, client_with_auth: TestClient) -> None:
         """Rule detail reveals regex patterns and is gated by API key."""
-        rules = client_with_auth.get("/v1/rules").json()
+        api_key_headers = {"X-API-Key": "test-secret-key-1234567890abcdef"}
+        rules = client_with_auth.get("/v1/rules", headers=api_key_headers).json()
         rule_id = rules[0]["id"]
 
         response = client_with_auth.get(f"/v1/rules/{rule_id}")
@@ -171,7 +178,7 @@ class TestRuleDetailEndpoint:
 
         response = client_with_auth.get(
             f"/v1/rules/{rule_id}",
-            headers={"X-API-Key": "test-secret-key-1234567890abcdef"},
+            headers=api_key_headers,
         )
         assert response.status_code == 200
         assert "pattern" in response.json()
@@ -400,14 +407,9 @@ class TestAuthentication:
         )
         assert response.status_code == 401
 
-    def test_get_endpoints_no_auth_needed(self, client_with_auth: TestClient) -> None:
-        """GET endpoints should work without API key even when auth is configured."""
-        # Health
+    def test_health_no_auth_needed(self, client_with_auth: TestClient) -> None:
+        """Health endpoint works without API key even when auth is configured."""
         assert client_with_auth.get("/v1/health").status_code == 200
-        # Metrics
-        assert client_with_auth.get("/metrics").status_code == 200
-        # Rules
-        assert client_with_auth.get("/v1/rules").status_code == 200
 
     def test_output_post_requires_auth(self, client_with_auth: TestClient) -> None:
         """Output validation POST also requires auth."""

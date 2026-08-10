@@ -12,6 +12,14 @@ from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any, ClassVar
 
+from picosentry.scan._network import (
+    InsecureURLError,
+    ResponseTooLargeError,
+    UnsafeURLError,
+    assert_url_safe,
+    safe_urlopen,
+)
+
 logger = logging.getLogger("picodome.webhooks")
 
 
@@ -70,44 +78,20 @@ def _sign_payload(payload_json: str, secret: str) -> str:
 class WebhookDispatcher:
     SEVERITY_ORDER: ClassVar[dict[str, int]] = {"critical": 0, "high": 1, "medium": 2, "low": 3, "info": 4}
 
-    BLOCKED_URL_PATTERNS = (
-        "169.254.",  # cloud metadata (AWS/GCP/Azure)
-        "100.64.",  # CGNAT / private
-        "10.",  # RFC1918
-        "192.168.",  # RFC1918
-        "172.16.",  # RFC1918
-        "127.",  # loopback
-        "0.",  # all-zeros
-        "localhost",  # localhost
-        "::1",  # IPv6 loopback
-        "fc00:",  # IPv6 unique-local
-        "fe80:",  # IPv6 link-local
-        "fd",  # IPv6 unique-local
-    )
-
     def __init__(self) -> None:
         self._webhooks: list[WebhookConfig] = []
         self._active_threads: list[threading.Thread] = []
 
     def add_webhook(self, config: WebhookConfig) -> None:
 
-        if self._is_blocked_url(config.url):
+        try:
+            assert_url_safe(config.url)
+        except UnsafeURLError:
             logger.error("Webhook URL blocked (SSRF protection): %s", config.url)
             return
+
         self._webhooks.append(config)
         logger.info("Webhook registered: %s (events=%s)", config.url, config.events)
-
-    @classmethod
-    def _is_blocked_url(cls, url: str) -> bool:
-        from urllib.parse import urlparse
-
-        parsed = urlparse(url)
-        hostname = parsed.hostname or ""
-        hostname_lower = hostname.lower()
-        for pattern in cls.BLOCKED_URL_PATTERNS:
-            if hostname_lower.startswith(pattern.lower()) or hostname_lower == pattern.lower():
-                return True
-        return False
 
     def remove_webhook(self, url: str) -> None:
         self._webhooks = [w for w in self._webhooks if w.url != url]
@@ -209,12 +193,19 @@ class WebhookDispatcher:
                     },
                     method="POST",
                 )
-                with urllib.request.urlopen(req, timeout=config.timeout_seconds) as resp:
-                    if resp.status < 400:
-                        logger.info("Webhook delivered to %s (status=%d)", config.url, resp.status)
-                        return True
-                    logger.warning("Webhook %s returned %d", config.url, resp.status)
-            except (urllib.error.URLError, OSError, TimeoutError) as e:
+                _resp, _body = safe_urlopen(req, timeout=int(config.timeout_seconds), allow_http=True)
+                if _resp.status < 400:
+                    logger.info("Webhook delivered to %s (status=%d)", config.url, _resp.status)
+                    return True
+                logger.warning("Webhook %s returned %d", config.url, _resp.status)
+            except (
+                urllib.error.URLError,
+                OSError,
+                TimeoutError,
+                InsecureURLError,
+                UnsafeURLError,
+                ResponseTooLargeError,
+            ) as e:
                 logger.warning(
                     "Webhook delivery attempt %d/%d to %s failed: %s",
                     attempt + 1,

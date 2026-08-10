@@ -217,14 +217,20 @@ class TestKillChainTimeline:
 
 
 class TestKillChainPhase:
-    def test_enum_values(self):
-        assert KillChainPhase.RECONNAISSANCE.value == "reconnaissance"
-        assert KillChainPhase.DELIVERY.value == "delivery"
-        assert KillChainPhase.EXECUTION.value == "execution"
-        assert KillChainPhase.PERSISTENCE.value == "persistence"
-        assert KillChainPhase.C2.value == "c2"
-        assert KillChainPhase.EXFILTRATION.value == "exfiltration"
-        assert KillChainPhase.IMPACT.value == "impact"
+    @pytest.mark.parametrize(
+        "phase,expected_value",
+        [
+            (KillChainPhase.RECONNAISSANCE, "reconnaissance"),
+            (KillChainPhase.DELIVERY, "delivery"),
+            (KillChainPhase.EXECUTION, "execution"),
+            (KillChainPhase.PERSISTENCE, "persistence"),
+            (KillChainPhase.C2, "c2"),
+            (KillChainPhase.EXFILTRATION, "exfiltration"),
+            (KillChainPhase.IMPACT, "impact"),
+        ],
+    )
+    def test_enum_values(self, phase, expected_value):
+        assert phase.value == expected_value
 
     def test_phase_weights_ordered(self):
         """Later phases should have higher weights."""
@@ -553,40 +559,68 @@ class TestBuildEventFromIntel:
 
 
 class TestSeverityHelpers:
-    def test_severity_index(self):
-        assert _severity_index(Severity.CRITICAL) == 0
-        assert _severity_index(Severity.HIGH) == 1
-        assert _severity_index(Severity.MEDIUM) == 2
-        assert _severity_index(Severity.LOW) == 3
-        assert _severity_index(Severity.INFO) == 4
+    @pytest.mark.parametrize(
+        "severity,expected_index",
+        [
+            (Severity.CRITICAL, 0),
+            (Severity.HIGH, 1),
+            (Severity.MEDIUM, 2),
+            (Severity.LOW, 3),
+            (Severity.INFO, 4),
+        ],
+    )
+    def test_severity_index(self, severity, expected_index):
+        assert _severity_index(severity) == expected_index
 
-    def test_severity_from_str(self):
-        assert _severity_from_str("critical") == Severity.CRITICAL
-        assert _severity_from_str("HIGH") == Severity.HIGH
-        assert _severity_from_str("Medium") == Severity.MEDIUM
-        assert _severity_from_str("unknown") == Severity.INFO
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("critical", Severity.CRITICAL),
+            ("HIGH", Severity.HIGH),
+            ("Medium", Severity.MEDIUM),
+            ("unknown", Severity.INFO),
+        ],
+    )
+    def test_severity_from_str(self, text, expected):
+        assert _severity_from_str(text) == expected
 
-    def test_confidence_index(self):
-        assert _confidence_index(Confidence.EXACT) == 0
-        assert _confidence_index(Confidence.HIGH) == 1
-        assert _confidence_index(Confidence.MEDIUM) == 2
-        assert _confidence_index(Confidence.LOW) == 3
+    @pytest.mark.parametrize(
+        "confidence,expected_index",
+        [
+            (Confidence.EXACT, 0),
+            (Confidence.HIGH, 1),
+            (Confidence.MEDIUM, 2),
+            (Confidence.LOW, 3),
+        ],
+    )
+    def test_confidence_index(self, confidence, expected_index):
+        assert _confidence_index(confidence) == expected_index
 
-    def test_confidence_from_str(self):
-        assert _confidence_from_str("EXACT") == Confidence.EXACT
-        assert _confidence_from_str("high") == Confidence.HIGH
-        assert _confidence_from_str("unknown") == Confidence.LOW
+    @pytest.mark.parametrize(
+        "text,expected",
+        [
+            ("EXACT", Confidence.EXACT),
+            ("high", Confidence.HIGH),
+            ("unknown", Confidence.LOW),
+        ],
+    )
+    def test_confidence_from_str(self, text, expected):
+        assert _confidence_from_str(text) == expected
 
-    def test_confidence_from_float(self):
-        assert _confidence_from_str(0.95) == Confidence.EXACT
-        assert _confidence_from_str(0.8) == Confidence.HIGH
-        assert _confidence_from_str(0.5) == Confidence.MEDIUM
-        assert _confidence_from_str(0.3) == Confidence.LOW
-
-    def test_confidence_from_near_boundary(self):
-        assert _confidence_from_str(0.9) == Confidence.EXACT
-        assert _confidence_from_str(0.7) == Confidence.HIGH
-        assert _confidence_from_str(0.4) == Confidence.MEDIUM
+    @pytest.mark.parametrize(
+        "value,expected",
+        [
+            (0.95, Confidence.EXACT),
+            (0.8, Confidence.HIGH),
+            (0.5, Confidence.MEDIUM),
+            (0.3, Confidence.LOW),
+            (0.9, Confidence.EXACT),
+            (0.7, Confidence.HIGH),
+            (0.4, Confidence.MEDIUM),
+        ],
+    )
+    def test_confidence_from_float(self, value, expected):
+        assert _confidence_from_str(value) == expected
 
 
 # ═══════════════════════════════════════════════════════════════════════════

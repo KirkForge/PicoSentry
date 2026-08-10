@@ -14,6 +14,8 @@ logger = logging.getLogger("picoshogun.Backup")
 
 
 class BackupManager:
+    """Creates, restores, and manages compressed database and log backups."""
+
     def __init__(self):
         self.backup_dir = Path(settings.database.backup_dir)
         self.db_path = Path(settings.database.path)

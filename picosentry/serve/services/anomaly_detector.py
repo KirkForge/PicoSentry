@@ -105,6 +105,7 @@ class AnomalyRule:
     description: str
     labels: dict[str, str] = field(default_factory=dict)
     enabled: bool = True
+    org_id: str | None = None
 
 
 @dataclass
@@ -117,9 +118,12 @@ class AnomalyAlert:
     timestamp: str
     description: str
     severity: str = "warning"  # warning, critical
+    org_id: str | None = None
 
 
 class AnomalyDetector:
+    """Monitors metrics against configurable rules and fires alerts when thresholds are breached."""
+
     def __init__(self, db: DatabaseManager, alert_hub=None):
         self.db = db
         self.alert_hub = alert_hub
@@ -128,14 +132,16 @@ class AnomalyDetector:
         self._running = False
         self._thread: threading.Thread | None = None
         self._check_interval = 60  # seconds
+        self._lock = threading.RLock()
         self._load_rules()
 
     def _load_rules(self):
+        loaded_rules: list[AnomalyRule] = []
         if CONFIG_PATH.exists():
             try:
                 with CONFIG_PATH.open() as f:
                     rule_dicts = json.load(f)
-                self.rules = [
+                loaded_rules = [
                     AnomalyRule(
                         id=r["id"],
                         metric_name=r["metric_name"],
@@ -149,27 +155,30 @@ class AnomalyDetector:
                     )
                     for r in rule_dicts
                 ]
-                return
             except (json.JSONDecodeError, OSError, ValueError, TypeError):
                 logger.warning("Failed to load anomaly rules from %s", CONFIG_PATH, exc_info=True)
 
-        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with CONFIG_PATH.open("w") as f:
-            json.dump(DEFAULT_RULES, f, indent=2)
-        self.rules = [
-            AnomalyRule(
-                id=r["id"],
-                metric_name=r["metric_name"],
-                threshold=r["threshold"],
-                comparison=r.get("comparison", "gt"),
-                duration_seconds=r.get("duration_seconds", 0),
-                alert_channel=r.get("alert_channel", "all"),
-                description=r.get("description", ""),
-                labels=r.get("labels", {}),
-                enabled=r.get("enabled", True),
-            )
-            for r in DEFAULT_RULES
-        ]
+        if not loaded_rules:
+            CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+            with CONFIG_PATH.open("w") as f:
+                json.dump(DEFAULT_RULES, f, indent=2)
+            loaded_rules = [
+                AnomalyRule(
+                    id=r["id"],
+                    metric_name=r["metric_name"],
+                    threshold=r["threshold"],
+                    comparison=r.get("comparison", "gt"),
+                    duration_seconds=r.get("duration_seconds", 0),
+                    alert_channel=r.get("alert_channel", "all"),
+                    description=r.get("description", ""),
+                    labels=r.get("labels", {}),
+                    enabled=r.get("enabled", True),
+                )
+                for r in DEFAULT_RULES
+            ]
+
+        with self._lock:
+            self.rules = loaded_rules
 
     def _compare(self, value: float, threshold: float, comparison: str) -> bool:
         ops = {
@@ -220,9 +229,11 @@ class AnomalyDetector:
             return 0.0
 
     def check_rules(self) -> list[AnomalyAlert]:
-        alerts = []
+        with self._lock:
+            rules_snapshot = list(self.rules)
 
-        for rule in self.rules:
+        alerts = []
+        for rule in rules_snapshot:
             if not rule.enabled:
                 continue
 
@@ -318,20 +329,22 @@ class AnomalyDetector:
                 ),
             )
 
-        self.alert_history.append(alert)
-        # Evict old alerts to prevent unbounded memory growth
-        if len(self.alert_history) > 1000:
-            self.alert_history = self.alert_history[-500:]
+        with self._lock:
+            self.alert_history.append(alert)
+            # Evict old alerts to prevent unbounded memory growth
+            if len(self.alert_history) > 1000:
+                self.alert_history = self.alert_history[-500:]
 
     def _run_check_cycle(self):
         alerts = self.check_rules()
         for alert in alerts:
-            recent = [
-                a
-                for a in self.alert_history
-                if a.rule_id == alert.rule_id
-                and (datetime.now(timezone.utc) - datetime.fromisoformat(a.timestamp)).total_seconds() < 300
-            ]
+            with self._lock:
+                recent = [
+                    a
+                    for a in self.alert_history
+                    if a.rule_id == alert.rule_id
+                    and (datetime.now(timezone.utc) - datetime.fromisoformat(a.timestamp)).total_seconds() < 300
+                ]
             if not recent:
                 self._fire_alert(alert)
 
@@ -355,18 +368,18 @@ class AnomalyDetector:
         if self._thread:
             self._thread.join(timeout=5)
 
-    def get_alerts(self, limit: int = 50) -> list[dict[str, Any]]:
+    def get_alerts(self, limit: int = 50, org_id: str | None = None) -> list[dict[str, Any]]:
         try:
             rows = self.db.execute(
                 """
-                SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at
+                SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at, org_id
                 FROM anomaly_alerts
                 ORDER BY created_at DESC
                 LIMIT ?
             """,
                 (limit,),
             )
-            return [
+            results = [
                 {
                     "rule_id": r[0],
                     "metric_name": r[1],
@@ -376,27 +389,38 @@ class AnomalyDetector:
                     "severity": r[5],
                     "description": r[6],
                     "timestamp": r[7],
+                    "org_id": r[8],
                 }
                 for r in rows
             ]
+            if org_id is not None:
+                results = [a for a in results if a.get("org_id") is None or a.get("org_id") == org_id]
+            return results
         except _DB_BOUNDARY_ERRORS:
             logger.warning("Failed to load anomaly alerts; returning empty list", exc_info=True)
             return []
 
-    def get_rules(self) -> list[dict[str, Any]]:
-        return [asdict(r) for r in self.rules]
+    def get_rules(self, org_id: str | None = None) -> list[dict[str, Any]]:
+        with self._lock:
+            rules_snapshot = [asdict(r) for r in self.rules]
+        if org_id is not None:
+            rules_snapshot = [r for r in rules_snapshot if r.get("org_id") is None or r.get("org_id") == org_id]
+        return rules_snapshot
 
     def update_rule(self, rule_id: str, **kwargs) -> bool:
-        for rule in self.rules:
-            if rule.id == rule_id:
-                for k, v in kwargs.items():
-                    if hasattr(rule, k):
-                        setattr(rule, k, v)
-                self._save_rules()
-                return True
-        return False
+        with self._lock:
+            for rule in self.rules:
+                if rule.id == rule_id:
+                    for k, v in kwargs.items():
+                        if hasattr(rule, k):
+                            setattr(rule, k, v)
+                    self._save_rules()
+                    return True
+            return False
 
     def _save_rules(self):
         CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with self._lock:
+            rules_data = [asdict(r) for r in self.rules]
         with CONFIG_PATH.open("w") as f:
-            json.dump([asdict(r) for r in self.rules], f, indent=2)
+            json.dump(rules_data, f, indent=2)

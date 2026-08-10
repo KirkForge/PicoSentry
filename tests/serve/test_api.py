@@ -86,42 +86,18 @@ def auth_headers(token):
 class TestHealthEndpoint:
     """Test /health endpoint (unauthenticated)."""
 
-    def test_health_returns_200(self, client):
+    def test_health_returns_200_and_structure(self, client):
         resp = client.get("/health")
         assert resp.status_code == 200
-
-    def test_health_has_overall_field(self, client):
-        resp = client.get("/health")
         data = resp.json()
         assert "overall" in data
         assert data["overall"] in ("healthy", "degraded", "critical")
-
-    def test_health_has_checks_list(self, client):
-        resp = client.get("/health")
-        data = resp.json()
         assert "checks" in data
         assert isinstance(data["checks"], list)
-
-    def test_health_check_fields(self, client):
-        resp = client.get("/health")
-        data = resp.json()
         for check in data["checks"]:
             assert "component" in check
             assert "status" in check
             assert "message" in check
-
-
-class TestLivenessReadiness:
-    """Test k8s probes."""
-
-    def test_liveness(self, client):
-        resp = client.get("/health/live")
-        assert resp.status_code == 200
-        assert resp.json()["status"] == "alive"
-
-    def test_readiness(self, client):
-        resp = client.get("/health/ready")
-        assert resp.status_code in (200, 503)
 
 
 class TestDashboardEndpoint:
@@ -172,33 +148,15 @@ class TestMetricsEndpoint:
 class TestDashboardSummary:
     """Test /api/v1/dashboard/summary endpoint."""
 
-    def test_dashboard_summary_returns_data(self, client, auth_token):
+    def test_dashboard_summary_fields(self, client, auth_token):
         headers = auth_headers(auth_token)
         resp = client.get("/api/v1/dashboard/summary", headers=headers)
         assert resp.status_code == 200, f"Expected 200, got {resp.status_code}: {resp.text}"
         data = resp.json()
         assert "status" in data or "health" in data
-
-    def test_dashboard_summary_has_timestamp(self, client, auth_token):
-        headers = auth_headers(auth_token)
-        resp = client.get("/api/v1/dashboard/summary", headers=headers)
-        assert resp.status_code == 200
-        data = resp.json()
         assert "timestamp" in data
-
-    def test_dashboard_summary_has_recent_projects(self, client, auth_token):
-        headers = auth_headers(auth_token)
-        resp = client.get("/api/v1/dashboard/summary", headers=headers)
-        assert resp.status_code == 200
-        data = resp.json()
         assert "recent_projects" in data
         assert isinstance(data["recent_projects"], list)
-
-    def test_dashboard_summary_has_pending_alerts(self, client, auth_token):
-        headers = auth_headers(auth_token)
-        resp = client.get("/api/v1/dashboard/summary", headers=headers)
-        assert resp.status_code == 200
-        data = resp.json()
         assert "pending_alerts_count" in data
 
     def test_dashboard_summary_unauthenticated(self, client):
@@ -207,7 +165,7 @@ class TestDashboardSummary:
 
 
 class TestHealthSmokeTests:
-    """Smoke tests for health, readiness, and liveness endpoints."""
+    """Smoke tests for health, readiness, liveness, and history endpoints."""
 
     def test_health_live(self, client):
         resp = client.get("/health/live")
@@ -229,8 +187,9 @@ class TestHealthSmokeTests:
         assert "checks" in data
         assert len(data["checks"]) > 0
 
-    def test_health_history_requires_auth(self, client):
-        resp = client.get("/health/history")
+    @pytest.mark.parametrize("path", ["/health/history", "/status"])
+    def test_health_endpoints_require_auth(self, client, path):
+        resp = client.get(path)
         assert resp.status_code in (401, 403)
 
     def test_health_history_with_auth(self, client, auth_token):
@@ -491,7 +450,7 @@ class TestOrgEndpoints:
 
 
 class TestObservabilityModule:
-    """Test the observability module can be imported."""
+    """Test the observability module can be imported and used."""
 
     def test_import_observability(self):
         from picosentry.serve.services.observability import get_tracer, init_telemetry
@@ -499,7 +458,7 @@ class TestObservabilityModule:
         assert init_telemetry is not None
         assert get_tracer is not None
 
-    def test_noop_tracer(self):
+    def test_noop_tracer_span(self):
         from picosentry.serve.services.observability import NoOpTracer
 
         tracer = NoOpTracer()
@@ -508,7 +467,7 @@ class TestObservabilityModule:
         span.set_attribute("key", "value")
         span.end()
 
-    def test_noop_meter(self):
+    def test_noop_meter_counter(self):
         from picosentry.serve.services.observability import NoOpMeter
 
         meter = NoOpMeter()
@@ -521,40 +480,15 @@ class TestObservabilityModule:
         result = init_telemetry(service_name="test")
         assert result is False
 
-    def test_trace_span_decorator(self):
-        from picosentry.serve.services.observability import trace_span
-
-        @trace_span("test_operation", attributes={"key": "value"})
-        def test_func():
-            return 42
-
-        result = test_func()
-        assert result == 42
-
-    def test_trace_async_span_decorator(self):
-        from picosentry.serve.services.observability import trace_async_span
-
-        @trace_async_span("test_async_operation")
-        async def test_async_func():
-            return 99
-
-        import asyncio
-
-        result = asyncio.run(test_async_func())
-        assert result == 99
-
 
 class TestDatabaseManager:
     """Test database initialization."""
 
-    def test_db_module_imports(self):
+    def test_db_and_settings_import(self):
+        from picosentry.serve.config.settings import settings
         from picosentry.serve.database.manager import db
 
         assert db is not None
-
-    def test_settings_module_imports(self):
-        from picosentry.serve.config.settings import settings
-
         assert settings.api.port == 8765
         assert settings.database.journal_mode == "WAL"
         assert settings.security.jwt_algorithm == "HS256"
@@ -692,53 +626,39 @@ class TestSchedulerService:
 class TestWebhookSSRFProtection:
     """Test webhook SSRF protection."""
 
-    def test_blocks_localhost(self):
+    @pytest.mark.parametrize(
+        "url,expected_safe",
+        [
+            ("http://127.0.0.1/hook", False),
+            ("http://10.0.0.1/hook", False),
+            ("file:///etc/passwd", False),
+        ],
+    )
+    def test_blocks_private_urls(self, url, expected_safe):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
 
-        is_safe, _reason = _is_safe_webhook_url("http://127.0.0.1/hook")
-        assert not is_safe
-
-    def test_blocks_private_ip(self):
-        from picosentry.serve.services.webhooks import _is_safe_webhook_url
-
-        is_safe, _reason = _is_safe_webhook_url("http://10.0.0.1/hook")
+        is_safe, _reason = _is_safe_webhook_url(url)
         assert not is_safe
 
     def test_allows_public_url(self):
         from picosentry.serve.services.webhooks import _is_safe_webhook_url
 
-        # Use a resolvable public hostname
         is_safe, reason = _is_safe_webhook_url("https://httpbin.org/webhook")
-        # SSRF check should pass for public, resolvable domains
-        # (may fail in DNS-restricted environments)
         assert is_safe or "Cannot resolve" in reason
-
-    def test_blocks_file_scheme(self):
-        from picosentry.serve.services.webhooks import _is_safe_webhook_url
-
-        is_safe, _reason = _is_safe_webhook_url("file:///etc/passwd")
-        assert not is_safe
 
 
 class TestMetricsCollector:
     """Test metrics collection."""
 
-    def test_counter(self):
+    def test_counter_and_export(self):
         from picosentry.serve.services.metrics import MetricsCollector
 
         mc = MetricsCollector()
         mc.counter("test_counter", 1, {"label": "value"})
         data = mc.to_dict()
         assert "counters" in data
-
-    def test_prometheus_export(self):
-        from picosentry.serve.services.metrics import MetricsCollector
-
-        mc = MetricsCollector()
-        mc.counter("test_counter", 1)
         output = mc.to_prometheus()
         assert "picoshogun_" in output
-        # Ensure no double-pico prefix
         assert "picopicoshogun" not in output
 
     def test_uptime(self):

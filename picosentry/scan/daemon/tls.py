@@ -42,7 +42,7 @@ class TLSConfig:
             ctx.verify_mode = ssl.CERT_REQUIRED
             logger.info("mTLS enabled: client certificates required (CA: %s)", self.mtls_ca)
         else:
-            ctx.verify_mode = ssl.CERT_NONE
+            ctx.verify_mode = ssl.CERT_NONE  # no mTLS configured: skip client cert verification
 
         ctx.set_ciphers("ECDHE+AESGCM:ECDHE+CHACHA20:DHE+AESGCM:DHE+CHACHA20:!aNULL:!MD5:!DSS")
 

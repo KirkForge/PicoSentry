@@ -1,11 +1,17 @@
 import logging
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
-from fastapi.responses import HTMLResponse
+from fastapi import APIRouter, Depends, Query
+from fastapi.responses import HTMLResponse, JSONResponse
 
 from picosentry.serve.api.deps import get_current_user
-from picosentry.serve.api.models import HealthReadiness, SystemStatus
+from picosentry.serve.api.models import (
+    HealthHistoryResponse,
+    HealthReadiness,
+    LivenessResponse,
+    ReadinessResponse,
+    SystemStatus,
+)
 from picosentry.serve.config.version import __version__
 from picosentry.serve.services.orchestrator import orchestrator
 
@@ -69,14 +75,13 @@ async def health_check():
     )
 
 
-@router.get("/health/live", tags=["Health"])
+@router.get("/health/live", tags=["Health"], response_model=LivenessResponse)
 async def liveness_probe():
     return {"status": "alive"}
 
 
-@router.get("/health/ready", tags=["Health"])
+@router.get("/health/ready", tags=["Health"], response_model=ReadinessResponse)
 async def readiness_probe():
-    from fastapi.responses import JSONResponse
 
     checks: dict[str, str] = {}
     ready = True
@@ -103,8 +108,8 @@ async def readiness_probe():
     return JSONResponse(status_code=503, content={"status": "not ready", "checks": checks})
 
 
-@router.get("/health/history", tags=["Health"])
-async def health_history(limit: int = 50, user: dict = Depends(get_current_user)):
+@router.get("/health/history", tags=["Health"], response_model=list[HealthHistoryResponse])
+async def health_history(limit: int = Query(50, ge=1, le=1000), user: dict = Depends(get_current_user)):
     from picosentry.serve.database.manager import db as _db
 
     rows = _db.execute(

@@ -2,8 +2,17 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from picosentry.serve.api.deps import get_current_user, require_role
-from picosentry.serve.api.models import OrgCreateRequest, OrgTierUpgradeRequest
+from picosentry.serve.api.deps import get_current_user, require_org_membership, require_role
+from picosentry.serve.api.models import (
+    OrgCreateRequest,
+    OrgCreateResponse,
+    OrgDetailResponse,
+    OrgListResponse,
+    OrgMemberListResponse,
+    OrgTierUpgradeRequest,
+    OrgUpgradeResponse,
+    OrgUsageResponse,
+)
 from picosentry.serve.services.orgs import Organization
 
 logger = logging.getLogger("picoshogun.orgs")
@@ -11,18 +20,14 @@ logger = logging.getLogger("picoshogun.orgs")
 router = APIRouter(prefix="/orgs")
 
 
-@router.get("", tags=["Organizations"])
+@router.get("", response_model=OrgListResponse, tags=["Organizations"])
 async def list_orgs(user: dict = Depends(get_current_user)):
     orgs = Organization.list_orgs_for_user(user["id"])
     return {"orgs": orgs, "count": len(orgs)}
 
 
-@router.get("/{org_id}", tags=["Organizations"])
-async def get_org(org_id: int, user: dict = Depends(get_current_user)):
-    orgs = Organization.list_orgs_for_user(user["id"])
-    org = next((o for o in orgs if o["id"] == org_id), None)
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
+@router.get("/{org_id}", response_model=OrgDetailResponse, tags=["Organizations"])
+async def get_org(org_id: int, org: dict = Depends(require_org_membership)):
     usage = Organization.get_usage(org_id)
     return {
         "id": org["id"],
@@ -36,7 +41,7 @@ async def get_org(org_id: int, user: dict = Depends(get_current_user)):
     }
 
 
-@router.post("", tags=["Organizations"])
+@router.post("", tags=["Organizations"], status_code=201, response_model=OrgCreateResponse)
 async def create_org(
     request: OrgCreateRequest,
     user: dict = Depends(get_current_user),
@@ -58,39 +63,30 @@ async def create_org(
     }
 
 
-@router.get("/{org_id}/members", tags=["Organizations"])
+@router.get("/{org_id}/members", response_model=OrgMemberListResponse, tags=["Organizations"])
 async def list_org_members(
     org_id: int,
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(require_org_membership),
 ):
-    orgs = Organization.list_orgs_for_user(user["id"])
-    if not any(o["id"] == org_id for o in orgs):
-        raise HTTPException(status_code=403, detail="Not a member of this organization")
     members = Organization.get_members(org_id)
     return {"members": members, "count": len(members)}
 
 
-@router.get("/{org_id}/usage", tags=["Organizations"])
+@router.get("/{org_id}/usage", response_model=OrgUsageResponse, tags=["Organizations"])
 async def get_org_usage(
     org_id: int,
-    user: dict = Depends(get_current_user),
+    org: dict = Depends(require_org_membership),
 ):
-    orgs = Organization.list_orgs_for_user(user["id"])
-    if not any(o["id"] == org_id for o in orgs):
-        raise HTTPException(status_code=403, detail="Not a member of this organization")
     return Organization.get_usage(org_id)
 
 
-@router.post("/{org_id}/upgrade", tags=["Organizations"])
+@router.post("/{org_id}/upgrade", response_model=OrgUpgradeResponse, tags=["Organizations"])
 async def upgrade_org_tier(
     org_id: int,
     request: OrgTierUpgradeRequest,
+    org: dict = Depends(require_org_membership),
     user: dict = Depends(require_role("admin")),
 ):
-    orgs = Organization.list_orgs_for_user(user["id"])
-    org = next((o for o in orgs if o["id"] == org_id), None)
-    if not org:
-        raise HTTPException(status_code=404, detail="Organization not found")
     if org.get("user_role") != "admin":
         raise HTTPException(status_code=403, detail="Only admins can upgrade tier")
     success = Organization.update_tier(org_id, request.tier)

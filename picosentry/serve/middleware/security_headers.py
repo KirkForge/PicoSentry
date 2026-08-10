@@ -6,6 +6,8 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, hsts_max_age: int = 31536000, csp: str | None = None):
         super().__init__(app)
         self.hsts_max_age = hsts_max_age
+        # ponytail: style-src allows 'unsafe-inline' because the dashboard SPA uses inline
+        # styles; script-src intentionally does NOT allow 'unsafe-inline' (XSS protection).
         self.csp = csp or (
             "default-src 'self'; "
             # ponytail: unsafe-inline required for SPA dashboard; upgrade to nonce-based CSP when front-end supports it

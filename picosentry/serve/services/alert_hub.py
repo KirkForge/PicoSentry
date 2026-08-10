@@ -36,6 +36,8 @@ logger = logging.getLogger("picoshogun.Alerts")
 
 
 class AlertHub:
+    """Routes alerts to configured channels (Discord, Slack, email, syslog) with cooldown deduplication."""
+
     def __init__(self):
         self.recent_alerts = defaultdict(list)
         self.cooldown_seconds = settings.alerts.cooldown_seconds

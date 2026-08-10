@@ -1,5 +1,7 @@
 # PicoSentry — Detection Quality Benchmarks
 
+> **Note:** The per-rule table below reflects the v2.0.15 baseline (188 fixtures). For current benchmarks, see [docs/model-card.md](model-card.md) which is updated with each corpus expansion.
+
 > **Version:** 2.0.15 (2026-06-16)
 >
 > **Reproducible from a fresh clone:** `picosentry scan --validate` (see [Reproduction](#reproduction) below).

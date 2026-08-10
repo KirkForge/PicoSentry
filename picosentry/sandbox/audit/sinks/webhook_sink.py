@@ -4,8 +4,9 @@ import json
 import logging
 import time
 from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
+from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, assert_url_safe, safe_urlopen
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
 from typing import TYPE_CHECKING
 
@@ -43,7 +44,8 @@ class WebhookSink(AuditSink):
                 method="HEAD",
                 headers=self._build_headers(),
             )
-            urlopen(req, timeout=self._config.timeout)
+            assert_url_safe(self._url)
+            safe_urlopen(req, timeout=int(self._config.timeout), allow_http=True)
             logger.info("WebhookSink: endpoint reachable at %s", self._url)
         except Exception as exc:
             logger.warning("WebhookSink: endpoint not reachable at %s: %s", self._url, exc)
@@ -62,7 +64,7 @@ class WebhookSink(AuditSink):
                     method="POST",
                     headers=headers,
                 )
-                response = urlopen(req, timeout=self._config.timeout)
+                response, _body = safe_urlopen(req, timeout=int(self._config.timeout), allow_http=True)
 
                 if 200 <= response.status < 300:
                     self._record_success()
@@ -75,7 +77,7 @@ class WebhookSink(AuditSink):
                     attempt + 1,
                     self._config.max_retries + 1,
                 )
-            except (URLError, OSError) as exc:
+            except (URLError, OSError, InsecureURLError, ResponseTooLargeError) as exc:
                 last_error = str(exc)
                 logger.debug(
                     "WebhookSink: request failed for event %s (attempt %d/%d): %s",

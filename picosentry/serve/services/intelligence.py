@@ -1,10 +1,12 @@
 import json
 import logging
 import re
+import threading
 from collections import defaultdict
 from typing import Any, ClassVar
 
 from picosentry.serve.database.manager import db
+from picosentry.serve.services._orchestrator_stats import _threat_level
 
 from ._intelligence_data import (
     BANNER_PATTERNS,
@@ -21,6 +23,8 @@ logger = logging.getLogger("picoshogun.Intelligence")
 
 
 class IntelligenceEngine:
+    """Extracts threat indicators from scan output and maintains per-project threat scores."""
+
     PATTERNS: ClassVar[dict[str, tuple[str, str]]] = PATTERNS
     _SIMPLE_IPV4_RE: ClassVar[re.Pattern[str]] = _SIMPLE_IPV4_RE
     SAFE_IPS: ClassVar[set[str]] = SAFE_IPS
@@ -31,6 +35,7 @@ class IntelligenceEngine:
     MODULE_FALSE_POSITIVES: ClassVar[set[str]] = MODULE_FALSE_POSITIVES
 
     def __init__(self):
+        self._lock = threading.Lock()
         self.patterns = defaultdict(list)
         self.threat_scores = defaultdict(float)
         self._load_historical()
@@ -42,9 +47,10 @@ class IntelligenceEngine:
             WHERE created_at > {db.dialect.date_add_hours("now", -7 * 24)}
             GROUP BY source_project, severity
         """)
-        for row in rows:
-            weight = self._severity_weight(row["severity"])
-            self.threat_scores[row["source_project"]] += weight * row["count"]
+        with self._lock:
+            for row in rows:
+                weight = self._severity_weight(row["severity"])
+                self.threat_scores[row["source_project"]] += weight * row["count"]
 
     def _severity_weight(self, severity: str) -> float:
         weights = {"critical": 10.0, "high": 5.0, "medium": 2.0, "low": 0.5, "info": 0.1}
@@ -338,7 +344,8 @@ class IntelligenceEngine:
             (project_id, intel_type, severity, intel_data, related, confidence, org_id),
         )
 
-        self._update_threat_score(project_id, severity, data)
+        with self._lock:
+            self._update_threat_score(project_id, severity, data)
 
         logger.info("Intelligence from %s: %s [%s] (conf: %.2f)", project_id, intel_type, severity, confidence)
 
@@ -352,30 +359,26 @@ class IntelligenceEngine:
         self.threat_scores[project_id] += weight * match_count
 
         total = sum(self.threat_scores.values())
-        level = self._threat_level(total)
+        level = _threat_level(total)
         logger.info("Aggregate threat: %.1f [%s] (%s sources)", total, level, len(self.threat_scores))
 
-    def _threat_level(self, score: float) -> str:
-        if score >= 50:
-            return "critical"
-        if score >= 20:
-            return "high"
-        if score >= 5:
-            return "medium"
-        return "low"
-
     def get_aggregate_score(self) -> float:
-        return sum(self.threat_scores.values())
+        with self._lock:
+            return sum(self.threat_scores.values())
 
     def find_correlations(self, time_window_hours: int = 24) -> list[dict[str, Any]]:
+        time_window_hours = int(time_window_hours)
         if db.dialect.backend == "postgres":
             time_expr = (
                 f"i1.created_at BETWEEN i2.created_at - INTERVAL '{time_window_hours} hours' "
                 f"AND i2.created_at + INTERVAL '{time_window_hours} hours'"
             )
+            params: tuple = ()
         else:
-            time_expr = f"ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 <= {time_window_hours}"
-        rows = db.execute(f"""
+            time_expr = "ABS(julianday(i1.created_at) - julianday(i2.created_at)) * 24 <= ?"
+            params = (time_window_hours,)
+        rows = db.execute(
+            f"""
             SELECT
                 i1.source_project as project1,
                 i2.source_project as project2,
@@ -390,7 +393,9 @@ class IntelligenceEngine:
             GROUP BY project1, project2, i1.intel_type
             HAVING correlation_count >= 2
             ORDER BY correlation_count DESC
-        """)
+        """,
+            params,
+        )
 
         return [dict(row) for row in rows]
 

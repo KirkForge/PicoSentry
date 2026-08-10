@@ -15,9 +15,6 @@ from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Scheduler")
 
-# Operational errors that can occur while executing a scheduled job. We log
-# these, mark the job failed, and continue; unexpected programmer errors must
-# propagate so tests and monitoring can catch them.
 _JOB_EXECUTE_ERRORS: tuple[type[BaseException], ...] = (
     OSError,
     RuntimeError,
@@ -51,6 +48,8 @@ class ScheduledJob:
 
 
 class JobScheduler:
+    """Schedules and executes recurring jobs using cron expressions."""
+
     ALLOWED_COMMANDS: ClassVar[set[str]] = {"batch", "run", "report", "backup", "cleanup", "health_check"}
     ALLOWED_CATEGORIES: ClassVar[set[str]] = {
         "monitoring",
@@ -67,7 +66,7 @@ class JobScheduler:
         self.jobs: dict[int, ScheduledJob] = {}
         self.running = False
         self._thread: threading.Thread | None = None
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
         self._load_jobs()
 
     def _load_jobs(self):
@@ -114,42 +113,42 @@ class JobScheduler:
             (name, cron, command, params_json, enabled, org_id),
         )
 
-        self._load_jobs()
-
-        if self.running:
-            self._schedule_job(job_id)
+        with self._lock:
+            self._load_jobs()
+            if self.running:
+                self._schedule_job(job_id)
 
         logger.info("Job added: %s (%s)", name, cron)
         return job_id
 
     def remove_job(self, job_id: int) -> bool:
-        if job_id not in self.jobs:
-            return False
+        with self._lock:
+            if job_id not in self.jobs:
+                return False
+            del self.jobs[job_id]
 
         db.execute_insert("DELETE FROM scheduled_jobs WHERE id = ?", (job_id,))
-        del self.jobs[job_id]
-
         logger.info("Job removed: %s", job_id)
         return True
 
     def enable_job(self, job_id: int) -> bool:
-        if job_id not in self.jobs:
-            return False
+        with self._lock:
+            if job_id not in self.jobs:
+                return False
+            self.jobs[job_id].enabled = True
+            if self.running:
+                self._schedule_job(job_id)
 
         db.execute("UPDATE scheduled_jobs SET enabled = 1 WHERE id = ?", (job_id,))
-        self.jobs[job_id].enabled = True
-
-        if self.running:
-            self._schedule_job(job_id)
-
         return True
 
     def disable_job(self, job_id: int) -> bool:
-        if job_id not in self.jobs:
-            return False
+        with self._lock:
+            if job_id not in self.jobs:
+                return False
+            self.jobs[job_id].enabled = False
 
         db.execute("UPDATE scheduled_jobs SET enabled = 0 WHERE id = ?", (job_id,))
-        self.jobs[job_id].enabled = False
         return True
 
     def _get_next_run(self, cron_expression: str) -> datetime | None:
@@ -183,17 +182,21 @@ class JobScheduler:
         return category in self.ALLOWED_CATEGORIES
 
     def _execute_job(self, job_id: int):
-        job = self.jobs.get(job_id)
-        if not job:
-            return
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if not job:
+                return
+            command = job.command
+            name = job.name
+            params = job.params
 
-        logger.info("Executing job: %s", job.name)
+        logger.info("Executing job: %s", name)
 
         try:
             status = "failed"
 
-            if job.command not in self.ALLOWED_COMMANDS:
-                logger.error("Rejected unknown command: %r", job.command)
+            if command not in self.ALLOWED_COMMANDS:
+                logger.error("Rejected unknown command: %r", command)
                 now = datetime.now()
                 db.execute_insert(
                     """
@@ -203,14 +206,15 @@ class JobScheduler:
                 """,
                     (now, job_id),
                 )
-                job.last_run = now
-                job.last_status = "rejected"
+                with self._lock:
+                    job.last_run = now
+                    job.last_status = "rejected"
                 return
 
-            if job.command == "batch":
+            if command == "batch":
                 import subprocess
 
-                category = str(job.params.get("category", "monitoring"))
+                category = str(params.get("category", "monitoring"))
 
                 if not self._validate_category(category):
                     logger.error("Rejected unknown category param: %r", category)
@@ -223,8 +227,9 @@ class JobScheduler:
                     """,
                         (now, job_id),
                     )
-                    job.last_run = now
-                    job.last_status = "rejected"
+                    with self._lock:
+                        job.last_run = now
+                        job.last_status = "rejected"
                     return
                 result: subprocess.CompletedProcess = subprocess.run(
                     ["bash", "scripts/run_category.sh", category],
@@ -236,23 +241,23 @@ class JobScheduler:
                 status = "completed" if result.returncode == 0 else "failed"
                 _output = result.stdout + result.stderr
 
-            elif job.command == "run":
+            elif command == "run":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
 
                 run_result = _orch.run_project(
-                    str(job.params.get("project_id") or ""),
-                    int(job.params.get("timeout", 300)),
+                    str(params.get("project_id") or ""),
+                    int(params.get("timeout", 300)),
                 )
                 status = "completed" if run_result.get("success") else "failed"
                 _output = str(run_result)
 
-            elif job.command == "report":
+            elif command == "report":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
 
                 _report = _orch.generate_summary_report()
                 status = "completed"
 
-            elif job.command == "backup":
+            elif command == "backup":
                 from picosentry.serve.services.backup import BackupManager
 
                 bm = BackupManager()
@@ -260,7 +265,7 @@ class JobScheduler:
                 status = "completed" if backup_result else "failed"
                 _output = str(backup_result)
 
-            elif job.command == "cleanup":
+            elif command == "cleanup":
                 from picosentry.serve.services.auth import AuthService
 
                 auth = AuthService()
@@ -274,35 +279,40 @@ class JobScheduler:
                 status = "completed"
                 _output = f"Cleaned up {expired} expired API keys, rotated logs, purged audit entries"
 
+            now = datetime.now()
             db.execute_insert(
                 """
                 UPDATE scheduled_jobs
                 SET last_run = ?, last_status = ?
                 WHERE id = ?
             """,
-                (datetime.now(), status, job_id),
+                (now, status, job_id),
             )
 
-            job.last_run = datetime.now()
-            job.last_status = status
+            with self._lock:
+                job.last_run = now
+                job.last_status = status
 
-            logger.info("Job %s completed: %s", job.name, status)
+            logger.info("Job %s completed: %s", name, status)
 
         except _JOB_EXECUTE_ERRORS:
-            logger.exception("Job %s failed", job.name)
+            logger.exception("Job %s failed", name)
+            now = datetime.now()
             db.execute_insert(
                 """
                 UPDATE scheduled_jobs
                 SET last_run = ?, last_status = 'failed'
                 WHERE id = ?
             """,
-                (datetime.now(), job_id),
+                (now, job_id),
             )
-            job.last_run = datetime.now()
-            job.last_status = "failed"
+            with self._lock:
+                job.last_run = now
+                job.last_status = "failed"
 
-        if self.running and job.enabled:
-            self._schedule_job(job_id)
+        with self._lock:
+            if self.running and job_id in self.jobs and self.jobs[job_id].enabled:
+                self._schedule_job(job_id)
 
     def _schedule_job(self, job_id: int):
         job = self.jobs.get(job_id)
@@ -323,32 +333,38 @@ class JobScheduler:
                 )
 
     def start(self):
-        if self.running:
-            return
-
-        self.running = True
-
-        for job_id in self.jobs:
-            if self.jobs[job_id].enabled:
-                self._schedule_job(job_id)
+        with self._lock:
+            if self.running:
+                return
+            self.running = True
+            for job_id in list(self.jobs):
+                if self.jobs[job_id].enabled:
+                    self._schedule_job(job_id)
+            job_count = len(self.jobs)
 
         self._thread = threading.Thread(target=self._run, daemon=True)
         self._thread.start()
 
-        logger.info("Scheduler started with %s jobs", len(self.jobs))
+        logger.info("Scheduler started with %s jobs", job_count)
 
     def _run(self):
-        while self.running:
+        while True:
+            with self._lock:
+                if not self.running:
+                    break
             self.scheduler.run(blocking=False)
             time.sleep(1)
 
     def stop(self):
-        self.running = False
+        with self._lock:
+            self.running = False
         if self._thread:
             self._thread.join(timeout=5)
         logger.info("Scheduler stopped")
 
     def get_status(self) -> list[dict]:
+        with self._lock:
+            jobs = list(self.jobs.values())
         return [
             {
                 "id": j.id,
@@ -361,7 +377,7 @@ class JobScheduler:
                 "last_status": j.last_status,
                 "org_id": j.org_id,
             }
-            for j in self.jobs.values()
+            for j in jobs
         ]
 
 

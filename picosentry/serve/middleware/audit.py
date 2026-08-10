@@ -151,8 +151,8 @@ class AuditMiddleware(BaseHTTPMiddleware):
                         """
                         INSERT INTO audit_log (action, user_id, resource_type,
                             resource_id, details, ip_address, user_agent,
-                            prev_hash, row_hash)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            prev_hash, row_hash, org_id)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         """,
                         (
                             method,
@@ -164,6 +164,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                             user_agent,
                             _audit_chain.prev_hash,
                             row_hash,
+                            None,
                         ),
                     )
                     _audit_chain.prev_hash = row_hash

@@ -7,8 +7,15 @@ from fastapi import APIRouter, Depends, HTTPException
 from picosentry.sandbox.l3.engine import sandbox_run as _sandbox_run
 from picosentry.sandbox.l3.policy import default_policy as _default_policy
 from picosentry.scan.engine import create_default_engine as _create_engine
-from picosentry.serve.api.deps import require_role
-from picosentry.serve.api.models import SandboxRunRequest, SandboxRunResponse, ScanRequest, ScanResponse
+from picosentry.serve.api.deps import get_current_org, require_role
+from picosentry.serve.api.models import (
+    DefaultPolicyResponse,
+    SandboxRunRequest,
+    SandboxRunResponse,
+    ScanRequest,
+    ScanResponse,
+    ScanRulesResponse,
+)
 from picosentry.serve.config.settings import settings
 
 # Server-side secrets and config that must never be passed into an operator-
@@ -31,6 +38,9 @@ _SANDBOX_ENV_DENYLIST: frozenset[str] = frozenset(
         "GITHUB_TOKEN",
         "AWS_SECRET_ACCESS_KEY",
         "AWS_ACCESS_KEY_ID",
+        "PICOSHOGUN_ALLOW_INSECURE_SECRET",
+        "PICOSHOGUN_SKIP_SECURE_ASSERT",
+        "PICOSHOGUN_API_KEY",
     }
 )
 
@@ -43,6 +53,7 @@ router = APIRouter()
 async def create_scan(
     request: ScanRequest,
     user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
 ):
     # Workspace-root gate (P0 fix).  Without an explicit root configured
     # we reject all scan requests rather than falling back to "any path
@@ -97,8 +108,8 @@ async def create_scan(
     )
 
 
-@router.get("/scans/rules", tags=["Scans"])
-async def list_scan_rules(user: dict = Depends(require_role("viewer"))):
+@router.get("/scans/rules", response_model=ScanRulesResponse, tags=["Scans"])
+async def list_scan_rules(user: dict = Depends(require_role("viewer")), org: dict = Depends(get_current_org)):
     from picosentry.scan.rules import RULE_INFO
 
     return {
@@ -110,6 +121,7 @@ async def list_scan_rules(user: dict = Depends(require_role("viewer"))):
 async def run_sandbox(
     request: SandboxRunRequest,
     user: dict = Depends(require_role("operator")),
+    org: dict = Depends(get_current_org),
 ):
     # Strip server secrets from any environment visible to the sandboxed child.
     # The L3 backends otherwise start with os.environ.copy() and merge the
@@ -156,7 +168,7 @@ async def run_sandbox(
     )
 
 
-@router.get("/sandboxes/policies/default", tags=["Sandbox"])
-async def get_default_policy(user: dict = Depends(require_role("viewer"))):
+@router.get("/sandboxes/policies/default", response_model=DefaultPolicyResponse, tags=["Sandbox"])
+async def get_default_policy(user: dict = Depends(require_role("viewer")), org: dict = Depends(get_current_org)):
     policy = _default_policy()
     return policy.to_dict() if hasattr(policy, "to_dict") else {"policy": str(policy)}

@@ -44,7 +44,7 @@ def cmd(args: argparse.Namespace) -> int:
             )
             print(f"Loaded {count} advisories into {output_dir}")
             print(f"Scan with: picosentry scan . --advisory-db {output_dir}")
-        except Exception as e:
+        except (OSError, ValueError) as e:
             print(f"Error fetching advisories: {e}", file=sys.stderr)
             return 1
         return 0

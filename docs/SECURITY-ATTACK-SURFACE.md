@@ -89,7 +89,7 @@
 
 | Feature | Description | ADR |
 |---------|-------------|-----|
-| Offline deterministic scanning | 54 rules across 7 ecosystems, no model calls in scan path | ADR-001 |
+| Offline deterministic scanning | 50 rules across 7 ecosystems, no model calls in scan path | ADR-001 |
 | Kernel sandbox (seccomp-bpf) | Syscall allowlist enforced at kernel level | ADR-002 |
 | Python/uv packaging | Lockfile pinning, reproducible builds, sigstore signing | ADR-003 |
 | Plugin trust boundary | Signing = admission, sandbox = safety; never conflated | ADR-004 |

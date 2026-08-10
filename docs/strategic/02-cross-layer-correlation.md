@@ -1,5 +1,7 @@
 # 02 — Cross-Layer Kill-Chain Correlation
 
+> **Status: Phase 3 partially implemented (narrative is template-based, not AI-generated). Phase 4 deferred.**
+
 **Leverage:** Category ownership | **Effort:** Medium | **Dependency:** None (pure serve-layer addition)
 
 ---

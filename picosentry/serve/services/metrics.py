@@ -16,11 +16,15 @@ class Metric:
 
 
 class MetricsCollector:
+    """Collects and exposes application metrics in Prometheus and dictionary formats."""
+
     def __init__(self):
         self.metrics: dict[str, list[Metric]] = defaultdict(list)
         self.counters: dict[str, float] = defaultdict(float)
         self._lock = threading.Lock()
         self._start_time = time.time()
+        self._max_counter_keys = 1000
+        self._counter_timestamps: dict[str, float] = {}
 
     def gauge(self, name: str, value: float, labels: dict[str, str] | None = None):
         with self._lock:
@@ -35,6 +39,14 @@ class MetricsCollector:
         with self._lock:
             key = f"{name}:{json.dumps(labels or {}, sort_keys=True)}"
             self.counters[key] += increment
+            self._counter_timestamps[key] = time.time()
+            if len(self.counters) > self._max_counter_keys:
+                oldest_keys = sorted(self._counter_timestamps, key=lambda k: self._counter_timestamps.get(k, 0))[
+                    : len(self.counters) // 4
+                ]
+                for k in oldest_keys:
+                    del self.counters[k]
+                    self._counter_timestamps.pop(k, None)
             self.metrics[name].append(
                 Metric(
                     name=name,

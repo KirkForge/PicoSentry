@@ -15,14 +15,20 @@ DEFAULT_RETENTION: dict[str, int] = {
 }
 
 
-def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False) -> dict:
+def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False, org_id: int | None = None) -> dict:
+    org_clause = " AND org_id = ?" if org_id is not None else ""
+    org_params = (org_id,) if org_id is not None else ()
+
     if retention_days is not None:
         cutoff = datetime.now(timezone.utc) - timedelta(days=retention_days)
         if dry_run:
-            row = db.execute_one("SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
+            row = db.execute_one(
+                f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?{org_clause}",
+                (cutoff.isoformat(), *org_params),
+            )
             return {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
 
-        db.execute("DELETE FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
+        db.execute(f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.isoformat(), *org_params))
         row = db.execute_one("SELECT changes() as c")
         total = row["c"] if row else 0
         logger.info("Purged %d audit log entries older than %d days", total, retention_days)
@@ -32,10 +38,13 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False) -
     for severity, days in DEFAULT_RETENTION.items():
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         if dry_run:
-            row = db.execute_one("SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
+            row = db.execute_one(
+                f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?{org_clause}",
+                (cutoff.isoformat(), *org_params),
+            )
             results[severity] = {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
         else:
-            db.execute("DELETE FROM audit_log WHERE created_at < ?", (cutoff.isoformat(),))
+            db.execute(f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.isoformat(), *org_params))
             row = db.execute_one("SELECT changes() as c")
             total = row["c"] if row else 0
             results[severity] = {"deleted": total, "cutoff": cutoff.isoformat()}
@@ -44,12 +53,18 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False) -
     return results
 
 
-def get_audit_stats() -> dict:
-    total = db.execute_one("SELECT COUNT(*) as c FROM audit_log")
-    oldest = db.execute_one("SELECT MIN(created_at) as oldest FROM audit_log")
-    newest = db.execute_one("SELECT MAX(created_at) as newest FROM audit_log")
+def get_audit_stats(org_id: int | None = None) -> dict:
+    org_clause = " WHERE org_id = ?" if org_id is not None else ""
+    org_params = (org_id,) if org_id is not None else ()
 
-    actions = db.execute("SELECT action, COUNT(*) as count FROM audit_log GROUP BY action ORDER BY count DESC LIMIT 10")
+    total = db.execute_one(f"SELECT COUNT(*) as c FROM audit_log{org_clause}", org_params)
+    oldest = db.execute_one(f"SELECT MIN(created_at) as oldest FROM audit_log{org_clause}", org_params)
+    newest = db.execute_one(f"SELECT MAX(created_at) as newest FROM audit_log{org_clause}", org_params)
+
+    actions = db.execute(
+        f"SELECT action, COUNT(*) as count FROM audit_log{org_clause} GROUP BY action ORDER BY count DESC LIMIT 10",
+        org_params,
+    )
 
     return {
         "total_entries": total["c"] if total else 0,

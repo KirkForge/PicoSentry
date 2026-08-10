@@ -129,7 +129,7 @@ class ScanOrchestrator:
                         pass
                     return cached_result, cache, lockfile_hash
             return None, cache, lockfile_hash
-        except Exception as exc:
+        except (OSError, ValueError, TypeError, KeyError) as exc:
             logger.warning("Cache read failed for %s, disabling cache: %s", target, exc)
             return None, None, ""
 
@@ -147,7 +147,7 @@ class ScanOrchestrator:
                 findings=[Finding(**f) for f in cached_data.get("findings", [])] if "findings" in cached_data else [],
                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
             )
-        except Exception as exc:
+        except (ValueError, TypeError, KeyError, AttributeError) as exc:
             logger.warning("Cache entry for %s is corrupted, ignoring: %s", target, exc)
             return None
 
@@ -170,7 +170,7 @@ class ScanOrchestrator:
                 increment("cache.misses")
             except ImportError:
                 pass
-        except Exception as exc:
+        except (OSError, ValueError, TypeError) as exc:
             logger.warning("Cache write failed for %s: %s", result.target, exc)
 
     def _run_scan(

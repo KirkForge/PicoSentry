@@ -1,5 +1,7 @@
 # 03 — Reachability Analysis + VEX + Auto-Remediation
 
+> **Status: Deferred — not yet implemented. This document describes a future feature.**
+
 **Leverage:** False-positive kill + compliance | **Effort:** Medium | **Dependencies:** 01 (multi-ecosystem) for full value
 
 ---

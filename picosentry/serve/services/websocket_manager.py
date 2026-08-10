@@ -12,11 +12,13 @@ class ConnectionManager:
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
         self.client_channels: dict[WebSocket, set[str]] = {}
+        self._lock = asyncio.Lock()
 
     async def connect(self, websocket: WebSocket, channels: list[str] | None = None):
         await websocket.accept()
         channels_set: set[str] = set(channels) if channels else {"*"}
-        self._add_sub(websocket, channels_set)
+        async with self._lock:
+            self._add_sub(websocket, channels_set)
 
     def _add_sub(self, websocket: WebSocket, channels: set):
         self.client_channels[websocket] = channels
@@ -25,28 +27,33 @@ class ConnectionManager:
                 self.connections[channel] = set()
             self.connections[channel].add(websocket)
 
-    def subscribe(self, websocket: WebSocket, channels: list):
+    async def subscribe(self, websocket: WebSocket, channels: list):
+        async with self._lock:
+            if websocket in self.client_channels:
+                for ch in self.client_channels[websocket]:
+                    self.connections[ch].discard(websocket)
+            self._add_sub(websocket, set(channels or ["*"]))
 
-        if websocket in self.client_channels:
-            for ch in self.client_channels[websocket]:
-                self.connections[ch].discard(websocket)
-        self._add_sub(websocket, set(channels or ["*"]))
-
-    def disconnect(self, websocket: WebSocket):
-        if websocket in self.client_channels:
-            for channel in self.client_channels[websocket]:
-                if channel in self.connections:
-                    self.connections[channel].discard(websocket)
-            del self.client_channels[websocket]
+    async def disconnect(self, websocket: WebSocket):
+        async with self._lock:
+            if websocket in self.client_channels:
+                for channel in self.client_channels[websocket]:
+                    if channel in self.connections:
+                        self.connections[channel].discard(websocket)
+                del self.client_channels[websocket]
 
     async def broadcast(self, event_type: str, payload: dict):
         message = json.dumps({"type": event_type, "payload": payload, "timestamp": datetime.now().isoformat()})
 
-        for ws in self.connections.get("*", set()).copy():
+        async with self._lock:
+            wildcard_sockets = list(self.connections.get("*", set()))
+            typed_sockets = list(self.connections.get(event_type, set()))
+
+        for ws in wildcard_sockets:
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
 
-        for ws in self.connections.get(event_type, set()).copy():
+        for ws in typed_sockets:
             with contextlib.suppress(Exception):
                 await ws.send_text(message)
 

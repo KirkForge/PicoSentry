@@ -102,7 +102,7 @@ Each follows the same pattern:
 | RubyGems (Ruby) | 3 | 34 | ✅ |
 | NuGet (.NET) | 3 | 33 | ✅ |
 
-**49 total rules across 7 ecosystems — 1597 tests passing.**
+**50 L2 rules across 7 ecosystems — 1597 tests passing.**
 
 ## Ecosystem-Agnostic Cross-Cuts
 
@@ -111,9 +111,9 @@ Each follows the same pattern:
 Currently Levenshtein-only in `detect_typosquat()` (`rules/typosquat.py`). Extract into a shared utility:
 - `edit_distance(a, b)` — existing Levenshtein
 - `keyboard_distance(a, b)` — QWERTY adjacency cost
-- `homoglyph_score(a, b)` — Unicode confusable detection
-- `scope_confusion_score(name)` — `@org/pkg` vs `org-pkg` pattern
-- Combined: `typosquat_score(target, corpus_name) -> float`
+- `homoglyph_score(a, b)` — Unicode confusable detection *(deferred — not yet implemented)*
+- `scope_confusion_score(name)` — `@org/pkg` vs `org-pkg` pattern *(deferred — not yet implemented)*
+- Combined: `typosquat_score(target, corpus_name) -> float` *(deferred — not yet implemented)*
 
 File: `picosentry/scan/rules/typosquat_utils.py`
 

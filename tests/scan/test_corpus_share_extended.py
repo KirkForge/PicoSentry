@@ -175,15 +175,6 @@ class TestCorpusPackSeal(unittest.TestCase):
         self.assertEqual(pack._signature["digest"], pack.digest())
 
 
-class TestCorpusPackSign(unittest.TestCase):
-    """Tests for CorpusPack.sign() — now raises NotImplementedError."""
-
-    def test_sign_raises_not_implemented(self):
-        pack = CorpusPack(name="test")
-        with self.assertRaises(NotImplementedError):
-            pack.sign("bob")
-
-
 class TestCorpusPackSignCryptographically(unittest.TestCase):
     """Tests for CorpusPack.sign_cryptographically()."""
 

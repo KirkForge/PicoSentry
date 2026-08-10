@@ -29,9 +29,12 @@ class Event:
     payload: dict[str, Any]
     timestamp: datetime
     priority: str = "normal"  # low, normal, high, critical
+    org_id: str | None = None
 
 
 class EventBus:
+    """Thread-safe publish/subscribe event bus for decoupled inter-service messaging."""
+
     def __init__(self):
         self.subscribers: dict[str, list[Callable]] = defaultdict(list)
         self.persistent_subscribers: dict[str, list[str]] = defaultdict(list)
@@ -63,7 +66,14 @@ class EventBus:
                     pass
         return False
 
-    def publish(self, event_type: str, payload: dict, source: str = "system", priority: str = "normal") -> Event:
+    def publish(
+        self,
+        event_type: str,
+        payload: dict,
+        source: str = "system",
+        priority: str = "normal",
+        org_id: str | None = None,
+    ) -> Event:
         event = Event(
             id=str(uuid.uuid4()),
             type=event_type,
@@ -71,6 +81,7 @@ class EventBus:
             payload=payload,
             timestamp=datetime.now(timezone.utc),
             priority=priority,
+            org_id=org_id,
         )
 
         with self._lock:
@@ -92,11 +103,13 @@ class EventBus:
         logger.debug("Event published: %s (%s)", event_type, event.id)
         return event
 
-    def get_history(self, event_type: str | None = None, limit: int = 100) -> list[Event]:
+    def get_history(self, event_type: str | None = None, limit: int = 100, org_id: str | None = None) -> list[Event]:
         with self._lock:
             events = self.event_history
             if event_type:
                 events = [e for e in events if e.type == event_type]
+            if org_id is not None:
+                events = [e for e in events if e.org_id == org_id]
             return events[-limit:]
 
     def get_subscribers(self) -> dict[str, int]:

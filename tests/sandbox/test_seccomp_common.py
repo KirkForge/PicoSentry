@@ -155,3 +155,81 @@ class TestSeccompCommon:
         lib = MagicMock()
         lib.seccomp_rule_add.return_value = -13
         assert add_rule_safely(lib, MagicMock(), SCMP_ACT_KILL_PROCESS, 1, "open") is False
+
+
+class TestArchPortability:
+    """Assert that seccomp syscall name resolution is arch-portable.
+
+    libseccomp resolves syscall names to numbers per-arch at runtime via
+    ``seccomp_syscall_resolve_name``. This test verifies that the core
+    allowlist syscalls resolve to positive integers regardless of the
+    host architecture, proving the backend is not hardcoded to x86_64
+    syscall numbers.
+
+    On non-Linux platforms where libseccomp is unavailable, the test
+    is skipped.
+    """
+
+    CORE_ALLOWLIST = (
+        "read",
+        "write",
+        "openat",
+        "close",
+        "exit",
+        "exit_group",
+        "rt_sigreturn",
+    )
+
+    @staticmethod
+    def _load_libseccomp():
+        import platform
+
+        if platform.system() != "Linux":
+            return None
+        import ctypes
+
+        try:
+            lib = ctypes.CDLL("libseccomp.so.2")
+        except OSError:
+            try:
+                lib = ctypes.CDLL("libseccomp.so")
+            except OSError:
+                return None
+        setup_lib(lib)
+        return lib
+
+    def test_core_syscalls_resolve_to_positive_ints(self) -> None:
+        """Every core-allowlist syscall must resolve to a positive int
+        on this architecture. A return of -1 means the syscall is
+        unknown on this arch (e.g. ``open`` on some 64-bit platforms),
+        which would indicate a portability gap."""
+        lib = self._load_libseccomp()
+        if lib is None:
+            import pytest
+
+            pytest.skip("libseccomp not available on this platform")
+
+        cache: dict[str, int] = {}
+        import platform
+
+        arch = platform.machine()
+        for name in self.CORE_ALLOWLIST:
+            num = resolve_syscall(lib, name, cache)
+            assert num >= 0, (
+                f"syscall '{name}' resolved to {num} on {arch} — seccomp filter would be incorrect on this architecture"
+            )
+
+    def test_resolve_returns_int_not_negative_one(self) -> None:
+        """``resolve_syscall`` must never return -1 for core syscalls.
+        -1 is ``__NR_SCMP_ERROR`` in libseccomp and means the name is
+        not recognized on this arch."""
+        lib = self._load_libseccomp()
+        if lib is None:
+            import pytest
+
+            pytest.skip("libseccomp not available on this platform")
+
+        cache: dict[str, int] = {}
+        for name in self.CORE_ALLOWLIST:
+            num = resolve_syscall(lib, name, cache)
+            assert num != -1, f"syscall '{name}' is unknown on this platform"

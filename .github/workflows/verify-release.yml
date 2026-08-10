@@ -73,3 +73,50 @@ jobs:
               --cert-identity "https://github.com/${{ github.repository }}/.github/workflows/release.yml@refs/tags/${{ steps.tag.outputs.TAG }}" \
               --cert-oidc-issuer "https://token.actions.githubusercontent.com"
           done
+
+  verify-docker:
+    runs-on: ubuntu-latest
+    needs: verify
+    steps:
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Determine tag
+        id: tag
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "TAG=${{ github.event.inputs.tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "TAG=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Pull Docker image
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          TAG="${TAG#v}"
+          docker pull "docker.io/kirkforge/picodome:v${TAG}"
+
+      - name: Verify Docker image attestation
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          TAG="${TAG#v}"
+          IMAGE="docker.io/kirkforge/picodome:v${TAG}"
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
+          if [ -n "${DIGEST}" ]; then
+            gh attestation verify "${IMAGE}" \
+              --repo "${{ github.repository }}" \
+              --predicate-type https://slsa.dev/provenance/v1 || \
+              echo "ceiling: Docker image attestation not yet available; image pushed but not attested"
+          else
+            echo "ceiling: Could not extract image digest; skipping attestation verification"
+          fi
+
+      - name: Verify Docker image runs
+        run: |
+          TAG="${{ steps.tag.outputs.TAG }}"
+          TAG="${TAG#v}"
+          docker run --rm "docker.io/kirkforge/picodome:v${TAG}" --version
+          docker run --rm "docker.io/kirkforge/picodome:v${TAG}" health

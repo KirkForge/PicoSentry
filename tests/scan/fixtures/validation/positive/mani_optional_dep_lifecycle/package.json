@@ -1,6 +1,9 @@
 {
   "name": "optional-lifecycle",
   "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node setup.js"
+  },
   "optionalDependencies": {
     "evil-hook": "^1.0.0"
   }

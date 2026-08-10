@@ -1,6 +1,6 @@
 {
   "label": "positive",
-  "description": "Maven project depending on com.corp:utils without private repo (fires L2-MAVEN-DEPC-001).",
+  "description": "Maven project depending on com.corp:corp-auth-service without private repo (fires L2-MAVEN-DEPC-001).",
   "expected_rule_ids": [
     "L2-MAVEN-DEPC-001"
   ]

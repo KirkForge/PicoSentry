@@ -10,6 +10,7 @@ from ._dep_confusion_config import (
     _CARGO_CONFIG,
     _GO_CONFIG,
     _INTERNAL_ALL_PATTERNS,
+    _MAVEN_INTERNAL_GROUP_PATTERNS,
     _MAVEN_KNOWN_SAFE_ARTIFACTS,
     _MAVEN_PUBLIC_GROUP_PREFIXES,
     _NUGET_CONFIG,
@@ -77,6 +78,9 @@ def _looks_internal_maven(group_id: str, artifact_id: str) -> bool:
             return True
 
     if group_id:
+        for pattern in _MAVEN_INTERNAL_GROUP_PATTERNS:
+            if re.search(pattern, group_id, re.IGNORECASE):
+                return True
         for prefix in _MAVEN_PUBLIC_GROUP_PREFIXES:
             if group_id.startswith(prefix):
                 return False

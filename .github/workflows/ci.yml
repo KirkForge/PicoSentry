@@ -228,7 +228,5 @@ jobs:
         run: |
           uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
           grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
-      - name: Install pip-audit
-        run: uv pip install pip-audit
       - name: Run pip-audit against lockfile
-        run: uv run pip-audit --no-deps -r requirements-audit.clean.txt --desc
+        run: uv run --with pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc

@@ -63,7 +63,8 @@ class DatabaseManager:
         return SQLDialect(self._backend)
 
     def _validate_param_count(self, sql: str, params: tuple) -> None:
-        expected = sql.count("?")
+        placeholder = "%s" if self._backend == "postgres" else "?"
+        expected = sql.count(placeholder)
         if expected != len(params):
             raise ValueError(
                 f"Parameter count mismatch: SQL has {expected} placeholders but {len(params)} parameters were provided"

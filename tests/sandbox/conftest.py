@@ -1,6 +1,7 @@
 """Shared fixtures for PicoDome tests."""
 
 import json
+import logging
 import tempfile
 from pathlib import Path
 
@@ -30,6 +31,22 @@ from picosentry.sandbox.models import (
 )
 
 # ─── Shared model fixtures ──────────────────────────────────────────────────
+
+
+@pytest.fixture(autouse=True)
+def _restore_picodome_logger():
+    """Isolate picodome logger state so a test that reconfigures it (setup_logging
+    clears handlers / sets propagate=False) can't starve caplog on a sibling test
+    running in the same xdist worker."""
+    logger = logging.getLogger("picodome")
+    old_handlers = list(logger.handlers)
+    old_level = logger.level
+    old_propagate = logger.propagate
+    yield
+    logger.handlers.clear()
+    logger.handlers.extend(old_handlers)
+    logger.setLevel(old_level)
+    logger.propagate = old_propagate
 
 
 @pytest.fixture

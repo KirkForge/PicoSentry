@@ -141,7 +141,7 @@ pip install picosentry[all]            # everything
 
 ### CLI commands
 
-`picosentry scan` (core scanner), `sandbox` (isolation), `watch` (LLM guards), `serve` (API server), `daemon` (sandbox-as-a-service), `admission` (K8s webhook), `corpus` (IoC packs), `diff` (compare scans), `firewall` (network policy), `rules` (list/disable rules), `init` (project config), `health` (status check), `version`, `update`.
+`picosentry scan` (core scanner), `sandbox` (isolation), `watch` (LLM guards), `serve` (API server), `daemon` (sandbox-as-a-service), `admission` (K8s webhook), `corpus` (IoC packs), `diff` (compare scans), `doctor` (self-verification), `firewall` (network policy), `rules` (list/disable rules), `init` (project config), `health` (status check), `version`, `update`.
 
 - **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
 - **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 50 rules (50 L2 + 65 L4 behavioral), precision/recall per rule

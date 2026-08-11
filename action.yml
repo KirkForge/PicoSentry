@@ -37,7 +37,7 @@ runs:
   steps:
     - name: Install PicoSentry
       shell: bash
-      run: pip install --no-cache-dir picosentry
+      run: pip install --no-cache-dir .
 
     - name: Run PicoSentry scan
       id: scan
@@ -51,17 +51,22 @@ runs:
           ARGS+=(--severity-threshold "${{ inputs.severity-threshold }}")
         fi
 
-        picosentry "${ARGS[@]}" 2>/dev/null || exit_code=$?
+        picosentry "${ARGS[@]}" || exit_code=$?
+
+        if [ -n "${exit_code}" ] && [ "$exit_code" -ne 0 ]; then
+          echo "::error::PicoSentry scan failed (exit code ${exit_code}). Check the scan output above for the underlying error."
+          exit "$exit_code"
+        fi
+
+        if [ ! -f "${{ inputs.sarif-file }}" ]; then
+          echo "::error::PicoSentry scan produced no SARIF file at '${{ inputs.sarif-file }}'"
+          exit 2
+        fi
 
         FINDINGS_COUNT=$(python3 -c "import json; d=json.load(open('${{ inputs.sarif-file }}')); print(len(d.get('runs',[{}])[0].get('results',[])))" 2>/dev/null || echo "0")
 
         echo "findings_count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
         echo "sarif_file=${{ inputs.sarif-file }}" >> "$GITHUB_OUTPUT"
-
-        if [ -n "${exit_code}" ] && [ "$exit_code" -eq 2 ]; then
-          echo "::error::PicoSentry scan failed with an internal error"
-          exit 2
-        fi
 
         if [ "${{ inputs.fail-on-findings }}" = "true" ] && [ "$FINDINGS_COUNT" -gt 0 ]; then
           echo "::warning::$FINDINGS_COUNT finding(s) detected"

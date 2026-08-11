@@ -8,6 +8,26 @@
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
 
+## Session 2026-08-12: WO2.0.0-008 audit-fsync — COMPLETE (commit `3ed64635`, branch `wo/2.0.0/audit-fsync`)
+### What was done
+- `picosentry/sandbox/audit/logger.py`: added `fsync: bool = True` param to
+  `AuditLogger.__init__`; gated the existing `os.fsync(f.fileno())` on it;
+  wired env knob `PICODOME_AUDIT_FSYNC` (default on) via `_audit_fsync_enabled()`
+  into `get_audit_logger`/`setup_audit_logger`.
+- `tests/sandbox/test_audit.py`: added `test_crash_recovery_chain_reseed`
+  (write → reopen → append → verify_chain), `test_fsync_knob_default_on`,
+  `test_fsync_knob_off`.
+- Note: the JSONL audit already fsync'd (commit `4579065e`); the workorder's
+  file map was stale (`serve/middleware/audit.py` is SQL, not JSONL). The knob
+  is `PICODOME_AUDIT_FSYNC`, not `PICOSHOGUN_AUDIT_FSYNC`, because the audit
+  file lives in the sandbox namespace.
+### Gate output (head `3ed64635`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 407 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 291.26s
+### Pending / blocked
+- None.
+
 ## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
 
 ### What was done (commit `72138610`)

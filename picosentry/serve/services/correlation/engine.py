@@ -39,7 +39,9 @@ class CorrelationEngine:
 
         self._events: dict[str, list[CorrelatedEvent]] = defaultdict(list)
 
-        self._chains: dict[str, KillChainTimeline] = {}
+        # Kill-chain cache keyed by (org_id, artifact_id) so two tenants
+        # ingesting the same artifact never share a cached timeline.
+        self._chains: dict[tuple[str | None, str], KillChainTimeline] = {}
 
         self._max_events_per_artifact = 1000
         self._max_artifacts = 5000
@@ -101,10 +103,11 @@ class CorrelationEngine:
                     key=lambda k: min(e.timestamp for e in self._events[k]),
                 )[: len(self._events) // 4]
                 for k in oldest:
+                    evicted_org = self._events[k][0].org_id if self._events[k] else None
                     del self._events[k]
-                    self._chains.pop(k, None)
+                    self._chains.pop((evicted_org, k), None)
 
-            self._chains.pop(event.artifact_id, None)
+            self._chains.pop((event.org_id, event.artifact_id), None)
 
         logger.debug(
             "Ingested event: %s | %s | %s | %s",
@@ -130,7 +133,7 @@ class CorrelationEngine:
                 artifact_events.append(event)
                 if len(artifact_events) > self._max_events_per_artifact:
                     self._events[event.artifact_id] = artifact_events[-self._max_events_per_artifact :]
-                self._chains.pop(event.artifact_id, None)
+                self._chains.pop((event.org_id, event.artifact_id), None)
 
             if len(self._events) > self._max_artifacts:
                 oldest = sorted(
@@ -138,8 +141,9 @@ class CorrelationEngine:
                     key=lambda k: min(e.timestamp for e in self._events[k]),
                 )[: len(self._events) // 4]
                 for k in oldest:
+                    evicted_org = self._events[k][0].org_id if self._events[k] else None
                     del self._events[k]
-                    self._chains.pop(k, None)
+                    self._chains.pop((evicted_org, k), None)
 
         if dropped:
             logger.warning(
@@ -149,17 +153,24 @@ class CorrelationEngine:
             )
         logger.debug("Ingested batch of %d events", allowed)
 
-    def kill_chain(self, artifact_id: str) -> KillChainTimeline | None:
+    def kill_chain(self, artifact_id: str, org_id: str | None = None) -> KillChainTimeline | None:
         with self._lock:
-            if artifact_id in self._chains:
-                return self._chains[artifact_id]
+            cache_key = (org_id, artifact_id)
+            if cache_key in self._chains:
+                return self._chains[cache_key]
 
             events = self._events.get(artifact_id)
             if not events:
                 return None
 
-            timeline = self._compute_timeline(artifact_id, events)
-            self._chains[artifact_id] = timeline
+            # Only events belonging to the requesting org (or global, org-less
+            # events) contribute to this tenant's chain.
+            scoped = [e for e in events if e.org_id is None or e.org_id == org_id]
+            if not scoped:
+                return None
+
+            timeline = self._compute_timeline(artifact_id, scoped)
+            self._chains[cache_key] = timeline
             return timeline
 
     def kill_chain_raw(self, artifact_id: str) -> list[CorrelatedEvent] | None:
@@ -167,20 +178,26 @@ class CorrelationEngine:
             events = self._events.get(artifact_id)
             return list(events) if events else None
 
-    def critical_chains(self, threshold: float = 0.5) -> list[KillChainTimeline]:
+    def critical_chains(self, threshold: float = 0.5, org_id: str | None = None) -> list[KillChainTimeline]:
         with self._lock:
             results = []
             for artifact_id in list(self._events.keys()):
-                chain = self.kill_chain(artifact_id)
+                chain = self.kill_chain(artifact_id, org_id=org_id)
                 if chain and chain.chain_score >= threshold:
                     results.append(chain)
 
             results.sort(key=lambda c: c.chain_score, reverse=True)
             return results
 
-    def all_artifact_ids(self) -> list[str]:
+    def all_artifact_ids(self, org_id: str | None = None) -> list[str]:
         with self._lock:
-            return list(self._events.keys())
+            if org_id is None:
+                return list(self._events.keys())
+            return [
+                artifact_id
+                for artifact_id, events in self._events.items()
+                if any(e.org_id is None or e.org_id == org_id for e in events)
+            ]
 
     def on_run_completed(self, project_id: str, run_id: str | None = None) -> None:
 
@@ -353,15 +370,15 @@ class CorrelationEngine:
     def persist_chains_cache(self) -> int:
         return _persist_chains_cache_impl(self)
 
-    def chains_summary(self) -> dict[str, Any]:
+    def chains_summary(self, org_id: str | None = None) -> dict[str, Any]:
         with self._lock:
-            all_ids = list(self._events.keys())
+            all_ids = self.all_artifact_ids(org_id=org_id)
 
         all_chains: list[KillChainTimeline] = []
         layers_used: set[str] = set()
         total_events = 0
         for artifact_id in all_ids:
-            chain = self.kill_chain(artifact_id)
+            chain = self.kill_chain(artifact_id, org_id=org_id)
             if chain:
                 all_chains.append(chain)
                 for events in chain.phases.values():
@@ -425,10 +442,17 @@ class CorrelationEngine:
             self._chains.clear()
         logger.info("CorrelationEngine: cleared all events")
 
-    def stats(self) -> dict[str, Any]:
+    def stats(self, org_id: str | None = None) -> dict[str, Any]:
         with self._lock:
-            artifact_count = len(self._events)
-            event_count = sum(len(events) for events in self._events.values())
+            if org_id is None:
+                artifact_count = len(self._events)
+                event_count = sum(len(events) for events in self._events.values())
+            else:
+                artifact_ids = self.all_artifact_ids(org_id=org_id)
+                artifact_count = len(artifact_ids)
+                event_count = sum(
+                    sum(1 for e in self._events[a] if e.org_id is None or e.org_id == org_id) for a in artifact_ids
+                )
             chain_count = len(self._chains)
 
         return {

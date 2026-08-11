@@ -3,10 +3,42 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `8c26a04b` (dev) — **CI fully green** (PicoSentry CI run 31421163207 all 14 jobs ✓; Admission Matrix run 31421161650 all 3 ✓)
-- Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
+- Head: `72138610` (branch `wo/2.0.0/multi-tenancy`, off `dev`) — multi-tenancy hardening (WO2.0.0-002)
+- Tests: All passing locally (472 serve tests on 3.10)
 - Validation: 85% precision / 60% recall (adjusted floors)
-- Last updated: 2026-08-10
+- Last updated: 2026-08-12
+
+## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
+
+### What was done (commit `72138610`)
+- **correlation.py**: `CorrelationEngine` read methods (`kill_chain`, `critical_chains`, `all_artifact_ids`, `chains_summary`, `stats`) now take `org_id` and filter events to those whose `org_id` is `None` (global) or matches the caller. Kill-chain cache key changed from `artifact_id` to `(org_id, artifact_id)` — fixes cross-tenant cache collision. Router passes `org["id"]` to all read methods.
+- **health.py**: `GET /status` now depends on `get_current_org` and passes `org_id` into `orchestrator.get_status()`, scoping project-run/intelligence/alert aggregates.
+- **persistence.py**: `_persist_chains_cache_impl` unpacks the new `(org_id, artifact_id)` cache key.
+- **docs/adr/ADR-007-multi-tenancy.md**: new ADR documenting the isolation model (default tenant, org scoping, isolation guarantees, ponytail ceilings).
+
+### Audit result (endpoint → org-scoped)
+- orgs.py: all org endpoints use `require_org_membership`/`get_current_user` (org CRUD is inherently org-scoped) ✓
+- scans.py: create_scan, rules, sandboxes, default policy — all `get_current_org` ✓
+- projects.py: all 12 endpoints `get_current_org` + org-scoped queries ✓
+- admin.py: all 8 endpoints `get_current_org` ✓
+- anomaly.py: all 4 endpoints `get_current_org` ✓
+- correlation.py: all 6 endpoints `get_current_org` ✓ (read methods now org-scoped — FIXED)
+- dashboard.py: `get_current_org` ✓
+- metrics.py: all 3 endpoints `get_current_org` ✓
+- scheduler.py: all 4 endpoints `get_current_org` ✓
+- webhooks.py: both endpoints `get_current_org` ✓
+- health.py: `/status` now `get_current_org` (FIXED); `/health`, `/health/live`, `/health/ready`, `/health/history`, `/`, `/dashboard` are infra/health probes — intentionally not org-scoped (no tenant data)
+- auth.py: auth endpoints are pre-org (no tenant data) — not org-scoped by design
+- plugins.py: `get_current_user` only — returns plugin status, no tenant data
+- ws.py: WebSocket fanout — no org scoping (channels are event-type based, not tenant data)
+
+### Gate output (head `72138610`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 407 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 158.48s
+
+### Pending / next steps
+- None blocking. Correlation persistence does not yet write `org_id` to `correlation_events`/`correlation_chains` tables (documented ponytail ceiling in ADR-007); add org_id column + migration when persistence is enabled in production.
 
 ## Session 2026-08-10 (final): CI repair round 3 — COMPLETE, CI GREEN
 

@@ -38,12 +38,12 @@ def list_chains(
     org: dict = Depends(get_current_org),
 ):
     if threshold > 0:
-        chains = correlation_engine.critical_chains(threshold=threshold)
+        chains = correlation_engine.critical_chains(threshold=threshold, org_id=org["id"])
     else:
-        all_ids = correlation_engine.all_artifact_ids()
+        all_ids = correlation_engine.all_artifact_ids(org_id=org["id"])
         chains = []
         for artifact_id in all_ids:
-            chain = correlation_engine.kill_chain(artifact_id)
+            chain = correlation_engine.kill_chain(artifact_id, org_id=org["id"])
             if chain:
                 chains.append(chain)
         chains.sort(key=lambda c: c.chain_score, reverse=True)
@@ -62,7 +62,7 @@ def get_chain(
     user: dict = Depends(require_role("viewer")),
     org: dict = Depends(get_current_org),
 ):
-    chain = correlation_engine.kill_chain(artifact_id)
+    chain = correlation_engine.kill_chain(artifact_id, org_id=org["id"])
     if chain is None:
         raise HTTPException(
             status_code=404,
@@ -77,7 +77,7 @@ def get_chain_narrative(
     user: dict = Depends(require_role("viewer")),
     org: dict = Depends(get_current_org),
 ):
-    chain = correlation_engine.kill_chain(artifact_id)
+    chain = correlation_engine.kill_chain(artifact_id, org_id=org["id"])
     if chain is None:
         raise HTTPException(
             status_code=404,
@@ -135,7 +135,7 @@ def chains_summary(
     user: dict = Depends(require_role("viewer")),
     org: dict = Depends(get_current_org),
 ):
-    return correlation_engine.chains_summary()
+    return correlation_engine.chains_summary(org_id=org["id"])
 
 
 @router.post("/chains/persist", response_model=ChainsPersistResponse)
@@ -158,4 +158,4 @@ def engine_stats(
     user: dict = Depends(require_role("viewer")),
     org: dict = Depends(get_current_org),
 ):
-    return correlation_engine.stats()
+    return correlation_engine.stats(org_id=org["id"])

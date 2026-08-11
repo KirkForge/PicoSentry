@@ -2,6 +2,9 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - ADR gaps: audit hash-chain, multi-tenancy, serve orchestration, LLM watch
+- docs(adr): add ADR-006 (tamper-evident audit hash-chain), ADR-007 (multi-tenancy/org isolation), ADR-008 (serve orchestration API), ADR-009 (LLM watch subsystem) — four architectural decisions that previously had no ADR
+
 ## 2026-08-10 - CI repair round 3 (postgres + docker + deps + xdist flake) — CI GREEN
 PicoSentry CI run 31421163207 is fully green (all 14 jobs) on head `8c26a04b`.
 - fix(db): `_validate_param_count` counts both `?` and `%s` placeholders so postgres SQL (native `%s`) passes validation (was "0 placeholders but 1 parameter")

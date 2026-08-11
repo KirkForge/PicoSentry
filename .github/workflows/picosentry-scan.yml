@@ -14,7 +14,7 @@ jobs:
       - name: Run PicoSentry
         uses: ./
         with:
-          path: '.'
+          path: 'picosentry/'
           format: 'sarif'
           fail-on-findings: 'true'
       - name: Upload SARIF

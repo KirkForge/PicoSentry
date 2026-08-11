@@ -152,6 +152,28 @@ class TestAuditLogger:
         violations = audit.verify_chain()
         assert violations == [] or any("not found" in v for v in violations)
 
+    def test_crash_recovery_chain_reseed(self, audit_dir):
+        # Simulate a crash: write entries, drop the logger (process restart),
+        # re-open the file with a fresh logger, append, and verify the chain.
+        first = AuditLogger(log_dir=audit_dir)
+        first.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="cmd1")
+        first.record(event_type=AuditEventType.SCAN_COMPLETE, actor="u1", detail="ok")
+
+        # "Crash" — new process, no in-memory prev_hash.
+        restarted = AuditLogger(log_dir=audit_dir)
+        restarted.record(event_type=AuditEventType.SCAN_ALERT, actor="u1", detail="alert1")
+
+        violations = restarted.verify_chain()
+        assert violations == []
+
+    def test_fsync_knob_default_on(self, audit_dir):
+        audit = AuditLogger(log_dir=audit_dir)
+        assert audit._fsync is True
+
+    def test_fsync_knob_off(self, audit_dir):
+        audit = AuditLogger(log_dir=audit_dir, fsync=False)
+        assert audit._fsync is False
+
 
 class TestAuditEventTypes:
     def test_all_scan_types(self):

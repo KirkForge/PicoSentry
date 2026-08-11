@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse, JSONResponse
 
-from picosentry.serve.api.deps import get_current_user
+from picosentry.serve.api.deps import get_current_org, get_current_user
 from picosentry.serve.api.models import (
     HealthHistoryResponse,
     HealthReadiness,
@@ -126,8 +126,11 @@ async def health_history(limit: int = Query(50, ge=1, le=1000), user: dict = Dep
 
 
 @router.get("/status", response_model=SystemStatus, tags=["Status"])
-async def get_status(user: dict = Depends(get_current_user)):
-    status_data = orchestrator.get_status()
+async def get_status(
+    user: dict = Depends(get_current_user),
+    org: dict = Depends(get_current_org),
+):
+    status_data = orchestrator.get_status(org_id=org["id"])
     health = orchestrator.get_health_checks()
     threat_score = 0.0
     if health:

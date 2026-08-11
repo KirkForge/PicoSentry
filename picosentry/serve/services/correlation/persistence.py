@@ -157,7 +157,7 @@ def _persist_chains_cache_impl(engine) -> int:
     ph = db.dialect.placeholder()
     count = 0
     with engine._lock:
-        for artifact_id, chain in list(engine._chains.items()):
+        for (_org_id, artifact_id), chain in list(engine._chains.items()):
             event_count = sum(len(e) for e in chain.phases.values())
             phase_count = len(chain.phases)
             try:

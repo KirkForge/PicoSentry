@@ -28,11 +28,12 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
             }
         )
     except _HEALTH_PROBE_ERRORS as e:
+        logger.warning("Database health probe failed: %s", e)
         checks.append(
             {
                 "component": "database",
                 "status": "critical",
-                "message": str(e),
+                "message": "Database unreachable",
                 "latency_ms": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -55,11 +56,12 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
             }
         )
     except OSError as e:
+        logger.warning("Disk space probe failed: %s", e)
         checks.append(
             {
                 "component": "disk_space",
                 "status": "unknown",
-                "message": str(e),
+                "message": "Disk space unavailable",
                 "latency_ms": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
@@ -112,11 +114,12 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
                 }
             )
     except (OSError, smtplib.SMTPException) as e:
+        logger.warning("SMTP health probe failed: %s", e)
         checks.append(
             {
                 "component": "smtp",
                 "status": "critical",
-                "message": f"SMTP unreachable: {e}",
+                "message": "SMTP unreachable",
                 "latency_ms": 0,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }

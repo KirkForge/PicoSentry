@@ -249,9 +249,9 @@ class WebhookManager:
 
                 logger.info("Webhook %s: %s", name, response.status_code)
 
-            except requests.RequestException as e:
+            except requests.RequestException:
                 logger.exception("Webhook %s failed", name)
-                results.append({"webhook": name, "status": 0, "success": False, "error": str(e)})
+                results.append({"webhook": name, "status": 0, "success": False, "error": "webhook delivery failed"})
 
         return results
 

@@ -86,7 +86,7 @@ class TestHealthCheckHardening:
         checks = orchestrator.get_health_checks()
         db_check = next(c for c in checks if c["component"] == "database")
         assert db_check["status"] == "critical"
-        assert "db connection lost" in db_check["message"]
+        assert db_check["message"] == "Database unreachable"
 
     def test_disk_space_probe_failure_reported_unknown(self, orchestrator, monkeypatch):
         import os

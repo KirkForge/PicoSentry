@@ -82,6 +82,20 @@
 
 ### Blocked
 - None from this session.
+## Session 2026-08-12: ADR gaps (WO2.0.0-005 + WO2.0.0-006) — COMPLETE
+### What was done
+- Added 4 ADRs for architectural decisions that had none:
+  - `docs/adr/ADR-006-audit-hash-chain.md` — tamper-evident audit hash-chain (`_AuditChain`, `prev_hash` linking, `_seed_chain` restart reseed from last committed `row_hash`)
+  - `docs/adr/ADR-007-multi-tenancy.md` — sandbox `TenantAwareScanJobStore`/`TenantId`/`TenantRegistry` + serve `Organization`/`get_current_org`/org-scoped queries
+  - `docs/adr/ADR-008-serve-orchestration-api.md` — `EnhancedOrchestrator` + FastAPI router surface + middleware stack
+  - `docs/adr/ADR-009-llm-watch.md` — prompt guard, output guard, server, ratelimit, telemetry/OTel
+- All ADRs match the existing format (Status: Accepted, Date, Context, Decision, Rationale, Consequences) and were written against the actual code.
+- CHANGELOG one-liner added.
+### Notes
+- Workorder WO2.0.0-006 references `picosentry/serve/api/routers/tenant.py` — that file does NOT exist. The serve tenancy surface is `get_current_org` in `picosentry/serve/api/deps.py` + `orgs.py` router + `Organization` service. ADR-007 documents the actual code.
+- Gate: `uv run ruff check picosentry/ tests/ scripts/` — All checks passed (ruff not in the worktree venv; ran via `uv run --with ruff`).
+### Pending / blocked
+- None.
 
 ## Session 2026-08-10 (final): CI repair round 3 — COMPLETE, CI GREEN
 

@@ -5,78 +5,77 @@
 
 ## Context
 
-The `picosentry/serve` package exposes a FastAPI orchestration surface that
-drives the offline scanner, sandbox, correlation engine, and alerting. The
-orchestration core lives in `picosentry/serve/services/orchestrator.py`
-(`EnhancedOrchestrator`), which owns the project registry, subprocess
-execution, intelligence extraction, correlation, and alert dispatch. The HTTP
-layer in `picosentry/serve/api/routers/` (projects, health, dashboard,
-scans, correlation, scheduler, webhooks, orgs, auth, admin, metrics) maps
-those operations to REST endpoints.
-
-No ADR documented this API's shape, error contract, or trust boundaries.
-This ADR records the intended contract so future changes (and the error
-handling work in WO2.0.0-003) have a stable reference.
+The serve component is the "command centre" for the Pico Security Series: it
+coordinates the scanner, sandbox, and watch subsystems, tracks project runs,
+extracts intelligence, correlates events, and exposes the result over a
+FastAPI surface. The orchestration engine and the HTTP API are the two halves
+of this control plane, and their shape is a deliberate architectural decision.
 
 ## Decision
 
-### Orchestration core (`EnhancedOrchestrator`)
+**A single `EnhancedOrchestrator` singleton (`picosentry/serve/services/orchestrator.py`)**
+is the async execution engine. It:
 
-- **Synchronous, thread-bound.** `run_project` / `run_batch` execute
-  subprocesses synchronously under a semaphore
-  (`settings.orchestrator.max_concurrent_projects`). The HTTP layer bridges
-  to the async event loop with `asyncio.to_thread` (see `projects.py`).
-- **Result dicts, not exceptions.** `run_project` returns a dict. Success is
-  `{"success": True, "duration", "output", "stderr", "intelligence_count"}`.
-  Failure paths return `{"error": <sanitized>, "duration"}` — never a raw
-  exception. The only exception that escapes is `ValueError` from
-  `_validate_project_command` / unsafe-CLI-arg checks, which the router maps
-  to a 400.
-- **Sanitized error strings.** The generic execution-failure path
-  (`RuntimeError`/`OSError`/`ValueError`/`TypeError`) returns the constant
-  `"project execution failed"` to callers; the real exception is logged with
-  `logger.exception`. Raw `str(e)` is never returned to the HTTP layer.
-- **Subprocess contract.** `subprocess.run(..., capture_output=True,
-  text=True, timeout=timeout, check=False)` — no shell, no `check=True`.
-  `TimeoutExpired` is a distinct, structured `{"error": "timeout"}` result.
-  Exit codes are recorded in `project_runs` and surfaced as
-  `success: returncode == 0`.
+- loads a project registry from a JSON file (`REGISTRY_PATH`) into
+  `ProjectMeta` objects and mirrors them into the `projects` table at startup;
+- runs projects as subprocesses (`subprocess.run`) with a validated command
+  and a per-argument allowlist regex (`^[a-zA-Z0-9_.-]+$`), under a
+  `threading.Semaphore` bounded by `settings.orchestrator.max_concurrent_projects`;
+- records each run in `project_runs` (status `running` → `completed`/`failed`/
+  `timeout`), extracts intelligence from stdout+stderr, updates per-project
+  stats, and emits metrics;
+- publishes lifecycle events (`project.run.started`, `project.run.completed`,
+  `project.run.failed`) on the in-process `event_bus`, which the correlation
+  engine and auto-analysis subscribers consume;
+- dispatches to the `plugin_manager` (`project_complete`, `alert`) and sends
+  alerts via `AlertHub` on failure/timeout;
+- exposes read/query methods (`get_status`, `list_projects`, `get_project`,
+  `list_intelligence`, `get_correlations`, `get_threat_score`, `list_alerts`,
+  `get_metrics`, `get_health_checks`, `generate_summary_report`,
+  `generate_project_report`) — all org-scoped via an optional `org_id`.
 
-### HTTP layer
+**The HTTP surface (`picosentry/serve/api/`) is a thin router layer over the
+orchestrator and services.** `server.py` builds the FastAPI app, wires a
+defense-in-depth middleware stack (audit, rate-limit, CORS, gzip, DDoS shield,
+request-size, request-id, security headers, request-timeout, HTTPS
+enforcement, docs restriction, CORS hardening), and includes routers for
+`health`, `projects`, `auth`, `orgs`, `plugins`, `webhooks`, `scheduler`,
+`admin`, `anomaly`, `correlation`, `metrics`, `ws`, `dashboard`, and `scans`.
+Auth is centralized in `deps.py` (`get_current_user`, `require_role`,
+`require_permission`, `get_current_org`, `require_org_membership`). The
+`lifespan` handler starts the anomaly detector and scheduler, wires the alert
+hub and correlation escalation callbacks, and schedules periodic cleanup,
+backup, and health-check jobs.
 
-- **Endpoints return Pydantic models or plain dicts.** Where an endpoint can
-  return a `JSONResponse` (error path) alongside a dict (happy path), the
-  decorator MUST set `response_model=None` (AGENTS.md permanent convention).
-  This prevents `FastAPIError` at route registration and avoids the latent
-  bug of a `JSONResponse` being re-serialized through a declared model.
-- **Errors are `HTTPException` with fixed detail strings.** Routers map
-  domain failures to 400/403/404/500 with a constant, non-leaking detail.
-  Raw exception messages, SQL, file paths, and stack traces never reach the
-  client body.
-- **Auth failures are generic.** `get_current_user` returns 401
-  "Invalid or expired token"; `get_current_org` returns 403 with a fixed
-  message. Cross-tenant attempts are logged server-side only.
+## Rationale
 
-### Trust boundaries
-
-- **Sandbox env is denylisted.** `POST /sandboxes` strips server secrets
-  (`_SANDBOX_ENV_DENYLIST`) from the child environment before invoking the
-  L3 backend, and requires an explicit `scans_workspace_root` to bound the
-  blast radius.
-- **Webhook dispatch errors are sanitized.** `requests.RequestException`
-  details (URLs, headers) are logged, not returned in the dispatch result
-  `error` field.
-- **Health probes report status, not internals.** DB/disk/SMTP probe
-  failures surface as fixed messages ("Database unreachable", "SMTP
-  unreachable"), with the underlying exception logged.
+- **One engine, many views:** a single orchestrator keeps run lifecycle,
+  intelligence extraction, alerting, and plugin dispatch in one place, so the
+  API routers stay thin and consistent rather than each re-implementing run
+  logic.
+- **Event-driven decoupling:** the `event_bus` lets the correlation engine and
+  auto-analysis react to run completion without the orchestrator knowing about
+  them, keeping the engine focused on execution.
+- **Concurrency bounded by a semaphore** prevents unbounded subprocess
+  fan-out while still allowing parallel runs.
+- **Command validation is defense-in-depth:** the allowlist regex on CLI args
+  and `_validate_project_command` reject unsafe arguments before
+  `subprocess.run`, so a compromised registry entry cannot inject shell
+  metacharacters.
+- **Org scoping is threaded through every query** so the same engine serves
+  both single-tenant and multi-org deployments.
 
 ## Consequences
 
-- Callers of `run_project` must treat `"error" in result` as the failure
-  signal and must not assume `success` is always present.
-- Adding a new endpoint that returns `JSONResponse` on an error path requires
-  `response_model=None`; the convention is enforced by review, not by a
-  linter.
-- The sanitized-error contract means operators diagnose failures from logs
-  (`logger.exception`), not from API responses — by design, to avoid leaking
-  internals at the trust boundary.
+- The orchestrator runs subprocesses synchronously under a semaphore; long
+  runs block a worker thread, so concurrency is limited by
+  `max_concurrent_projects` and the worker pool.
+- The project registry is a JSON file loaded at startup; adding a project
+  requires a restart (or a registry edit + reload).
+- The API surface is broad (14 routers) and each router depends on the shared
+  `deps.py` auth model; adding a new endpoint must follow the
+  `get_current_org`/`require_role` pattern to stay org-scoped and authorized.
+- The middleware stack is order-sensitive; new middleware must be inserted
+  with the correct precedence relative to audit and rate limiting.
+- `run_batch` runs projects sequentially in a loop, not in parallel, despite
+  the semaphore — a known ceiling for batch throughput.

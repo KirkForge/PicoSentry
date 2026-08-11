@@ -107,7 +107,7 @@ class TestWebhookDispatch:
         assert results[0]["webhook"] == "timeout-hook"
         assert results[0]["success"] is False
         assert results[0]["status"] == 0
-        assert "timed out" in results[0]["error"]
+        assert results[0]["error"] == "webhook delivery failed"
 
     def test_dispatch_rejects_dns_rebind(self, monkeypatch):
         """A hostname that resolves to a different IP at dispatch time than

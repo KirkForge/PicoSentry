@@ -9,7 +9,6 @@ from picosentry.serve.api.models import (
     HealthHistoryResponse,
     HealthReadiness,
     LivenessResponse,
-    ReadinessResponse,
     SystemStatus,
 )
 from picosentry.serve.config.version import __version__
@@ -80,7 +79,7 @@ async def liveness_probe():
     return {"status": "alive"}
 
 
-@router.get("/health/ready", tags=["Health"], response_model=ReadinessResponse)
+@router.get("/health/ready", tags=["Health"], response_model=None)
 async def readiness_probe():
 
     checks: dict[str, str] = {}

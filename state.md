@@ -3,8 +3,8 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `72138610` (branch `wo/2.0.0/multi-tenancy`, off `dev`) — multi-tenancy hardening (WO2.0.0-002)
-- Tests: All passing locally (472 serve tests on 3.10)
+- Head: `6a337667` (dev) — **CI fully green** (PicoSentry CI run 31421163207 all 14 jobs ✓; Admission Matrix run 31421161650 all 3 ✓)
+- Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
 
@@ -39,6 +39,49 @@
 
 ### Pending / next steps
 - None blocking. Correlation persistence does not yet write `org_id` to `correlation_events`/`correlation_chains` tables (documented ponytail ceiling in ADR-007); add org_id column + migration when persistence is enabled in production.
+
+## Session 2026-08-12: WO2.0.0-004 Package Intelligence (research + ADR)
+
+### What was done (commit `b3915a02`)
+- **ADR-009** (`docs/adr/ADR-009-llm-watch.md`) — documented the LLM watch subsystem
+  (`picosentry/watch/`): prompt guard (rule engine + deterministic classifier +
+  normalization + fail-closed), output guard (schema + policy + PII redaction),
+  telemetry (Prometheus + OTel + HMAC-checksummed SQLite audit), server (auth,
+  rate limit, security headers, secure boot). This was the only file written;
+  the rest of the workorder was research.
+
+### Research findings (no code changed)
+- **Rule catalog audit** — 50 L2 rules across 7 ecosystems. Coverage is strong
+  for typosquatting (7 ecosystem rules + shared L2-TYPO-001), dependency
+  confusion (7 ecosystem rules + shared L2-DEPC-001), post-install (L2-POST-001,
+  L2-PYPI-POST-001, L2-BUILD-001), exfiltration (L2-NETEX-001, L2-CRED-001),
+  obfuscation (L2-OBFS-001..004, L2-PYPI-OBFS-001..007). **Gaps:** (1) version
+  confusion is only partially covered — L2-MANI-001 flags dangerous ranges but
+  there is no rule for *version-confusion* (a package published at a version
+  that shadows a private/internal one, distinct from dep-confusion which is
+  name-based); (2) no dedicated rule for *malicious post-install in non-npm
+  ecosystems* beyond L2-BUILD-001's build-hook coverage; (3) no rule for
+  *supply-chain via git submodule / vendored-dependency tampering*. Per the
+  workorder, no new rules were written (not trivial/clearly-correct).
+- **Precision/recall floors** — CONFIRMED 85%/60% in
+  `tests/scan/test_validation.py:114` (`test_validation_passes_at_100_percent_on_current_fixtures`).
+  Enforced in CI via `.github/workflows/ci.yml::test-scan` which runs
+  `pytest tests/scan/` (slow tests included, so the floor test runs). The
+  `docs/BENCHMARKS.md` prose is stale (says "100% floor" / "0.95/0.80 advisory")
+  but the code is the source of truth and the floors are NOT silently lowered.
+- **Cross-layer correlation** — CONFIRMED correct. `CorrelationEngine` in
+  `picosentry/serve/services/correlation/engine.py` dedups at the persistence
+  layer (`_dedup_key` sha256 over artifact|layer|rule|timestamp, DB
+  `ON CONFLICT DO NOTHING` / `INSERT OR IGNORE`), and enforces per-minute
+  backpressure (`_allowed_by_backpressure`, 10k events/min, sliding 60s bucket).
+  Cross-layer auto-analysis routes `scan → sandbox → watch` via
+  `_AUTO_ANALYSIS_MAP` and only triggers on exploitable kill-chain phases.
+
+### Pending
+- None from this session.
+
+### Blocked
+- None from this session.
 
 ## Session 2026-08-10 (final): CI repair round 3 — COMPLETE, CI GREEN
 

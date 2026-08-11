@@ -7,6 +7,8 @@ All notable changes to PicoSentry will be documented in this file.
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`
 - docs: add ADR-007 multi-tenancy isolation model
 
+## 2026-08-12 - WO2.0.0-004 package intelligence: ADR-009 for LLM watch subsystem
+
 ## 2026-08-10 - CI repair round 3 (postgres + docker + deps + xdist flake) — CI GREEN
 PicoSentry CI run 31421163207 is fully green (all 14 jobs) on head `8c26a04b`.
 - fix(db): `_validate_param_count` counts both `?` and `%s` placeholders so postgres SQL (native `%s`) passes validation (was "0 placeholders but 1 parameter")

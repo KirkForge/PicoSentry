@@ -33,7 +33,7 @@
   marked with `⁂` in the per-rule table have 0 negative fixtures and their precision
   value is vacuous (the denominator `TP + FP` collapses to `TP`). See the table
   footnote for the full definition.
-- **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build on any regression**.
+- **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build if mean precision < 0.85 or mean recall < 0.70**.
 - **Tricky-negatives corpus:** 7 fixtures in `tests/scan/fixtures/validation/_tricky/`,
   guarded by `tests/scan/test_tricky_negatives.py`. These document known detector limits
   (4 expected-fires, 3 expected-clean), including the `globals()['ex'+'ec'](...)`
@@ -45,7 +45,6 @@ The headline number (**100% precision, 100% recall**) is reproducible from a sin
 command and is enforced by CI. But it is a **v2.0.15 baseline expanded through the
 v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
 Specifically:
-
 1. **188 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
    patterns could pass today and fail tomorrow against real-world packages. The 7 tricky
    fixtures in `_tricky/` exist specifically to document the *known* cases where a
@@ -85,7 +84,7 @@ Specifically:
    ≥ 95% on the mutated corpus. Run it with `pytest tests/scan/test_mutation_benchmark.py -m slow`
    or via `python scripts/mutation_benchmark.py`.
 
-The 100% floor exists so a *regression* breaks the build. It is not a claim that
+The 85% precision / 70% recall floor exists so a *regression* breaks the build. It is not a claim that
 the scanner is 100% accurate in production. If you find a package that PicoSentry
 misses or over-matches on, please open an issue with the package URL and a
 reproduction command — adding a fixture is the path to fixing it (see
@@ -106,7 +105,7 @@ The full report shape is the `ValidationReport` dataclass in
 `picosentry/scan/validation.py`. The CLI prints a fixed-width per-rule table
 and exits 0 if mean precision ≥ 0.95 and mean recall ≥ 0.80, else 1. **The
 0.95 / 0.80 thresholds are advisory** — the strict floor is the CI test
-mentioned in the TL;DR.
+mentioned in the TL;DR, which enforces 85% precision / 70% recall.
 
 ### The fixture contract
 

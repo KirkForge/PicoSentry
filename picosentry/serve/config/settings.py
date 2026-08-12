@@ -116,6 +116,13 @@ class SecurityConfig:
     # logins for a username, the account is locked for ``lockout_window_minutes``.
     lockout_max_attempts: int = field(default_factory=lambda: int(_env("LOCKOUT_MAX_ATTEMPTS", "5")))
     lockout_window_minutes: int = field(default_factory=lambda: int(_env("LOCKOUT_WINDOW_MINUTES", "15")))
+    # WebAuthn relying-party config. rp_id defaults to the API host so a
+    # local install works out of the box; deployments behind a public host
+    # must set it to the real origin (the rp_id must equal the effective
+    # origin's host per the WebAuthn spec).
+    webauthn_rp_id: str = field(default_factory=lambda: _env("WEBAUTHN_RP_ID", "localhost"))
+    webauthn_rp_name: str = field(default_factory=lambda: _env("WEBAUTHN_RP_NAME", "PicoSentry"))
+    webauthn_origin: str = field(default_factory=lambda: _env("WEBAUTHN_ORIGIN", "http://localhost:8765"))
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":

@@ -66,6 +66,7 @@ serve = [
     "pyotp>=2.9.0",
     "python-multipart>=0.0.6",
     "croniter>=1.0.0",
+    "webauthn>=2.0.0",
 ]
 # OpenTelemetry observability
 otel = [

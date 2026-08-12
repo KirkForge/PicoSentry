@@ -9,6 +9,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from picosentry._core.security import constant_time_compare
+
 logger = logging.getLogger("picodome.policy.signing")
 
 SIGNATURE_MARKER = "# --- PICODOME SIGNATURE ---"
@@ -180,7 +182,7 @@ def verify_policy(content: str, key: bytes, key_id: str = "default") -> VerifyRe
 
     expected_sig = hmac.new(key, policy_content.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    if hmac.compare_digest(expected_sig, parsed.signature):
+    if constant_time_compare(expected_sig, parsed.signature):
         return VerifyResult(
             valid=True,
             algorithm=parsed.algorithm,
@@ -296,7 +298,7 @@ def verify_policy_companion(path: Path, key: bytes, key_id: str = "default") -> 
 
     expected_sig = hmac.new(key, content.encode("utf-8"), hashlib.sha256).hexdigest()
 
-    if hmac.compare_digest(expected_sig, stored_sig):
+    if constant_time_compare(expected_sig, stored_sig):
         return VerifyResult(
             valid=True,
             algorithm=algo,

@@ -1,9 +1,9 @@
 import hashlib
-import hmac
 import secrets
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
+from picosentry._core.security import constant_time_compare
 from picosentry.serve.database.manager import db
 
 
@@ -57,7 +57,7 @@ class Organization:
         if not row:
             return None
         # Defense-in-depth: constant-time comparison even after DB lookup
-        if not hmac.compare_digest(row["api_key_hash"], key_hash):
+        if not constant_time_compare(row["api_key_hash"], key_hash):
             return None
         return dict(row)
 

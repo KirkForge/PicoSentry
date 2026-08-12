@@ -2,6 +2,9 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - _core constant-time compare consolidation (WO3.0.0-013)
+- Route 11 `hmac.compare_digest(str,str)` call sites in sandbox/, serve/, scan/ through `picosentry._core.security.constant_time_compare`; single source of truth for credential/signature comparison.
+
 ## 2026-08-12 - Unified serve exception hierarchy + bare-except cleanup (WO3.0.0-008)
 - Added `PicoSentryError` base + `AuthError`/`ValidationError`/`NotFoundError`/`ConflictError`/`ServiceError` to `picosentry/serve/errors.py`.
 - Global handler in `server.py` maps the hierarchy to HTTP statuses (401/404/422/409/500).

@@ -18,6 +18,7 @@ try:
 except ImportError:
     HAS_REQUESTS = False
 
+from picosentry._core.security import constant_time_compare
 from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Webhooks")
@@ -258,7 +259,7 @@ class WebhookManager:
     def verify_signature(self, payload: bytes, signature: str, secret: str) -> bool:
         expected = hmac.new(secret.encode(), payload, hashlib.sha256).hexdigest()
 
-        return hmac.compare_digest(signature, expected)
+        return constant_time_compare(signature, expected)
 
 
 webhook_manager = WebhookManager()

@@ -8,6 +8,7 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, TYPE_CHECKING
 
+from picosentry._core.security import constant_time_compare
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
 if TYPE_CHECKING:
@@ -48,7 +49,7 @@ class SignedBaseline:
     def verify(self, secret: str) -> bool:
         content = json.dumps(self.baseline.to_dict(), sort_keys=True)
         expected = hmac.new(secret.encode(), content.encode(), hashlib.sha256).hexdigest()
-        return hmac.compare_digest(self.signature, expected)
+        return constant_time_compare(self.signature, expected)
 
 
 @dataclass

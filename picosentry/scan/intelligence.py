@@ -27,7 +27,7 @@ class OSVClient:
     def __init__(
         self,
         cache_dir: Path | None = None,
-        cache_ttl_hours: int = 24,
+        cache_ttl_hours: int | None = None,
         timeout: int = 10,
     ) -> None:
         env_dir = os.environ.get("PICOSENTRY_INTELLIGENCE_DIR")
@@ -35,7 +35,13 @@ class OSVClient:
             self._cache_dir = Path(env_dir)
         else:
             self._cache_dir = cache_dir or Path.home() / ".local" / "share" / "picosentry" / "intelligence"
-        self._cache_ttl = cache_ttl_hours * 3600
+        ttl_hours: int | float
+        if cache_ttl_hours is None:
+            minutes = int(os.environ.get("PICOSENTRY_OSV_CACHE_MINUTES", "60"))
+            ttl_hours = minutes / 60
+        else:
+            ttl_hours = cache_ttl_hours
+        self._cache_ttl = int(ttl_hours * 3600)
         self._timeout = timeout
         self._offline = os.environ.get("PICOSENTRY_OFFLINE", "").strip() in ("1", "true", "yes")
 

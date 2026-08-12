@@ -9,6 +9,7 @@ from .license import detect_license_issues
 from .lockfile_drift import detect_lockfile_drift
 from .maintainer_change import detect_maintainer_changes
 from .manifest import detect_manifest_issues
+from .namespace_collision import detect_namespace_collision
 from .network_exfil import detect_network_exfiltration
 from .obfuscation import detect_obfuscation
 from .package_age import detect_suspicious_new_packages
@@ -38,6 +39,7 @@ __all__ = [
     "detect_lockfile_drift",
     "detect_maintainer_changes",
     "detect_manifest_issues",
+    "detect_namespace_collision",
     "detect_network_exfiltration",
     "detect_obfuscation",
     "detect_pnpm_config",
@@ -414,6 +416,16 @@ RULE_INFO = {
         "severity": "MEDIUM",
         "category": "supply-chain",
         "helpUri": f"{_DOCS_BASE}/L2-INTEL-001.md",
+    },
+    "L2-NSCOL-001": {
+        "name": "namespace_collision",
+        "description": (
+            "New low-download package claiming a well-known namespace/scope prefix "
+            "(namespace/scope collision)"
+        ),
+        "severity": "MEDIUM",
+        "category": "supply-chain",
+        "helpUri": f"{_DOCS_BASE}/L2-NSCOL-001.md",
     },
 }
 

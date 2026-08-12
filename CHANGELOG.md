@@ -2,6 +2,7 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+<<<<<<< HEAD
 ## 2026-08-12 - Real-time OSV advisory feed (WO3.0.0-004)
 - `OSVClient`: cache TTL default dropped 24h → 60min, configurable via `PICOSENTRY_OSV_CACHE_MINUTES`; explicit `cache_ttl_hours` still overrides.
 
@@ -16,6 +17,13 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## 2026-08-12 - WebAuthn/FIDO2 passkey MFA (WO3.0.0-006)
 - feat(auth): add WebAuthn/FIDO2 passkey as a second MFA factor alongside TOTP; new `/auth/webauthn/*` register/authenticate challenge+verify endpoints, `webauthn_credentials` + `webauthn_challenges` tables (migration 15), and WebAuthn offered alongside TOTP in the login flow (surfaced via `X-MFA-Methods` header)
+
+## 2026-08-12 - Rate-limit fail-closed (WO3.0.0-007)
+- `RedisRateLimitBackend` now supports a fail-closed outage policy: when Redis
+  is unreachable it returns a `DENY` sentinel so the middleware rejects the
+  request (429) instead of silently degrading to per-replica limits.
+- New config knob `PICOSHOGUN_RATELIMIT_REDIS_FAIL_CLOSED` (default `false`,
+  preserving the historical fail-open behavior).
 
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.

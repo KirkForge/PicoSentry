@@ -14,6 +14,11 @@ from typing import Any
 
 logger = logging.getLogger("picoshogun.ratelimit.redis")
 
+# Sentinel returned when Redis is down and the backend is fail-closed, so the
+# middleware can deny the request instead of silently degrading to per-replica
+# limits.  Distinct from -1 (fail-open fallback) and any real count (>= 0).
+DENY = -2
+
 
 class RedisRateLimitBackend:
     """Shared sliding-window rate-limit backend using Redis sorted sets.
@@ -26,7 +31,9 @@ class RedisRateLimitBackend:
 
     The backend is *best-effort*: if Redis is unreachable, ``record`` and
     ``count`` return local fallback values so a single network hiccup does not
-    block API traffic.
+    block API traffic.  When ``fail_closed`` is set, an unreachable Redis
+    instead returns :data:`DENY` so the middleware rejects the request rather
+    than silently weakening global enforcement.
     """
 
     def __init__(
@@ -34,10 +41,12 @@ class RedisRateLimitBackend:
         redis_url: str,
         window: int = 60,
         key_prefix: str = "picoshogun:ratelimit",
+        fail_closed: bool = False,
     ) -> None:
         self._redis_url = redis_url
         self._window = window
         self._key_prefix = key_prefix
+        self._fail_closed = fail_closed
         self._client: Any | None = None
         self._available = False
 
@@ -66,15 +75,20 @@ class RedisRateLimitBackend:
     def _key(self, bucket_type: str, bucket_key: str) -> str:
         return f"{self._key_prefix}:{bucket_type}:{bucket_key}"
 
+    def _unavailable(self) -> int:
+        """Return the sentinel for an unreachable Redis under the current policy."""
+        return DENY if self._fail_closed else -1
+
     def record_and_count(self, bucket_type: str, bucket_key: str) -> int:
         """Record a request and return the current count in the window.
 
         Returns the local-only count ``-1`` when Redis is unavailable so the
-        caller can fall back to its in-memory buckets.
+        caller can fall back to its in-memory buckets, or :data:`DENY` when
+        fail-closed so the caller rejects the request.
         """
         client = self._connect()
         if client is None:
-            return -1
+            return self._unavailable()
 
         now = time.time()
         cutoff = now - self._window
@@ -92,16 +106,17 @@ class RedisRateLimitBackend:
             logger.warning("Redis rate-limit update failed: %s", exc)
             self._available = False
             self._client = None
-            return -1
+            return self._unavailable()
 
     def count(self, bucket_type: str, bucket_key: str) -> int:
         """Return the current count without recording a new request.
 
-        Returns ``-1`` when Redis is unavailable so the caller can fall back.
+        Returns ``-1`` when Redis is unavailable so the caller can fall back,
+        or :data:`DENY` when fail-closed.
         """
         client = self._connect()
         if client is None:
-            return -1
+            return self._unavailable()
 
         now = time.time()
         cutoff = now - self._window
@@ -117,7 +132,7 @@ class RedisRateLimitBackend:
             logger.warning("Redis rate-limit count failed: %s", exc)
             self._available = False
             self._client = None
-            return -1
+            return self._unavailable()
 
     def reset(self, bucket_type: str | None = None, bucket_key: str | None = None) -> None:
         """Clear one or all rate-limit buckets from Redis."""

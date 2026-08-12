@@ -286,6 +286,7 @@ app.add_middleware(
     persist=settings.is_production(),
     backend=settings.security.rate_limit_backend,
     backend_url=settings.security.redis_url,
+    redis_fail_closed=settings.security.ratelimit_redis_fail_closed,
     exempt_paths={"/health", "/health/live", "/health/ready"},
     trusted_proxies=settings.security.trusted_proxies,
 )

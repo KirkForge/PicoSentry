@@ -168,6 +168,12 @@ def test_redis_backend_unavailable_returns_negative():
     assert backend.count("ip", "actor") == -1
 
 
+def test_redis_backend_fail_closed_returns_deny():
+    backend = RedisRateLimitBackend(redis_url="redis://localhost:1/0", window=60, fail_closed=True)
+    assert backend.record_and_count("ip", "actor") == -2
+    assert backend.count("ip", "actor") == -2
+
+
 def test_rate_limit_middleware_uses_redis_backend():
     mock = MockRedis()
 
@@ -226,6 +232,33 @@ def test_rate_limit_middleware_falls_back_to_memory_on_redis_failure():
 
     resp = client.get("/api/v1/x")
     assert resp.status_code == 429
+
+
+def test_rate_limit_middleware_fail_closed_denies_on_redis_failure():
+    async def catch_all(request: Request) -> JSONResponse:
+        return JSONResponse({"path": request.url.path})
+
+    routes = [Route("/{full_path:path}", catch_all, methods=["GET"])]
+    app = Starlette(routes=routes)
+
+    backend = RedisRateLimitBackend(redis_url="redis://localhost:1/0", window=60, fail_closed=True)
+    backend._available = False
+
+    app.add_middleware(
+        RateLimitMiddleware,
+        max_requests_per_ip=5,
+        window=60,
+        backend="redis",
+        backend_url="redis://localhost:1/0",
+        backend_instance=backend,
+        redis_fail_closed=True,
+        exempt_paths=set(),
+    )
+
+    client = TestClient(app)
+    resp = client.get("/api/v1/x")
+    assert resp.status_code == 429
+    assert resp.headers.get("Retry-After")
 
 
 def test_org_rate_limit_uses_redis_backend():

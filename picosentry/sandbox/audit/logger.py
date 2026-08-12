@@ -105,11 +105,13 @@ class AuditLogger:
         rotate_count: int = _DEFAULT_ROTATE_COUNT,
         notary: Any | None = None,
         sinks: list[Any] | None = None,
+        fsync: bool = True,
     ) -> None:
         self._log_dir = log_dir or _DEFAULT_LOG_DIR
         self._log_path = self._log_dir / log_file
         self._max_bytes = max_bytes
         self._rotate_count = rotate_count
+        self._fsync = fsync
         self._prev_hash = ""
         self._notary = notary  # Optional AuditNotary instance
         self._sinks: list[Any] = sinks or []  # AuditSink instances
@@ -319,7 +321,8 @@ class AuditLogger:
         with self._log_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
             f.flush()
-            os.fsync(f.fileno())
+            if self._fsync:
+                os.fsync(f.fileno())
 
         with contextlib.suppress(OSError):
             self._log_path.chmod(0o600)
@@ -371,8 +374,12 @@ def get_audit_logger() -> AuditLogger:
     if _audit_logger is None:
         with _audit_logger_lock:
             if _audit_logger is None:
-                _audit_logger = AuditLogger()
+                _audit_logger = AuditLogger(fsync=_audit_fsync_enabled())
     return _audit_logger
+
+
+def _audit_fsync_enabled() -> bool:
+    return os.environ.get("PICODOME_AUDIT_FSYNC", "true").lower() not in ("0", "false", "no")
 
 
 def setup_audit_logger(
@@ -380,6 +387,7 @@ def setup_audit_logger(
     max_bytes: int = _DEFAULT_MAX_BYTES,
     rotate_count: int = _DEFAULT_ROTATE_COUNT,
     sinks: list[Any] | None = None,
+    fsync: bool | None = None,
 ) -> AuditLogger:
     global _audit_logger
     _audit_logger = AuditLogger(
@@ -387,6 +395,7 @@ def setup_audit_logger(
         max_bytes=max_bytes,
         rotate_count=rotate_count,
         sinks=sinks,
+        fsync=_audit_fsync_enabled() if fsync is None else fsync,
     )
 
     for sink in _audit_logger._sinks:

@@ -2,6 +2,14 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Rate-limit fail-closed (WO3.0.0-007)
+
+- `RedisRateLimitBackend` now supports a fail-closed outage policy: when Redis
+  is unreachable it returns a `DENY` sentinel so the middleware rejects the
+  request (429) instead of silently degrading to per-replica limits.
+- New config knob `PICOSHOGUN_RATELIMIT_REDIS_FAIL_CLOSED` (default `false`,
+  preserving the historical fail-open behavior).
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

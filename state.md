@@ -2,6 +2,28 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO3.0.0-007 rate-limit fail-closed — COMPLETE
+
+### What was done (branch `wo/3.0.0/rate-limit-failclosed`)
+- **rate_limit_redis.py**: `RedisRateLimitBackend` gains `fail_closed` param; new `DENY = -2`
+  sentinel. When Redis is down and fail-closed, `record_and_count`/`count` return `DENY` instead
+  of `-1` (fail-open fallback).
+- **rate_limit.py**: `RateLimitMiddleware` gains `redis_fail_closed` param, passes it to the
+  backend, and maps `DENY` → `(True, window)` so the request is rejected 429.
+- **config/settings.py**: new knob `PICOSHOGUN_RATELIMIT_REDIS_FAIL_CLOSED` (default `false`,
+  preserves historical fail-open).
+- **api/server.py**: wires the knob into the middleware.
+- **tests/serve/test_rate_limit_redis.py**: added `test_redis_backend_fail_closed_returns_deny`
+  and `test_rate_limit_middleware_fail_closed_denies_on_redis_failure`.
+
+### Gate output (head `9b11fe65` base)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 474 passed, 1 warning in 332.25s
+
+### Pending
+- None.
+
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)

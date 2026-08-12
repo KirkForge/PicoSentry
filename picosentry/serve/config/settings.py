@@ -97,6 +97,12 @@ class SecurityConfig:
             os.environ.get("PICODOME_REDIS_URL", "redis://localhost:6379/0"),
         )
     )
+    # When rate_limit_backend=redis and Redis is unreachable, fail-closed
+    # rejects requests (429) instead of silently degrading to per-replica
+    # limits.  Default false preserves the historical fail-open behavior.
+    ratelimit_redis_fail_closed: bool = field(
+        default_factory=lambda: _env_bool("RATELIMIT_REDIS_FAIL_CLOSED", "false")
+    )
 
     # Workspace root for POST /scans.  The serve mode used to accept any
     # server-local path as a scan target, which in a multi-tenant setup

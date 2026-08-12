@@ -8,6 +8,8 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse
 
+from picosentry.serve.middleware.rate_limit_redis import DENY
+
 logger = logging.getLogger("picoshogun.RateLimit")
 
 
@@ -34,6 +36,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         backend: str = "memory",
         backend_url: str = "redis://localhost:6379/0",
         backend_instance: Any | None = None,
+        redis_fail_closed: bool = False,
         exempt_paths: set[str] | None = None,
         trusted_proxies: list[str] | None = None,
     ):
@@ -45,6 +48,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.persist = persist
         self.backend_name = backend.lower()
         self.backend_url = backend_url
+        self.redis_fail_closed = redis_fail_closed
         self.exempt_paths = exempt_paths or set()
         self.trusted_proxies = trusted_proxies or []
 
@@ -63,6 +67,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             self._redis_backend = RedisRateLimitBackend(
                 redis_url=self.backend_url,
                 window=self.window,
+                fail_closed=self.redis_fail_closed,
             )
             logger.info("Rate limit Redis backend configured: %s", self.backend_url)
 
@@ -194,12 +199,16 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """
         if self._redis_backend is not None:
             count = self._redis_backend.record_and_count(bucket_type, bucket_key)
+            if count == DENY:
+                # Redis down and fail-closed: reject rather than degrade to
+                # per-replica limits.
+                return True, self.window
             if count >= 0:
                 if count > max_requests:
                     # Already recorded; estimate worst-case retry time.
                     return True, self.window
                 return False, 0
-            # Redis failed: fall through to in-memory for this request.
+            # Redis failed (fail-open): fall through to in-memory for this request.
 
         count = self._clean_and_count(buckets, bucket_key, now) + 1
         buckets[bucket_key].append(now)

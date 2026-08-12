@@ -5,6 +5,12 @@ All notable changes to PicoSentry will be documented in this file.
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 
+## 2026-08-12 - Reproducible builds + hash-pinned deps (WO2.0.0-009)
+- ci(release): set `SOURCE_DATE_EPOCH` from the commit timestamp before `python -m build` so the wheel is byte-identical across runs (SLSA L3)
+- ci: add `reproducible-build` job that builds the wheel twice and asserts identical hashes
+- docker: set `SOURCE_DATE_EPOCH` in the builder stage for a reproducible wheel; document the runtime `pip install` dependency layer as a non-hash-pinned ceiling
+- deps: confirmed `uv.lock` pins hashes (1629 entries) — no change needed
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

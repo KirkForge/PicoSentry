@@ -38,7 +38,14 @@ jobs:
       - name: Build wheel + sdist
         run: |
           pip install --no-cache-dir build
+          # Pin the build timestamp so the wheel is byte-identical across
+          # runs (reproducible builds / SLSA L3). The commit timestamp is
+          # stable for a given tag, so re-running the release job yields the
+          # same artifact hashes.
+          export SOURCE_DATE_EPOCH="$(date -d "${GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP}" +%s)"
           python -m build
+        env:
+          GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
       - name: Generate CycloneDX SBOM
         run: |

@@ -15,6 +15,12 @@ WORKDIR /build
 COPY pyproject.toml README.md LICENSE COMMERCIAL-LICENSE.md ./
 COPY picosentry/ ./picosentry/
 
+# Pin the build timestamp so the wheel is byte-identical across builds
+# (reproducible builds / SLSA L3). Passed as a build arg so the image build
+# is reproducible for a given source tree.
+ARG SOURCE_DATE_EPOCH=0
+ENV SOURCE_DATE_EPOCH=${SOURCE_DATE_EPOCH}
+
 RUN python -m build --wheel
 
 FROM python:3.12-slim AS base
@@ -56,6 +62,11 @@ FROM base AS scanner
 
 ARG PICOSENTRY_EXTRAS=scan
 
+# ceiling: the runtime `pip install "${WHEEL}[...]"` resolves the wheel's
+# dependencies from PyPI without hash pins, so the image's dependency layer
+# is not hash-pinned (the wheel itself is reproducible via SOURCE_DATE_EPOCH).
+# upgrade path: install from a `uv export --frozen` requirements file (which
+# carries the uv.lock hashes) instead of the bare wheel extra.
 RUN WHEEL=$(ls /tmp/picosentry-*-py3-none-any.whl | head -n1) && \
     pip install --no-cache-dir "${WHEEL}[${PICOSENTRY_EXTRAS}]" && \
     rm -f /tmp/picosentry-*-py3-none-any.whl && \

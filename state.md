@@ -2,6 +2,34 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO3.0.0-003 version-confusion — COMPLETE
+
+### What was done (commit `1d34c8dd` on `wo/3.0.0/version-confusion`)
+- **rules/version_confusion.py** (new): `L2-VCONF-001` flags a popular,
+  established package pinned at a placeholder version (`0.0.0`/`1.0.0`).
+  Requires registry intel (download_count >= 1000 AND package_age_days >= 30
+  AND declared version in {0.0.0, 1.0.0}). No-op offline (intel None).
+- **rules/__init__.py**: import + `L2-VCONF-001` in `RULE_INFO` + `__all__`.
+- **engine.py**: registered `L2-VCONF-001`; added `L2-VCONF-` to `_npm_prefixes`.
+- **docs/rules/L2-VCONF-001.md** (new): rule doc.
+- **tests/scan/test_version_confusion.py** (new): 8 tests (squat flagged at
+  1.0.0/0.0.0, legitimate version not flagged, young/low-download not flagged,
+  offline no-op, thresholds not lowered).
+- **tests/scan/test_benchmark.py**: added `L2-VCONF` to valid rule prefixes.
+
+### Gate output (head `1d34c8dd`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run ruff format --check` — my 3 files formatted (pre-existing
+  `test_reachability.py` reformat not touched)
+- `uv run mypy picosentry/` — Success: no issues found in 409 source files
+- `uv run pytest tests/scan/ -m "not slow"` — 2012 passed, 27 skipped, 4 subtests passed (252s)
+
+### Pending / next steps
+- None blocking. Rule is npm/registry-intel gated; offline scans never fire it.
+
+### Blocked
+- None.
+
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)

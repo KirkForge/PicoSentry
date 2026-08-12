@@ -24,6 +24,13 @@ logger = logging.getLogger("picoshogun.auth")
 
 router = APIRouter(prefix="/auth")
 
+
+@router.get("/.well-known/jwks.json", tags=["Authentication"])
+async def jwks():
+    """Serve the active RSA public keys (JWK format) for RS256 verification."""
+    return auth_service.jwks()
+
+
 _AUTH_RATE_LIMIT: dict[str, list[float]] = defaultdict(list)
 _AUTH_RATE_LOCK = threading.Lock()
 _AUTH_RATE_MAX = 5

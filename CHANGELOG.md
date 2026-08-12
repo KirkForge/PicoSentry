@@ -2,6 +2,11 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - RS256 JWT + JWK rotation (WO3.0.0-001)
+- JWT signing upgraded to RS256 with a `kid` claim and multi-key rotation; HS256 decode kept as legacy fallback.
+- Added `GET /auth/.well-known/jwks.json` serving active RSA public keys (JWK format).
+- New config: `PICOSHOGUN_JWT_PRIVATE_KEY` (PEM or path) + `PICOSHOGUN_JWT_KID`; `cryptography` added to `serve` extra.
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

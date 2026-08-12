@@ -4,14 +4,24 @@ import logging
 import os
 import secrets
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from typing import Any, ClassVar
 
 try:
     import jwt
+    from jwt.algorithms import RSAAlgorithm
 
     HAS_JWT = True
 except ImportError:
     HAS_JWT = False
+
+try:
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import rsa
+
+    HAS_CRYPTO = True
+except ImportError:
+    HAS_CRYPTO = False
 
 try:
     import bcrypt
@@ -60,6 +70,10 @@ class AuthService:
         self.secret_key = settings.security.secret_key
         self.algorithm = settings.security.jwt_algorithm
         self.expiration_hours = settings.security.jwt_expiration_hours
+        # Active RSA signing keys keyed by kid.  The newest registered key
+        # signs new tokens; all active keys verify (rotation window).
+        self._keys: dict[str, rsa.RSAPrivateKey] = {}
+        self._load_configured_key()
 
         if os.environ.get("ALLOW_INSECURE_SECRET", "").lower() not in ("true", "1", "yes"):
             if self.secret_key in self._WEAK_SECRET_DENYLIST:
@@ -72,6 +86,65 @@ class AuthService:
                     f"AuthService: secret key is {len(self.secret_key)} bytes; "
                     f"minimum is {self._MIN_SECRET_KEY_LENGTH}."
                 )
+
+    def _load_configured_key(self) -> None:
+        """Load the RSA key from PICOSHOGUN_JWT_PRIVATE_KEY (PEM or path)."""
+        raw = settings.security.jwt_private_key
+        if not raw:
+            return
+        if not HAS_CRYPTO:
+            raise RuntimeError("cryptography is required for RS256 JWT signing")
+        pem = raw
+        if os.path.exists(raw):
+            pem = Path(raw).read_text()
+        try:
+            key = serialization.load_pem_private_key(pem.encode(), password=None)
+        except Exception as exc:  # surface any PEM parse failure
+            raise ValueError("PICOSHOGUN_JWT_PRIVATE_KEY is not a valid RSA private key") from exc
+        if not isinstance(key, rsa.RSAPrivateKey):
+            raise ValueError("PICOSHOGUN_JWT_PRIVATE_KEY must be an RSA private key")
+        self._keys[settings.security.jwt_kid] = key
+
+    def register_key(self, kid: str, pem: str) -> None:
+        """Register a new RSA signing key for rotation.  New tokens use it."""
+        if not HAS_CRYPTO:
+            raise RuntimeError("cryptography is required for RS256 JWT signing")
+        key = serialization.load_pem_private_key(pem.encode(), password=None)
+        if not isinstance(key, rsa.RSAPrivateKey):
+            raise ValueError("key must be an RSA private key")
+        self._keys[kid] = key
+
+    def retire_key(self, kid: str) -> bool:
+        """Retire an active signing key.  Returns False if it was the last one."""
+        if kid not in self._keys:
+            return False
+        if len(self._keys) == 1:
+            return False
+        del self._keys[kid]
+        return True
+
+    @property
+    def _signing_key(self) -> rsa.RSAPrivateKey | None:
+        if not self._keys:
+            return None
+        return next(reversed(self._keys.values()))
+
+    @property
+    def _signing_kid(self) -> str | None:
+        if not self._keys:
+            return None
+        return next(reversed(self._keys))
+
+    def jwks(self) -> dict[str, Any]:
+        """Return the JWKS document for all active public keys."""
+        keys = []
+        for kid, key in self._keys.items():
+            jwk = RSAAlgorithm.to_jwk(key.public_key(), as_dict=True)
+            jwk["kid"] = kid
+            jwk["use"] = "sig"
+            jwk["alg"] = "RS256"
+            keys.append(jwk)
+        return {"keys": keys}
 
     @property
     def _db(self) -> DatabaseManager:
@@ -187,6 +260,10 @@ class AuthService:
             "iat": datetime.now(timezone.utc),
         }
 
+        if self._signing_key is not None:
+            headers = {"kid": self._signing_kid}
+            return jwt.encode(payload, self._signing_key, algorithm="RS256", headers=headers)
+
         return jwt.encode(payload, self.secret_key, algorithm=self.algorithm)
 
     def validate_token(self, token: str) -> dict[str, Any] | None:
@@ -198,13 +275,8 @@ class AuthService:
             logger.error("PyJWT not installed — cannot validate any tokens")
             return None
 
-        try:
-            payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-        except jwt.ExpiredSignatureError:
-            logger.warning("Token expired")
-            return None
-        except jwt.InvalidTokenError:
-            logger.warning("Invalid token")
+        payload = self._decode_token(token)
+        if payload is None:
             return None
 
         jti = payload.get("jti")
@@ -219,6 +291,33 @@ class AuthService:
             "role": payload["role"],
             "jti": jti,
         }
+
+    def _decode_token(self, token: str) -> dict[str, Any] | None:
+        """Decode a token, trying RS256 (per-kid) then HS256 (legacy)."""
+        # RS256: verify against each active public key, honoring the kid claim.
+        if self._keys:
+            try:
+                kid = jwt.get_unverified_header(token).get("kid")
+            except jwt.InvalidTokenError:
+                kid = None
+            candidates = [kid] if kid in self._keys else list(self._keys)
+            for candidate in candidates:
+                try:
+                    return jwt.decode(token, self._keys[candidate].public_key(), algorithms=["RS256"])
+                except jwt.ExpiredSignatureError:
+                    logger.warning("Token expired")
+                    return None
+                except jwt.InvalidTokenError:
+                    continue
+        # HS256 fallback for legacy tokens.
+        try:
+            return jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
+        except jwt.ExpiredSignatureError:
+            logger.warning("Token expired")
+            return None
+        except jwt.InvalidTokenError:
+            logger.warning("Invalid token")
+            return None
 
     def revoke_token(self, jti: str, user_id: int | None = None) -> bool:
         """Revoke a JWT by its jti. Returns False if already revoked."""

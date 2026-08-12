@@ -62,6 +62,7 @@ serve = [
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
     "PyJWT>=2.8.0",
+    "cryptography>=41.0.0",
     "bcrypt>=4.0.0",
     "pyotp>=2.9.0",
     "python-multipart>=0.0.6",

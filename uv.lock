@@ -1396,6 +1396,7 @@ dependencies = [
 all = [
     { name = "bcrypt" },
     { name = "croniter" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "grpcio" },
     { name = "opentelemetry-api" },
@@ -1441,6 +1442,7 @@ scan = [
 serve = [
     { name = "bcrypt" },
     { name = "croniter" },
+    { name = "cryptography" },
     { name = "fastapi" },
     { name = "pydantic" },
     { name = "pyjwt" },
@@ -1467,6 +1469,7 @@ requires-dist = [
     { name = "bcrypt", marker = "extra == 'serve'", specifier = ">=4.0.0" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "croniter", marker = "extra == 'serve'", specifier = ">=1.0.0" },
+    { name = "cryptography", marker = "extra == 'serve'", specifier = ">=41.0.0" },
     { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.104.0" },
     { name = "fastapi", marker = "extra == 'watch-server'", specifier = ">=0.100" },
     { name = "grpcio", marker = "extra == 'grpc'", specifier = ">=1.81.1" },

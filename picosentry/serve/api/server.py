@@ -368,6 +368,23 @@ def main() -> None:
         ssl_kwargs["ssl_keyfile"] = str(settings.security.ssl_key_path)
         logger.info("TLS enabled: cert=%s", settings.security.ssl_cert_path)
 
+    # Slowloris mitigation. ASGI middleware cannot bound header-read time — headers
+    # are consumed by the server (uvicorn/h11/httptools) before any middleware runs,
+    # and uvicorn exposes no header-read deadline. The two uvicorn levers that do cap
+    # the classic slowloris resource-exhaustion vector are limit_concurrency (bounds
+    # concurrent half-open connections) and limit_max_requests (bounds long-lived
+    # connections). A true per-connection time-to-first-header deadline belongs at the
+    # reverse-proxy layer (nginx/ingress `client_header_timeout`).
+    limit_concurrency = int(os.environ.get("PICOSHOGUN_LIMIT_CONCURRENCY", "512"))
+    limit_max_requests = int(os.environ.get("PICOSHOGUN_LIMIT_MAX_REQUESTS", "1000"))
+
+    run_kwargs: dict[str, Any] = {
+        "timeout_keep_alive": int(os.environ.get("PICOSHOGUN_KEEP_ALIVE", "30")),
+        "timeout_graceful_shutdown": int(os.environ.get("PICOSHOGUN_GRACEFUL_SHUTDOWN", "15")),
+        "limit_concurrency": limit_concurrency,
+        "limit_max_requests": limit_max_requests,
+        **ssl_kwargs,
+    }
     if settings.api.workers > 1 or settings.api.reload:
         uvicorn.run(
             "picosentry.serve.api.server:app",
@@ -375,18 +392,14 @@ def main() -> None:
             port=settings.api.port,
             workers=settings.api.workers,
             reload=settings.api.reload,
-            timeout_keep_alive=int(os.environ.get("PICOSHOGUN_KEEP_ALIVE", "30")),
-            timeout_graceful_shutdown=int(os.environ.get("PICOSHOGUN_GRACEFUL_SHUTDOWN", "15")),
-            **ssl_kwargs,
+            **run_kwargs,
         )
     else:
         uvicorn.run(
             app,
             host=settings.api.host,
             port=settings.api.port,
-            timeout_keep_alive=int(os.environ.get("PICOSHOGUN_KEEP_ALIVE", "30")),
-            timeout_graceful_shutdown=int(os.environ.get("PICOSHOGUN_GRACEFUL_SHUTDOWN", "15")),
-            **ssl_kwargs,
+            **run_kwargs,
         )
 
 

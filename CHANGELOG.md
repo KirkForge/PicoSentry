@@ -2,6 +2,13 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Slowloris header-read timeout (WO3.0.0-009)
+- `serve/api/server.py`: uvicorn now runs with `limit_concurrency` (default 512) and
+  `limit_max_requests` (default 1000) to cap concurrent half-open / long-lived connections —
+  the slowloris resource-exhaustion vector. Knobs `PICOSHOGUN_LIMIT_CONCURRENCY`,
+  `PICOSHOGUN_LIMIT_MAX_REQUESTS`. True per-connection time-to-first-header deadline belongs
+  at the reverse-proxy layer (`client_header_timeout`), documented in code.
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

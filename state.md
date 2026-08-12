@@ -2,6 +2,28 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO3.0.0-009 slowloris timeout — COMPLETE (commit `1dbd75a1`, branch `wo/3.0.0/slowloris-timeout`)
+
+### What was done
+- **`picosentry/serve/api/server.py`**: both `uvicorn.run` calls now pass `limit_concurrency`
+  (default 512) and `limit_max_requests` (default 1000) — the two uvicorn levers that cap the
+  classic slowloris resource-exhaustion vector (concurrent half-open connections, long-lived
+  connections). Knobs: `PICOSHOGUN_LIMIT_CONCURRENCY`, `PICOSHOGUN_LIMIT_MAX_REQUESTS`.
+  Refactored the duplicated kwarg dicts into a shared `run_kwargs` dict.
+- **Documented honest ceiling**: ASGI middleware cannot bound header-read time (headers are
+  consumed by the server before any middleware runs, and uvicorn has no header-read deadline
+  param). A true per-connection time-to-first-header deadline belongs at the reverse-proxy
+  layer (`nginx`/ingress `client_header_timeout`) — noted in a code comment, not a fake knob.
+
+### Gate output (head `1dbd75a1`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run ruff format --check picosentry/serve/api/server.py` — 1 file already formatted
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 157.58s
+
+### Pending
+- None. Reverse-proxy `client_header_timeout` is deployment config, not code.
+
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)

@@ -8,6 +8,21 @@
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
 
+## Session 2026-08-12: Auth hardening (WO2.0.0-007) — COMPLETE (commit `a6e1e858`)
+
+### What was done
+- **Migration 14** (`_schema.py`): `users.totp_secret`, `users.failed_login_attempts`, `users.locked_until`; new `revoked_tokens` table (jti, user_id, revoked_at).
+- **auth.py**: `AuthService.login()` returns structured status (`ok|mfa_required|invalid|locked`); `authenticate()` kept as thin wrapper. JWT gains `jti` claim; `validate_token` rejects revoked jtis. Added `enroll_totp`, `verify_totp`, `verify_totp_for_user`, `revoke_token`, `is_token_revoked`, `_record_failed_login`.
+- **routers/auth.py**: `/auth/login` accepts optional `totp_code`; new `POST /auth/mfa/enroll`, `POST /auth/mfa/verify`, `POST /auth/revoke`.
+- **settings.py**: `lockout_max_attempts` (5), `lockout_window_minutes` (15).
+- **pyproject.toml**: `pyotp` added to serve extra.
+
+### Pending
+- None for this workorder.
+
+### Blocked
+- None.
+
 ## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
 
 ### What was done (commit `72138610`)

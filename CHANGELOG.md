@@ -2,7 +2,6 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
-<<<<<<< HEAD
 ## 2026-08-12 - Unified serve exception hierarchy + bare-except cleanup (WO3.0.0-008)
 - Added `PicoSentryError` base + `AuthError`/`ValidationError`/`NotFoundError`/`ConflictError`/`ServiceError` to `picosentry/serve/errors.py`.
 - Global handler in `server.py` maps the hierarchy to HTTP statuses (401/404/422/409/500).

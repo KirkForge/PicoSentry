@@ -8,6 +8,29 @@
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
 
+## Session 2026-08-12: Reproducible builds + hash-pinned deps (WO2.0.0-009) — COMPLETE
+
+### What was done
+- **`.github/workflows/release.yml`**: set `SOURCE_DATE_EPOCH` from the commit timestamp (`date -d "${GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP}" +%s`) before `python -m build`, so the wheel is byte-identical across runs (SLSA L3).
+- **`.github/workflows/ci.yml`**: added `reproducible-build` job that builds the wheel twice with `SOURCE_DATE_EPOCH` pinned and asserts identical sha256.
+- **`Dockerfile`**: added `ARG SOURCE_DATE_EPOCH=0` + `ENV` in the builder stage so the wheel build is reproducible; documented the runtime `pip install "${WHEEL}[...]"` dependency layer as a non-hash-pinned ceiling (upgrade path: `uv export --frozen`).
+- **`uv.lock`**: confirmed hash-pinned (1629 `hash =` entries) — no change needed.
+
+### Reproducibility verification (local, head `9d2d24ce`)
+- Built the wheel twice with `SOURCE_DATE_EPOCH=1750000000`:
+  - build1: `cd4d3b6ae7456b11612af802e9d43532083204329fd47a4e07fc4c0dc00bca56`
+  - build2: `cd4d3b6ae7456b11612af802e9d43532083204329fd47a4e07fc4c0dc00bca56`
+  - **PASS: wheel reproducible.**
+- sdist: content is identical across runs (`diff -r` clean) but the gzip container mtime differs because CPython's `gzip` module does not honor `SOURCE_DATE_EPOCH` (known CPython limitation). Documented as a ceiling; the wheel is the primary artifact and is reproducible.
+
+### Gate output (head `9d2d24ce`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 407 source files
+- `uv run pytest tests/ -m "not slow"` — 4592 passed, 18 skipped, 4 subtests passed (423.73s). One flake (`test_full_scan_is_deterministic`) failed on the first run but passed in isolation and on re-run; unrelated to this change (CI/Dockerfile only).
+
+### Pending / next steps
+- None blocking. Docker image dependency layer is not hash-pinned (documented ceiling in Dockerfile); upgrade path is `uv export --frozen` requirements install.
+
 ## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
 
 ### What was done (commit `72138610`)

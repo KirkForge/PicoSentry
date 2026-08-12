@@ -4,6 +4,7 @@ import contextlib
 import http.client
 import json
 import logging
+import re
 import urllib.error
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -252,7 +253,101 @@ def _collect_rubygems_packages(target: Path) -> list[tuple[str, str, str, Path]]
     return packages
 
 
+_SKIP_REACHABILITY_DIRS = frozenset(
+    {
+        "node_modules",
+        ".venv",
+        "venv",
+        ".git",
+        "__pycache__",
+        ".tox",
+        ".cache",
+        ".hg",
+        ".svn",
+        "dist",
+        "build",
+    }
+)
+
+_SOURCE_EXTENSIONS = frozenset(
+    {
+        ".py",
+        ".js",
+        ".mjs",
+        ".cjs",
+        ".ts",
+        ".tsx",
+        ".jsx",
+        ".go",
+        ".rs",
+        ".java",
+        ".kt",
+        ".rb",
+        ".cs",
+        ".csproj",
+        ".gradle",
+        ".xml",
+        ".toml",
+        ".yaml",
+        ".yml",
+    }
+)
+
+
+def _is_package_reachable(target: Path, pkg_name: str, ecosystem: str) -> bool:
+    """Return True if ``pkg_name`` is imported/used in the project's source.
+
+    Greps the scanned project's source files (excluding vendored deps, lockfiles,
+    and manifests) for the package's import name. When no source files exist or
+    the ecosystem has no source mapping, defaults to True (backward compat).
+    """
+    if not target.is_dir():
+        return True
+
+    patterns = _import_patterns(pkg_name, ecosystem)
+    if not patterns:
+        return True
+
+    for file in target.rglob("*"):
+        if not file.is_file() or file.is_symlink():
+            continue
+        if any(part in _SKIP_REACHABILITY_DIRS for part in file.parts):
+            continue
+        if file.suffix not in _SOURCE_EXTENSIONS:
+            continue
+        try:
+            text = file.read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        for pattern in patterns:
+            if pattern.search(text):
+                return True
+    return False
+
+
+def _import_patterns(pkg_name: str, ecosystem: str) -> list[re.Pattern]:
+    """Build regexes that match an import/require of ``pkg_name`` in source."""
+    if ecosystem == "pypi":
+        mod = pkg_name.replace("-", "_").replace(".", "_")
+        return [
+            re.compile(rf"\bimport\s+{re.escape(mod)}\b"),
+            re.compile(rf"\bfrom\s+{re.escape(mod)}\b"),
+        ]
+    if ecosystem == "npm":
+        return [
+            re.compile(rf"require\(\s*['\"]{re.escape(pkg_name)}['\"]\s*\)"),
+            re.compile(rf"from\s+['\"]{re.escape(pkg_name)}['\"]"),
+            re.compile(rf"import\s+['\"]{re.escape(pkg_name)}['\"]"),
+        ]
+    if ecosystem == "go":
+        return [re.compile(rf"\b{re.escape(pkg_name)}\b")]
+    if ecosystem in ("cargo", "maven", "nuget", "rubygems"):
+        return [re.compile(rf"\b{re.escape(pkg_name)}\b")]
+    return []
+
+
 def _check_packages(
+    target: Path,
     packages: list[tuple[str, str, str, Path]],
     db: AdvisoryDB,
     config: AdvisoryConfig,
@@ -263,6 +358,8 @@ def _check_packages(
         advisories = db.check(pkg_name, pkg_version)
         if not advisories:
             continue
+
+        reachable = _is_package_reachable(target, pkg_name, config.ecosystem)
 
         for adv in advisories:
             severity = Severity.HIGH
@@ -286,6 +383,7 @@ def _check_packages(
                     ),
                     references=adv.references[:5] if adv.references else [],
                     ecosystem=config.ecosystem,
+                    reachable=reachable,
                 )
             )
 
@@ -350,6 +448,7 @@ _OSV_ECOSYSTEM_MAP: dict[str, str] = {
 
 
 def _merge_osv_findings(
+    target: Path,
     local_findings: list[Finding],
     osv_advisories: list,
     config: AdvisoryConfig,
@@ -373,6 +472,7 @@ def _merge_osv_findings(
                 pkg_label = pl
                 source = sp
                 break
+        reachable = _is_package_reachable(target, adv.package_name, config.ecosystem)
         merged.append(
             Finding(
                 rule_id=config.rule_id,
@@ -388,6 +488,7 @@ def _merge_osv_findings(
                 ),
                 references=adv.references[:5] if adv.references else [],
                 ecosystem=config.ecosystem,
+                reachable=reachable,
             )
         )
     return merged
@@ -413,7 +514,7 @@ def detect_all_advisory_vulnerabilities(
         if not packages:
             continue
 
-        eco_findings = _check_packages(packages, db, config)
+        eco_findings = _check_packages(target, packages, db, config)
 
         if connected and osv_client is not None:
             osv_eco = _OSV_ECOSYSTEM_MAP.get(config.ecosystem)
@@ -422,7 +523,9 @@ def detect_all_advisory_vulnerabilities(
                 for pkg_name, pkg_version, _pkg_label, _source in packages:
                     try:
                         osv_advisories = osv_client.query(osv_eco, pkg_name, pkg_version)
-                        eco_findings = _merge_osv_findings(eco_findings, osv_advisories, config, packages, local_ids)
+                        eco_findings = _merge_osv_findings(
+                            target, eco_findings, osv_advisories, config, packages, local_ids
+                        )
                     except (
                         urllib.error.URLError,
                         OSError,

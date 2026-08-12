@@ -11,6 +11,9 @@ All notable changes to PicoSentry will be documented in this file.
 - docker: set `SOURCE_DATE_EPOCH` in the builder stage for a reproducible wheel; document the runtime `pip install` dependency layer as a non-hash-pinned ceiling
 - deps: confirmed `uv.lock` pins hashes (1629 entries) — no change needed
 
+## 2026-08-12 - Reachability analysis (WO2.0.0-011)
+- Advisory findings now carry a `reachable` flag: a vulnerable dep imported/used in the scanned source is `reachable: true`; present-but-unused is `reachable: false`.
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

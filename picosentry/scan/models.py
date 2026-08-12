@@ -37,6 +37,7 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
     references: list[str] = field(default_factory=list)
     line: int | None = None
     ecosystem: str = "npm"
+    reachable: bool = True  # True = package imported/used in scanned source; False = present but unused
 
     def fingerprint(self) -> tuple:
         return (self.rule_id, self.ecosystem, self.package, self.file)
@@ -56,6 +57,7 @@ class Finding:  # rationale: immutable scan finding, frozen for determinism guar
             "message": self.message,
             "evidence": self.evidence,
             "remediation": self.remediation,
+            "reachable": self.reachable,
         }
         if self.references:
             d["references"] = self.references

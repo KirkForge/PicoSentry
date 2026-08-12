@@ -3,7 +3,7 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `6a337667` (dev) — **CI fully green** (PicoSentry CI run 31421163207 all 14 jobs ✓; Admission Matrix run 31421161650 all 3 ✓)
+- Head: `2ed04258` (dev) — WO2.0.0-007..012 improvement series in progress
 - Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
@@ -50,6 +50,19 @@
 
 ### Pending / next steps
 - None blocking. Docker image dependency layer is not hash-pinned (documented ceiling in Dockerfile); upgrade path is `uv export --frozen` requirements install.
+
+## Session 2026-08-12: Reachability analysis (WO2.0.0-011) — COMPLETE
+
+### What was done (commit `76eac66b`)
+- **models.py**: `Finding` gained `reachable: bool = True` (backward-compat default); emitted in `to_dict()`.
+- **advisory_check.py**: `_is_package_reachable(target, pkg_name, ecosystem)` greps the project's source files (skipping node_modules/.venv/.git/lockfiles/manifests) for the package's import name. pypi matches `import`/`from <mod>`; npm matches `require('<pkg>')`/`from '<pkg>'`/`import '<pkg>'`; go/cargo/maven/nuget/rubygems match a token-boundary name. Defaults True when no source files or no source mapping. Wired into `_check_packages` and `_merge_osv_findings`.
+- **tests/scan/test_reachability.py**: 3 tests — imported dep reachable=True, present-but-unused reachable=False, and reachable serialized in to_dict().
+
+### Pending
+- None.
+
+### Blocked
+- None.
 
 ## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
 

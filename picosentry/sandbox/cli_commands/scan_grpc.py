@@ -45,7 +45,7 @@ def cmd(args: argparse.Namespace) -> int:
                 ca_path=args.tls_ca or "",
                 verify_client=bool(args.tls_ca),
             )
-        except Exception as e:
+        except (ImportError, TypeError, ValueError) as e:
             print(f"Error configuring mTLS: {e}", file=sys.stderr)
             return 1
 
@@ -87,7 +87,7 @@ def cmd(args: argparse.Namespace) -> int:
     except ConnectionError as e:
         print(f"Connection error: {e}", file=sys.stderr)
         return 1
-    except Exception as e:
+    except (OSError, RuntimeError, ValueError, TypeError, TimeoutError, ImportError) as e:
         print(f"Scan error: {e}", file=sys.stderr)
         return 1
     finally:

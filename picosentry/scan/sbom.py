@@ -60,6 +60,9 @@ def _safe_xml_parse(data: bytes | str) -> ElementTree.Element | None:
     if _HAS_DEFUSEDXML:
         try:
             return _safe_fromstring(data)
+        # INTENTIONAL BROAD CATCH: defusedxml raises DefusedXmlException on
+        # unsafe constructs and ParseError on malformed XML; both mean "not
+        # parseable", so we return None for either.
         except Exception:
             return None
     try:

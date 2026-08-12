@@ -94,7 +94,7 @@ def cmd(args: argparse.Namespace) -> int:
     except KeyboardInterrupt:
         server.stop()
         return 0
-    except Exception as e:
+    except (OSError, RuntimeError) as e:
         print(f"Admission webhook error: {e}", file=sys.stderr)
         return 1
 

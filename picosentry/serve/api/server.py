@@ -30,6 +30,14 @@ from picosentry.serve.config.logging_config import configure_logging
 from picosentry.serve.config.settings import _env_bool, settings
 from picosentry.serve.config.version import __version__
 from picosentry.serve.database.manager import db
+from picosentry.serve.errors import (
+    AuthError,
+    ConflictError,
+    NotFoundError,
+    PicoSentryError,
+    ServiceError,
+    ValidationError,
+)
 from picosentry.serve.middleware.audit import AuditMiddleware
 from picosentry.serve.middleware.cors_hardening import CORSHardeningMiddleware
 from picosentry.serve.middleware.ddos_shield import DDoSShieldMiddleware
@@ -234,7 +242,7 @@ async def lifespan(app: FastAPI):
         from picosentry.serve.services.observability import shutdown_telemetry
 
         shutdown_telemetry()
-    except Exception as exc:
+    except (OSError, RuntimeError) as exc:
         logger.warning("Telemetry shutdown failed: %s", exc)
 
     logger.info("All background services stopped")
@@ -255,6 +263,24 @@ app = FastAPI(
     redoc_url=_redoc_url,
     lifespan=lifespan,
 )
+
+
+@app.exception_handler(PicoSentryError)
+async def serve_error_handler(request: Request, exc: PicoSentryError):
+    request_id = getattr(request.state, "request_id", "unknown")
+    logger.warning("Serve error (%s) on %s %s", type(exc).__name__, request.method, request.url.path)
+    mapping: dict[type[PicoSentryError], int] = {
+        AuthError: 401,
+        NotFoundError: 404,
+        ValidationError: 422,
+        ConflictError: 409,
+        ServiceError: 500,
+    }
+    status = mapping.get(type(exc), 500)
+    return JSONResponse(
+        status_code=status,
+        content={"error": type(exc).__name__, "detail": str(exc), "request_id": request_id},
+    )
 
 
 @app.exception_handler(Exception)

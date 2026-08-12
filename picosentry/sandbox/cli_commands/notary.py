@@ -57,7 +57,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
-    from picosentry.sandbox.notary import AuditNotary, NullNotary, RekorNotary, sign_entry
+    from picosentry.sandbox.notary import AuditNotary, NotaryError, NullNotary, RekorNotary, sign_entry
 
     notary: AuditNotary
 
@@ -98,7 +98,7 @@ def cmd(args: argparse.Namespace) -> int:
             uuid = notary.submit_entry(entry)
             print(f"Entry submitted: {uuid}")
             print(f"Notary backend: {args.notary}")
-        except Exception as exc:
+        except NotaryError as exc:
             print(f"Error: notary submission failed: {exc}", file=sys.stderr)
             return 1
 
@@ -141,7 +141,7 @@ def cmd(args: argparse.Namespace) -> int:
                 return 0
             print(f"✗ Entry {args.uuid} verification FAILED", file=sys.stderr)
             return 1
-        except Exception as exc:
+        except NotaryError as exc:
             print(f"Error: verification failed: {exc}", file=sys.stderr)
             return 1
 

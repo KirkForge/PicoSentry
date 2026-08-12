@@ -71,7 +71,7 @@ def cmd(args: argparse.Namespace) -> int:
                 sign_policy_file(policy_path, key, key_id=args.key_id)
                 print(f"✓ Signed policy: {policy_path}")
             return 0
-        except Exception as exc:
+        except (OSError, RuntimeError) as exc:
             print(f"Error signing policy: {exc}", file=sys.stderr)
             return 1
 

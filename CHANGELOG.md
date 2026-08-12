@@ -2,6 +2,11 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Unified serve exception hierarchy + bare-except cleanup (WO3.0.0-008)
+- Added `PicoSentryError` base + `AuthError`/`ValidationError`/`NotFoundError`/`ConflictError`/`ServiceError` to `picosentry/serve/errors.py`.
+- Global handler in `server.py` maps the hierarchy to HTTP statuses (401/404/422/409/500).
+- Reduced bare `except Exception` from 62 to 52 across 36→30 files; remaining are intentional resilience catches.
+
 ## 2026-08-12 - Real-time OSV advisory feed (WO3.0.0-004)
 - `OSVClient`: cache TTL default dropped 24h → 60min, configurable via `PICOSENTRY_OSV_CACHE_MINUTES`; explicit `cache_ttl_hours` still overrides.
 

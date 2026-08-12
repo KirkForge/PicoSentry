@@ -94,6 +94,11 @@ class CreateAPIKeyRequest(BaseModel):
 
     name: str = Field(default="default", max_length=128)
     permissions: str = Field(default="read", pattern="^(read|write|admin)$")
+    # Optional RBAC scope for the minted key.  When omitted the key inherits
+    # a role derived from ``permissions``; ``role`` cannot exceed the caller's
+    # own role — enforced against the authenticated user below.
+    role: str | None = Field(default=None, pattern="^(viewer|operator|admin)$")
+    org_id: int | None = Field(default=None, gt=0)
 
 
 @router.post("/api-key", tags=["Authentication"], status_code=201, response_model=APIKeyResponse)
@@ -103,7 +108,17 @@ async def create_api_key(
     user: dict = Depends(get_current_user),
 ):
     _check_auth_rate_limit(fastapi_request)
-    api_key = auth_service.create_api_key(user["id"], name=request.name, permissions=request.permissions)
+    role_levels = {"viewer": 0, "operator": 1, "admin": 2}
+    caller_level = role_levels.get(user.get("role", "viewer"), 0)
+    if request.role is not None and role_levels.get(request.role, 0) > caller_level:
+        raise HTTPException(status_code=403, detail="Cannot mint a key with a role higher than your own")
+    api_key = auth_service.create_api_key(
+        user["id"],
+        name=request.name,
+        permissions=request.permissions,
+        role=request.role,
+        org_id=request.org_id,
+    )
     return {"api_key": api_key, "name": request.name, "permissions": request.permissions}
 
 

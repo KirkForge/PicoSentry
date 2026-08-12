@@ -2,6 +2,15 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+
+## 2026-08-12 - Role-scoped tokens + CORS default (WO2.0.0-010)
+
+- API keys can be minted scoped to an RBAC role (viewer/operator/admin) and an org
+
+- `get_current_user` accepts `X-API-Key`; existing role/permission checks now bound API-key callers
+
+- CORS: reject wildcard `*` origin with `allow_credentials=True` in validate()
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

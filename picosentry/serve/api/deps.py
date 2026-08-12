@@ -10,10 +10,30 @@ from picosentry.serve.services.rbac import Permission, has_permission
 logger = logging.getLogger("picoshogun.deps")
 
 auth_service = AuthService()
-security = HTTPBearer()
+security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(credentials: HTTPAuthorizationCredentials = Depends(security)):
+async def get_current_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    api_key: str | None = Header(None, alias="X-API-Key"),
+):
+    # API-key requests authenticate through the key's stored role scope so the
+    # same `require_role`/`require_permission` checks that guard JWT callers
+    # also bound key callers (e.g. a read-only viewer key cannot mutate).
+    if api_key:
+        key_user = auth_service.validate_api_key(api_key)
+        if key_user is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Invalid or expired API key",
+            )
+        return key_user
+
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing bearer token or API key",
+        )
     token = credentials.credentials
     user = auth_service.validate_token(token)
     if not user:
@@ -58,6 +78,14 @@ async def get_current_org(
     user: dict = Depends(get_current_user),
 ):
     user_orgs = Organization.list_orgs_for_user(user["id"])
+
+    # A user API key minted scoped to an org may only reach that org.
+    key_org_id = user.get("org_id")
+    if key_org_id is not None:
+        key_org = next((o for o in (user_orgs or []) if o["id"] == key_org_id), None)
+        if not key_org:
+            raise HTTPException(status_code=403, detail="API key is not scoped to an accessible organization")
+        return key_org
 
     if api_key and api_key.startswith("sk_"):
         org = Organization.get_by_api_key(api_key)

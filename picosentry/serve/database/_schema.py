@@ -713,6 +713,33 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_org ON anomaly_alerts(org_id, created_at);
     """,
     ),
+    Migration(
+        14,
+        "add_role_and_org_to_api_keys",
+        """
+        -- WO2.0.0-010: role-scoped API keys.  A key can be minted scoped to an
+        -- RBAC role (viewer/operator/admin) and an org.  Existing rows get the
+        -- legacy derived role so they keep working.
+        ALTER TABLE api_keys ADD COLUMN role TEXT;
+        ALTER TABLE api_keys ADD COLUMN org_id INTEGER;
+        UPDATE api_keys SET role = CASE
+            WHEN permissions LIKE '%admin%' THEN 'admin'
+            WHEN permissions LIKE '%write%' THEN 'operator'
+            ELSE 'viewer'
+        END WHERE role IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(org_id);
+    """,
+        postgres_sql="""
+        ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS role TEXT;
+        ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        UPDATE api_keys SET role = CASE
+            WHEN permissions LIKE '%admin%' THEN 'admin'
+            WHEN permissions LIKE '%write%' THEN 'operator'
+            ELSE 'viewer'
+        END WHERE role IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(org_id);
+    """,
+    ),
 ]
 
 __all__ = [

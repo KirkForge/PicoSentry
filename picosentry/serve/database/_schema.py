@@ -715,7 +715,7 @@ MIGRATIONS: list[Migration] = [
     ),
     Migration(
         14,
-        "add_auth_hardening",
+        "add_auth_hardening_and_role_scoped_keys",
         """
         ALTER TABLE users ADD COLUMN totp_secret TEXT;
         ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0;
@@ -730,6 +730,18 @@ MIGRATIONS: list[Migration] = [
         );
 
         CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti ON revoked_tokens(jti);
+
+        -- WO2.0.0-010: role-scoped API keys.  A key can be minted scoped to an
+        -- RBAC role (viewer/operator/admin) and an org.  Existing rows get the
+        -- legacy derived role so they keep working.
+        ALTER TABLE api_keys ADD COLUMN role TEXT;
+        ALTER TABLE api_keys ADD COLUMN org_id INTEGER;
+        UPDATE api_keys SET role = CASE
+            WHEN permissions LIKE '%admin%' THEN 'admin'
+            WHEN permissions LIKE '%write%' THEN 'operator'
+            ELSE 'viewer'
+        END WHERE role IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(org_id);
     """,
         postgres_sql="""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
@@ -745,6 +757,15 @@ MIGRATIONS: list[Migration] = [
         );
 
         CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti ON revoked_tokens(jti);
+
+        ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS role TEXT;
+        ALTER TABLE api_keys ADD COLUMN IF NOT EXISTS org_id INTEGER;
+        UPDATE api_keys SET role = CASE
+            WHEN permissions LIKE '%admin%' THEN 'admin'
+            WHEN permissions LIKE '%write%' THEN 'operator'
+            ELSE 'viewer'
+        END WHERE role IS NULL;
+        CREATE INDEX IF NOT EXISTS idx_api_keys_org ON api_keys(org_id);
     """,
     ),
 ]

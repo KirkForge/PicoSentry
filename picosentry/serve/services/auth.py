@@ -275,12 +275,37 @@ class AuthService:
         return user_id
 
     _API_KEY_PERMISSIONS: ClassVar[set[str]] = {"read", "write", "admin"}
+    # A role-scoped key is enforced against the RBAC role matrix.  ``viewer``
+    # is read-only; ``operator`` can run/mutate; ``admin`` is unrestricted.
+    _API_KEY_ROLES: ClassVar[tuple[str, ...]] = ("viewer", "operator", "admin")
 
-    def create_api_key(self, user_id: int, name: str, permissions: str = "read") -> str | None:
+    def create_api_key(
+        self,
+        user_id: int,
+        name: str,
+        permissions: str = "read",
+        role: str | None = None,
+        org_id: int | None = None,
+    ) -> str | None:
         allowed_permissions = self._API_KEY_PERMISSIONS
         requested = {p.strip() for p in permissions.split(",") if p.strip()}
         if not requested or not requested.issubset(allowed_permissions):
             logger.warning("API key create rejected: invalid permissions '%s'", permissions)
+            return None
+
+        # Resolve the RBAC role: an explicit role wins; otherwise derive it
+        # from the legacy permissions set (read→viewer, write→operator,
+        # admin→admin).  A key without a role defaults to read-only viewer so
+        # a fresh key can never mint itself broader than its owner intends.
+        if role is None:
+            if "admin" in requested:
+                role = "admin"
+            elif "write" in requested:
+                role = "operator"
+            else:
+                role = "viewer"
+        if role not in self._API_KEY_ROLES:
+            logger.warning("API key create rejected: invalid role '%s'", role)
             return None
 
         normalized = ",".join(sorted(requested))
@@ -291,13 +316,13 @@ class AuthService:
 
         self._db.execute_insert(
             """
-            INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
-            VALUES (?, ?, ?, ?, ?)
+            INSERT INTO api_keys (key_hash, user_id, name, permissions, role, org_id, expires_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """,
-            (key_hash, user_id, name, normalized, expires),
+            (key_hash, user_id, name, normalized, role, org_id, expires),
         )
 
-        logger.info("API key created for user %s: %s", user_id, name)
+        logger.info("API key created for user %s: %s (role: %s)", user_id, name, role)
         return api_key
 
     def validate_api_key(self, api_key: str) -> dict[str, Any] | None:
@@ -330,6 +355,13 @@ class AuthService:
             logger.warning("API key rejected: invalid stored permissions")
             return None
 
+        # A scoped key's role is the single source of truth for RBAC.  Reject
+        # any stored role outside the known matrix (same defense as above).
+        key_role = key.get("role") or "viewer"
+        if key_role not in self._API_KEY_ROLES:
+            logger.warning("API key rejected: invalid stored role '%s'", key_role)
+            return None
+
         self._db.execute_insert(
             "UPDATE api_keys SET last_used = ? WHERE id = ?", (datetime.now(timezone.utc), key["id"])
         )
@@ -339,7 +371,8 @@ class AuthService:
             "key_id": key["id"],
             "user_id": key["user_id"],
             "username": key["username"],
-            "role": key["role"],
+            "role": key_role,
+            "org_id": key.get("org_id"),
             "permissions": key["permissions"],
         }
 
@@ -374,10 +407,18 @@ class AuthService:
             )
             conn.execute(
                 """
-                INSERT INTO api_keys (key_hash, user_id, name, permissions, expires_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO api_keys (key_hash, user_id, name, permissions, role, org_id, expires_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
             """,
-                (key_hash, user_id, key["name"] or "rotated-key", key["permissions"] or "read", expires),
+                (
+                    key_hash,
+                    user_id,
+                    key["name"] or "rotated-key",
+                    key["permissions"] or "read",
+                    key.get("role") or "viewer",
+                    key.get("org_id"),
+                    expires,
+                ),
             )
 
         logger.info("API key rotated for user %s, key_id %s", user_id, key_id)

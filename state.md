@@ -2,6 +2,34 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
+
+### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)
+- **auth.py**: `create_api_key(user_id, name, permissions, role=None, org_id=None)` — role defaults
+  derived from permissions (read→viewer, write→operator, admin→admin), validated against
+  viewer/operator/admin. `validate_api_key` returns scoped `role` + `org_id`, rejects unknown
+  stored roles. `rotate_api_key` preserves role/org.
+- **database/_schema.py**: migration 14 adds `role`+`org_id` to `api_keys`, backfills legacy
+  derived roles (fixed a `;`-in-comment split that broke migration on first attempt).
+- **api/deps.py**: `get_current_user` now accepts `X-API-Key` (validates via
+  `validate_api_key`, enforces its role through existing `require_role`/`require_permission`);
+  `HTTPBearer(auto_error=False)` so the API-key path runs before the Bearer 401. `get_current_org`
+  honors a key's `org_id` scope. Backward-compatible: JWT callers/tests unaffected.
+- **api/routers/auth.py**: `CreateAPIKeyRequest` gains optional `role`/`org_id`; handler rejects
+  minting a role higher than the caller's own.
+- **config/settings.py**: `validate()` rejects CORS wildcard `*` with `allow_credentials=True` in
+  every env (default remains `http://localhost:8765`, safe).
+
+### Gate output (head `c1761e81`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 407 source files
+- `uv run ruff format --check picosentry/ tests/ scripts/` — 634 files already formatted
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 235.86s
+
+### Pending
+- None. CORS `*` rejection is validated via `validate()`; production profile already blocked it.
+- Role-scoped key org enforcement verified manually (viewer key GET 200 / POST /scans 403).
+
 ## Current state
 - Head: `4b5d70c2` (dev) — WO2.0.0-007..012 improvement series in progress
 - Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13

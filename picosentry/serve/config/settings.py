@@ -292,6 +292,16 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
                     "SECURITY: Unsigned plugins allowed in production — set PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1"
                 )
 
+        # A wildcard CORS origin combined with credentials lets any site carry
+        # the caller's cookies/headers.  This is unsafe in EVERY environment,
+        # not just production, so it is enforced here rather than only under
+        # the production branch above.
+        if "*" in self.api.cors_origins:
+            issues.append(
+                "SECURITY: CORS wildcard '*' with allow_credentials=True — "
+                "set PICOSHOGUN_CORS_ORIGINS to explicit origins"
+            )
+
         if (
             self.alerts.email_smtp_password
             and not self.alerts.email_smtp_use_ssl

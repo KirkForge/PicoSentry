@@ -20,6 +20,13 @@ try:
 except ImportError:
     HAS_BCRYPT = False
 
+try:
+    import pyotp
+
+    HAS_PYOTP = True
+except ImportError:
+    HAS_PYOTP = False
+
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import DatabaseManager, db as _default_db
 
@@ -94,7 +101,20 @@ class AuthService:
         return username.strip().casefold()
 
     def authenticate(self, username: str, password: str) -> str | None:
+        result = self.login(username, password)
+        return result.get("token")
+
+    def login(self, username: str, password: str, totp_code: str | None = None) -> dict[str, Any]:
+        """Authenticate a user, returning a structured status.
+
+        Statuses:
+          - ``ok``: credentials valid (and TOTP verified if enabled) — ``token`` set
+          - ``mfa_required``: password valid, TOTP enabled, no/invalid code supplied
+          - ``invalid``: bad credentials
+          - ``locked``: account is locked out
+        """
         normalized = self._normalize_username(username)
+        now = datetime.now(timezone.utc)
 
         with self._db.transaction() as conn:
             cursor = conn.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
@@ -107,16 +127,52 @@ class AuthService:
             else:
                 user = None
 
-            if not user or not self._verify_password(password, user["password_hash"]):
+            if not user:
                 logger.warning("Auth failed: invalid credentials")
-                return None
+                return {"status": "invalid"}
 
-            conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (datetime.now(timezone.utc), user["id"]))
+            locked_until = user.get("locked_until")
+            if locked_until:
+                if isinstance(locked_until, str):
+                    locked_until = datetime.fromisoformat(locked_until)
+                if locked_until > now:
+                    logger.warning("Auth failed: account %s locked until %s", normalized, locked_until)
+                    return {"status": "locked"}
+
+            if not self._verify_password(password, user["password_hash"]):
+                self._record_failed_login(conn, user, now)
+                logger.warning("Auth failed: invalid credentials")
+                return {"status": "invalid"}
+
+            # Password is correct — reset the failure counter.
+            conn.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", (user["id"],))
+
+            totp_secret = user.get("totp_secret")
+            if totp_secret and (not totp_code or not self.verify_totp(totp_secret, totp_code)):
+                logger.info("User %s requires MFA", normalized)
+                return {"status": "mfa_required"}
+
+            conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
 
         token = self._generate_token(user["id"], user["username"], user["role"])
 
         logger.info("User %s authenticated", user["username"])
-        return token
+        return {"status": "ok", "token": token, "user_id": user["id"], "role": user["role"]}
+
+    def _record_failed_login(self, conn, user: dict[str, Any], now: datetime) -> None:
+        attempts = int(user.get("failed_login_attempts") or 0) + 1
+        max_attempts = settings.security.lockout_max_attempts
+        if attempts >= max_attempts:
+            locked_until = now + timedelta(minutes=settings.security.lockout_window_minutes)
+            conn.execute(
+                "UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?",
+                (attempts, locked_until, user["id"]),
+            )
+            logger.warning(
+                "Account %s locked until %s after %d failed attempts", user["username"], locked_until, attempts
+            )
+        else:
+            conn.execute("UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"]))
 
     def _generate_token(self, user_id: int, username: str, role: str) -> str:
         if not HAS_JWT:
@@ -126,6 +182,7 @@ class AuthService:
             "user_id": user_id,
             "username": username,
             "role": role,
+            "jti": secrets.token_urlsafe(16),
             "exp": datetime.now(timezone.utc) + timedelta(hours=self.expiration_hours),
             "iat": datetime.now(timezone.utc),
         }
@@ -143,18 +200,59 @@ class AuthService:
 
         try:
             payload = jwt.decode(token, self.secret_key, algorithms=[self.algorithm])
-            return {
-                "id": payload["user_id"],
-                "user_id": payload["user_id"],
-                "username": payload["username"],
-                "role": payload["role"],
-            }
         except jwt.ExpiredSignatureError:
             logger.warning("Token expired")
             return None
         except jwt.InvalidTokenError:
             logger.warning("Invalid token")
             return None
+
+        jti = payload.get("jti")
+        if jti and self.is_token_revoked(jti):
+            logger.warning("Token revoked (jti %s)", jti)
+            return None
+
+        return {
+            "id": payload["user_id"],
+            "user_id": payload["user_id"],
+            "username": payload["username"],
+            "role": payload["role"],
+            "jti": jti,
+        }
+
+    def revoke_token(self, jti: str, user_id: int | None = None) -> bool:
+        """Revoke a JWT by its jti. Returns False if already revoked."""
+        existing = self._db.execute_one("SELECT id FROM revoked_tokens WHERE jti = ?", (jti,))
+        if existing:
+            return False
+        self._db.execute_insert("INSERT INTO revoked_tokens (jti, user_id) VALUES (?, ?)", (jti, user_id))
+        logger.info("Token revoked (jti %s)", jti)
+        return True
+
+    def is_token_revoked(self, jti: str) -> bool:
+        return self._db.execute_one("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)) is not None
+
+    def enroll_totp(self, user_id: int, username: str) -> dict[str, str] | None:
+        """Generate and store a TOTP secret for a user. Returns secret + otpauth URI."""
+        if not HAS_PYOTP:
+            logger.error("pyotp not installed — cannot enroll TOTP")
+            return None
+        secret = pyotp.random_base32()
+        self._db.execute_insert("UPDATE users SET totp_secret = ? WHERE id = ?", (secret, user_id))
+        uri = pyotp.totp.TOTP(secret).provisioning_uri(name=username, issuer_name="PicoSentry")
+        logger.info("TOTP enrolled for user %s", user_id)
+        return {"secret": secret, "otpauth_uri": uri}
+
+    def verify_totp(self, secret: str, code: str) -> bool:
+        if not HAS_PYOTP:
+            return False
+        return pyotp.TOTP(secret).verify(code)
+
+    def verify_totp_for_user(self, user_id: int, code: str) -> bool:
+        user = self._db.execute_one("SELECT totp_secret FROM users WHERE id = ?", (user_id,))
+        if not user or not user.get("totp_secret"):
+            return False
+        return self.verify_totp(user["totp_secret"], code)
 
     def create_user(self, username: str, password: str, email: str | None = None, role: str = "viewer") -> int | None:
         normalized = self._normalize_username(username)

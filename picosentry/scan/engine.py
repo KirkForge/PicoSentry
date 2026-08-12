@@ -534,6 +534,7 @@ def create_default_engine(
     from .rules.maintainer_change import detect_maintainer_changes
     from .rules.manifest import detect_manifest_issues
     from .rules.network_exfil import detect_network_exfiltration
+    from .rules.namespace_collision import detect_namespace_collision
     from .rules.obfuscation import detect_obfuscation
     from .rules.package_age import detect_suspicious_new_packages
     from .rules.pnpm_config import detect_pnpm_config
@@ -578,6 +579,7 @@ def create_default_engine(
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
     engine.register("L2-INTEL-001", detect_suspicious_new_packages)
+    engine.register("L2-NSCOL-001", detect_namespace_collision)
 
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)

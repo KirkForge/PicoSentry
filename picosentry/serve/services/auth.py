@@ -37,6 +37,22 @@ try:
 except ImportError:
     HAS_PYOTP = False
 
+try:
+    import webauthn
+    from webauthn.helpers import base64url_to_bytes, bytes_to_base64url, generate_challenge, options_to_json
+    from webauthn.helpers.structs import (
+        AttestationConveyancePreference,
+        AuthenticatorSelectionCriteria,
+        PublicKeyCredentialDescriptor,
+        PublicKeyCredentialType,
+        ResidentKeyRequirement,
+        UserVerificationRequirement,
+    )
+
+    HAS_WEBAUTHN = True
+except ImportError:
+    HAS_WEBAUTHN = False
+
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import DatabaseManager, db as _default_db
 
@@ -173,11 +189,19 @@ class AuthService:
     def _normalize_username(self, username: str) -> str:
         return username.strip().casefold()
 
+    def get_user_id_by_username(self, username: str) -> int | None:
+        user = self._db.execute_one(
+            "SELECT id FROM users WHERE username = ? AND is_active = 1", (self._normalize_username(username),)
+        )
+        return user["id"] if user else None
+
     def authenticate(self, username: str, password: str) -> str | None:
         result = self.login(username, password)
         return result.get("token")
 
-    def login(self, username: str, password: str, totp_code: str | None = None) -> dict[str, Any]:
+    def login(
+        self, username: str, password: str, totp_code: str | None = None, mfa_verified: bool = False
+    ) -> dict[str, Any]:
         """Authenticate a user, returning a structured status.
 
         Statuses:
@@ -185,6 +209,11 @@ class AuthService:
           - ``mfa_required``: password valid, TOTP enabled, no/invalid code supplied
           - ``invalid``: bad credentials
           - ``locked``: account is locked out
+
+        ``mfa_verified`` is an internal escape hatch used only after a
+        WebAuthn assertion has been independently verified (the passkey is
+        the second factor).  It skips the MFA gate so a second-factor-proof
+        caller can receive the token without re-entering a TOTP code.
         """
         normalized = self._normalize_username(username)
         now = datetime.now(timezone.utc)
@@ -221,9 +250,15 @@ class AuthService:
             conn.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", (user["id"],))
 
             totp_secret = user.get("totp_secret")
-            if totp_secret and (not totp_code or not self.verify_totp(totp_secret, totp_code)):
-                logger.info("User %s requires MFA", normalized)
-                return {"status": "mfa_required"}
+            if not mfa_verified:
+                has_webauthn = bool(self.webauthn_credentials_for_user(user["id"]))
+                if totp_secret and not (totp_code and self.verify_totp(totp_secret, totp_code)):
+                    methods = ["totp"] + (["webauthn"] if has_webauthn else [])
+                    logger.info("User %s requires MFA", normalized)
+                    return {"status": "mfa_required", "mfa_methods": methods}
+                if has_webauthn and not totp_secret:
+                    logger.info("User %s requires WebAuthn MFA", normalized)
+                    return {"status": "mfa_required", "mfa_methods": ["webauthn"]}
 
             conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
 
@@ -352,6 +387,156 @@ class AuthService:
         if not user or not user.get("totp_secret"):
             return False
         return self.verify_totp(user["totp_secret"], code)
+
+    def webauthn_credentials_for_user(self, user_id: int) -> list[dict[str, Any]]:
+        return self._db.execute(
+            "SELECT id, credential_id, public_key, sign_count, created_at FROM webauthn_credentials WHERE user_id = ?",
+            (user_id,),
+        )
+
+    def webauthn_register_challenge(self, user_id: int, username: str, display_name: str) -> dict[str, Any] | None:
+        """Generate and persist a WebAuthn registration challenge. Returns the client options JSON."""
+        if not HAS_WEBAUTHN:
+            logger.error("webauthn not installed — cannot enroll passkey")
+            return None
+        user_handle = user_id.to_bytes(8, "big")
+        options = webauthn.generate_registration_options(
+            rp_id=settings.security.webauthn_rp_id,
+            rp_name=settings.security.webauthn_rp_name,
+            user_name=username,
+            user_display_name=display_name,
+            user_id=user_handle,
+            attestation=AttestationConveyancePreference.NONE,
+            authenticator_selection=AuthenticatorSelectionCriteria(
+                resident_key=ResidentKeyRequirement.DISCOURAGED,
+                user_verification=UserVerificationRequirement.DISCOURAGED,
+            ),
+        )
+        challenge = bytes_to_base64url(options.challenge)
+        self._db.execute_insert(
+            "INSERT INTO webauthn_challenges (user_id, challenge, purpose) VALUES (?, ?, 'register')",
+            (user_id, challenge),
+        )
+        logger.info("WebAuthn registration challenge issued for user %s", user_id)
+        return {
+            "challenge": challenge,
+            "options": options_to_json(options),
+        }
+
+    def webauthn_register_verify(self, user_id: int, challenge: str, credential: dict[str, Any]) -> bool:
+        """Verify a registration response and store the passkey credential."""
+        if not HAS_WEBAUTHN:
+            return False
+        stored = self._db.execute_one(
+            "SELECT challenge FROM webauthn_challenges WHERE user_id = ? AND challenge = ? AND purpose = 'register'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (user_id, challenge),
+        )
+        if not stored:
+            logger.warning("WebAuthn register verify: unknown challenge for user %s", user_id)
+            return False
+        self._db.execute_insert(
+            "DELETE FROM webauthn_challenges WHERE user_id = ? AND purpose = 'register'", (user_id,)
+        )
+        try:
+            verification = webauthn.verify_registration_response(
+                credential=credential,
+                expected_challenge=base64url_to_bytes(challenge),
+                expected_rp_id=settings.security.webauthn_rp_id,
+                expected_origin=settings.security.webauthn_origin,
+            )
+        except Exception:
+            logger.exception("WebAuthn registration verification failed for user %s", user_id)
+            return False
+        self._db.execute_insert(
+            "INSERT INTO webauthn_credentials (user_id, credential_id, public_key, sign_count) VALUES (?, ?, ?, ?)",
+            (
+                user_id,
+                bytes_to_base64url(verification.credential_id),
+                bytes_to_base64url(verification.credential_public_key),
+                verification.sign_count,
+            ),
+        )
+        logger.info("WebAuthn credential registered for user %s", user_id)
+        return True
+
+    def webauthn_auth_challenge(self, user_id: int) -> dict[str, Any] | None:
+        """Generate a WebAuthn assertion challenge for a user's passkeys."""
+        if not HAS_WEBAUTHN:
+            return None
+        creds = self._db.execute("SELECT credential_id FROM webauthn_credentials WHERE user_id = ?", (user_id,))
+        allow = [
+            PublicKeyCredentialDescriptor(
+                type=PublicKeyCredentialType.PUBLIC_KEY,
+                id=base64url_to_bytes(c["credential_id"]),
+            )
+            for c in creds
+        ]
+        options = webauthn.generate_authentication_options(
+            rp_id=settings.security.webauthn_rp_id,
+            challenge=generate_challenge(),
+            allow_credentials=allow,
+        )
+        challenge = bytes_to_base64url(options.challenge)
+        self._db.execute_insert(
+            "INSERT INTO webauthn_challenges (user_id, challenge, purpose) VALUES (?, ?, 'authenticate')",
+            (user_id, challenge),
+        )
+        logger.info("WebAuthn assertion challenge issued for user %s", user_id)
+        return {
+            "challenge": challenge,
+            "options": options_to_json(options),
+        }
+
+    def webauthn_auth_verify(self, user_id: int, challenge: str, credential: dict[str, Any]) -> bool:
+        """Verify a WebAuthn assertion against a stored passkey."""
+        if not HAS_WEBAUTHN:
+            return False
+        stored = self._db.execute_one(
+            "SELECT challenge FROM webauthn_challenges WHERE user_id = ? AND challenge = ? AND purpose = 'authenticate'"
+            " ORDER BY created_at DESC LIMIT 1",
+            (user_id, challenge),
+        )
+        if not stored:
+            logger.warning("WebAuthn assertion verify: unknown challenge for user %s", user_id)
+            return False
+        self._db.execute_insert(
+            "DELETE FROM webauthn_challenges WHERE user_id = ? AND purpose = 'authenticate'", (user_id,)
+        )
+        try:
+            credential_id = credential["rawId"]
+        except (KeyError, TypeError):
+            logger.warning("WebAuthn assertion verify: missing rawId")
+            return False
+        stored_cred = self._db.execute_one(
+            "SELECT credential_id, public_key, sign_count FROM webauthn_credentials WHERE user_id = ?",
+            (user_id,),
+        )
+        if not stored_cred or stored_cred["credential_id"] != credential_id:
+            logger.warning("WebAuthn assertion verify: unknown credential for user %s", user_id)
+            return False
+        try:
+            verification = webauthn.verify_authentication_response(
+                credential=credential,
+                expected_challenge=base64url_to_bytes(challenge),
+                expected_rp_id=settings.security.webauthn_rp_id,
+                expected_origin=settings.security.webauthn_origin,
+                credential_public_key=base64url_to_bytes(stored_cred["public_key"]),
+                credential_current_sign_count=stored_cred["sign_count"],
+            )
+        except Exception:
+            logger.exception("WebAuthn assertion verification failed for user %s", user_id)
+            return False
+        self._db.execute_insert(
+            "UPDATE webauthn_credentials SET sign_count = ? WHERE user_id = ? AND credential_id = ?",
+            (
+                verification.new_sign_count,
+                user_id,
+                bytes_to_base64url(verification.credential_id),
+            ),
+        )
+        logger.info("WebAuthn assertion verified for user %s", user_id)
+        return True
 
     def create_user(self, username: str, password: str, email: str | None = None, role: str = "viewer") -> int | None:
         normalized = self._normalize_username(username)

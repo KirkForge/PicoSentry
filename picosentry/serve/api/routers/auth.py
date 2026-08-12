@@ -93,7 +93,8 @@ async def login(request: _LoginRequest, fastapi_request: Request):
     if status == "locked":
         raise HTTPException(status_code=423, detail="Account locked due to too many failed attempts")
     if status == "mfa_required":
-        raise HTTPException(status_code=401, detail="MFA code required")
+        methods = ",".join(result.get("mfa_methods", ["totp"]))
+        raise HTTPException(status_code=401, detail="MFA code required", headers={"X-MFA-Methods": methods})
     if status != "ok":
         raise HTTPException(status_code=401, detail="Invalid credentials")
     return {
@@ -139,6 +140,93 @@ async def mfa_verify(
     if not auth_service.verify_totp_for_user(user["id"], request.code):
         raise HTTPException(status_code=400, detail="Invalid TOTP code")
     return {"verified": True}
+
+
+class _WebAuthnRegisterChallengeRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+
+class _WebAuthnRegisterVerifyRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    challenge: str = Field(..., min_length=1, max_length=512)
+    credential: dict = Field(...)
+
+
+class _WebAuthnAuthChallengeRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    username: str = Field(..., min_length=1, max_length=50)
+
+
+class _WebAuthnAuthVerifyRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    username: str = Field(..., min_length=1, max_length=50)
+    password: str = Field(..., min_length=1, max_length=72)
+    challenge: str = Field(..., min_length=1, max_length=512)
+    credential: dict = Field(...)
+
+
+@router.post("/webauthn/register-challenge", tags=["Authentication"])
+async def webauthn_register_challenge(
+    request: _WebAuthnRegisterChallengeRequest,
+    user: dict = Depends(get_current_user),
+):
+    result = auth_service.webauthn_register_challenge(user["id"], user["username"], user.get("username", ""))
+    if not result:
+        raise HTTPException(status_code=500, detail="WebAuthn enrollment unavailable")
+    return result
+
+
+@router.post("/webauthn/register-verify", tags=["Authentication"])
+async def webauthn_register_verify(
+    request: _WebAuthnRegisterVerifyRequest,
+    user: dict = Depends(get_current_user),
+):
+    if not auth_service.webauthn_register_verify(user["id"], request.challenge, request.credential):
+        raise HTTPException(status_code=400, detail="WebAuthn registration failed")
+    return {"verified": True}
+
+
+@router.post("/webauthn/authenticate-challenge", tags=["Authentication"])
+async def webauthn_auth_challenge(
+    request: _WebAuthnAuthChallengeRequest,
+    fastapi_request: Request,
+):
+    _check_auth_rate_limit(fastapi_request)
+    user = await asyncio.to_thread(auth_service.get_user_id_by_username, request.username)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    result = auth_service.webauthn_auth_challenge(user)
+    if not result:
+        raise HTTPException(status_code=401, detail="No passkeys registered")
+    return result
+
+
+@router.post("/webauthn/authenticate-verify", tags=["Authentication"], response_model=AuthLoginResponse)
+async def webauthn_auth_verify(
+    request: _WebAuthnAuthVerifyRequest,
+    fastapi_request: Request,
+):
+    _check_auth_rate_limit(fastapi_request)
+    # The passkey assertion is the second factor; the password must still
+    # validate. Verify the assertion first so we don't hand back a token to
+    # a user whose password is wrong but whose passkey was accepted.
+    user_id = await asyncio.to_thread(auth_service.get_user_id_by_username, request.username)
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if not auth_service.webauthn_auth_verify(user_id, request.challenge, request.credential):
+        raise HTTPException(status_code=401, detail="WebAuthn assertion failed")
+    result = await asyncio.to_thread(auth_service.login, request.username, request.password, None, True)
+    if result.get("status") != "ok":
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    return {
+        "access_token": result["token"],
+        "token_type": "bearer",
+        "user_id": result.get("user_id"),
+        "role": result.get("role"),
+    }
 
 
 @router.post("/revoke", tags=["Authentication"], response_model=TokenRevokeResponse)

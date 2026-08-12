@@ -14,6 +14,9 @@ All notable changes to PicoSentry will be documented in this file.
 - Added `GET /auth/.well-known/jwks.json` serving active RSA public keys (JWK format).
 - New config: `PICOSHOGUN_JWT_PRIVATE_KEY` (PEM or path) + `PICOSHOGUN_JWT_KID`; `cryptography` added to `serve` extra.
 
+## 2026-08-12 - WebAuthn/FIDO2 passkey MFA (WO3.0.0-006)
+- feat(auth): add WebAuthn/FIDO2 passkey as a second MFA factor alongside TOTP; new `/auth/webauthn/*` register/authenticate challenge+verify endpoints, `webauthn_credentials` + `webauthn_challenges` tables (migration 15), and WebAuthn offered alongside TOTP in the login flow (surfaced via `X-MFA-Methods` header)
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

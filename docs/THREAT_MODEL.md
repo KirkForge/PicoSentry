@@ -99,9 +99,10 @@ specific blockers and honest limitations:
 - **Enforcement:** Linux seccomp-bpf blocks dangerous syscalls. There is no
   path-based filesystem access-control layer in the sandbox today (a prior
   landlock claim was retracted — see ADR-002); filesystem access is bounded by
-  the child's working directory and the syscall allowlist. The daemon uses
+  the   child's working directory and the syscall allowlist. The daemon uses
   TLS/mTLS for its HTTP/gRPC interfaces. Audit sinks (file, syslog, webhook)
-  are opt-in.
+  are opt-in; the JSONL audit log is chain-hashed and each line is fsync'd by
+  default (`PICODOME_AUDIT_FSYNC`) so a recorded event survives a crash.
 - **Limits:** seccomp-trace and some advanced sandbox tests require kernel
   configs that are not present on every distribution. macOS uses the lighter
   Seatbelt backend. The sandbox is **enforcement** for syscalls, not full
@@ -114,11 +115,14 @@ specific blockers and honest limitations:
   a controlled network until its Beta blockers are accepted as risk.
 - **Enforcement:** Bearer-token authentication, role/permission dependencies,
   `org_id` scoping on DB-backed reads and metrics, rate limiting, and DDoS
-  shield middleware.
+  shield middleware. Account lockout (after `lockout_max_attempts` failed
+  logins) throttles credential brute force. JWTs carry a `jti` that can be
+  revoked via `POST /auth/revoke` and are rejected at validation. Users may
+  enroll TOTP so login requires a one-time code. API keys can be minted scoped
+  to a role and org and are enforced through the same RBAC checks as JWTs.
 - **Limits:** `serve` is **Beta**. See
   [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) for honest limitations such as
-  in-memory rate limiting, minimal password policy, and no global session
-  revocation list.
+  in-memory rate limiting and minimal password policy.
 
 ### Boundary 5: Admission webhook
 
@@ -204,6 +208,15 @@ specific blockers and honest limitations:
 - **Residual risk:** a single shared secret means any compromised node can
   join the cluster. There is no certificate-pinning or token rotation helper
   yet.
+
+### T8 — Credential brute force / stolen JWT reuse in `serve`
+
+- **Mitigation:** account lockout after `LOCKOUT_MAX_ATTEMPTS` failed logins;
+  optional TOTP MFA on login; JWTs carry a `jti` that can be revoked
+  (`POST /auth/revoke`) and are checked against a `revoked_tokens` table at
+  validation. API keys can be scoped to a role/org and rotated or revoked.
+- **Residual risk:** lockout is per-username (distributed attacks across many
+  usernames are still possible); MFA is opt-in per user.
 
 ## What the Sandbox Does **Not** Do
 

@@ -25,6 +25,26 @@ deployment does not accidentally enable them.
 | `PICODOME_MAX_SCAN_TIMEOUT` | `300` | Upper bound (seconds) for `POST /api/v1/scan` `timeout`. |
 | `PICODOME_MAX_LIST_LIMIT` | `1000` | Upper bound for `GET /api/v1/scans?limit` and `/api/v1/audit?limit`. |
 | `PICODOME_WORKSPACE_ROOT` | `cwd` | Directory that `picosentry sandbox --policy` and `--cwd` must resolve inside. |
+| `PICOSHOGUN_LOCKOUT_MAX_ATTEMPTS` | `5` | Failed logins before an account locks. |
+| `PICOSHOGUN_LOCKOUT_WINDOW_MINUTES` | `15` | How long a locked account stays locked. |
+| `PICOSHOGUN_CORS_ORIGINS` | `http://localhost:8765` | Explicit comma-separated origins. The wildcard `*` is **rejected** when credentials are enabled (see below). |
+| `PICODOME_AUDIT_FSYNC` | `true` | When set, each audit JSONL line is `fsync`'d before returning, so an event is durable before a crash. Set to `false` to trade durability for throughput. |
+
+## CORS hardening
+
+`picosentry serve` rejects the CORS wildcard `*` origin combined with
+`allow_credentials=True` in `Settings.validate()` — this is enforced in **every**
+environment (not just production), because a wildcard origin with credentials lets
+any site carry the caller's cookies/headers. Configure explicit origins via
+`PICOSHOGUN_CORS_ORIGINS`.
+
+## Reproducible builds
+
+Wheel builds are **byte-identical** across runs: `SOURCE_DATE_EPOCH` is pinned
+from the commit timestamp in `.github/workflows/release.yml`, the `Dockerfile`
+builder stage, and CI. The CI `reproducible-build` job builds the wheel twice and
+asserts equal sha256 hashes. The runtime `pip install` dependency layer is a
+documented non-hash-pinned ceiling (upgrade path: `uv export --frozen`).
 
 ## Health endpoint rate-limiting
 

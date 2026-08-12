@@ -65,6 +65,9 @@ The scan fires 5+ findings across obfuscation, post-install, and exfiltration ru
 | L2-NETEX-001 | Network calls during install | `urllib.request`, `curl`, `wget` at install |
 | L2-IOC-001 | Known IOC behavior patterns | Hardcoded C2 host, exfil URL patterns |
 | L2-CVE-001 | Known CVEs in dependency tree | OSV-matched vulnerabilities |
+| L2-INTEL-001 | Suspiciously-new low-download packages | Package <30 days old with <100 downloads (`package_intel.py`, `rules/package_age.py`) |
+
+Advisory findings also carry a **`reachable`** flag — `True` when the vulnerable package is actually imported/used in the scanned source, so you can triage present-but-unused CVEs (`rules/advisory_check.py`).
 
 **50 L2 rules (65 with L4 behavioral detectors) across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
 Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
@@ -106,7 +109,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
-| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
+| `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place. Auth hardening: MFA/TOTP enrollment, JWT `jti` revocation, account lockout, role-scoped API keys (`services/auth.py`) |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
 | `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
@@ -147,6 +150,8 @@ pip install picosentry[all]            # everything
 - **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 50 rules (50 L2 + 65 L4 behavioral), precision/recall per rule
 - **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component security analysis
 - **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
+
+**Supply chain:** wheel builds are **reproducible** — `SOURCE_DATE_EPOCH` is pinned from the commit timestamp in `release.yml`, the Dockerfile, and CI, so the same source yields a byte-identical wheel (asserted by the CI `reproducible-build` job).
 
 ---
 

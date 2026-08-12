@@ -41,9 +41,9 @@
 
 ### 1.6 Serve API (`picosentry serve`)
 
-- **Entry point**: FastAPI HTTP server with JWT authentication
-- **Trust boundary**: Token-based auth, tenant isolation via `org_id`
-- **Attack surface**: API auth bypass, tenant isolation failure, JWT token handling
+- **Entry point**: FastAPI HTTP server with JWT + API-key authentication
+- **Trust boundary**: Token/API-key auth, tenant isolation via `org_id`, role-scoped API keys
+- **Attack surface**: API auth bypass, tenant isolation failure, JWT token handling, credential brute force
 
 ### 1.7 Admission webhook (`picosentry admission`)
 
@@ -87,7 +87,7 @@
 
 ## 5. Known hardening
 
-| Feature | Description | ADR |
+| Feature | Description | Ref |
 |---------|-------------|-----|
 | Offline deterministic scanning | 50 rules across 7 ecosystems, no model calls in scan path | ADR-001 |
 | Kernel sandbox (seccomp-bpf) | Syscall allowlist enforced at kernel level | ADR-002 |
@@ -95,6 +95,14 @@
 | Plugin trust boundary | Signing = admission, sandbox = safety; never conflated | ADR-004 |
 | Supply-chain evidence | CycloneDX SBOM, SLSA provenance, sigstore wheel signatures | release.yml |
 | Docker cosign signing | Container image signed with cosign (pending release.yml update) | Task 2 |
+| MFA / TOTP | Login requires a TOTP code when enabled; enroll/verify via `/auth/mfa/*` (`services/auth.py`) | WO2.0.0-007 |
+| JWT `jti` revocation | JWTs carry a `jti`; `POST /auth/revoke` adds to a `revoked_tokens` table, `validate_token` rejects revoked `jti`s | WO2.0.0-007 |
+| Account lockout | After `LOCKOUT_MAX_ATTEMPTS` (5) failed logins an account locks for `LOCKOUT_WINDOW_MINUTES` (15) | WO2.0.0-007 |
+| Role-scoped API keys | Keys minted scoped to a role + org; `get_current_user` accepts `X-API-Key` (`api/deps.py`) | WO2.0.0-010 |
+| CORS hardening | Wildcard `*` origin with credentials rejected in `settings.validate()` | WO2.0.0-010 |
+| Audit fsync | Audit JSONL writes are fsync'd by default (`PICODOME_AUDIT_FSYNC`) | WO2.0.0-008 |
+| Reachability | Advisory findings flag `reachable: bool` (package imported/used) | WO2.0.0-011 |
+| Package intel depth | `download_count` + `package_age_days`; `L2-INTEL-001` flags new low-download packages | WO2.0.0-012 |
 
 ## 6. Out-of-scope items
 

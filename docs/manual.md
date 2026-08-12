@@ -12,6 +12,7 @@
 - [Sandbox gRPC transport](#sandbox-grpc-transport)
 - [Corpus management](#corpus-management)
 - [Plugins (serve mode)](#plugins-serve-mode)
+- [Authentication & API keys (serve mode)](#authentication--api-keys-serve-mode)
 - [Detection rule catalog](#detection-rule-catalog)
 - [Feature matrix](#feature-matrix)
 - [Known limitations](#known-limitations)
@@ -173,6 +174,31 @@ See [`docs/PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md) for the full guide.
 
 ---
 
+## Authentication & API keys (serve mode)
+
+Implemented in `picosentry/serve/services/auth.py` and `picosentry/serve/api/routers/auth.py`.
+
+### MFA / TOTP
+
+A user with TOTP enabled must supply a 6-digit code on login (`totp_code`); the server responds `401 mfa_required` until one is verified. Endpoints:
+
+- `POST /auth/mfa/enroll` — generate a TOTP secret + `otpauth://` URI for the caller (`enroll_totp`).
+- `POST /auth/mfa/verify` — verify a 6-digit code for the caller (`verify_totp_for_user`).
+
+### JWT revocation
+
+JWTs carry a `jti` claim. `POST /auth/revoke` (body `{"jti": "..."}`) inserts the `jti` into the `revoked_tokens` table; `validate_token` rejects any revoked `jti`.
+
+### Account lockout
+
+After `LOCKOUT_MAX_ATTEMPTS` (default `5`) consecutive failed logins for a username, the account locks for `LOCKOUT_WINDOW_MINUTES` (default `15`). The login endpoint returns `423` while locked. Config in `picosentry/serve/config/settings.py` (`SecurityConfig.lockout_max_attempts`, `lockout_window_minutes`).
+
+### Role-scoped API keys
+
+`POST /auth/api-key` mints a key scoped to a role (`viewer`/`operator`/`admin`) and optional `org_id`; a caller cannot mint a key with a role higher than its own. `create_api_key(role=..., org_id=...)` stores the scope, and `get_current_user` (`picosentry/serve/api/deps.py`) authenticates via the `X-API-Key` header, enforcing the key's role through the same RBAC checks as JWTs.
+
+---
+
 ## Detection rule catalog
 
 | Rule | What it catches | Example |
@@ -189,6 +215,9 @@ See [`docs/PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md) for the full guide.
 | L2-DEP-001 | Deprecated / insecure dependency | End-of-life library versions |
 | L2-SBOM-001 | SBOM generation | CycloneDX-compatible output |
 | L2-LICENSE-001 | License compliance | Copyleft, unknown, deprecated licenses |
+| L2-INTEL-001 | Suspiciously-new low-download package | `<30` days old with `<100` downloads (typosquat vector) |
+
+Advisory findings (L2-ADV-001, L2-CVE-001, etc.) carry a **`reachable`** boolean — `True` when the vulnerable package is imported/used in the scanned source, `False` when present but unused — computed by `picosentry/scan/rules/advisory_check.py`.
 
 Full rule catalog: [`picosentry/scan/docs/rules/`](../picosentry/scan/docs/rules/) (50 L2 rule_ids in `RULE_INFO`; `RULE_ID_ALIASES` expands 3 detectors to 13 sub-rule_ids).
 

@@ -5,6 +5,10 @@ All notable changes to PicoSentry will be documented in this file.
 ## 2026-08-12 - Real-time OSV advisory feed (WO3.0.0-004)
 - `OSVClient`: cache TTL default dropped 24h → 60min, configurable via `PICOSENTRY_OSV_CACHE_MINUTES`; explicit `cache_ttl_hours` still overrides.
 
+## 2026-08-12 - Tighten detection recall floor (WO3.0.0-010)
+- validation: raised the mean-recall floor from 0.60 to 0.70 in `test_validation_passes_at_100_percent_on_current_fixtures` (current corpus measures 0.900 precision / 0.812 recall on 5728 fixtures)
+- docs: corrected stale BENCHMARKS.md prose (100% floor / 0.95/0.80 advisory) to the actual 85%/70% CI floors
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

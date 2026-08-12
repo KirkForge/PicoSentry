@@ -20,7 +20,10 @@ Tests cover:
 
 from __future__ import annotations
 
+import json
+import logging
 import threading
+import time
 
 import pytest
 
@@ -60,10 +63,18 @@ def cluster_state(memory_backend):
     return ClusterState(backend=memory_backend)
 
 
-@pytest.fixture
-def cluster_state_sqlite(sqlite_backend):
-    """ClusterState with SQLite backend."""
-    return ClusterState(backend=sqlite_backend)
+@pytest.fixture(params=["memory", "sqlite"])
+def any_backend(request, tmp_path):
+    """Parametrized fixture yielding a fresh memory or sqlite backend.
+
+    Used by TestStateBackends to exercise the common CRUD contract both
+    implementations must satisfy. The two dedicated backend fixtures
+    (``memory_backend``, ``sqlite_backend``) stay for tests that need a
+    specific backend.
+    """
+    if request.param == "memory":
+        return MemoryStateBackend()
+    return SQLiteStateBackend(db_path=tmp_path / f"test_{request.node.name}.db")
 
 
 @pytest.fixture
@@ -127,6 +138,22 @@ def manager(memory_backend):
         heartbeat_interval=1,
         heartbeat_timeout=2,
     )
+
+
+@pytest.fixture
+def started_manager(manager):
+    """ClusterManager that has been started; stopped automatically after the test.
+
+    Eliminates the ``manager.start(); try: ... finally: manager.stop()`` boilerplate
+    that ~10 TestClusterManager tests otherwise repeat. Tests that exercise the
+    start/stop transition itself (test_stop_deregisters, test_is_running_flag,
+    test_start_idempotent) still use the plain ``manager`` fixture.
+    """
+    manager.start()
+    try:
+        yield manager
+    finally:
+        manager.stop()
 
 
 # ─── ClusterNode tests ──────────────────────────────────────────────────────
@@ -252,85 +279,84 @@ class TestScanRequest:
         assert restored.status == scan.status
 
 
-# ─── MemoryStateBackend tests ───────────────────────────────────────────────
+# ─── State-backend contract tests (memory + sqlite) ─────────────────────────
 
 
-class TestMemoryStateBackend:
-    """Tests for MemoryStateBackend."""
+class TestStateBackends:
+    """Common CRUD contract that both MemoryStateBackend and SQLiteStateBackend
+    must satisfy. Parametrized over ``any_backend`` so each test runs once per
+    backend. The strictest assertion set (the SQLite versions, which check every
+    deserialized field) is used — anything that holds for SQLite holds for memory.
+    """
 
-    def test_save_and_load_node(self, memory_backend, node_a):
-        """Test saving and loading a node."""
-        memory_backend.save_node(node_a)
-        loaded = memory_backend.load_node(node_a.node_id)
+    def test_save_and_load_node(self, any_backend, node_a):
+        any_backend.save_node(node_a)
+        loaded = any_backend.load_node(node_a.node_id)
         assert loaded is not None
         assert loaded.node_id == node_a.node_id
         assert loaded.address == node_a.address
+        assert loaded.port == node_a.port
+        assert loaded.status == node_a.status
+        assert loaded.load == node_a.load
 
-    def test_load_nonexistent_node(self, memory_backend):
-        """Test loading a node that doesn't exist."""
-        assert memory_backend.load_node("nonexistent") is None
+    def test_load_nonexistent_node(self, any_backend):
+        assert any_backend.load_node("nonexistent") is None
 
-    def test_load_all_nodes(self, memory_backend, node_a, node_b):
-        """Test loading all nodes."""
-        memory_backend.save_node(node_a)
-        memory_backend.save_node(node_b)
-        nodes = memory_backend.load_all_nodes()
-        assert len(nodes) == 2
+    def test_load_all_nodes(self, any_backend, node_a, node_b):
+        any_backend.save_node(node_a)
+        any_backend.save_node(node_b)
+        assert len(any_backend.load_all_nodes()) == 2
 
-    def test_delete_node(self, memory_backend, node_a):
-        """Test deleting a node."""
-        memory_backend.save_node(node_a)
-        memory_backend.delete_node(node_a.node_id)
-        assert memory_backend.load_node(node_a.node_id) is None
+    def test_delete_node(self, any_backend, node_a):
+        any_backend.save_node(node_a)
+        any_backend.delete_node(node_a.node_id)
+        assert any_backend.load_node(node_a.node_id) is None
 
-    def test_save_and_load_scan(self, memory_backend, scan_request):
-        """Test saving and loading a scan."""
-        memory_backend.save_scan(scan_request)
-        loaded = memory_backend.load_scan(scan_request.scan_id)
+    def test_save_and_load_scan(self, any_backend, scan_request):
+        any_backend.save_scan(scan_request)
+        loaded = any_backend.load_scan(scan_request.scan_id)
         assert loaded is not None
         assert loaded.scan_id == scan_request.scan_id
+        assert loaded.command == scan_request.command
+
+    def test_delete_scan(self, any_backend, scan_request):
+        any_backend.save_scan(scan_request)
+        any_backend.delete_scan(scan_request.scan_id)
+        assert any_backend.load_scan(scan_request.scan_id) is None
+
+    def test_leader_id(self, any_backend):
+        assert any_backend.get_leader_id() is None
+        any_backend.set_leader_id("node-leader")
+        assert any_backend.get_leader_id() == "node-leader"
+
+    def test_update_node_overwrites(self, any_backend, node_a):
+        any_backend.save_node(node_a)
+        node_a.load = 10
+        any_backend.save_node(node_a)
+        assert any_backend.load_node(node_a.node_id).load == 10
+
+
+# ─── Backend-specific tests (no common equivalent) ──────────────────────────
+
+
+class TestMemoryStateBackendExtras:
+    """Memory-only: scan listing helpers + thread safety (sqlite has no
+    equivalent listing tests and uses WAL for concurrency)."""
 
     def test_load_nonexistent_scan(self, memory_backend):
-        """Test loading a scan that doesn't exist."""
         assert memory_backend.load_scan("nonexistent") is None
 
     def test_load_all_scans(self, memory_backend, scan_request):
-        """Test loading all scans."""
         memory_backend.save_scan(scan_request)
-        scans = memory_backend.load_all_scans()
-        assert len(scans) == 1
-
-    def test_delete_scan(self, memory_backend, scan_request):
-        """Test deleting a scan."""
-        memory_backend.save_scan(scan_request)
-        memory_backend.delete_scan(scan_request.scan_id)
-        assert memory_backend.load_scan(scan_request.scan_id) is None
-
-    def test_leader_id(self, memory_backend):
-        """Test leader ID persistence."""
-        assert memory_backend.get_leader_id() is None
-        memory_backend.set_leader_id("node-leader")
-        assert memory_backend.get_leader_id() == "node-leader"
-
-    def test_update_node(self, memory_backend, node_a):
-        """Test updating a node (save overwrites)."""
-        memory_backend.save_node(node_a)
-        node_a.load = 5
-        memory_backend.save_node(node_a)
-        loaded = memory_backend.load_node(node_a.node_id)
-        assert loaded.load == 5
+        assert len(memory_backend.load_all_scans()) == 1
 
     def test_thread_safety(self, memory_backend):
-        """Test concurrent access to memory backend."""
         errors = []
 
         def add_nodes(start, count):
             try:
                 for i in range(start, start + count):
-                    node = ClusterNode(
-                        node_id=f"node-{i}",
-                        address=f"10.0.0.{i}",
-                    )
+                    node = ClusterNode(node_id=f"node-{i}", address=f"10.0.0.{i}")
                     memory_backend.save_node(node)
             except Exception as e:
                 errors.append(e)
@@ -348,81 +374,21 @@ class TestMemoryStateBackend:
         assert len(memory_backend.load_all_nodes()) == 100
 
 
-# ─── SQLiteStateBackend tests ───────────────────────────────────────────────
-
-
-class TestSQLiteStateBackend:
-    """Tests for SQLiteStateBackend."""
-
-    def test_save_and_load_node(self, sqlite_backend, node_a):
-        """Test saving and loading a node in SQLite."""
-        sqlite_backend.save_node(node_a)
-        loaded = sqlite_backend.load_node(node_a.node_id)
-        assert loaded is not None
-        assert loaded.node_id == node_a.node_id
-        assert loaded.address == node_a.address
-        assert loaded.port == node_a.port
-        assert loaded.status == node_a.status
-        assert loaded.load == node_a.load
-
-    def test_load_nonexistent_node(self, sqlite_backend):
-        """Test loading a nonexistent node from SQLite."""
-        assert sqlite_backend.load_node("nonexistent") is None
-
-    def test_load_all_nodes(self, sqlite_backend, node_a, node_b):
-        """Test loading all nodes from SQLite."""
-        sqlite_backend.save_node(node_a)
-        sqlite_backend.save_node(node_b)
-        nodes = sqlite_backend.load_all_nodes()
-        assert len(nodes) == 2
-
-    def test_delete_node(self, sqlite_backend, node_a):
-        """Test deleting a node from SQLite."""
-        sqlite_backend.save_node(node_a)
-        sqlite_backend.delete_node(node_a.node_id)
-        assert sqlite_backend.load_node(node_a.node_id) is None
-
-    def test_save_and_load_scan(self, sqlite_backend, scan_request):
-        """Test saving and loading a scan in SQLite."""
-        sqlite_backend.save_scan(scan_request)
-        loaded = sqlite_backend.load_scan(scan_request.scan_id)
-        assert loaded is not None
-        assert loaded.scan_id == scan_request.scan_id
-        assert loaded.command == scan_request.command
-
-    def test_delete_scan(self, sqlite_backend, scan_request):
-        """Test deleting a scan from SQLite."""
-        sqlite_backend.save_scan(scan_request)
-        sqlite_backend.delete_scan(scan_request.scan_id)
-        assert sqlite_backend.load_scan(scan_request.scan_id) is None
-
-    def test_leader_id(self, sqlite_backend):
-        """Test leader ID in SQLite."""
-        assert sqlite_backend.get_leader_id() is None
-        sqlite_backend.set_leader_id("node-leader")
-        assert sqlite_backend.get_leader_id() == "node-leader"
+class TestSQLiteStateBackendExtras:
+    """SQLite-only: state persists across backend instances (memory cannot)."""
 
     def test_persistence(self, tmp_path, node_a):
-        """Test that SQLite state persists across backend instances."""
         db_path = tmp_path / "persist_test.db"
         backend1 = SQLiteStateBackend(db_path=db_path)
         backend1.save_node(node_a)
         backend1.set_leader_id("node-a")
 
-        # Create new backend instance with same DB
+        # Reopen the same DB file → state must survive the reopen.
         backend2 = SQLiteStateBackend(db_path=db_path)
         loaded = backend2.load_node(node_a.node_id)
         assert loaded is not None
         assert loaded.node_id == node_a.node_id
         assert backend2.get_leader_id() == "node-a"
-
-    def test_update_node_overwrites(self, sqlite_backend, node_a):
-        """Test that saving a node twice overwrites."""
-        sqlite_backend.save_node(node_a)
-        node_a.load = 10
-        sqlite_backend.save_node(node_a)
-        loaded = sqlite_backend.load_node(node_a.node_id)
-        assert loaded.load == 10
 
 
 # ─── ClusterState tests ──────────────────────────────────────────────────────
@@ -670,178 +636,114 @@ class TestClusterState:
 class TestClusterManager:
     """Tests for ClusterManager."""
 
-    def test_start_registers_self(self, manager):
-        """Test that start() registers the node."""
-        manager.start()
-        try:
-            node = manager.state.get_node("test-node")
-            assert node is not None
-            assert node.status == NodeStatus.ONLINE
-            assert node.address == "127.0.0.1"
-        finally:
-            manager.stop()
+    def test_start_registers_self(self, started_manager):
+        node = started_manager.state.get_node("test-node")
+        assert node is not None
+        assert node.status == NodeStatus.ONLINE
+        assert node.address == "127.0.0.1"
 
-    def test_start_elects_self_leader(self, manager):
-        """Test that the first node becomes leader."""
-        manager.start()
-        try:
-            leader_id = manager.state.get_leader_id()
-            assert leader_id == "test-node"
-        finally:
-            manager.stop()
+    def test_start_elects_self_leader(self, started_manager):
+        assert started_manager.state.get_leader_id() == "test-node"
 
     def test_stop_deregisters(self, manager):
-        """Test that stop() removes the node from the cluster."""
         manager.start()
         manager.stop()
-        node = manager.state.get_node("test-node")
-        assert node is None
+        assert manager.state.get_node("test-node") is None
 
-    def test_assign_scan(self, manager, scan_request):
-        """Test assigning a scan through the manager."""
-        manager.start()
-        try:
-            assigned = manager.assign_scan(scan_request)
-            assert assigned is not None
-            assert assigned.node_id == "test-node"
-        finally:
-            manager.stop()
+    def test_assign_scan(self, started_manager, scan_request):
+        assigned = started_manager.assign_scan(scan_request)
+        assert assigned is not None
+        assert assigned.node_id == "test-node"
 
     def test_assign_scan_no_nodes(self, memory_backend):
-        """Test assigning a scan when no nodes are online."""
+        # Don't start the manager — no nodes registered
         mgr = ClusterManager(
             address="127.0.0.1",
             node_id="test-node",
             backend=memory_backend,
-            heartbeat_interval=999,  # Don't start heartbeat threads
+            heartbeat_interval=999,
             heartbeat_timeout=999,
         )
-        # Don't start the manager — no nodes registered
         scan = ScanRequest(scan_id="s1", command=["echo", "test"])
         mgr.assign_scan(scan)
-        # No online nodes, so assignment should fail
-        # But the scan was added to state
+        # No online nodes, so assignment should fail, but the scan is still added to state.
         assert mgr.state.backend.load_scan("s1") is not None
 
-    def test_handle_heartbeat(self, manager):
-        """Test processing a heartbeat from a peer."""
-        manager.start()
-        try:
-            # Register a peer node
-            peer = ClusterNode(node_id="peer-1", address="10.0.0.2", status=NodeStatus.ONLINE)
-            manager.state.add_node(peer)
+    def test_handle_heartbeat(self, started_manager):
+        peer = ClusterNode(node_id="peer-1", address="10.0.0.2", status=NodeStatus.ONLINE)
+        started_manager.state.add_node(peer)
 
-            # Process heartbeat
-            updated = manager.handle_heartbeat("peer-1", status="online", load=3)
-            assert updated is not None
-            assert updated.load == 3
-            assert updated.status == NodeStatus.ONLINE
-            assert updated.last_heartbeat != ""
-        finally:
-            manager.stop()
+        updated = started_manager.handle_heartbeat("peer-1", status="online", load=3)
+        assert updated is not None
+        assert updated.load == 3
+        assert updated.status == NodeStatus.ONLINE
+        assert updated.last_heartbeat != ""
 
     def test_handle_heartbeat_unknown_node(self, manager):
-        """Test heartbeat from an unknown node."""
-        result = manager.handle_heartbeat("unknown-node", status="online", load=0)
-        assert result is None
+        assert manager.handle_heartbeat("unknown-node", status="online", load=0) is None
 
-    def test_handle_node_failure(self, manager, node_b):
-        """Test handling a node failure redistributes scans."""
-        manager.start()
-        try:
-            # Register self and peer
-            manager.state.add_node(node_b)  # node-b with load=2
+    def test_handle_node_failure(self, started_manager, node_b):
+        started_manager.state.add_node(node_b)  # node-b with load=2
+        s1 = ScanRequest(scan_id="s1", command=["echo", "1"], assigned_node="node-b", status="running")
+        s2 = ScanRequest(scan_id="s2", command=["echo", "2"], assigned_node="node-b", status="running")
+        started_manager.state.add_scan(s1)
+        started_manager.state.add_scan(s2)
 
-            # Create scans assigned to node-b
-            s1 = ScanRequest(scan_id="s1", command=["echo", "1"], assigned_node="node-b", status="running")
-            s2 = ScanRequest(scan_id="s2", command=["echo", "2"], assigned_node="node-b", status="running")
-            manager.state.add_scan(s1)
-            manager.state.add_scan(s2)
+        redistributed = started_manager.handle_node_failure("node-b")
+        assert len(redistributed) == 2
+        assert started_manager.state.get_node("node-b").status == NodeStatus.OFFLINE
+        # Scans should be reassigned to another node and still running.
+        assert started_manager.state.backend.load_scan("s1").status == "running"
 
-            # Handle failure
-            redistributed = manager.handle_node_failure("node-b")
+    def test_handle_node_failure_no_scans(self, started_manager, node_b):
+        started_manager.state.add_node(node_b)
+        redistributed = started_manager.handle_node_failure("node-b")
+        assert len(redistributed) == 0
+        assert started_manager.state.get_node("node-b").status == NodeStatus.OFFLINE
 
-            assert len(redistributed) == 2
-            # Node should be offline
-            failed_node = manager.state.get_node("node-b")
-            assert failed_node.status == NodeStatus.OFFLINE
+    def test_get_status(self, started_manager, node_b):
+        started_manager.state.add_node(node_b)
+        status = started_manager.get_status()
 
-            # Scans should be reassigned
-            scan1 = manager.state.backend.load_scan("s1")
-            assert scan1.status == "running"  # Re-assigned to another node
-        finally:
-            manager.stop()
+        assert status["self_id"] == "test-node"
+        assert status["leader_id"] == "test-node"
+        assert status["nodes_total"] == 2  # self + node_b
+        assert status["nodes_online"] == 2
+        assert "nodes" in status
+        assert "scans_total" in status
 
-    def test_handle_node_failure_no_scans(self, manager, node_b):
-        """Test handling a node failure with no pending scans."""
-        manager.start()
-        try:
-            manager.state.add_node(node_b)
-            redistributed = manager.handle_node_failure("node-b")
-            assert len(redistributed) == 0
-            assert manager.state.get_node("node-b").status == NodeStatus.OFFLINE
-        finally:
-            manager.stop()
+    def test_sync_state(self, started_manager, node_b):
+        started_manager.state.add_node(node_b)
+        snapshot = started_manager.sync_state()
 
-    def test_get_status(self, manager, node_b):
-        """Test getting cluster status."""
-        manager.start()
-        try:
-            manager.state.add_node(node_b)
-            status = manager.get_status()
+        assert "nodes" in snapshot
+        assert "scans" in snapshot
+        assert "leader_id" in snapshot
+        assert "timestamp" in snapshot
+        assert len(snapshot["nodes"]) >= 1
 
-            assert status["self_id"] == "test-node"
-            assert status["leader_id"] == "test-node"
-            assert status["nodes_total"] == 2  # self + node_b
-            assert status["nodes_online"] == 2
-            assert "nodes" in status
-            assert "scans_total" in status
-        finally:
-            manager.stop()
+    def test_merge_peer_state(self, started_manager):
+        snapshot = {
+            "nodes": [
+                {
+                    "node_id": "peer-1",
+                    "address": "10.0.0.5",
+                    "port": 8444,
+                    "status": "online",
+                    "last_heartbeat": "2026-01-01T12:00:00Z",
+                    "load": 0,
+                },
+            ],
+            "scans": [],
+            "leader_id": "peer-1",
+        }
+        started_manager.merge_peer_state(snapshot)
 
-    def test_sync_state(self, manager, node_b):
-        """Test getting a state snapshot from the manager."""
-        manager.start()
-        try:
-            manager.state.add_node(node_b)
-            snapshot = manager.sync_state()
-
-            assert "nodes" in snapshot
-            assert "scans" in snapshot
-            assert "leader_id" in snapshot
-            assert "timestamp" in snapshot
-            assert len(snapshot["nodes"]) >= 1
-        finally:
-            manager.stop()
-
-    def test_merge_peer_state(self, manager):
-        """Test merging peer state."""
-        manager.start()
-        try:
-            snapshot = {
-                "nodes": [
-                    {
-                        "node_id": "peer-1",
-                        "address": "10.0.0.5",
-                        "port": 8444,
-                        "status": "online",
-                        "last_heartbeat": "2026-01-01T12:00:00Z",
-                        "load": 0,
-                    },
-                ],
-                "scans": [],
-                "leader_id": "peer-1",
-            }
-            manager.merge_peer_state(snapshot)
-
-            peer = manager.state.get_node("peer-1")
-            assert peer is not None
-            assert peer.address == "10.0.0.5"
-        finally:
-            manager.stop()
+        peer = started_manager.state.get_node("peer-1")
+        assert peer is not None
+        assert peer.address == "10.0.0.5"
 
     def test_is_running_flag(self, manager):
-        """Test that is_running reflects manager state."""
         assert not manager.is_running
         manager.start()
         assert manager.is_running
@@ -849,7 +751,6 @@ class TestClusterManager:
         assert not manager.is_running
 
     def test_start_idempotent(self, manager):
-        """Test that calling start() twice is safe."""
         manager.start()
         manager.start()  # Should not raise
         manager.stop()
@@ -859,28 +760,24 @@ class TestClusterManager:
 
 
 class TestUtilities:
-    """Tests for utility functions."""
+    """Tests for the _parse_iso_timestamp helper."""
 
-    def test_parse_iso_timestamp(self):
-        """Test parsing ISO 8601 timestamps."""
-        ts = _parse_iso_timestamp("2026-01-01T00:00:00Z")
-        assert ts is not None
-        assert isinstance(ts, float)
-
-    def test_parse_iso_timestamp_with_offset(self):
-        """Test parsing ISO 8601 timestamps with timezone offset."""
-        ts = _parse_iso_timestamp("2026-01-01T00:00:00+00:00")
-        assert ts is not None
-
-    def test_parse_iso_timestamp_invalid(self):
-        """Test parsing invalid timestamps returns None."""
-        ts = _parse_iso_timestamp("not-a-timestamp")
-        assert ts is None
-
-    def test_parse_iso_timestamp_empty(self):
-        """Test parsing empty string returns None."""
-        ts = _parse_iso_timestamp("")
-        assert ts is None
+    @pytest.mark.parametrize(
+        "value,expect_not_none",
+        [
+            ("2026-01-01T00:00:00Z", True),
+            ("2026-01-01T00:00:00+00:00", True),
+            ("not-a-timestamp", False),
+            ("", False),
+        ],
+    )
+    def test_parse_iso_timestamp(self, value, expect_not_none):
+        ts = _parse_iso_timestamp(value)
+        if expect_not_none:
+            assert ts is not None
+            assert isinstance(ts, float)
+        else:
+            assert ts is None
 
 
 # ─── Integration tests ──────────────────────────────────────────────────────
@@ -1238,20 +1135,8 @@ class TestGossipLoop:
 
     def test_fetch_and_merge_adds_new_nodes(self, monkeypatch):
         """_fetch_and_merge_peer should add a peer's nodes to local state."""
-        from picosentry.sandbox.cluster.orchestrator import ClusterManager
-        from picosentry.sandbox.cluster.models import ClusterNode
+        mgr = _orchestrator_manager()
 
-        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
-        mgr._running = True
-        mgr._state.add_node(
-            ClusterNode(
-                node_id="self-node",
-                address="127.0.0.1",
-                port=8443,
-            )
-        )
-
-        # Mock the HTTP response
         peer_snapshot = {
             "nodes": [
                 {
@@ -1274,29 +1159,9 @@ class TestGossipLoop:
             "scans": [],
             "leader_id": "peer-a",
         }
+        _mock_urlopen(monkeypatch, json.dumps(peer_snapshot).encode())
 
-        def mock_urlopen(req, timeout=None):
-            class MockResponse:
-                def read(self):
-                    import json
-
-                    return json.dumps(peer_snapshot).encode()
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, exc_type, exc, tb):
-                    return False
-
-            return MockResponse()
-
-        monkeypatch.setattr(
-            "urllib.request.urlopen",
-            mock_urlopen,
-        )
-
-        peer = ClusterNode(node_id="peer-a", address="10.0.0.2", port=8443)
-        mgr._fetch_and_merge_peer(peer)
+        mgr._fetch_and_merge_peer(ClusterNode(node_id="peer-a", address="10.0.0.2", port=8443))
 
         nodes = mgr.state.list_nodes()
         assert len(nodes) == 3  # self + peer-a + peer-b
@@ -1305,80 +1170,31 @@ class TestGossipLoop:
 
     def test_fetch_and_merge_skips_invalid_response(self, monkeypatch):
         """Non-dict responses should be silently skipped."""
-        from picosentry.sandbox.cluster.orchestrator import ClusterManager
-        from picosentry.sandbox.cluster.models import ClusterNode
+        mgr = _orchestrator_manager()
+        _mock_urlopen(monkeypatch, b'"not a dict"')
 
-        mgr = ClusterManager(address="127.0.0.1", port=8443, node_id="self-node")
-        mgr._running = True
-        mgr._state.add_node(
-            ClusterNode(
-                node_id="self-node",
-                address="127.0.0.1",
-                port=8443,
-            )
-        )
-
-        def mock_urlopen(req, timeout=None):
-            class MockResponse:
-                def read(self):
-                    return b'"not a dict"'
-
-                def __enter__(self):
-                    return self
-
-                def __exit__(self, exc_type, exc, tb):
-                    return False
-
-            return MockResponse()
-
-        monkeypatch.setattr(
-            "urllib.request.urlopen",
-            mock_urlopen,
-        )
-
-        peer = ClusterNode(node_id="peer-x", address="10.0.0.99", port=8443)
-        mgr._fetch_and_merge_peer(peer)
+        mgr._fetch_and_merge_peer(ClusterNode(node_id="peer-x", address="10.0.0.99", port=8443))
 
         # Should still only have self-node (invalid response skipped)
         assert len(mgr.state.list_nodes()) == 1
 
     def test_gossip_loop_stops_with_manager(self):
         """The gossip thread should exit when the manager stops."""
-        from picosentry.sandbox.cluster.orchestrator import ClusterManager
-        from picosentry.sandbox.cluster.models import ClusterNode
-
-        mgr = ClusterManager(
-            address="127.0.0.1",
-            port=8443,
-            node_id="test-node",
-            heartbeat_interval=1,
-        )
-        mgr._state.add_node(
-            ClusterNode(
-                node_id="test-node",
-                address="127.0.0.1",
-                port=8443,
-            )
-        )
-
-        # Start just the gossip loop manually (don't want heartbeat/health threads)
-        import threading
-
-        mgr._running = True
+        # heartbeat_interval is needed here so __init__ sets up _stop_event;
+        # we don't call start() so no heartbeat thread is spawned.
+        mgr = _orchestrator_manager(node_id="test-node", heartbeat_interval=1)
         mgr._gossip_thread = threading.Thread(
             target=mgr._gossip_loop,
             daemon=True,
             name="test-gossip",
         )
         mgr._gossip_thread.start()
-
         assert mgr._gossip_thread.is_alive()
 
-        # Stop should terminate the thread
+        # Stop should terminate the thread.
         mgr._running = False
         mgr._stop_event.set()
         mgr._gossip_thread.join(timeout=5.0)
-
         assert not mgr._gossip_thread.is_alive()
 
 
@@ -1386,18 +1202,12 @@ class TestClusterBetaWarnings:
     """Cluster/gossip features must advertise their beta status."""
 
     def test_setup_cluster_manager_logs_beta_warning(self, caplog):
-        import logging
-
-        from picosentry.sandbox.cluster.manager import setup_cluster_manager
-
         with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
             setup_cluster_manager(node_id="warn-node", cluster_token="test-token")
 
         assert any("BETA" in r.message for r in caplog.records)
 
     def test_cluster_manager_start_logs_beta_warning(self, caplog):
-        import logging
-
         mgr = ClusterManager(node_id="warn-start-node")
         with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
             mgr.start()
@@ -1406,8 +1216,6 @@ class TestClusterBetaWarnings:
         assert any("BETA" in r.message for r in caplog.records)
 
     def test_assign_scan_logs_beta_warning(self, cluster_state, node_a, scan_request, caplog):
-        import logging
-
         cluster_state.add_node(node_a)
         mgr = ClusterManager(backend=cluster_state._backend, node_id="warn-scan-node")
         # manager.start() would spawn threads; just wire state directly.
@@ -1419,16 +1227,56 @@ class TestClusterBetaWarnings:
         assert any("BETA" in r.message for r in caplog.records)
 
 
+class _BoomAudit:
+    """Stub audit logger whose ``record`` always raises — used to verify the
+    cluster manager logs (rather than swallows) audit-failure exceptions."""
+
+    def record(self, **_kwargs):
+        raise RuntimeError("audit disk full")
+
+
+def _orchestrator_manager(node_id="self-node", port=8443, heartbeat_interval=None):
+    """Build a ClusterManager with a registered self-node, ready for gossip tests.
+
+    ``picosentry.sandbox.cluster.manager.ClusterManager`` is a re-export of
+    ``orchestrator.ClusterManager`` (manager.py imports it), so this is the
+    same class the gossip tests need — no separate import required.
+    """
+    kwargs = {"address": "127.0.0.1", "port": port, "node_id": node_id}
+    if heartbeat_interval is not None:
+        kwargs["heartbeat_interval"] = heartbeat_interval
+    mgr = ClusterManager(**kwargs)
+    mgr._running = True
+    mgr._state.add_node(ClusterNode(node_id=node_id, address="127.0.0.1", port=port))
+    return mgr
+
+
+def _mock_urlopen(monkeypatch, body_bytes):
+    """Patch urllib.request.urlopen to return ``body_bytes`` from read()."""
+
+    class _Resp:
+        def read(self):
+            return body_bytes
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_exc):
+            return False
+
+    monkeypatch.setattr("urllib.request.urlopen", lambda _req, timeout=None: _Resp())
+
+
+def _state_with_token(token):
+    """Build a fresh ClusterState backed by MemoryStateBackend with ``token``
+    as its cluster_token. Used by the token-rotation tests."""
+    return ClusterState(backend=MemoryStateBackend(), cluster_token=token)
+
+
 class TestClusterManagerAuditHardening:
     """Cluster manager must log audit failures instead of swallowing them."""
 
     def test_start_audit_failure_is_logged(self, manager, caplog, monkeypatch):
-        import logging
-
-        class _BoomAudit:
-            def record(self, **kwargs):
-                raise RuntimeError("audit disk full")
-
         with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
             monkeypatch.setattr("picosentry.sandbox.cluster.orchestrator.get_audit_logger", lambda: _BoomAudit())
             manager.start()
@@ -1439,14 +1287,6 @@ class TestClusterManagerAuditHardening:
                 manager.stop()
 
     def test_assign_scan_audit_failure_is_logged(self, manager, caplog, monkeypatch):
-        import logging
-
-        from picosentry.sandbox.cluster.manager import ScanRequest
-
-        class _BoomAudit:
-            def record(self, **kwargs):
-                raise RuntimeError("audit disk full")
-
         manager.start()
         try:
             with caplog.at_level(logging.WARNING, logger="picodome.cluster"):
@@ -1464,17 +1304,12 @@ class TestClusterTokenRotation:
     """Cluster token rotation and multi-token acceptance."""
 
     def test_initial_token_is_primary_and_accepted(self):
-        from picosentry.sandbox.cluster.state import ClusterState
-
         state = ClusterState(cluster_token="secret")
         assert state.cluster_token == "secret"
         assert state.token_store.is_accepted("secret")
 
     def test_rotate_token_keeps_old_accepted(self):
-        from picosentry.sandbox.cluster.state import ClusterState
-        from picosentry.sandbox.cluster import MemoryStateBackend
-
-        state = ClusterState(backend=MemoryStateBackend(), cluster_token="old-secret")
+        state = _state_with_token("old-secret")
         state.token_store.rotate("new-secret")
 
         assert state.cluster_token == "new-secret"
@@ -1482,49 +1317,33 @@ class TestClusterTokenRotation:
         assert state.token_store.is_accepted("new-secret")
 
     def test_merge_adopts_remote_token_when_common_token_exists(self):
-        from picosentry.sandbox.cluster.state import ClusterState
-        from picosentry.sandbox.cluster import MemoryStateBackend
-
-        local = ClusterState(backend=MemoryStateBackend(), cluster_token="shared")
-        remote = ClusterState(backend=MemoryStateBackend(), cluster_token="shared")
+        local = _state_with_token("shared")
+        remote = _state_with_token("shared")
         remote.token_store.rotate("new-secret")
 
         local.merge_state(remote.get_state_snapshot())
         assert local.token_store.is_accepted("new-secret")
 
     def test_merge_rejects_remote_with_no_common_token(self):
-        from picosentry.sandbox.cluster.state import ClusterState
-        from picosentry.sandbox.cluster import MemoryStateBackend
-
-        local = ClusterState(backend=MemoryStateBackend(), cluster_token="secret-a")
-        remote = ClusterState(backend=MemoryStateBackend(), cluster_token="secret-b")
+        local = _state_with_token("secret-a")
+        remote = _state_with_token("secret-b")
 
         with pytest.raises(ValueError, match="cluster token mismatch"):
             local.merge_state(remote.get_state_snapshot())
 
-    def test_cluster_manager_rotate_token(self, manager):
-        manager.start()
-        try:
-            manager.state.set_cluster_token("token-v1")
-            result = manager.rotate_token("token-v2")
+    def test_cluster_manager_rotate_token(self, started_manager):
+        started_manager.state.set_cluster_token("token-v1")
+        result = started_manager.rotate_token("token-v2")
 
-            assert result["token_version"] == 2
-            assert manager.state.cluster_token == "token-v2"
-            assert manager.state.token_store.is_accepted("token-v1")
-        finally:
-            manager.stop()
+        assert result["token_version"] == 2
+        assert started_manager.state.cluster_token == "token-v2"
+        assert started_manager.state.token_store.is_accepted("token-v1")
 
-    def test_retire_stale_tokens_keeps_primary(self, manager):
-        manager.start()
-        try:
-            manager.state.set_cluster_token("token-v1")
-            manager.rotate_token("token-v2")
-            import time
-
-            time.sleep(0.1)
-            retired = manager.retire_stale_tokens(max_age_seconds=0.05)
-            assert retired == 1
-            assert manager.state.token_store.is_accepted("token-v2")
-            assert not manager.state.token_store.is_accepted("token-v1")
-        finally:
-            manager.stop()
+    def test_retire_stale_tokens_keeps_primary(self, started_manager):
+        started_manager.state.set_cluster_token("token-v1")
+        started_manager.rotate_token("token-v2")
+        time.sleep(0.1)
+        retired = started_manager.retire_stale_tokens(max_age_seconds=0.05)
+        assert retired == 1
+        assert started_manager.state.token_store.is_accepted("token-v2")
+        assert not started_manager.state.token_store.is_accepted("token-v1")

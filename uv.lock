@@ -1389,6 +1389,7 @@ name = "picosentry"
 version = "2.0.18"
 source = { editable = "." }
 dependencies = [
+    { name = "cryptography" },
     { name = "pyyaml" },
 ]
 
@@ -1469,6 +1470,7 @@ requires-dist = [
     { name = "bcrypt", marker = "extra == 'serve'", specifier = ">=4.0.0" },
     { name = "build", marker = "extra == 'dev'", specifier = ">=1.0" },
     { name = "croniter", marker = "extra == 'serve'", specifier = ">=1.0.0" },
+    { name = "cryptography", specifier = ">=42.0.0" },
     { name = "cryptography", marker = "extra == 'serve'", specifier = ">=41.0.0" },
     { name = "fastapi", marker = "extra == 'serve'", specifier = ">=0.104.0" },
     { name = "fastapi", marker = "extra == 'watch-server'", specifier = ">=0.100" },

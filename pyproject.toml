@@ -42,6 +42,7 @@ classifiers = [
 # ── Core dependencies (always installed) ──────────────────────────────────
 # Lightweight: scanner + sandbox + watch logic work without HTTP deps.
 dependencies = [
+    "cryptography>=42.0.0",
     "pyyaml>=6.0",
 ]
 

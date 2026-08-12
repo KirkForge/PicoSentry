@@ -2,6 +2,10 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - WO2.0.0-012 package intel depth: download counts + package age
+- feat(scan): add `download_count` + `package_age_days` to `PackageIntel`; registry fetch (PyPI JSON API / npm registry + downloads API) degrades gracefully offline
+- feat(scan): new `L2-INTEL-001` rule flags suspiciously new low-download packages (<100 downloads AND <30 days old)
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

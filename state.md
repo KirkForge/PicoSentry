@@ -3,10 +3,43 @@
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
 ## Current state
-- Head: `6a337667` (dev) — **CI fully green** (PicoSentry CI run 31421163207 all 14 jobs ✓; Admission Matrix run 31421161650 all 3 ✓)
-- Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
+- Head: `b8210ca2` (wo/2.0.0/package-intel-depth) — **WO2.0.0-012 complete, gates green**
+- Tests: `tests/scan/ -m "not slow"` 2001 passed, 27 skipped, 4 subtests
 - Validation: 85% precision / 60% recall (adjusted floors)
 - Last updated: 2026-08-12
+
+## Session 2026-08-12: WO2.0.0-012 package intel depth — COMPLETE
+
+### What was done (commit `b8210ca2`)
+- **package_intel.py**: `PackageIntel` gains `download_count: int | None` and
+  `package_age_days: int | None`; added `_age_days_from_iso` (Python 3.10-safe
+  `Z`→`+00:00` handling) and `enrich_registry_intel` (offline-safe `replace`).
+- **_network.py**: `fetch_registry_intel(name, ecosystem)` — PyPI JSON API
+  (`/pypi/{name}/json`, earliest `upload_time` across releases) and npm
+  (registry `time.created` + downloads API 30-day count). Any network/parse
+  error returns `(None, None)` — offline = no intel, no crash.
+- **rules/package_age.py**: new `L2-INTEL-001` flags `download_count < 100 AND
+  package_age_days < 30` (thresholds per workorder, not lowered). No-op when
+  intel fields are None (offline).
+- **engine.py**: registered `L2-INTEL-001`, added `L2-INTEL-` to `_npm_prefixes`,
+  and in `connected` mode enriches each package's intel with registry data.
+- **rules/__init__.py**: `L2-INTEL-001` in `RULE_INFO`; docs file added.
+- **tests/scan/test_package_age_rule.py**: 16 tests (rule thresholds, offline
+  no-op, network parsers, graceful degradation).
+- **tests/scan/test_benchmark.py**: added `L2-INTEL` to valid rule prefixes.
+
+### Gate output (head `b8210ca2`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run ruff format --check picosentry/ tests/ scripts/` — 636 files already formatted
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/scan/ -m "not slow"` — 2001 passed, 27 skipped, 4 subtests passed (274s)
+
+### Pending / next steps
+- None blocking. Registry intel is only fetched in `connected` mode; the
+  `L2-INTEL-001` rule is a no-op offline by design (no false positives).
+
+### Blocked
+- None from this session.
 
 ## Session 2026-08-12: Multi-tenancy hardening (WO2.0.0-002) — COMPLETE
 

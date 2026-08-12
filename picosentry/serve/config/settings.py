@@ -77,6 +77,11 @@ class SecurityConfig:
     secret_key: str = field(default_factory=lambda: _env("SECRET_KEY", ""))
 
     jwt_algorithm: str = "HS256"
+    # RSA private key for RS256 signing.  Either a PEM string or a path to a
+    # PEM file (PICOSHOGUN_JWT_PRIVATE_KEY).  When unset, tokens fall back to
+    # HS256 (legacy).  ``jwt_kid`` names the active signing key for rotation.
+    jwt_private_key: str = field(default_factory=lambda: _env("JWT_PRIVATE_KEY", ""))
+    jwt_kid: str = field(default_factory=lambda: _env("JWT_KID", "picosentry-1"))
     jwt_expiration_hours: int = 24
     password_hash_rounds: int = 12
     allowed_hosts: list[str] = field(default_factory=lambda: ["localhost", "127.0.0.1"])

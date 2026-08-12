@@ -2,6 +2,7 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+<<<<<<< HEAD
 ## Session 2026-08-12: WO3.0.0-003 version-confusion — COMPLETE
 
 ### What was done (commit `1d34c8dd` on `wo/3.0.0/version-confusion`)
@@ -50,6 +51,26 @@
 
 ### Blocked
 - None.
+
+## Session 2026-08-12: WO3.0.0-001 RS256 JWT + JWK rotation — COMPLETE
+
+### What was done (commit `360f5e3f` on `wo/3.0.0/jwt-rs256`)
+- **settings.py**: `SecurityConfig` gains `jwt_private_key` (PEM or path, `PICOSHOGUN_JWT_PRIVATE_KEY`)
+  and `jwt_kid` (`PICOSHOGUN_JWT_KID`, default `picosentry-1`). `jwt_algorithm` stays `"HS256"` default.
+- **services/auth.py**: `_keys: dict[kid, RSAPrivateKey]`; `_load_configured_key()` loads the env key;
+  `register_key(kid, pem)` / `retire_key(kid)` for rotation; `jwks()` exports active public keys.
+  `_generate_token` signs RS256 with the newest key + `kid` header (HS256 fallback when no key).
+  `_decode_token` verifies RS256 per-kid against active public keys, then HS256 legacy fallback.
+- **api/routers/auth.py**: `GET /auth/.well-known/jwks.json` serves `auth_service.jwks()`.
+- **pyproject.toml**: `cryptography>=41` added to `serve` extra (RS256 requirement).
+
+### Gate output (head `360f5e3f`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 289.41s
+
+### Pending
+- None. Rotation verified manually (newest key signs, all verify, retire keeps validation).
 
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 

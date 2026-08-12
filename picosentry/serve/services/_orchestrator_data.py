@@ -1,4 +1,3 @@
-import json
 import re
 import sqlite3
 from dataclasses import dataclass
@@ -52,26 +51,6 @@ def _validate_project_command(project_id: str, package: str) -> None:
         raise ValueError(f"Project ID {project_id!r} contains unsafe characters")
     if package and not _PACKAGE_NAME_RE.match(package):
         raise ValueError(f"Package name {package!r} contains unsafe characters")
-
-
-def _load_registry(path: Path) -> dict[str, "ProjectMeta"]:
-    registry: dict[str, ProjectMeta] = {}
-    if not path.exists():
-        return registry
-    try:
-        with path.open() as f:
-            data = json.load(f)
-    except (OSError, json.JSONDecodeError):
-        # A corrupt or unreadable registry must not silently produce an empty
-        # project list. The caller is responsible for logging; we just return
-        # the empty registry so startup remains visible.
-        return registry
-    for pid, pdict in data.items():
-        try:
-            registry[pid] = ProjectMeta(**pdict)
-        except (TypeError, ValueError):
-            continue
-    return registry
 
 
 @dataclass

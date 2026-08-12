@@ -463,30 +463,6 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 Organization.add_project(org_id, project_id)
             return {"error": sanitized, "duration": duration}
 
-    def _update_project_stats(self, project_id: str):
-        stats = db.execute_one(
-            """
-            SELECT
-                COUNT(*) as total,
-                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
-                AVG(duration_seconds) as avg_dur
-            FROM project_runs
-            WHERE project_id = ?
-        """,
-            (project_id,),
-        )
-
-        if stats:
-            success_rate = (stats["success"] / stats["total"] * 100) if stats["total"] > 0 else 0
-            db.execute_insert(
-                """
-                UPDATE projects
-                SET last_run = ?, run_count = ?, success_rate = ?, avg_duration = ?
-                WHERE id = ?
-            """,
-                (datetime.now(timezone.utc), stats["total"], success_rate, stats["avg_dur"] or 0, project_id),
-            )
-
     def run_batch(
         self, project_ids: list[str], timeout: int | None = None, org_id: int | None = None
     ) -> dict[str, dict]:

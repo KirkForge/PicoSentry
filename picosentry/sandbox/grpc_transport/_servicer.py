@@ -218,7 +218,7 @@ class PicoDomeServicer:
             )
             events_json = json.dumps([e.to_dict() for e in events], sort_keys=True, default=str)
             count = len(events)
-        except Exception:
+        except (OSError, ImportError):
             logger.exception("Audit query failed")
             events_json = json.dumps({"error": "audit_query_failed"})
             count = 0

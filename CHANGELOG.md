@@ -2,6 +2,11 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Unified serve exception hierarchy + bare-except cleanup (WO3.0.0-008)
+- Added `PicoSentryError` base + `AuthError`/`ValidationError`/`NotFoundError`/`ConflictError`/`ServiceError` to `picosentry/serve/errors.py`.
+- Global handler in `server.py` maps the hierarchy to HTTP statuses (401/404/422/409/500).
+- Reduced bare `except Exception` from 62 to 52 across 36→30 files; remaining are intentional resilience catches.
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

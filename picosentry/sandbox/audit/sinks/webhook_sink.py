@@ -6,7 +6,13 @@ import time
 from urllib.error import URLError
 from urllib.request import Request
 
-from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, assert_url_safe, safe_urlopen
+from picosentry.scan._network import (
+    InsecureURLError,
+    ResponseTooLargeError,
+    UnsafeURLError,
+    assert_url_safe,
+    safe_urlopen,
+)
 from picosentry.sandbox.audit.sinks.base import AuditSink, SinkConfig
 from typing import TYPE_CHECKING
 
@@ -47,7 +53,7 @@ class WebhookSink(AuditSink):
             assert_url_safe(self._url)
             safe_urlopen(req, timeout=int(self._config.timeout), allow_http=True)
             logger.info("WebhookSink: endpoint reachable at %s", self._url)
-        except Exception as exc:
+        except (URLError, OSError, InsecureURLError, ResponseTooLargeError, UnsafeURLError) as exc:
             logger.warning("WebhookSink: endpoint not reachable at %s: %s", self._url, exc)
 
     def send(self, event: AuditEvent) -> None:

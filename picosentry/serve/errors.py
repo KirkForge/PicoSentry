@@ -3,6 +3,30 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 
+class PicoSentryError(Exception):
+    """Base class for all serve-wide application errors."""
+
+
+class AuthError(PicoSentryError):
+    """Authentication or authorization failed (HTTP 401)."""
+
+
+class ValidationError(PicoSentryError):
+    """Request input failed validation (HTTP 422)."""
+
+
+class NotFoundError(PicoSentryError):
+    """Requested resource does not exist (HTTP 404)."""
+
+
+class ConflictError(PicoSentryError):
+    """Request conflicts with current resource state (HTTP 409)."""
+
+
+class ServiceError(PicoSentryError):
+    """Unexpected service failure (HTTP 500)."""
+
+
 @dataclass(frozen=True)
 class ServeError:
     status: int

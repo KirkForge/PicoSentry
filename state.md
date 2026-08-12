@@ -2,6 +2,33 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO3.0.0-008 error hierarchy + bare-except cleanup — COMPLETE
+
+### What was done (commit on `wo/3.0.0/error-hierarchy`)
+- **serve/errors.py**: added `PicoSentryError(Exception)` base + typed subclasses
+  `AuthError`, `ValidationError`, `NotFoundError`, `ConflictError`, `ServiceError`.
+  Kept existing `ServeError`/`ServeErrors` constants.
+- **serve/api/server.py**: added `@app.exception_handler(PicoSentryError)` mapping the
+  hierarchy to HTTP statuses (AuthError→401, NotFoundError→404, ValidationError→422,
+  ConflictError→409, ServiceError→500); kept the generic `Exception` handler as fallback.
+  Narrowed the telemetry-shutdown catch to `(OSError, RuntimeError)`.
+- **Bare-except cleanup**: 62 → 52 across 36 → 30 files. Converted clearly-known-raise
+  sites to specific catches (notary CLI→`NotaryError`, webhook sink→URL/network errors,
+  daemon/admission/sign-policy CLI→`(OSError, RuntimeError)`, scan_grpc→known client
+  surface, `_servicer` audit query→`OSError`). Remaining 52 are intentional resilience
+  catches (untrusted plugins, per-item scan loops, fail-closed guards, gRPC/audit
+  boundaries, child-process `os._exit`, ponytail-documented redis) — left as-is with
+  existing `# INTENTIONAL BROAD CATCH` comments.
+- **rate_limit_redis.py**: untouched (ponytail-documented best-effort paths).
+
+### Gate output (head SHA below)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/serve/ -m "not slow"` — 472 passed, 1 warning in 144.61s
+
+### Pending
+- None.
+
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)

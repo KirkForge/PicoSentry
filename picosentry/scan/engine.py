@@ -284,6 +284,7 @@ class ScanEngine:
                 "L2-ADV-",
                 "L2-CAMP-",
                 "L2-INTEL-",
+                "L2-VCONF-",
             )
             selected_rules = {
                 k: v
@@ -544,6 +545,7 @@ def create_default_engine(
     from .rules.pypi_post_install import detect_pypi_post_install
     from .rules.sideloading import detect_sideloading
     from .rules.typosquat import detect_all_typosquat
+    from .rules.version_confusion import detect_version_confusion
     from .rules.worm_propagation import detect_worm_propagation
 
     engine = ScanEngine(
@@ -580,6 +582,7 @@ def create_default_engine(
     engine.register("L2-NETEX-001", detect_network_exfiltration)
     engine.register("L2-INTEL-001", detect_suspicious_new_packages)
     engine.register("L2-NSCOL-001", detect_namespace_collision)
+    engine.register("L2-VCONF-001", detect_version_confusion)
 
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)

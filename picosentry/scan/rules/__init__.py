@@ -20,6 +20,7 @@ from .pypi_obfuscation import detect_pypi_obfuscation
 from .pypi_post_install import detect_pypi_post_install
 from .sideloading import detect_sideloading
 from .typosquat import detect_all_typosquat
+from .version_confusion import detect_version_confusion
 from .worm_propagation import detect_worm_propagation
 
 __all__ = [
@@ -49,6 +50,7 @@ __all__ = [
     "detect_pypi_post_install",
     "detect_sideloading",
     "detect_suspicious_new_packages",
+    "detect_version_confusion",
     "detect_worm_propagation",
 ]
 
@@ -426,6 +428,15 @@ RULE_INFO = {
         "severity": "MEDIUM",
         "category": "supply-chain",
         "helpUri": f"{_DOCS_BASE}/L2-NSCOL-001.md",
+    },
+    "L2-VCONF-001": {
+        "name": "version_confusion",
+        "description": (
+            "Popular, established package pinned at a placeholder version (0.0.0/1.0.0) — possible version-squatting"
+        ),
+        "severity": "MEDIUM",
+        "category": "supply-chain",
+        "helpUri": f"{_DOCS_BASE}/L2-VCONF-001.md",
     },
 }
 

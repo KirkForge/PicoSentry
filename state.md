@@ -2,7 +2,25 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
-## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
+## Session 2026-08-12: WO3.0.0-006 WebAuthn passkey MFA — COMPLETE (commit `e33ecf98`, branch `wo/3.0.0/webauthn`)
+### What was done
+- **auth.py**: WebAuthn register/auth challenge+verify using pywebauthn (`webauthn` pkg, added to `serve` extra). `login()` now returns `mfa_methods` and takes an internal `mfa_verified` flag (set only after an independently-verified passkey assertion) to skip the MFA gate. Added `get_user_id_by_username`, `webauthn_credentials_for_user`.
+- **database/_schema.py**: migration 15 `webauthn_credentials` + `webauthn_challenges`.
+- **routers/auth.py**: `/auth/webauthn/{register,authenticate}-{challenge,verify}`; login 401 now carries `X-MFA-Methods` header.
+- **settings.py**: `webauthn_rp_id/webauthn_rp_name/webauthn_origin` config.
+- **pyproject**: `webauthn>=2.0.0` in `serve` extra.
+- **tests**: `tests/serve/services/test_webauthn.py` (3 tests).
+
+### Gate output (head `e33ecf98`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run ruff format --check <changed files>` — 5 files already formatted
+- `uv run pytest tests/serve/ -m "not slow"` — 475 passed, 1 warning in 142.76s
+
+### Pending
+- None. Crypto round-trip (real attestation/assertion) is pywebauthn's responsibility; tests cover challenge issuance, unknown-challenge rejection, and auth-gated endpoint registration.
+- Pre-existing (out of scope): `tests/scan/test_reachability.py` fails `ruff format --check` from WO2.0.0-011.
+
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)
 - **auth.py**: `create_api_key(user_id, name, permissions, role=None, org_id=None)` — role defaults

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import ipaddress
+import json
 import logging
 import urllib.error
 import urllib.request
@@ -87,3 +88,64 @@ def safe_urlopen(
         )
 
     return resp, body
+
+
+def fetch_registry_intel(
+    name: str,
+    ecosystem: str = "npm",
+    *,
+    timeout: int = 10,
+) -> tuple[int | None, str | None]:
+    """Fetch (download_count, first_release) for a package from its registry.
+
+    PyPI: ``https://pypi.org/pypi/{name}/json`` — first release is the earliest
+    ``upload_time`` across all releases. npm: ``https://registry.npmjs.org/{name}``
+    for ``time.created`` plus the downloads API for a 30-day count.
+
+    Degrades gracefully: any network/parse error returns ``(None, None)`` so
+    offline scans get no intel and never crash.
+    """
+    try:
+        if ecosystem == "pypi":
+            return _fetch_pypi_intel(name, timeout=timeout)
+        return _fetch_npm_intel(name, timeout=timeout)
+    except (urllib.error.URLError, InsecureURLError, UnsafeURLError, ResponseTooLargeError, ValueError, OSError):
+        logger.debug("Registry intel fetch failed for %s (%s)", name, ecosystem, exc_info=True)
+        return None, None
+
+
+def _fetch_pypi_intel(name: str, *, timeout: int) -> tuple[int | None, str | None]:
+    _, body = safe_urlopen(f"https://pypi.org/pypi/{name}/json", timeout=timeout)
+    data = json.loads(body.decode("utf-8", errors="replace"))
+    releases = data.get("releases")
+    first_release: str | None = None
+    if isinstance(releases, dict):
+        upload_times = []
+        for files in releases.values():
+            if isinstance(files, list):
+                for f in files:
+                    if isinstance(f, dict) and f.get("upload_time"):
+                        upload_times.append(f["upload_time"])
+        if upload_times:
+            first_release = min(upload_times)
+    return None, first_release
+
+
+def _fetch_npm_intel(name: str, *, timeout: int) -> tuple[int | None, str | None]:
+    _, body = safe_urlopen(f"https://registry.npmjs.org/{name}", timeout=timeout)
+    data = json.loads(body.decode("utf-8", errors="replace"))
+    time_field = data.get("time")
+    first_release: str | None = None
+    if isinstance(time_field, dict):
+        created = time_field.get("created")
+        if isinstance(created, str):
+            first_release = created
+    download_count: int | None = None
+    try:
+        _, dl_body = safe_urlopen(f"https://api.npmjs.org/downloads/point/last-month/{name}", timeout=timeout)
+        dl_data = json.loads(dl_body.decode("utf-8", errors="replace"))
+        if isinstance(dl_data, dict) and isinstance(dl_data.get("downloads"), int):
+            download_count = dl_data["downloads"]
+    except (urllib.error.URLError, InsecureURLError, UnsafeURLError, ResponseTooLargeError, ValueError, OSError):
+        logger.debug("npm downloads fetch failed for %s", name, exc_info=True)
+    return download_count, first_release

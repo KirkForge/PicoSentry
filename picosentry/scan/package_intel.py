@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from datetime import datetime, timezone
 from typing import Any
 
 SPDX_LICENSES = frozenset(
@@ -155,6 +156,8 @@ class PackageIntel:
     has_preinstall_script: bool = False
     has_license: bool = False
     license_spdx_compliant: bool = False
+    download_count: int | None = None
+    package_age_days: int | None = None
     risk_score: float = 0.0
 
 
@@ -482,6 +485,34 @@ def _compute_risk_score(intel: PackageIntel) -> float:
     elif not intel.license_spdx_compliant:
         risk += 0.02
     return min(round(risk, 2), 1.0)
+
+
+def _age_days_from_iso(iso: str | None, now: datetime | None = None) -> int | None:
+    """Days since an ISO-8601 first-release timestamp, or None if unparseable."""
+    if not iso:
+        return None
+    try:
+        released = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if released.tzinfo is None:
+        released = released.replace(tzinfo=timezone.utc)
+    now = now or datetime.now(timezone.utc)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
+    return max(0, int((now - released).total_seconds() // 86400))
+
+
+def enrich_registry_intel(intel: PackageIntel, download_count: int | None, first_release: str | None) -> PackageIntel:
+    """Return a copy of *intel* with registry-derived download/age signals.
+
+    Offline-safe: None inputs leave the fields as None (no intel, no crash).
+    """
+    return replace(
+        intel,
+        download_count=download_count,
+        package_age_days=_age_days_from_iso(first_release),
+    )
 
 
 class PackageIntelligence:

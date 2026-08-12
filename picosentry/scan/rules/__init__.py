@@ -11,6 +11,7 @@ from .maintainer_change import detect_maintainer_changes
 from .manifest import detect_manifest_issues
 from .network_exfil import detect_network_exfiltration
 from .obfuscation import detect_obfuscation
+from .package_age import detect_suspicious_new_packages
 from .pnpm_config import detect_pnpm_config
 from .post_install import detect_post_install_scripts
 from .provenance import detect_provenance_issues
@@ -45,6 +46,7 @@ __all__ = [
     "detect_pypi_obfuscation",
     "detect_pypi_post_install",
     "detect_sideloading",
+    "detect_suspicious_new_packages",
     "detect_worm_propagation",
 ]
 
@@ -405,6 +407,13 @@ RULE_INFO = {
         "severity": "CRITICAL",
         "category": "execution",
         "helpUri": f"{_DOCS_BASE}/L2-BUILD-001.md",
+    },
+    "L2-INTEL-001": {
+        "name": "suspicious_new_package",
+        "description": "Package with very low download count and very young age (suspicious new package)",
+        "severity": "MEDIUM",
+        "category": "supply-chain",
+        "helpUri": f"{_DOCS_BASE}/L2-INTEL-001.md",
     },
 }
 

@@ -2,6 +2,9 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Reachability analysis (WO2.0.0-011)
+- Advisory findings now carry a `reachable` flag: a vulnerable dep imported/used in the scanned source is `reachable: true`; present-but-unused is `reachable: false`.
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

@@ -2,7 +2,6 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
-<<<<<<< HEAD
 ## Session 2026-08-12: WO3.0.0-003 version-confusion — COMPLETE
 
 ### What was done (commit `1d34c8dd` on `wo/3.0.0/version-confusion`)

@@ -2,7 +2,6 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
-<<<<<<< HEAD
 ## 2026-08-12 - Real-time OSV advisory feed (WO3.0.0-004)
 - `OSVClient`: cache TTL default dropped 24h → 60min, configurable via `PICOSENTRY_OSV_CACHE_MINUTES`; explicit `cache_ttl_hours` still overrides.
 

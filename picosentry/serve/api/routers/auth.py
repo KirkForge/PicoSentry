@@ -13,7 +13,10 @@ from picosentry.serve.api.models import (
     APIKeyRotateResponse,
     AuthLoginResponse,
     AuthRegisterResponse,
+    MFAEnrollResponse,
+    MFAVerifyResponse,
     RegisterRequest,
+    TokenRevokeResponse,
 )
 from picosentry.serve.config.settings import settings
 
@@ -72,21 +75,72 @@ class _LoginRequest(BaseModel):
 
     username: str
     password: str = Field(..., min_length=1, max_length=72)
+    totp_code: str | None = Field(None, min_length=6, max_length=6)
 
 
 @router.post("/login", tags=["Authentication"], response_model=AuthLoginResponse)
 async def login(request: _LoginRequest, fastapi_request: Request):
     _check_auth_rate_limit(fastapi_request)
-    token = await asyncio.to_thread(auth_service.authenticate, request.username, request.password)
-    if not token:
+    result = await asyncio.to_thread(auth_service.login, request.username, request.password, request.totp_code)
+    status = result.get("status")
+    if status == "locked":
+        raise HTTPException(status_code=423, detail="Account locked due to too many failed attempts")
+    if status == "mfa_required":
+        raise HTTPException(status_code=401, detail="MFA code required")
+    if status != "ok":
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    user_info = auth_service.validate_token(token) or {}
     return {
-        "access_token": token,
+        "access_token": result["token"],
         "token_type": "bearer",
-        "user_id": user_info.get("id"),
-        "role": user_info.get("role"),
+        "user_id": result.get("user_id"),
+        "role": result.get("role"),
     }
+
+
+class _MFAEnrollRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+
+class _MFAVerifyRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    code: str = Field(..., min_length=6, max_length=6)
+
+
+class _RevokeTokenRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
+    jti: str = Field(..., min_length=1, max_length=128)
+
+
+@router.post("/mfa/enroll", tags=["Authentication"], response_model=MFAEnrollResponse)
+async def mfa_enroll(
+    request: _MFAEnrollRequest,
+    user: dict = Depends(get_current_user),
+):
+    result = auth_service.enroll_totp(user["id"], user["username"])
+    if not result:
+        raise HTTPException(status_code=500, detail="TOTP enrollment unavailable")
+    return result
+
+
+@router.post("/mfa/verify", tags=["Authentication"], response_model=MFAVerifyResponse)
+async def mfa_verify(
+    request: _MFAVerifyRequest,
+    user: dict = Depends(get_current_user),
+):
+    if not auth_service.verify_totp_for_user(user["id"], request.code):
+        raise HTTPException(status_code=400, detail="Invalid TOTP code")
+    return {"verified": True}
+
+
+@router.post("/revoke", tags=["Authentication"], response_model=TokenRevokeResponse)
+async def revoke_token(
+    request: _RevokeTokenRequest,
+    user: dict = Depends(get_current_user),
+):
+    auth_service.revoke_token(request.jti, user["id"])
+    return {"revoked": True}
 
 
 class CreateAPIKeyRequest(BaseModel):

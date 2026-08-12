@@ -112,6 +112,10 @@ class SecurityConfig:
     trusted_proxies: list[str] = field(
         default_factory=lambda: [p.strip() for p in _env("TRUSTED_PROXIES", "").split(",") if p.strip()]
     )
+    # Account lockout: after ``lockout_max_attempts`` consecutive failed
+    # logins for a username, the account is locked for ``lockout_window_minutes``.
+    lockout_max_attempts: int = field(default_factory=lambda: int(_env("LOCKOUT_MAX_ATTEMPTS", "5")))
+    lockout_window_minutes: int = field(default_factory=lambda: int(_env("LOCKOUT_WINDOW_MINUTES", "15")))
 
     @classmethod
     def from_env(cls) -> "SecurityConfig":

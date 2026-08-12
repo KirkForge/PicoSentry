@@ -713,6 +713,40 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_anomaly_alerts_org ON anomaly_alerts(org_id, created_at);
     """,
     ),
+    Migration(
+        14,
+        "add_auth_hardening",
+        """
+        ALTER TABLE users ADD COLUMN totp_secret TEXT;
+        ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0;
+        ALTER TABLE users ADD COLUMN locked_until TIMESTAMP;
+
+        CREATE TABLE IF NOT EXISTS revoked_tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            jti TEXT UNIQUE NOT NULL,
+            user_id INTEGER,
+            revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti ON revoked_tokens(jti);
+    """,
+        postgres_sql="""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_secret TEXT;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS failed_login_attempts INTEGER DEFAULT 0;
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS locked_until TIMESTAMP;
+
+        CREATE TABLE IF NOT EXISTS revoked_tokens (
+            id SERIAL PRIMARY KEY,
+            jti TEXT UNIQUE NOT NULL,
+            user_id INTEGER,
+            revoked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_revoked_tokens_jti ON revoked_tokens(jti);
+    """,
+    ),
 ]
 
 __all__ = [

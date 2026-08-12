@@ -239,6 +239,19 @@ class APIKeyRotateResponse(BaseModel):
     message: str
 
 
+class MFAEnrollResponse(BaseModel):
+    secret: str
+    otpauth_uri: str
+
+
+class MFAVerifyResponse(BaseModel):
+    verified: bool
+
+
+class TokenRevokeResponse(BaseModel):
+    revoked: bool
+
+
 class EventIngestResponse(BaseModel):
     status: str
     event: dict[str, Any]

@@ -111,3 +111,38 @@ def test_list_backups_and_cleanup(manager: BackupManager, tmp_path: Path) -> Non
 
     removed = manager.cleanup_old_backups()
     assert removed == 0  # backup is fresh
+
+
+def test_encrypted_round_trip(manager: BackupManager, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """create -> encrypt -> restore -> verify integrity round-trip."""
+    from picosentry.serve.config.settings import settings
+
+    monkeypatch.setattr(settings.backup, "encrypt_key", "test-secret-key")
+
+    result = manager.create_backup(name="enc_roundtrip", include_logs=False)
+    assert result is not None
+    assert result["metadata"]["encrypted"] is True
+    backup_path = Path(result["path"])
+    assert backup_path.suffix == ".enc"
+    assert b"PICOSHOGUN" in backup_path.read_bytes()[:16]
+
+    assert manager.restore_backup(str(backup_path), force=True) is True
+    assert (tmp_path / "db.sqlite3").read_text() == "test db"
+
+
+def test_restore_wrong_key_fails_safely(
+    manager: BackupManager, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Restore with the wrong key must fail before extraction."""
+    from picosentry.serve.config.settings import settings
+
+    monkeypatch.setattr(settings.backup, "encrypt_key", "correct-key")
+    result = manager.create_backup(name="enc_wrongkey", include_logs=False)
+    assert result is not None
+    backup_path = Path(result["path"])
+
+    monkeypatch.setattr(settings.backup, "encrypt_key", "wrong-key")
+    with caplog.at_level("ERROR", logger="picoshogun.Backup"):
+        assert manager.restore_backup(str(backup_path), force=True) is False
+    assert "decryption/integrity" in caplog.text
+    assert (tmp_path / "db.sqlite3").read_text() == "test db"  # untouched

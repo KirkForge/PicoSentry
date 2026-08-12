@@ -53,6 +53,22 @@ class DatabaseConfig:
 
 
 @dataclass
+class BackupConfig:
+    # AES-GCM key material. Empty => encryption disabled (plain tar.gz).
+    encrypt_key: str = field(default_factory=lambda: _env("BACKUP_ENCRYPT_KEY", ""))
+    # S3/GCS-compatible offsite upload. Empty endpoint => upload skipped.
+    s3_endpoint: str = field(default_factory=lambda: _env("BACKUP_S3_ENDPOINT", ""))
+    s3_bucket: str = field(default_factory=lambda: _env("BACKUP_S3_BUCKET", ""))
+    s3_access_key: str = field(default_factory=lambda: _env("BACKUP_S3_ACCESS_KEY", ""))
+    s3_secret_key: str = field(default_factory=lambda: _env("BACKUP_S3_SECRET_KEY", ""))
+    s3_region: str = field(default_factory=lambda: _env("BACKUP_S3_REGION", "us-east-1"))
+
+    @property
+    def s3_enabled(self) -> bool:
+        return bool(self.s3_endpoint and self.s3_bucket and self.s3_access_key and self.s3_secret_key)
+
+
+@dataclass
 class APIConfig:
     host: str = field(default_factory=lambda: _env("API_HOST", "127.0.0.1"))
     port: int = field(default_factory=lambda: int(_env("API_PORT", "8765")))
@@ -253,6 +269,7 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     env: str = field(default_factory=lambda: _env("ENV", "development"))
     debug: bool = field(default_factory=lambda: _env_bool("DEBUG", "false"))
     database: DatabaseConfig = field(default_factory=DatabaseConfig)
+    backup: BackupConfig = field(default_factory=BackupConfig)
     api: APIConfig = field(default_factory=APIConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     logging: LoggingConfig = field(default_factory=LoggingConfig)

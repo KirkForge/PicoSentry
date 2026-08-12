@@ -44,13 +44,23 @@ class TestOSVClientInit:
     def test_default_cache_dir(self, tmp_path):
         client = OSVClient(cache_dir=tmp_path / "intel")
         assert client._cache_dir == tmp_path / "intel"
-        assert client._cache_ttl == 24 * 3600
+        assert client._cache_ttl == 60 * 60
         assert client._timeout == 10
 
     def test_custom_ttl(self, tmp_path):
         client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=48, timeout=5)
         assert client._cache_ttl == 48 * 3600
         assert client._timeout == 5
+
+    def test_env_cache_minutes(self, tmp_path):
+        with patch.dict("os.environ", {"PICOSENTRY_OSV_CACHE_MINUTES": "5"}):
+            client = OSVClient(cache_dir=tmp_path)
+        assert client._cache_ttl == 5 * 60
+
+    def test_explicit_ttl_overrides_env(self, tmp_path):
+        with patch.dict("os.environ", {"PICOSENTRY_OSV_CACHE_MINUTES": "5"}):
+            client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=48)
+        assert client._cache_ttl == 48 * 3600
 
     def test_env_override_cache_dir(self, tmp_path):
         custom = tmp_path / "custom_intel"

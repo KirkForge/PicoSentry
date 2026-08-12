@@ -2,6 +2,9 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Real-time OSV advisory feed (WO3.0.0-004)
+- `OSVClient`: cache TTL default dropped 24h → 60min, configurable via `PICOSENTRY_OSV_CACHE_MINUTES`; explicit `cache_ttl_hours` still overrides.
+
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 

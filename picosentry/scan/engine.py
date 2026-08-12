@@ -283,6 +283,7 @@ class ScanEngine:
                 "L2-TYPO-",
                 "L2-ADV-",
                 "L2-CAMP-",
+                "L2-INTEL-",
             )
             selected_rules = {
                 k: v
@@ -333,7 +334,14 @@ class ScanEngine:
                     if isinstance(_pkg_data, dict):
                         _pkg_name = _pkg_data.get("name", "")
                         if _pkg_name:
-                            package_intel[_pkg_name] = _pkg_intel_analyzer.analyze(_pkg_data, ecosystem="npm")
+                            _intel = _pkg_intel_analyzer.analyze(_pkg_data, ecosystem="npm")
+                            if self._intelligence_mode == "connected":
+                                from ._network import fetch_registry_intel
+                                from .package_intel import enrich_registry_intel
+
+                                _dl, _first = fetch_registry_intel(_pkg_name, ecosystem="npm")
+                                _intel = enrich_registry_intel(_intel, _dl, _first)
+                            package_intel[_pkg_name] = _intel
                 except (json.JSONDecodeError, OSError):
                     continue
         except Exception:
@@ -527,6 +535,7 @@ def create_default_engine(
     from .rules.manifest import detect_manifest_issues
     from .rules.network_exfil import detect_network_exfiltration
     from .rules.obfuscation import detect_obfuscation
+    from .rules.package_age import detect_suspicious_new_packages
     from .rules.pnpm_config import detect_pnpm_config
     from .rules.post_install import detect_post_install_scripts
     from .rules.provenance import detect_provenance_issues
@@ -568,6 +577,7 @@ def create_default_engine(
     engine.register("L2-IOC-001", detect_custom_iocs)
     engine.register("L2-WORM-001", detect_worm_propagation)
     engine.register("L2-NETEX-001", detect_network_exfiltration)
+    engine.register("L2-INTEL-001", detect_suspicious_new_packages)
 
     engine.register("L2-PYPI-POST-001", detect_pypi_post_install)
     engine.register("L2-PYPI-OBFS-001", detect_pypi_obfuscation)

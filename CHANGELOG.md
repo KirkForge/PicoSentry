@@ -2,6 +2,7 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+<<<<<<< HEAD
 ## 2026-08-12 - Audit fsync knob + crash-recovery (WO2.0.0-008)
 - `sandbox/audit/logger.py`: fsync after each JSONL write is now configurable via `PICODOME_AUDIT_FSYNC` (default on); added crash-recovery chain-reseed test.
 
@@ -13,6 +14,10 @@ All notable changes to PicoSentry will be documented in this file.
 
 ## 2026-08-12 - Reachability analysis (WO2.0.0-011)
 - Advisory findings now carry a `reachable` flag: a vulnerable dep imported/used in the scanned source is `reachable: true`; present-but-unused is `reachable: false`.
+
+## 2026-08-12 - WO2.0.0-012 package intel depth: download counts + package age
+- feat(scan): add `download_count` + `package_age_days` to `PackageIntel`; registry fetch (PyPI JSON API / npm registry + downloads API) degrades gracefully offline
+- feat(scan): new `L2-INTEL-001` rule flags suspiciously new low-download packages (<100 downloads AND <30 days old)
 
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision

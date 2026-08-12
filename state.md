@@ -2,6 +2,30 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: WO3.0.0-010 recall floor — COMPLETE (commit `e18d92b8` on `wo/3.0.0/recall-floor`)
+
+### What was done
+- Measured current validation: **mean precision 0.900, mean recall 0.812** on 5728 fixtures (2798 pos / 2930 neg).
+- Raised the recall floor **0.60 → 0.70** in `tests/scan/test_validation.py:114` (85% precision / 70% recall).
+- Corrected stale `docs/BENCHMARKS.md` prose: CI-gate line now states the 85%/70% floor, the "100% floor exists" paragraph now says 85%/70%, and the "0.95/0.80 advisory" line now notes the strict floor is 85%/70%.
+
+### Gate output (head `e18d92b8`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run mypy picosentry/` — Success: no issues found in 408 source files
+- `uv run pytest tests/scan/test_validation.py tests/scan/test_mutation_benchmark.py -m "not slow"` — 12 passed in 7.72s
+
+### Known environmental note (NOT a regression)
+- The `slow`-marked floor test and mutation benchmarks exceed their hardcoded
+  `@pytest.mark.timeout(180)` in this worktree because the full corpus scan
+  takes ~198s. Verified pre-existing (fails identically on unmodified tree).
+  Deselected by the `-m "not slow"` gate.
+
+### Pending
+- None from this workorder.
+
+### Blocked
+- None.
+
 ## Session 2026-08-12: WO2.0.0-010 role-scoped tokens + CORS — COMPLETE
 
 ### What was done (commit `c1761e81` on `wo/2.0.0/role-scoped-tokens`)
@@ -33,7 +57,7 @@
 ## Current state
 - Head: `4b5d70c2` (dev) — WO2.0.0-007..012 improvement series in progress
 - Tests: All passing locally (4592 passed on 3.10) and on CI across 3.10–3.13
-- Validation: 85% precision / 60% recall (adjusted floors)
+- Validation: 85% precision / 70% recall (adjusted floors)
 - Last updated: 2026-08-12
 
 ## Session 2026-08-12: WO2.0.0-008 audit-fsync — COMPLETE (commit `3ed64635`, branch `wo/2.0.0/audit-fsync`)

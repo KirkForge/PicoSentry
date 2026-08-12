@@ -2,6 +2,11 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - Improvement loop: test dedup + dead-code removal (WO3.0.0-011/012)
+- test: dedup the two largest test files — `tests/serve/test_integration.py` (1593→1378) and `tests/sandbox/test_cluster.py` (1530→1349) via parametrize collapses (11), shared `started_manager`/`any_backend` fixtures, and helper inlining; same 210 tests passing (-396 net LOC).
+- refactor(serve): remove dead `EnhancedOrchestrator._update_project_stats` method (0 callers; the standalone `update_project_stats` from `_orchestrator_stats` is the live path) and dead `_load_registry` standalone in `_orchestrator_data.py` (0 callers).
+- audit(WO3.0.0-012): read-only over-engineering pass across picosentry/; documented load-bearing ABCs/Protocols rejected for cutting (each has ≥2 impls), and flagged `baseline_hardening.py` (0 production callers) as a candidate for a dedicated removal WO pending AuditEventType-taxonomy ripple review.
+
 ## 2026-08-12 - _core constant-time compare consolidation (WO3.0.0-013)
 - Route 11 `hmac.compare_digest(str,str)` call sites in sandbox/, serve/, scan/ through `picosentry._core.security.constant_time_compare`; single source of truth for credential/signature comparison.
 

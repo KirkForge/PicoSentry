@@ -2,6 +2,33 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-12: Improvement loop 7→9 (WO3.0.0-011/012/013) — COMPLETE
+
+### What was done (3 commits on `dev` @ 42520317)
+- **WO3.0.0-013 _core consolidation** (merge `50248aec`): routed 11 `hmac.compare_digest(str,str)` call sites across 8 files (sandbox/auth.py, baseline_hardening.py, notary/rekor.py, policy_versioned/signing.py, scan/cache.py, serve/services/auth.py, serve/services/orgs.py, serve/services/webhooks.py) through new `picosentry._core.security.constant_time_compare`. Single audited point for all credential/signature comparisons — a security WIN. +22/-14.
+- **WO3.0.0-011 test-quality dedup** (merge `54a8b25f`): `tests/serve/test_integration.py` 1593→1378, `tests/sandbox/test_cluster.py` 1530→1349. 11 parametrize collapses, shared `started_manager`/`any_backend` fixtures, 1 helper inlined. 210 tests still passing. Net -396 LOC.
+- **WO3.0.0-012 over-engineering audit** (read-only report): audited top-5 largest source files + targeted grep. Found 8 candidates; acted on the 2 verified-clean dead-code cuts (`_update_project_stats` method, `_load_registry` standalone, commit `42520317`, -45 LOC). Rejected 8 load-bearing ABCs/Protocols (each ≥2 impls). Flagged `baseline_hardening.py` (0 production callers, but ripples into AuditEventType taxonomy at test_audit_coverage.py:90-92) as a candidate for a DEDICATED removal WO needing user approval.
+- **Format drift fix**: 4 files reformatted (scan/rules/__init__.py, serve/config/settings.py, tests/scan/test_namespace_collision.py, tests/scan/test_reachability.py) — `ruff format --check` now green on 645 files.
+
+### Gate output (head `42520317`)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run ruff format --check` — 645 files already formatted
+- `uv run mypy picosentry/` — Success: no issues found in 410 source files
+- `uv run pytest tests/serve/ tests/sandbox/ -m "not slow"` — 2063 passed, 21 skipped (env-gated: PICODOME_SANDBOX_TESTS / webauthn extra), 9 warnings in 261.25s
+
+### Subagent execution
+- 3 subagents dispatched in parallel on disjoint scopes (general+general+general). All delivered real diffs; no empty-report re-dispatches needed this session.
+- Merge conflicts on WO-013 (CHANGELOG.md, serve/services/auth.py import block vs dev's webauthn imports) resolved by hand; caught a self-introduced typo (`Attestance`→`Attestation`) in the resolution and fixed immediately.
+
+### Pending / next steps
+- **`main` is 54 commits behind `dev`** — AGENTS.md forbids touching main directly. Recommend a human run `git checkout main && git merge --ff-only dev` (dev is 0 ahead-divergence, ff is clean) or a release-branch sync. Flagged, not done.
+- **Dedicated `baseline_hardening.py` removal WO** (proposed WO3.0.0-014): delete the module + `tests/sandbox/test_baseline_hardening.py` + decide whether `AuditEventType.BASELINE_CREATE/UPDATE/DELETE` enum values stay (for external plugin producers) or also go. Needs user call on whether baseline-hardening is abandoned or planned.
+- WO-012 LOW findings deferred: `BehavioralEvidenceItem/Summary` models (0 prod refs, prod uses dict), `FirewallScanner.cache` property (2 LOC dead), duplicate `_CacheForPut` alias. Cosmetic; batch into a future cleanup WO.
+- Stale empty worktrees `fix/dedup-core-utils` / `fix/test-quality` (0 commits ahead, old base) — safe to `git worktree remove` + `git branch -D` when convenient. Left in place this session.
+
+### Blocked
+- None.
+
 ## Session 2026-08-12: WO3.0.0-008 error hierarchy + bare-except cleanup — COMPLETE
 
 ### What was done (commit on `wo/3.0.0/error-hierarchy`)

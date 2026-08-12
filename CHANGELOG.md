@@ -2,6 +2,9 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-12 - _core constant-time compare consolidation (WO3.0.0-013)
+- Route 11 `hmac.compare_digest(str,str)` call sites in sandbox/, serve/, scan/ through `picosentry._core.security.constant_time_compare`; single source of truth for credential/signature comparison.
+
 ## 2026-08-12 - Multi-tenancy hardening (WO2.0.0-002)
 - fix(correlation): org-scope all `CorrelationEngine` read methods; kill-chain cache keyed by `(org_id, artifact_id)` to prevent cross-tenant cache collision
 - fix(health): `GET /status` now org-scoped via `get_current_org`; passes `org_id` to `orchestrator.get_status()`

@@ -1,5 +1,4 @@
 import hashlib
-import hmac
 import logging
 import os
 import secrets
@@ -20,6 +19,7 @@ try:
 except ImportError:
     HAS_BCRYPT = False
 
+from picosentry._core.security import constant_time_compare
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import DatabaseManager, db as _default_db
 
@@ -86,7 +86,7 @@ class AuthService:
         if hashed.startswith("pbkdf2:"):
             _, salt, hash_value = hashed.split(":")
             check = hashlib.pbkdf2_hmac("sha256", password.encode(), salt.encode(), 100000)
-            return hmac.compare_digest(check.hex(), hash_value)
+            return constant_time_compare(check.hex(), hash_value)
 
         return False
 
@@ -222,7 +222,7 @@ class AuthService:
         # Constant-time comparison guards against timing attacks even
         # though the DB lookup already matched on key_hash.  In concurrent
         # scenarios where multiple keys share a prefix, this is defense-in-depth.
-        if not hmac.compare_digest(key["key_hash"], key_hash):
+        if not constant_time_compare(key["key_hash"], key_hash):
             return None
 
         # Reject keys whose permissions are not a subset of the allowlist.

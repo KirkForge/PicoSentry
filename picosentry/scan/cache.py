@@ -10,6 +10,8 @@ import time
 from pathlib import Path
 from typing import Any, cast
 
+from picosentry._core.security import constant_time_compare
+
 logger = logging.getLogger("picosentry.cache")
 
 DEFAULT_CACHE_DIR = Path.home() / ".cache" / "picosentry"
@@ -189,7 +191,7 @@ class ScanCache:
         stored_hmac = entry.pop("_hmac", None)
         if stored_hmac:
             recomputed = self._hmac(json.dumps(entry, sort_keys=True))
-            if not hmac.compare_digest(stored_hmac, recomputed):
+            if not constant_time_compare(stored_hmac, recomputed):
                 logger.warning("Cache integrity check failed for %s — evicting", key[:8])
                 path.unlink(missing_ok=True)
                 return None

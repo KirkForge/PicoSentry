@@ -13,6 +13,8 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any
 
+from picosentry._core.security import constant_time_compare
+
 try:
     import urllib.error
     import urllib.request
@@ -66,7 +68,7 @@ def verify_entry_signature(
     key: str = DEFAULT_HMAC_KEY,
 ) -> bool:
     expected = sign_entry(entry, key=key)
-    return hmac.compare_digest(expected, signature)
+    return constant_time_compare(expected, signature)
 
 
 @dataclass(frozen=True)

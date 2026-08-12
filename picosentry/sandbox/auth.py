@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 import hashlib
-import hmac
 import logging
 import os
 from pathlib import Path
 
+from picosentry._core.security import constant_time_compare
 
 logger = logging.getLogger("picodome.auth")
 
@@ -231,7 +231,7 @@ class TokenAuth:
                 self._record_failure(token_hash)
                 return False
             for stored_hash in self._token_hashes:
-                if hmac.compare_digest(token_hash.encode("utf-8"), stored_hash.encode("utf-8")):
+                if constant_time_compare(token_hash, stored_hash):
                     self._clear_failures(token_hash)
                     return True
             self._record_failure(token_hash)
@@ -248,7 +248,7 @@ class TokenAuth:
             return False
 
         for stored_hash in self._token_hashes:
-            if hmac.compare_digest(token_hash.encode("utf-8"), stored_hash.encode("utf-8")):
+            if constant_time_compare(token_hash, stored_hash):
                 self._clear_failures(token_hash)
                 return True
         self._record_failure(token_hash)

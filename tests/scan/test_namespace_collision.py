@@ -27,44 +27,32 @@ def _intel(downloads: int | None, age: int | None) -> PackageIntel:
 class TestNamespaceCollisionRule:
     def test_flags_colliding_scoped_new_low_download(self, tmp_path):
         target = _make_project(tmp_path, "@google/legacy")
-        findings = detect_namespace_collision(
-            target, package_intel={"@google/legacy": _intel(5, 3)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@google/legacy": _intel(5, 3)})
         assert any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_flags_unscoped_namespace_collision(self, tmp_path):
         target = _make_project(tmp_path, "google-cloud-storage-clone")
-        findings = detect_namespace_collision(
-            target, package_intel={"google-cloud-storage-clone": _intel(5, 3)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"google-cloud-storage-clone": _intel(5, 3)})
         assert any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_legit_scoped_when_established(self, tmp_path):
         target = _make_project(tmp_path, "@google/real")
-        findings = detect_namespace_collision(
-            target, package_intel={"@google/real": _intel(5000, 400)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@google/real": _intel(5000, 400)})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_legit_unknown_scope_new_low_download(self, tmp_path):
         target = _make_project(tmp_path, "@acme-corner/utility")
-        findings = detect_namespace_collision(
-            target, package_intel={"@acme-corner/utility": _intel(5, 3)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@acme-corner/utility": _intel(5, 3)})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_wellknown_scope_when_many_downloads(self, tmp_path):
         target = _make_project(tmp_path, "@types/node")
-        findings = detect_namespace_collision(
-            target, package_intel={"@types/node": _intel(9000, 3)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@types/node": _intel(9000, 3)})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_wellknown_scope_when_old_but_low_downloads(self, tmp_path):
         target = _make_project(tmp_path, "@azure/legacy")
-        findings = detect_namespace_collision(
-            target, package_intel={"@azure/legacy": _intel(5, 400)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@azure/legacy": _intel(5, 400)})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_without_intel(self, tmp_path):
@@ -74,16 +62,12 @@ class TestNamespaceCollisionRule:
 
     def test_no_flag_when_intel_missing_fields(self, tmp_path):
         target = _make_project(tmp_path, "@google/legacy")
-        findings = detect_namespace_collision(
-            target, package_intel={"@google/legacy": PackageIntel()}
-        )
+        findings = detect_namespace_collision(target, package_intel={"@google/legacy": PackageIntel()})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
     def test_no_flag_unscoped_unknown_name(self, tmp_path):
         target = _make_project(tmp_path, "acme-corner-utility")
-        findings = detect_namespace_collision(
-            target, package_intel={"acme-corner-utility": _intel(5, 3)}
-        )
+        findings = detect_namespace_collision(target, package_intel={"acme-corner-utility": _intel(5, 3)})
         assert not any(f.rule_id == "L2-NSCOL-001" for f in findings)
 
 

@@ -34,6 +34,7 @@ def _make_project(tmp_path: Path, requirements: str, source_files: dict[str, str
         fpath.write_text(content, encoding="utf-8")
     return tmp_path
 
+
 def _run_scan(project: Path, advisory_dir: Path) -> list:
     corpus_dir = project / "corpus"
     corpus_dir.mkdir(exist_ok=True)

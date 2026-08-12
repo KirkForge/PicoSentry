@@ -422,8 +422,7 @@ RULE_INFO = {
     "L2-NSCOL-001": {
         "name": "namespace_collision",
         "description": (
-            "New low-download package claiming a well-known namespace/scope prefix "
-            "(namespace/scope collision)"
+            "New low-download package claiming a well-known namespace/scope prefix (namespace/scope collision)"
         ),
         "severity": "MEDIUM",
         "category": "supply-chain",

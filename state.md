@@ -21,10 +21,16 @@
 - Merge conflicts on WO-013 (CHANGELOG.md, serve/services/auth.py import block vs dev's webauthn imports) resolved by hand; caught a self-introduced typo (`Attestance`→`Attestation`) in the resolution and fixed immediately.
 
 ### Pending / next steps
-- **`main` is 54 commits behind `dev`** — AGENTS.md forbids touching main directly. Recommend a human run `git checkout main && git merge --ff-only dev` (dev is 0 ahead-divergence, ff is clean) or a release-branch sync. Flagged, not done.
+- **`main` is 55 commits behind `dev`** — AGENTS.md forbids touching main directly. Recommend a human run `git checkout main && git merge --ff-only dev` (dev is 0 ahead-divergence, ff is clean) or a release-branch sync. Flagged, not done.
 - **Dedicated `baseline_hardening.py` removal WO** (proposed WO3.0.0-014): delete the module + `tests/sandbox/test_baseline_hardening.py` + decide whether `AuditEventType.BASELINE_CREATE/UPDATE/DELETE` enum values stay (for external plugin producers) or also go. Needs user call on whether baseline-hardening is abandoned or planned.
 - WO-012 LOW findings deferred: `BehavioralEvidenceItem/Summary` models (0 prod refs, prod uses dict), `FirewallScanner.cache` property (2 LOC dead), duplicate `_CacheForPut` alias. Cosmetic; batch into a future cleanup WO.
 - Stale empty worktrees `fix/dedup-core-utils` / `fix/test-quality` (0 commits ahead, old base) — safe to `git worktree remove` + `git branch -D` when convenient. Left in place this session.
+
+### Release gating (before next release)
+1. Resolve the two issues above: sync `main ← dev` (ff) AND land the `baseline_hardening.py` removal (WO3.0.0-014) once the user calls abandoned-vs-planned.
+2. **Bump version** in `pyproject.toml` (currently `2.0.18`) — a patch bump to `2.0.19` covers the dead-code removal + dedup; a minor bump to `2.1.0` if the `_core` consolidation is treated as a behavior-relevant refactor. User decides semver level.
+3. **Build the wheel ON `main`** (not `dev`) after the version bump lands there, so the published artifact matches the release tag. Reproducible-build job (`SOURCE_DATE_EPOCH` set from commit timestamp) already exists in CI (`ci.yml` reproducible-build job) — run `python -m build` on main post-merge and assert byte-identical hashes across two builds before tagging.
+4. Order matters: fixes → version bump → ff main → build wheel on main → tag → release. Building the wheel on `dev` then ff-ing main would publish a `dev`-HEAD artifact that doesn't match the tagged main commit.
 
 ### Blocked
 - None.

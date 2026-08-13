@@ -22,6 +22,8 @@ from io import BytesIO
 from pathlib import Path
 from typing import Any
 
+from picosentry.scan._network import DEFAULT_MAX_RESPONSE_BYTES, ResponseTooLargeError, safe_urlopen
+
 logger = logging.getLogger("picosentry.benchmark_corpus")
 
 
@@ -94,14 +96,14 @@ class MalwareRecord:
         }
 
 
-def _safe_get(url: str, timeout: int = 60) -> bytes:
+def _safe_get(url: str, timeout: int = 60, max_bytes: int = DEFAULT_MAX_RESPONSE_BYTES) -> bytes:
     """Fetch URL with a user-agent, return body bytes."""
     req = urllib.request.Request(
         url,
         headers={"User-Agent": "picosentry-benchmark-corpus-sync"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+    _, body = safe_urlopen(req, timeout=timeout, max_bytes=max_bytes)
+    return body
 
 
 def _github_api_get(path: str) -> Any:
@@ -296,8 +298,15 @@ def load_osv_malicious(
         dump_name = _OSV_DUMP_NAME.get(eco, eco)
         url = f"https://osv-vulnerabilities.storage.googleapis.com/{dump_name}/all.zip"
         try:
-            body = _safe_get(url, timeout=180)
-        except (urllib.error.URLError, OSError, TimeoutError, ConnectionError, http.client.HTTPException) as exc:
+            body = _safe_get(url, timeout=180, max_bytes=512 * 1024 * 1024)
+        except (
+            urllib.error.URLError,
+            ResponseTooLargeError,
+            OSError,
+            TimeoutError,
+            ConnectionError,
+            http.client.HTTPException,
+        ) as exc:
             logger.warning("Failed to download OSV dump for %s (bucket=%s): %s", eco, dump_name, exc)
             continue
 

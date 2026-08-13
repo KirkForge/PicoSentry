@@ -4,6 +4,7 @@ import sqlite3
 import threading
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 from picosentry.serve.config.settings import settings
 
@@ -17,7 +18,17 @@ class SQLitePool:
         self.db_path = db_path or settings.database.path
         self._local = threading.local()
         self._lock = threading.Lock()
+        # ponytail: _lock doubles as the manager's outer write lock (pool.lock()),
+        # and acquire() runs inside it — the conn set needs its own lock.
+        self._conns_lock = threading.Lock()
+        self._all_conns: set[sqlite3.Connection] = set()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+
+    def _discard(self, conn: sqlite3.Connection) -> None:
+        with contextlib.suppress(Exception):
+            conn.close()
+        with self._conns_lock:
+            self._all_conns.discard(conn)
 
     def acquire(self) -> sqlite3.Connection:
         conn = getattr(self._local, "conn", None)
@@ -25,8 +36,7 @@ class SQLitePool:
             try:
                 conn.execute("SELECT 1")
             except sqlite3.Error:
-                with contextlib.suppress(Exception):
-                    conn.close()
+                self._discard(conn)
                 conn = None
         if conn is None:
             self._local.conn = sqlite3.connect(
@@ -36,6 +46,8 @@ class SQLitePool:
                 detect_types=sqlite3.PARSE_DECLTYPES | sqlite3.PARSE_COLNAMES,
                 isolation_level=None,
             )
+            with self._conns_lock:
+                self._all_conns.add(self._local.conn)
             journal = settings.database.journal_mode.upper()
             sync_level = settings.database.synchronous.upper()
             self._local.conn.execute(f"PRAGMA journal_mode={journal}")
@@ -50,8 +62,13 @@ class SQLitePool:
         pass
 
     def close_all(self) -> None:
-        if hasattr(self._local, "conn") and self._local.conn:
-            self._local.conn.close()
+        with self._conns_lock:
+            conns = self._all_conns
+            self._all_conns = set()
+            for conn in conns:
+                with contextlib.suppress(Exception):
+                    conn.close()
+        if hasattr(self._local, "conn"):
             self._local.conn = None
 
     @contextmanager
@@ -85,6 +102,14 @@ class PostgresPool:
         self._local = threading.local()
         self._lock = threading.Lock()
         self._psycopg2 = None
+        self._conns_lock = threading.Lock()
+        self._all_conns: set[Any] = set()
+
+    def _discard(self, conn: Any) -> None:
+        with contextlib.suppress(Exception):
+            conn.close()
+        with self._conns_lock:
+            self._all_conns.discard(conn)
 
     def _ensure_psycopg2(self):
         if self._psycopg2 is not None:
@@ -109,20 +134,30 @@ class PostgresPool:
             try:
                 conn.cursor().execute("SELECT 1")
             except self._psycopg2.Error:
-                with contextlib.suppress(Exception):
-                    conn.close()
+                self._discard(conn)
                 conn = None
-        if conn is None or conn.closed:
-            self._local.conn = self._psycopg2.connect(self._url, connect_timeout=5)
-            self._local.conn.autocommit = False
+        if conn is not None and conn.closed:
+            self._discard(conn)
+            conn = None
+        if conn is None:
+            conn = self._psycopg2.connect(self._url, connect_timeout=5)
+            conn.autocommit = False
+            self._local.conn = conn
+            with self._conns_lock:
+                self._all_conns.add(conn)
         return self._local.conn
 
     def release(self, conn) -> None:
         pass  # Per-thread connection; closed in close_all()
 
     def close_all(self) -> None:
-        if hasattr(self._local, "conn") and self._local.conn and not self._local.conn.closed:
-            self._local.conn.close()
+        with self._conns_lock:
+            conns = self._all_conns
+            self._all_conns = set()
+            for conn in conns:
+                with contextlib.suppress(Exception):
+                    conn.close()
+        if hasattr(self._local, "conn"):
             self._local.conn = None
 
     def lock(self) -> threading.Lock:

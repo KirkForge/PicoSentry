@@ -2,6 +2,14 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-13 - Production-grading round 2: audit-chain, WS fanout, timeouts, input-strictness (7 fixes)
+- fix(sandbox/audit): the tamper-evident hash-chain now verifies ACROSS rotated `.N.jsonl.gz` archives (not just the live log), and reseeds `prev_hash` from the newest archive on restart after rotation — previously a severed cross-boundary link reported `chain_intact=True` (silent loss of tamper-evidence). Archive tampering is now detected.
+- fix(serve/websocket): dashboard run-events are no longer silently dropped. The event handler now bridges foreign-thread publishers (orchestrator `to_thread` / scheduler daemon) onto the event loop via a main-loop captured at startup (`call_soon_threadsafe`) instead of dropping on `RuntimeError`.
+- fix(serve/timeout): the 30s request timeout now exempts long-run endpoints (`/run`, sandboxes) with a 3660s cap, and emits `X-Request-ID` + a warning log on every 504 (was silent, no correlation). Default 30s unchanged for everything else.
+- fix(serve/models): `extra="forbid"` applied to 7 request models (`BatchRunRequest`, `WebhookCreateRequest`, `SchedulerJobCreateRequest`, `OrgTierUpgradeRequest`, `OrgCreateRequest`, `OrgMemberInviteRequest`, `ScanRequest`) — completing the repo's mandated input-strictness convention; unknown fields now 422.
+- fix(serve/pools): `close_all()` now closes connections from ALL threads (was only the calling thread), tracked in a guarded set — scheduler/anomaly/orchestrator connections no longer leak on Postgres.
+- fix(scan/corpus): `benchmark_corpus._safe_get` now routes through `safe_urlopen` (capped, HTTPS-enforced, SSRF-guarded) — the last raw `urlopen`+`read()` in the scan path.
+
 ## 2026-08-13 - Production-grading: reliability + isolation + input-cap hardening (13 fixes)
 - fix(serve/scheduler): `JobScheduler.add_job` is now idempotent by name (SELECT-before-INSERT) — eliminates the `IntegrityError` crash-loop on every restart against a persistent DB (lifespan re-seeds `periodic_cleanup`/`auto_backup`/`health_check`).
 - fix(serve/rate-limit): `RedisRateLimitBackend` passes `socket_connect_timeout=1, socket_timeout=1` — a hung Redis TCP session can no longer freeze the ASGI event loop; existing fail-open/-closed paths bound outages to 1s.

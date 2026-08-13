@@ -15,11 +15,36 @@
 
 ### Method
 3 parallel **exploration** subagents (read-only) on disjoint domains (serve / sandbox / scan+core) returned verified file:line findings. Brain triaged, ran impact (all LOW), then dispatched 3 parallel **coding** subagents on disjoint file sets. All gates green.
+ 
+## Session 2026-08-13: Production-grading round 2 — deferred items resolved (on `dev`, uncommitted-to-main) — COMPLETE
 
-### What was done (13 fixes, working tree only)
-**Serve reliability (4):**
-- **scheduler.py** `add_job` idempotent by name (SELECT-before-INSERT) — kills the restart `IntegrityError` crash-loop.
-- **rate_limit_redis.py** `socket_connect_timeout=1, socket_timeout=1` on `from_url` — hung Redis can't freeze the event loop.
+### Owner-judgement calls made (per "go with your recommendation, don't regress")
+- **Audit hash-chain across rotation+restart** → FIXED (full). `verify_chain()` now walks rotated `.N.jsonl.gz` archives oldest→newest then live, carrying `expected_prev` across boundaries; `_read_last_hash()` reseeds from `.1.jsonl.gz` when the live log is empty (crash-window restart). Honest trade-off: deployments whose back-catalog archives were written through the old restart-bug may now see `chain_intact` flip to False at those boundaries — that's the real (previously-hidden) state, not a regression. Done by me directly (delicate rotation code).
+- **`extra="forbid"`** → APPLIED to 7 request models. Repo's own mandated convention; 480 existing tests unaffected (none sent bogus fields). Delegated.
+- **30s-timeout policy** → EXEMPTED long-run endpoints (`/run`, sandboxes) at 3660s + emit X-Request-ID/log on 504. Rejected 202+poll (contract change = regression risk). Delegated.
+- **`baseline_hardening.py`** → KEPT. Has a 117-line dedicated test file (maintained, functional, just not yet wired into prod). Deleting working tested code on a guess it's "abandoned" is an asymmetric capability-regression risk; the conservative non-regressing call is to keep it. Documented.
+
+### Other fixes this round (delegated to 3 parallel worktree subagents, merged by me)
+- **WS broadcasts dropped from worker/scheduler threads** → fixed (main-loop capture in lifespan + `call_soon_threadsafe`); dashboard run-events no longer silently dropped.
+- **Pool `close_all()`** → closes connections from ALL threads (guarded set), not just the calling thread.
+- **`benchmark_corpus._safe_get`** → routed through `safe_urlopen` (last raw `urlopen`+`read()` in scan).
+
+### Worktree/merge pattern
+4 worktrees off `origin/main` (v2.1.0): `fix/audit-chain` (mine), `fix/serve-server`, `fix/extra-forbid`, `fix/small-fixes` (subagents). All disjoint files → 4 clean `--no-ff` merges into `dev` (SHAs `9ace0b31`,`274a107e`,`b5b481d6`,`08016f80`). Stale worktrees from prior sessions cleaned.
+
+### Gate output (head `dev` @ 08016f80)
+- ruff: All checks passed! · format: 648 files · mypy: 411 files clean
+- `pytest tests/ -m "not slow"` — 4654 passed, 21 skipped, 4 subtests passed (205s). 0 failures.
+- detect_changes (vs main): all affected processes are `lifespan` (WS main-loop capture + pool wiring) — intentional, tested. No surprise blast radius.
+
+### Pending / next
+- These 7 fixes are on `dev`, NOT yet released. The audit-chain fix is security-relevant → a **2.1.1 patch release** is warranted whenever you want it cut (same flow: bump → ff main → build → publish). Flagging, not done.
+- `main` is now 5 commits behind `dev` (the 4 merges + this bookkeeping).
+
+### Blocked
+- None.
+
+
 - **alert_hub.py** SMTP `timeout=10` + `try/finally: server.quit()` (contextlib.suppress) — no indefinite block, no socket leak.
 - **server.py** production 500 now carries `request_id`.
 **Sandbox isolation (3):**

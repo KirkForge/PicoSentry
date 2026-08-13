@@ -459,6 +459,6 @@ scripts/gitnexus-mcp-server.sh
 - Roll back to the previous image: `docker run kirkforge/picodome:<previous-tag>`
 - Reinstall the previous PyPI version:
   ```bash
-  pip install 'picosentry<2.0.18'
+  pip install 'picosentry<2.1.0'
   ```
 - Verify a rollback with `picosentry health` and `python scripts/test_doctor.py`.

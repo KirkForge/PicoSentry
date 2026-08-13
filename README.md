@@ -41,7 +41,7 @@ picosentry scan examples/pypi-obfuscated-setup/
 ```text
 🦞 PicoSentry
 Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.0.18 | Corpus: vef6b3b3115bb
+Engine: v2.1.0 | Corpus: vef6b3b3115bb
 Scan ID: 08057439b4ba08d8
 
 Packages scanned: 0
@@ -118,8 +118,8 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg), 50 rules, 94.44% prec, 68.89% recall — see docs/model-card.md |
-| Docker image | **Stable** | `kirkforge/picodome:v2.0.18` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.0.18 published |
+| Docker image | **Stable** | `kirkforge/picodome:v2.1.0` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.1.0 published |
 
 "Beta" = works, has regression + security tests, suitable for controlled production use. Per-component reviews in [`docs/`](docs/).
 
@@ -134,7 +134,7 @@ pip install picosentry[serve]          # + API server + dashboard
 pip install picosentry[all]            # everything
 ```
 
-**Docker:** `docker pull kirkforge/picodome:v2.0.18` — multi-arch, non-root.
+**Docker:** `docker pull kirkforge/picodome:v2.1.0` — multi-arch, non-root.
 
 ---
 

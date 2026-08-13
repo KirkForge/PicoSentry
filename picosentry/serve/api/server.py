@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from contextlib import asynccontextmanager
@@ -77,6 +78,10 @@ anomaly_detector = AnomalyDetector(db, alert_hub=None)  # alert_hub wired at sta
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("PicoShogun starting up — version %s", __version__)
+
+    from picosentry.serve.services.websocket_manager import ws_manager
+
+    ws_manager.main_loop = asyncio.get_running_loop()
 
     settings.assert_secure()
 
@@ -232,6 +237,7 @@ async def lifespan(app: FastAPI):
     yield  # Application is running
 
     logger.info("PicoShogun shutting down — stopping background services")
+    ws_manager.main_loop = None
     anomaly_detector.stop()
     scheduler.stop()
     event_bus.shutdown()
@@ -330,7 +336,11 @@ app.add_middleware(RequestIDMiddleware)
 app.add_middleware(SecurityHeadersMiddleware)
 
 
-app.add_middleware(RequestTimeoutMiddleware, timeout_seconds=30)
+app.add_middleware(
+    RequestTimeoutMiddleware,
+    timeout_seconds=30,
+    long_running_paths=("/run", "/api/v1/sandboxes"),
+)
 app.add_middleware(HTTPSEnforcementMiddleware, enabled=settings.is_production())
 app.add_middleware(DocsRestrictionMiddleware, enabled=settings.is_production())
 app.add_middleware(CORSHardeningMiddleware, block_wildcard_in_production=settings.is_production())

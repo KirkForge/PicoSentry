@@ -1,11 +1,14 @@
 import asyncio
 import contextlib
 import json
+import logging
 from datetime import datetime
 
 from fastapi import WebSocket
 
 from picosentry.serve.services.event_bus import Event, event_bus
+
+logger = logging.getLogger("picoshogun.WS")
 
 
 class ConnectionManager:
@@ -13,6 +16,7 @@ class ConnectionManager:
         self.connections: dict[str, set[WebSocket]] = {}
         self.client_channels: dict[WebSocket, set[str]] = {}
         self._lock = asyncio.Lock()
+        self.main_loop: asyncio.AbstractEventLoop | None = None
 
     async def connect(self, websocket: WebSocket, channels: list[str] | None = None):
         await websocket.accept()
@@ -69,9 +73,14 @@ def websocket_event_handler(event: Event):
     }
     try:
         loop = asyncio.get_running_loop()
-        loop.call_soon_threadsafe(lambda: loop.create_task(ws_manager.broadcast(event.type, payload)))
     except RuntimeError:
-        pass
+        main_loop = ws_manager.main_loop
+        if main_loop is None:
+            logger.warning("Dropping WebSocket event %s: main loop not captured yet", event.type)
+            return
+        logger.debug("Bridging WebSocket event %s from foreign thread onto main loop", event.type)
+        loop = main_loop
+    loop.call_soon_threadsafe(lambda: loop.create_task(ws_manager.broadcast(event.type, payload)))
 
 
 event_bus.subscribe("*", websocket_event_handler)

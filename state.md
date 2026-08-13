@@ -2,7 +2,16 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
-## Session 2026-08-13: Production-grading — reliability + isolation + input-cap hardening — COMPLETE (working tree, uncommitted)
+## Session 2026-08-13: Production-grading + v2.1.0 RELEASE — COMPLETE (committed, pushed, published)
+
+### Release v2.1.0 — LIVE on PyPI (verified)
+- Commits on `main`/`dev` (HEAD `29c88349`): `bd4abafa` (13 prod-grade fixes) → `d886403d` (version bump 2.0.18→2.1.0) → `29c88349` (build-fix: setuptools 77 + PEP 639 license).
+- `main` ff'd from `dev` (was 58 behind, 0 ahead — clean ff). Both branches + tag `v2.1.0` pushed to origin.
+- Wheel + sdist built reproducibly on `main` (`SOURCE_DATE_EPOCH` from commit ts). Published to PyPI; **digests verified byte-identical** vs local build:
+  - wheel `picosentry-2.1.0-py3-none-any.whl` sha256 `9f99b04d8c50f3fe...` (901.9KiB)
+  - sdist `picosentry-2.1.0.tar.gz` sha256 `a644366680e9c4ad...` (708.9KiB)
+  - PyPI JSON confirms: version 2.1.0, license BUSL-1.1, requires-python >=3.10, upload 2026-08-13T18:15:19Z.
+- **Build-fix root cause:** PyPI now rejects `License-File` under `Metadata-Version: 2.2` (400). setuptools 76 auto-detects LICENSE files but emits them with metadata 2.2. Fix = bump build req to `setuptools>=77` + switch `license = {text=...}` → SPDX string `license = "BUSL-1.1"` (PEP 639). Wheel now declares `Metadata-Version: 2.4` / `License-Expression: BUSL-1.1`. The repo's exclude-package-data comment already anticipated setuptools 77.
 
 ### Method
 3 parallel **exploration** subagents (read-only) on disjoint domains (serve / sandbox / scan+core) returned verified file:line findings. Brain triaged, ran impact (all LOW), then dispatched 3 parallel **coding** subagents on disjoint file sets. All gates green.
@@ -36,7 +45,7 @@
 - **WS broadcasts dropped from worker/scheduler threads** (websocket_manager.py): `get_running_loop()` raises in `to_thread`/daemon publishers → events silently discarded; dashboard clients never receive run events. Fix = capture main loop in lifespan + `call_soon_threadsafe`. Deferred (touches server.py lifespan + event-bus threading; do as a focused follow-up).
 - **30s request-timeout vs 3600s scan endpoints** (server.py / request_timeout.py) — API-contract/policy decision (raise cap vs 202+poll).
 - **`extra="forbid"` rollout** on 7 request models — breaking for clients sending extra fields; owner's call.
-- Release: `dev` now 56 commits ahead of `main`; version still `2.0.18` — human release action (ff main ← dev, bump, build wheel on main).
+- ~~Release~~ DONE: v2.1.0 published to PyPI; `main`/`dev` synced at `29c88349`; tag `v2.1.0` pushed.
 
 ### Blocked
 - None.

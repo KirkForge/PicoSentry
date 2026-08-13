@@ -172,39 +172,50 @@ class AuditLogger:
         return event
 
     def verify_chain(self, log_path: Path | None = None) -> list[str]:
-        path = log_path or self._log_path
-        if not path.is_file():
-            return [f"Audit log not found: {path}"]
+        # Default: verify the whole chain — rotated archives (oldest first) then
+        # the live log — carrying expected_prev across each file boundary. An
+        # explicit log_path verifies a single file (backward compatibility).
+        if log_path is not None:
+            sources: list[tuple[Path, bool]] = [(log_path, log_path.suffix == ".gz")]
+        else:
+            sources = [(p, True) for p in self._rotated_archive_paths()]
+            sources.append((self._log_path, False))
+
+        if not any(p.is_file() for p, _ in sources):
+            return [f"Audit log not found: {self._log_path}"]
 
         violations: list[str] = []
         expected_prev = ""
         line_num = 0
 
-        try:
-            with path.open(encoding="utf-8") as f:
-                for line_num, raw_line in enumerate(f, start=1):
-                    line = raw_line.strip()
-                    if not line:
-                        continue
+        for path, gzipped in sources:
+            opener: Any = gzip.open if gzipped else open
+            try:
+                with opener(path, "rt", encoding="utf-8") as f:
+                    for raw_line in f:
+                        line_num += 1
+                        line = raw_line.strip()
+                        if not line:
+                            continue
 
-                    try:
-                        data = json.loads(line)
-                    except json.JSONDecodeError:
-                        violations.append(f"Line {line_num}: invalid JSON")
-                        continue
+                        try:
+                            data = json.loads(line)
+                        except json.JSONDecodeError:
+                            violations.append(f"Line {line_num}: invalid JSON")
+                            continue
 
-                    recorded_prev = data.get("prev_hash", "")
-                    if line_num > 1 and recorded_prev != expected_prev:
-                        violations.append(
-                            f"Line {line_num}: prev_hash mismatch — "
-                            f"expected {expected_prev[:16]}... "
-                            f"got {recorded_prev[:16]}..."
-                        )
+                        recorded_prev = data.get("prev_hash", "")
+                        if line_num > 1 and recorded_prev != expected_prev:
+                            violations.append(
+                                f"Line {line_num}: prev_hash mismatch — "
+                                f"expected {expected_prev[:16]}... "
+                                f"got {recorded_prev[:16]}..."
+                            )
 
-                    expected_prev = hashlib.sha256(line.encode("utf-8")).hexdigest()
+                        expected_prev = hashlib.sha256(line.encode("utf-8")).hexdigest()
 
-        except OSError as e:
-            violations.append(f"Error reading audit log: {e}")
+            except (OSError, EOFError) as e:
+                violations.append(f"Error reading audit log {path.name}: {e}")
 
         return violations
 
@@ -341,28 +352,44 @@ class AuditLogger:
 
         self._log_path.write_text("", encoding="utf-8")
 
-    def _read_last_hash(self) -> str:
-        if not self._log_path.is_file():
-            return ""
+    def _rotated_archive_paths(self) -> list[Path]:
+        # Rotated gzip archives in chronological order (oldest first): higher
+        # rotate index == older (rotation shifts .i -> .i+1).
+        archives: list[Path] = []
+        for i in range(self._rotate_count, 0, -1):
+            p = self._log_path.with_suffix(f".{i}.jsonl.gz")
+            if p.is_file():
+                archives.append(p)
+        return archives
 
-        last_line = ""
+    @staticmethod
+    def _last_nonempty_line(path: Path, *, gzipped: bool) -> str:
+        opener: Any = gzip.open if gzipped else open
+        last = ""
         try:
-            with self._log_path.open(encoding="utf-8") as f:
+            with opener(path, "rt", encoding="utf-8") as f:
                 for line in f:
                     if line.strip():
-                        last_line = line.strip()
-        except OSError:
+                        last = line.strip()
+        except (OSError, EOFError):
             return ""
+        return last
 
+    def _read_last_hash(self) -> str:
+        last_line = self._last_nonempty_line(self._log_path, gzipped=False)
+        if not last_line:
+            # Live log empty (e.g. process restarted after a rotation truncated
+            # it): continue the chain from the newest rotated archive (.1).
+            one = self._log_path.with_suffix(".1.jsonl.gz")
+            if one.is_file():
+                last_line = self._last_nonempty_line(one, gzipped=True)
         if not last_line:
             return ""
-
         try:
-            json.loads(last_line)  # validate it's valid JSON
-
-            return hashlib.sha256(last_line.encode("utf-8")).hexdigest()
-        except (json.JSONDecodeError, KeyError):
+            json.loads(last_line)
+        except json.JSONDecodeError:
             return ""
+        return hashlib.sha256(last_line.encode("utf-8")).hexdigest()
 
 
 _audit_logger_lock = threading.Lock()

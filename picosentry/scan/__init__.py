@@ -14,7 +14,7 @@ from .models import (
 from .package_intel import PackageIntel, PackageIntelligence
 from .version_diff import DiffVerdict, VersionDelta, VersionDiff, format_delta
 
-__version__ = "2.1.0"
+__version__ = "2.1.1"
 __all__ = [
     "BaselineResult",
     "Confidence",

@@ -1,6 +1,6 @@
 # PicoSentry Technical Manual
 
-> Version 2.1.0 —BUSL-1.1— Source of truth: codebase and `picosentry/experimental.py`.
+> Version 2.1.1 —BUSL-1.1— Source of truth: codebase and `picosentry/experimental.py`.
 
 This manual covers installation, CLI reference, detection rules, sandboxing, LLM
 defense, the serve API, plugins, corpus management, cross-layer correlation,
@@ -77,7 +77,7 @@ combines four capabilities in a single binary:
 ### Docker
 
 ```
-docker pull kirkforge/picodome:v2.1.0
+docker pull kirkforge/picodome:v2.1.1
 ```
 
 Multi-arch image (linux/amd64 + linux/arm64), non-root user. See
@@ -99,7 +99,7 @@ Supply-chain scanner — static analysis of manifests, lockfiles, and source.
 picosentry scan ./my-project                     # scan a directory
 picosentry scan ./package.json                   # scan a single file
 picosentry scan --format json ./project          # JSON output
-picosentry scan --format sarif ./project         # SARIF 2.1.0 for CI/CD
+picosentry scan --format sarif ./project         # SARIF 2.1.1 for CI/CD
 picosentry scan --format cyclonedx ./project      # CycloneDX SBOM
 picosentry scan --format ml-context ./project     # LLM-friendly context
 picosentry scan --format github ./project         # SARIF file + markdown summary
@@ -351,7 +351,7 @@ PicoSentry covers **7 package ecosystems**:
 |--------|------|----------|
 | **table** | `--format table` (default) | Human-readable terminal output |
 | **json** | `--format json` | Machine-readable; includes rule IDs, severities, locations |
-| **sarif** | `--format sarif` | SARIF 2.1.0 for GitHub Actions, Azure DevOps, etc. |
+| **sarif** | `--format sarif` | SARIF 2.1.1 for GitHub Actions, Azure DevOps, etc. |
 | **cyclonedx** | `--format cyclonedx` | CycloneDX-compatible SBOM generation |
 | **ml-context** | `--format ml-context` | LLM-friendly context injection (token-budget controlled) |
 | **github** | `--format github` | Writes SARIF file + prints markdown summary for GitHub PRs |
@@ -678,7 +678,7 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
   [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
 
 - **Detection benchmarks are published.** See [`docs/model-card.md`](model-card.md).
-  The v2.1.0 corpus is **6495 fixtures** (5558 positive / 930 negative / 7
+  The v2.1.1 corpus is **6495 fixtures** (5558 positive / 930 negative / 7
   tricky) across **50 rules** / **7 ecosystems**. **94.44% mean precision /
   68.89% mean recall**. Zero false positives on negative fixtures. Advisory rules
   (L2-*-ADV-001) show low recall in offline mode because OSV data is not
@@ -754,8 +754,8 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg / 7 tricky), 50 rules, 94.44% mean precision, 68.89% mean recall — see [model card](model-card.md) |
-| Docker image | **Stable** | `kirkforge/picodome:v2.1.0` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
-| PyPI package | **Stable** | `pip install picosentry` — v2.1.0 published |
+| Docker image | **Stable** | `kirkforge/picodome:v2.1.1` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| PyPI package | **Stable** | `pip install picosentry` — v2.1.1 published |
 
 ---
 

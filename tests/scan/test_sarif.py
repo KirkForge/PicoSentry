@@ -23,7 +23,7 @@ from picosentry.scan.models import (
 def _make_result(
     findings=None,
     rule_executions=None,
-    engine_version="2.1.0",
+    engine_version="2.1.1",
     corpus_version="abc123",
 ):
     return ScanResult(
@@ -81,7 +81,7 @@ class TestSarifToolDriver:
     def test_driver_version(self):
         sarif = json.loads(format_sarif(_make_result()))
         driver = sarif["runs"][0]["tool"]["driver"]
-        assert driver["version"] == "2.1.0"
+        assert driver["version"] == "2.1.1"
 
     def test_driver_information_uri(self):
         sarif = json.loads(format_sarif(_make_result()))

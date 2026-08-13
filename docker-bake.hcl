@@ -1,5 +1,5 @@
 variable "TAG" {
-    default = "v2.1.0"
+    default = "v2.1.1"
 }
 
 variable "REGISTRY" {

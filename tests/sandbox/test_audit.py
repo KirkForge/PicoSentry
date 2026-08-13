@@ -166,6 +166,62 @@ class TestAuditLogger:
         violations = restarted.verify_chain()
         assert violations == []
 
+    def test_verify_chain_walks_rotated_archives_clean(self, audit_dir):
+        # Normal rotation yields correct cross-boundary links; verify_chain must
+        # now walk the .gz archives + live log and report no violations.
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=200, rotate_count=3)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        assert list(audit_dir.glob("*.1.jsonl.gz")), "rotation should have occurred"
+        assert audit.verify_chain() == []
+
+    def test_verify_chain_detects_archive_tamper(self, audit_dir):
+        import gzip
+
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=200, rotate_count=3)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        archive = audit_dir / "audit.1.jsonl.gz"
+        assert archive.is_file()
+        # Inject a line whose prev_hash breaks the chain.
+        with gzip.open(archive, "at", encoding="utf-8") as f:
+            f.write('{"prev_hash": "deadbeef", "event_type": "scan_start"}\n')
+        fresh = AuditLogger(log_dir=audit_dir, max_bytes=200, rotate_count=3)
+        violations = fresh.verify_chain()
+        assert violations, "tampered archive must be detected across the rotation boundary"
+        assert any("prev_hash mismatch" in v for v in violations)
+
+    def test_reseed_from_archive_when_live_truncated(self, audit_dir):
+        import hashlib
+
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=200, rotate_count=3)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        archive = audit_dir / "audit.1.jsonl.gz"
+        assert archive.is_file()
+        # Crash window: rotation truncated the live log to empty and the process
+        # restarted before the next write completed.
+        audit.log_path.write_text("", encoding="utf-8")
+
+        restarted = AuditLogger(log_dir=audit_dir, max_bytes=200, rotate_count=3)
+        evt = restarted.record(event_type=AuditEventType.SCAN_ALERT, actor="rot", detail="after-crash")
+        # The new event must link to the archive's last line, not "".
+        last_archive_line = AuditLogger._last_nonempty_line(archive, gzipped=True)
+        assert evt.prev_hash == hashlib.sha256(last_archive_line.encode("utf-8")).hexdigest()
+        assert restarted.verify_chain() == []
+
     def test_fsync_knob_default_on(self, audit_dir):
         audit = AuditLogger(log_dir=audit_dir)
         assert audit._fsync is True

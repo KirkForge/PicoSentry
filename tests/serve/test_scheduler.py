@@ -58,6 +58,19 @@ class TestCategoryAllowlist:
         scheduler.remove_job(job_id)
 
 
+class TestSchedulerIdempotentAdd:
+    """Re-seeding a job name that already exists must not raise (restart crash-loop)."""
+
+    def test_add_job_twice_same_name_returns_existing_id(self):
+        name = f"idempotent_job_{time.time_ns()}"
+        job_id = scheduler.add_job(name=name, cron="0 */6 * * *", command="cleanup", params={}, enabled=False)
+        second_id = scheduler.add_job(name=name, cron="0 */6 * * *", command="cleanup", params={}, enabled=False)
+
+        assert second_id == job_id
+        assert job_id in scheduler.jobs
+        scheduler.remove_job(job_id)
+
+
 class TestSchedulerHardening:
     """Scheduler must log parse failures instead of silently returning None."""
 

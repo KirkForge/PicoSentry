@@ -9,8 +9,10 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 from typing import Any
 
 from picosentry.firewall.scanner import FirewallScanner, FirewallVerdict, classify_path
+from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, UnsafeURLError, safe_urlopen
 
 _MAX_ERROR_BODY = 1 << 20
+_MAX_PASS_THROUGH_BYTES = 512 * 1024 * 1024  # ponytail: 512MB cap; stream to disk if legit tarballs exceed it
 
 logger = logging.getLogger("picosentry.firewall.proxy")
 
@@ -40,6 +42,7 @@ class FirewallConfig:
         block_severities: list[str] | None = None,
         quarantine_severities: list[str] | None = None,
         cache_ttl_seconds: int = 3600,
+        cache_max_entries: int = 10_000,
         scan_timeout_seconds: int = 30,
         log_blocks: bool = True,
     ) -> None:
@@ -49,6 +52,7 @@ class FirewallConfig:
         self.block_severities = block_severities or ["CRITICAL", "HIGH"]
         self.quarantine_severities = quarantine_severities or ["MEDIUM"]
         self.cache_ttl_seconds = cache_ttl_seconds
+        self.cache_max_entries = cache_max_entries
         self.scan_timeout_seconds = scan_timeout_seconds
         self.log_blocks = log_blocks
 
@@ -74,17 +78,26 @@ class _ProxyHandler(BaseHTTPRequestHandler):
 
         try:
             req = urllib.request.Request(upstream_url, headers={"User-Agent": "picosentry-firewall/1.0"})
-            with urllib.request.urlopen(req, timeout=self.config.scan_timeout_seconds) as resp:
-                body = resp.read()
-                content_type = resp.headers.get("Content-Type", "application/json")
-                status = resp.status
+            resp, body = safe_urlopen(req, timeout=self.config.scan_timeout_seconds)
+            content_type = resp.headers.get("Content-Type", "application/json")
+            status = resp.status
+            resp.close()
         except urllib.error.HTTPError as exc:
             self.send_response(exc.code)
             self.end_headers()
             if exc.fp and hasattr(exc.fp, "read"):
                 self.wfile.write(exc.fp.read(_MAX_ERROR_BODY))
             return
-        except (urllib.error.URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError):
+        except (
+            urllib.error.URLError,
+            OSError,
+            TimeoutError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            InsecureURLError,
+            ResponseTooLargeError,
+            UnsafeURLError,
+        ):
             self.send_response(502)
             self.end_headers()
             self.wfile.write(b'{"error": "upstream unreachable"}')
@@ -170,13 +183,22 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             return
         try:
             req = urllib.request.Request(url, headers={"User-Agent": "picosentry-firewall/1.0"})
-            with urllib.request.urlopen(req, timeout=30) as resp:
-                body = resp.read()
-                self._send_response(resp.status, resp.headers.get("Content-Type", "application/octet-stream"), body)
+            resp, body = safe_urlopen(req, timeout=30, max_bytes=_MAX_PASS_THROUGH_BYTES)
+            self._send_response(resp.status, resp.headers.get("Content-Type", "application/octet-stream"), body)
+            resp.close()
         except urllib.error.HTTPError as exc:
             self.send_response(exc.code)
             self.end_headers()
-        except (urllib.error.URLError, OSError, TimeoutError, UnicodeDecodeError, json.JSONDecodeError):
+        except (
+            urllib.error.URLError,
+            OSError,
+            TimeoutError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            InsecureURLError,
+            ResponseTooLargeError,
+            UnsafeURLError,
+        ):
             self.send_response(502)
             self.end_headers()
 
@@ -212,6 +234,7 @@ class FirewallProxy:
             quarantine_severities=config.quarantine_severities,
             scan_timeout_seconds=config.scan_timeout_seconds,
             cache_ttl_seconds=config.cache_ttl_seconds,
+            cache_max_entries=config.cache_max_entries,
         )
 
     def serve(self) -> None:

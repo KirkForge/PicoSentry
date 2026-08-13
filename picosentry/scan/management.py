@@ -95,9 +95,16 @@ def fetch_policy(url: str, output_path: Path, verify: bool = True, timeout: int 
     return output_path
 
 
+_MAX_ZIP_ENTRIES = 50_000
+_MAX_ZIP_UNCOMPRESSED_BYTES = 200 * 1024 * 1024  # ponytail: 200MB/50k ceiling; streamed check if lying headers matter
+
+
 def _validate_zip_paths(zf: zipfile.ZipFile, output_dir: Path) -> None:
+    infos = zf.infolist()
+    if len(infos) > _MAX_ZIP_ENTRIES or sum(m.file_size for m in infos) > _MAX_ZIP_UNCOMPRESSED_BYTES:
+        raise ValueError("Unsafe ZIP: exceeds entry-count or uncompressed-size limit")
     root = output_dir.resolve()
-    for member in zf.infolist():
+    for member in infos:
         if member.filename.startswith("/"):
             raise ValueError(f"Unsafe ZIP path (absolute): {member.filename}")
         if ".." in Path(member.filename).parts:

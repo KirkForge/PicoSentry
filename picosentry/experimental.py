@@ -45,7 +45,9 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
         name="`picosentry serve`",
         status="Beta",
         notes=(
-            "API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place"
+            "API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place. "
+            "Auth hardening: MFA/TOTP enrollment, JWT `jti` revocation, account lockout, "
+            "role-scoped API keys (`services/auth.py`)"
         ),
     ),
     ComponentStatus(

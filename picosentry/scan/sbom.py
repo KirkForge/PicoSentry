@@ -207,6 +207,8 @@ def _parse_spdx_json(data: dict) -> list[PackageRef]:
 
 
 def parse_sbom(path: Path) -> list[PackageRef]:
+    if path.stat().st_size > _MAX_XML_BYTES:
+        raise ValueError(f"SBOM file exceeds {_MAX_XML_BYTES} bytes: {path}")
     fmt = _detect_format(path)
     if fmt == "unknown":
         raise ValueError(f"Cannot detect SBOM format for {path}")

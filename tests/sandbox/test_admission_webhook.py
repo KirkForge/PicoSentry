@@ -228,3 +228,13 @@ class TestAdmissionWebhookServer:
     def test_default_port(self):
         server = AdmissionWebhookServer()
         assert server.port == 8443
+
+    def test_server_uses_threading_http_server(self):
+        from http.server import ThreadingHTTPServer
+
+        server = AdmissionWebhookServer(port=0)
+        server.start(background=True)
+        try:
+            assert isinstance(server._server, ThreadingHTTPServer)
+        finally:
+            server.stop()

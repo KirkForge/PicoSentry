@@ -57,7 +57,12 @@ class RedisRateLimitBackend:
         try:
             import redis as _redis  # optional dependency
 
-            client = _redis.from_url(self._redis_url, decode_responses=True)
+            client = _redis.from_url(
+                self._redis_url,
+                decode_responses=True,
+                socket_connect_timeout=1,
+                socket_timeout=1,
+            )
             client.ping()
             self._client = client
             self._available = True

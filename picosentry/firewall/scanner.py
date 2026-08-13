@@ -49,11 +49,12 @@ class FirewallScanner:
         quarantine_severities: list[str] | None = None,
         scan_timeout_seconds: int = 30,
         cache_ttl_seconds: int = 3600,
+        cache_max_entries: int = 10_000,
     ) -> None:
         self._block_sevs = {s.upper() for s in (block_severities or ["CRITICAL", "HIGH"])}
         self._quarantine_sevs = {s.upper() for s in (quarantine_severities or ["MEDIUM"])}
         self._scan_timeout = scan_timeout_seconds
-        self._cache = _CacheForPut(ttl_seconds=cache_ttl_seconds)
+        self._cache = _CacheForPut(ttl_seconds=cache_ttl_seconds, max_entries=cache_max_entries)
         self._engine: ScanEngine | None = None
 
     def _get_engine(self) -> ScanEngine:

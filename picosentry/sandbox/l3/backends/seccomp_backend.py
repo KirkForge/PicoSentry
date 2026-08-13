@@ -10,6 +10,7 @@ import subprocess
 import time
 import warnings
 
+from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends._seccomp_common import (
     FS_READ_SYSCALLS,
     FS_WRITE_SYSCALLS,
@@ -181,6 +182,8 @@ class SeccompBackend(SandboxBackend):
                 if cwd:
                     with contextlib.suppress(OSError):
                         os.chdir(cwd)
+
+                set_resource_limits()
 
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)

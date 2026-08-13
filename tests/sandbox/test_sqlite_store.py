@@ -151,3 +151,15 @@ class TestSQLiteStoreClose:
         job = store2.get("lifecycle-1")
         assert job is not None
         assert job["job_id"] == "lifecycle-1"
+
+    def test_get_conn_recovers_from_dead_connection(self, store):
+        """A stale/corrupt cached connection must be detected and reopened."""
+        store.add("job-live", ["echo"], "alice")
+        assert store.get("job-live") is not None
+
+        # Simulate a dead cached connection (deleted DB / WAL corruption).
+        store._local.conn.close()
+
+        job = store.get("job-live")
+        assert job is not None
+        assert job["job_id"] == "job-live"

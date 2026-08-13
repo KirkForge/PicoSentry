@@ -68,6 +68,14 @@ class SQLiteScanJobStore:
         self._initialized = False
 
     def _get_conn(self) -> sqlite3.Connection:
+        if hasattr(self._local, "conn") and self._local.conn is not None:
+            try:
+                self._local.conn.execute("SELECT 1").fetchone()
+            except sqlite3.DatabaseError:
+                with contextlib.suppress(sqlite3.Error):
+                    self._local.conn.close()
+                self._local.conn = None
+
         if not hasattr(self._local, "conn") or self._local.conn is None:
             self._db_path.parent.mkdir(parents=True, exist_ok=True)
             conn = sqlite3.connect(str(self._db_path), check_same_thread=False)

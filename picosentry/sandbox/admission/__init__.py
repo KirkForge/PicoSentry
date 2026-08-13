@@ -6,7 +6,7 @@ import logging
 import ssl
 import urllib.parse
 from collections.abc import Callable
-from http.server import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -14,6 +14,7 @@ logger = logging.getLogger("picodome.admission")
 
 _DEFAULT_PORT = 8443
 _DEFAULT_HOST = "127.0.0.1"
+_MAX_ADMISSION_REVIEW_BYTES = 2 * 1024 * 1024
 
 
 class AdmissionRequest:
@@ -88,6 +89,9 @@ class AdmissionHandler(BaseHTTPRequestHandler):
 
         try:
             content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > _MAX_ADMISSION_REVIEW_BYTES:
+                self._send_admission_error("AdmissionReview body exceeds size limit")
+                return
             body = self.rfile.read(content_length)
             review = json.loads(body)
         except (json.JSONDecodeError, ValueError) as exc:
@@ -162,12 +166,12 @@ class AdmissionWebhookServer:
         self._cert_file = str(cert_file) if cert_file else ""
         self._key_file = str(key_file) if key_file else ""
         self._validator = validator
-        self._server: HTTPServer | None = None
+        self._server: ThreadingHTTPServer | None = None
 
     def start(self, background: bool = False) -> None:
         AdmissionHandler.validator = self._validator
 
-        self._server = HTTPServer((self._host, self._port), AdmissionHandler)
+        self._server = ThreadingHTTPServer((self._host, self._port), AdmissionHandler)
 
         if self._cert_file and self._key_file:
             ctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)

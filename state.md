@@ -2,6 +2,46 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-13: Production-grading — reliability + isolation + input-cap hardening — COMPLETE (working tree, uncommitted)
+
+### Method
+3 parallel **exploration** subagents (read-only) on disjoint domains (serve / sandbox / scan+core) returned verified file:line findings. Brain triaged, ran impact (all LOW), then dispatched 3 parallel **coding** subagents on disjoint file sets. All gates green.
+
+### What was done (13 fixes, working tree only)
+**Serve reliability (4):**
+- **scheduler.py** `add_job` idempotent by name (SELECT-before-INSERT) — kills the restart `IntegrityError` crash-loop.
+- **rate_limit_redis.py** `socket_connect_timeout=1, socket_timeout=1` on `from_url` — hung Redis can't freeze the event loop.
+- **alert_hub.py** SMTP `timeout=10` + `try/finally: server.quit()` (contextlib.suppress) — no indefinite block, no socket leak.
+- **server.py** production 500 now carries `request_id`.
+**Sandbox isolation (3):**
+- **l3/backends/_rlimits.py** (new shared helper) + seccomp child sets rlimits pre-execve + seatbelt `preexec_fn` + SubprocessBackend refactored to import it. The enforced backends now match the fallback's resource limits.
+- **admission/__init__.py** `ThreadingHTTPServer` + 2 MiB body cap (fail-closed on overflow).
+- **daemon/sqlite_store.py** `SELECT 1` liveness probe + self-heal; **daemon/redis_store.py** re-ping + client reset on lost connection.
+**Scan/firewall input caps (5):**
+- **firewall/proxy.py** `safe_urlopen` (10MB metadata / 512MB pass-through) + 502 on overflow; **firewall/cache.py** `max_entries=10_000` soonest-expiry eviction (wired via FirewallConfig/scanner.py).
+- **scan/sbom.py** reject >10MB before parse; **scan/management.py** zip-bomb guard (>50k entries / >200MB); **scan/intelligence.py** `safe_urlopen` (10MB cap).
+**Docs sync:** **experimental.py** serve notes promoted auth-hardening detail → README table back in sync (was a pre-existing red test on clean dev).
+**Tests added (8):** scheduler idempotency, rlimit helper no-op guard, admission threading class, sqlite/redis liveness recovery, proxy oversized→502, VerdictCache max-entries eviction.
+
+### Gate output (uncommitted tree, head `dev` @ b0b7de79)
+- `uv run ruff check picosentry/ tests/ scripts/` — All checks passed!
+- `uv run ruff format --check` — 646 files already formatted
+- `uv run mypy picosentry/` — Success: no issues found in 411 source files (+1 for new `_rlimits.py`)
+- `uv run pytest tests/ -m "not slow"` — 4646 passed, 21 skipped (env-gated), 4 subtests passed in 245.76s (was 4645+1 fail; the +1 fail was pre-existing README drift, now fixed)
+- Per-scope subagent runs: serve 477 passed / sandbox 1591 passed / scan+firewall 2101 passed
+- `detect_changes`: 27 changed files, only the 4 expected `create_scheduler_job` processes touched at step 2 (add_job) — no surprise blast radius.
+
+### Pending / next steps (flagged, NOT done — owner calls)
+- **Audit hash-chain across rotation+restart** (sandbox audit/logger.py): the chain's `prev_hash` reseeds from the live `audit.jsonl` only; after log rotation + restart the new chain links to `""`, and `verify_chain()` never walks the `.1.jsonl.gz` archives → `chain_intact` reports True while severed. HIGH security but the fix changes verification semantics for existing rotated archives (owners of back-catalog may see monitoring go red) — needs owner's call on forward-only vs backfill-link.
+- **WS broadcasts dropped from worker/scheduler threads** (websocket_manager.py): `get_running_loop()` raises in `to_thread`/daemon publishers → events silently discarded; dashboard clients never receive run events. Fix = capture main loop in lifespan + `call_soon_threadsafe`. Deferred (touches server.py lifespan + event-bus threading; do as a focused follow-up).
+- **30s request-timeout vs 3600s scan endpoints** (server.py / request_timeout.py) — API-contract/policy decision (raise cap vs 202+poll).
+- **`extra="forbid"` rollout** on 7 request models — breaking for clients sending extra fields; owner's call.
+- Release: `dev` now 56 commits ahead of `main`; version still `2.0.18` — human release action (ff main ← dev, bump, build wheel on main).
+
+### Blocked
+- None.
+
+
 ## Session 2026-08-12: Improvement loop 7→9 (WO3.0.0-011/012/013) — COMPLETE
 
 ### What was done (3 commits on `dev` @ 42520317)

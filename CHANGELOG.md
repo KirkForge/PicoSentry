@@ -2,6 +2,18 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-13 - Production-grading: reliability + isolation + input-cap hardening (13 fixes)
+- fix(serve/scheduler): `JobScheduler.add_job` is now idempotent by name (SELECT-before-INSERT) — eliminates the `IntegrityError` crash-loop on every restart against a persistent DB (lifespan re-seeds `periodic_cleanup`/`auto_backup`/`health_check`).
+- fix(serve/rate-limit): `RedisRateLimitBackend` passes `socket_connect_timeout=1, socket_timeout=1` — a hung Redis TCP session can no longer freeze the ASGI event loop; existing fail-open/-closed paths bound outages to 1s.
+- fix(serve/alerts): SMTP constructors get `timeout=10` and the session is wrapped in `try/finally: server.quit()` — no indefinite block and no socket leak; protects the orchestrator semaphore from permanent drain.
+- fix(serve/errors): production 500 response now includes `request_id` (was dev-only) for client/log correlation.
+- fix(sandbox/l3): seccomp + seatbelt enforcement backends now set `RLIMIT_AS`/`RLIMIT_FSIZE`/`RLIMIT_NOFILE` (extracted into shared `l3/backends/_rlimits.py`) — the auto-selected production backends were previously weaker than the observational fallback. SubprocessBackend now imports the shared helper.
+- fix(sandbox/admission): webhook uses `ThreadingHTTPServer` (was single-threaded `HTTPServer`) and caps `AdmissionReview` bodies at 2 MiB (fail-closed on overflow) — a slow image scan can no longer stall all cluster pod scheduling.
+- fix(sandbox/stores): `SQLiteScanJobStore._get_conn` re-probes cached connections (`SELECT 1`) and self-heals on `DatabaseError`; `RedisScanJobStore` re-pings and resets the client on lost connections.
+- fix(firewall): proxy upstream reads capped via `safe_urlopen` (10MB metadata / 512MB pass-through); oversized upstream → 502. `VerdictCache` gains `max_entries=10_000` (soonest-expiry eviction), wired through `FirewallConfig`/`FirewallScanner`.
+- fix(scan): `parse_sbom` rejects inputs >10MB before parsing; advisory zips rejected >50k entries / >200MB uncompressed (zip-bomb guard); `OSVClient._fetch` routed through `safe_urlopen` (10MB cap, HTTPS+SSRF enforced).
+- chore(docs): README status table back in sync with `experimental.py` (auth-hardening note promoted into the source of truth).
+
 ## 2026-08-12 - Improvement loop: test dedup + dead-code removal (WO3.0.0-011/012)
 - test: dedup the two largest test files — `tests/serve/test_integration.py` (1593→1378) and `tests/sandbox/test_cluster.py` (1530→1349) via parametrize collapses (11), shared `started_manager`/`any_backend` fixtures, and helper inlining; same 210 tests passing (-396 net LOC).
 - refactor(serve): remove dead `EnhancedOrchestrator._update_project_stats` method (0 callers; the standalone `update_project_stats` from `_orchestrator_stats` is the live path) and dead `_load_registry` standalone in `_orchestrator_data.py` (0 callers).

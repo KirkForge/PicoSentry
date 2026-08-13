@@ -105,13 +105,17 @@ class JobScheduler:
 
         params_json = json.dumps(params or {})
 
-        job_id = db.execute_insert(
-            """
-            INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """,
-            (name, cron, command, params_json, enabled, org_id),
-        )
+        existing = db.execute_one("SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+        if existing:
+            job_id = existing["id"]
+        else:
+            job_id = db.execute_insert(
+                """
+                INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
+                VALUES (?, ?, ?, ?, ?, ?)
+            """,
+                (name, cron, command, params_json, enabled, org_id),
+            )
 
         with self._lock:
             self._load_jobs()

@@ -335,3 +335,14 @@ class TestSuspiciousPatternEdgeCases:
         assert "L3-SUS-001" in rule_ids  # eval
         assert "L3-SUS-003" in rule_ids  # /etc/passwd
         assert "L3-SUS-005" in rule_ids  # chmod 777
+
+
+# ─── Shared rlimit helper ──────────────────────────────────────────────────────
+
+
+class TestResourceLimitHelper:
+    def test_helper_noops_without_resource(self, monkeypatch):
+        from picosentry.sandbox.l3.backends import _rlimits
+
+        monkeypatch.setattr(_rlimits, "HAS_RESOURCE", False)
+        _rlimits.set_resource_limits()

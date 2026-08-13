@@ -22,10 +22,8 @@ _OSV_VULN = {
 
 def _mock_osv_response(vulns):
     mock_resp = MagicMock()
-    mock_resp.read.return_value = json.dumps({"vulns": vulns}).encode("utf-8")
-    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-    mock_resp.__exit__ = MagicMock(return_value=False)
-    return mock_resp
+    body = json.dumps({"vulns": vulns}).encode("utf-8")
+    return mock_resp, body
 
 
 class TestIntelligenceMode:
@@ -129,7 +127,7 @@ class TestOSVClientQuery:
     def test_query_returns_advisories(self, tmp_path):
         client = OSVClient(cache_dir=tmp_path)
         mock_resp = _mock_osv_response([_OSV_VULN])
-        with patch("picosentry.scan.intelligence.urlopen", return_value=mock_resp):
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=mock_resp):
             results = client.query("npm", "lodash")
         assert len(results) >= 1
         assert any(a.id == "GHSA-1234-5678" for a in results)
@@ -139,7 +137,7 @@ class TestOSVClientQuery:
         key = client._cache_key("npm", "lodash")
         client._write_cache(key, [_OSV_VULN])
 
-        with patch("picosentry.scan.intelligence.urlopen") as mock_urlopen:
+        with patch("picosentry.scan.intelligence.safe_urlopen") as mock_urlopen:
             results = client.query("npm", "lodash")
             mock_urlopen.assert_not_called()
 
@@ -150,14 +148,14 @@ class TestOSVClientQuery:
         from urllib.error import URLError
 
         client = OSVClient(cache_dir=tmp_path)
-        with patch("picosentry.scan.intelligence.urlopen", side_effect=URLError("timeout")):
+        with patch("picosentry.scan.intelligence.safe_urlopen", side_effect=URLError("timeout")):
             results = client.query("npm", "lodash")
         assert results == []
 
     def test_query_offline_returns_empty(self, tmp_path):
         with patch.dict("os.environ", {"PICOSENTRY_OFFLINE": "1"}):
             client = OSVClient(cache_dir=tmp_path)
-            with patch("picosentry.scan.intelligence.urlopen") as mock_urlopen:
+            with patch("picosentry.scan.intelligence.safe_urlopen") as mock_urlopen:
                 results = client.query("npm", "lodash")
                 mock_urlopen.assert_not_called()
             assert results == []
@@ -165,7 +163,7 @@ class TestOSVClientQuery:
     def test_query_by_commit(self, tmp_path):
         client = OSVClient(cache_dir=tmp_path)
         mock_resp = _mock_osv_response([_OSV_VULN])
-        with patch("picosentry.scan.intelligence.urlopen", return_value=mock_resp):
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=mock_resp):
             results = client.query_by_commit("abc123")
         assert len(results) == 1
 
@@ -181,7 +179,7 @@ class TestOSVClientQuery:
         }
         client._write_cache(key_express, [express_vuln])
 
-        with patch("picosentry.scan.intelligence.urlopen"):
+        with patch("picosentry.scan.intelligence.safe_urlopen"):
             results = client.bulk_query([("npm", "lodash"), ("npm", "express")])
         assert ("npm", "lodash") in results
         assert len(results[("npm", "lodash")]) == 1
@@ -192,12 +190,8 @@ class TestOSVClientQuery:
 class TestRefreshCache:
     def test_refresh_cache(self, tmp_path):
         client = OSVClient(cache_dir=tmp_path)
-        mock_resp = MagicMock()
-        mock_resp.read.return_value = json.dumps({"vulns": [_OSV_VULN]}).encode("utf-8")
-        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
-        mock_resp.__exit__ = MagicMock(return_value=False)
 
-        with patch("picosentry.scan.intelligence.urlopen", return_value=mock_resp):
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=_mock_osv_response([_OSV_VULN])):
             count = client.refresh_cache("npm")
         assert count == 1
 
@@ -233,7 +227,7 @@ class TestAdvisoryCheckIntegration:
             encoding="utf-8",
         )
         with patch(
-            "picosentry.scan.intelligence.urlopen",
+            "picosentry.scan.intelligence.safe_urlopen",
             side_effect=Exception("no network"),
         ):
             findings = detect_all_advisory_vulnerabilities(tmp_path, corpus_dir, intelligence_mode="connected")

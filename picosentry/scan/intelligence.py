@@ -8,8 +8,9 @@ import time
 from enum import Enum
 from pathlib import Path
 from urllib.error import URLError
-from urllib.request import Request, urlopen
+from urllib.request import Request
 
+from ._network import ResponseTooLargeError, safe_urlopen
 from .advisory import Advisory
 
 logger = logging.getLogger("picosentry.intelligence")
@@ -80,9 +81,10 @@ class OSVClient:
         body = json.dumps(payload).encode("utf-8")
         req = Request(_OSV_API_URL, data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
-            with urlopen(req, timeout=self._timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
-        except (URLError, OSError, TimeoutError, json.JSONDecodeError) as exc:
+            resp, body = safe_urlopen(req, timeout=self._timeout)
+            resp.close()
+            data = json.loads(body.decode("utf-8"))
+        except (URLError, OSError, TimeoutError, json.JSONDecodeError, ResponseTooLargeError) as exc:
             logger.warning("OSV API request failed: %s", exc)
             return []
         results = []

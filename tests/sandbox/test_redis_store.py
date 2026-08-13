@@ -260,3 +260,31 @@ class TestRedisStoreExceptionNarrowing:
 
         with pytest.raises(NameError, match="programmer mistake"):
             store._get_client()
+
+
+class TestRedisStoreLiveness:
+    """A cached client whose ping fails (Redis restart) must reset and reconnect."""
+
+    def test_cached_client_reset_on_lost_connection(self, monkeypatch):
+        from picosentry.sandbox.daemon import redis_store
+
+        store = RedisScanJobStore()
+        mock_redis = MockRedis()
+        store._client = mock_redis
+        store._available = True
+
+        def _dead(*_a, **_kw):
+            raise OSError("connection reset")
+
+        mock_redis.ping = _dead
+
+        if redis_store._redis is not None:
+
+            def _no_reconnect(*_a, **_kw):
+                raise OSError("reconnect refused")
+
+            monkeypatch.setattr(redis_store._redis, "from_url", _no_reconnect)
+
+        assert store.get("job-1") is None
+        assert store._available is False
+        assert store._client is None

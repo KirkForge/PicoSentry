@@ -60,6 +60,14 @@ class RedisScanJobStore:
 
     def _get_client(self):
         if self._client is not None:
+            try:
+                self._client.ping()
+            except _REDIS_CLIENT_ERRORS:
+                logger.warning("Redis connection lost; will attempt reconnect")
+                self._client = None
+                self._available = False
+
+        if self._client is not None:
             return self._client
 
         if _redis is None:
@@ -82,8 +90,7 @@ class RedisScanJobStore:
 
     @property
     def available(self) -> bool:
-        if self._client is None:
-            self._get_client()
+        self._get_client()
         return self._available
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:

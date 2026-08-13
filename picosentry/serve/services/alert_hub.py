@@ -196,6 +196,7 @@ class AlertHub:
             logger.exception("Slack webhook failed")
 
     def _email_notify(self, project_id: str, severity: str, message: str):
+        import contextlib
         import smtplib
         from email.mime.text import MIMEText
 
@@ -219,20 +220,23 @@ Time: {datetime.now(timezone.utc).isoformat()}
 
             if settings.alerts.email_smtp_use_ssl:
                 server: smtplib.SMTP_SSL | smtplib.SMTP = smtplib.SMTP_SSL(
-                    settings.alerts.email_smtp_host, settings.alerts.email_smtp_port
+                    settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10
                 )
             else:
-                server = smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port)
+                server = smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10)
 
-            if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
-                server.starttls()
+            try:
+                if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
+                    server.starttls()
 
-            if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
-                server.login(settings.alerts.email_smtp_user, settings.alerts.email_smtp_password)
+                if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
+                    server.login(settings.alerts.email_smtp_user, settings.alerts.email_smtp_password)
 
-            server.send_message(msg)
-            server.quit()
-            logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
+                server.send_message(msg)
+                logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
+            finally:
+                with contextlib.suppress(smtplib.SMTPException, OSError):
+                    server.quit()
 
         except (smtplib.SMTPException, OSError):
             logger.exception("Email notification failed")

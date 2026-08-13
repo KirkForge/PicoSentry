@@ -8,6 +8,7 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     Policy,
@@ -123,6 +124,7 @@ class SeatbeltBackend(SandboxBackend):
                     stderr=subprocess.PIPE,
                     cwd=cwd,
                     env=run_env,
+                    preexec_fn=set_resource_limits,
                 )
                 if session is not None:
                     session.resources.proc = proc

@@ -52,3 +52,13 @@ class TestVerdictCache:
         cache.put("npm", "express", "4.18.0", FirewallVerdict.ALLOW)
         cache.put("npm", "express", "4.18.0", FirewallVerdict.BLOCK)
         assert cache.get("npm", "express", "4.18.0") == FirewallVerdict.BLOCK
+
+    def test_max_entries_evicts_soonest_expiry(self):
+        cache = VerdictCache(ttl_seconds=60, max_entries=2)
+        cache.put("npm", "a", "1", FirewallVerdict.ALLOW)
+        cache.put("npm", "b", "1", FirewallVerdict.ALLOW)
+        cache.put("npm", "c", "1", FirewallVerdict.BLOCK)
+        assert cache.get("npm", "a", "1") is None
+        assert cache.get("npm", "b", "1") == FirewallVerdict.ALLOW
+        assert cache.get("npm", "c", "1") == FirewallVerdict.BLOCK
+        assert cache.stats().size == 2

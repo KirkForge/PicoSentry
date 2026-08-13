@@ -13,8 +13,9 @@ class CacheStats:
 
 
 class VerdictCache:
-    def __init__(self, ttl_seconds: int = 3600) -> None:
+    def __init__(self, ttl_seconds: int = 3600, max_entries: int = 10_000) -> None:
         self._ttl = ttl_seconds
+        self._max_entries = max_entries  # ponytail: 10k default; LRU if hot keys get evicted
         self._store: dict[tuple[str, str, str], tuple[float, object]] = {}
         self._hits = 0
         self._misses = 0
@@ -39,6 +40,10 @@ class VerdictCache:
     def put(self, ecosystem: str, name: str, version: str, verdict: object) -> None:
         self._evict_expired()
         key = (ecosystem, name, version)
+        if key not in self._store and len(self._store) >= self._max_entries:
+            oldest = min(self._store, key=lambda k: self._store[k][0])
+            del self._store[oldest]
+            self._evictions += 1
         self._store[key] = (time.monotonic() + self._ttl, verdict)
 
     def clear(self) -> None:

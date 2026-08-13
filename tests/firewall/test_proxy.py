@@ -117,14 +117,12 @@ class TestProxyHandlerVerdictLogic:
                 [_make_finding("L2-POST-001", "CRITICAL", "postinstall script")],
             )
         )
-        with patch("picosentry.firewall.proxy.urllib.request.urlopen") as mock_urlopen:
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
             mock_resp = MagicMock()
             mock_resp.status = 200
             mock_resp.headers = MagicMock()
             mock_resp.headers.get.return_value = "application/json"
-            mock_resp.read.return_value = json.dumps({"name": "evil-pkg", "version": "1.0.0"}).encode()
-            mock_urlopen.return_value.__enter__ = MagicMock(return_value=mock_resp)
-            mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
+            mock_safe.return_value = (mock_resp, json.dumps({"name": "evil-pkg", "version": "1.0.0"}).encode())
             handler.do_GET()
             calls = [str(c) for c in handler.send_response.call_args_list]
             assert any("403" in c for c in calls)
@@ -147,14 +145,12 @@ class TestProxyHandlerVerdictLogic:
         handler.wfile = MagicMock()
         handler.log_message = MagicMock()
         handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.ALLOW, []))
-        with patch("picosentry.firewall.proxy.urllib.request.urlopen") as mock_urlopen:
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
             mock_resp = MagicMock()
             mock_resp.status = 200
             mock_resp.headers = MagicMock()
             mock_resp.headers.get.return_value = "application/json"
-            mock_resp.read.return_value = json.dumps({"name": "safe-pkg"}).encode()
-            mock_urlopen.return_value.__enter__ = MagicMock(return_value=mock_resp)
-            mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
+            mock_safe.return_value = (mock_resp, json.dumps({"name": "safe-pkg"}).encode())
             handler.do_GET()
             calls = [str(c) for c in handler.send_response.call_args_list]
             assert any("200" in c for c in calls)
@@ -182,20 +178,41 @@ class TestProxyHandlerVerdictLogic:
                 [_make_finding("L2-OBFS-001", "MEDIUM", "obfuscated code")],
             )
         )
-        with patch("picosentry.firewall.proxy.urllib.request.urlopen") as mock_urlopen:
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
             mock_resp = MagicMock()
             mock_resp.status = 200
             mock_resp.headers = MagicMock()
             mock_resp.headers.get.return_value = "application/json"
-            mock_resp.read.return_value = json.dumps({"name": "warn-pkg"}).encode()
-            mock_urlopen.return_value.__enter__ = MagicMock(return_value=mock_resp)
-            mock_urlopen.return_value.__exit__ = MagicMock(return_value=False)
+            mock_safe.return_value = (mock_resp, json.dumps({"name": "warn-pkg"}).encode())
             handler.do_GET()
             calls = [str(c) for c in handler.send_response.call_args_list]
             assert any("200" in c for c in calls)
             header_dict = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
             assert header_dict.get("X-PicoSentry-Verdict") == "quarantine"
             assert "X-PicoSentry-Reasons" in header_dict
+
+    def test_oversized_upstream_returns_502(self):
+        from picosentry.firewall.proxy import _ProxyHandler, FirewallConfig
+        from picosentry.scan._network import ResponseTooLargeError
+
+        config = FirewallConfig()
+        proxy = FirewallProxy(config)
+        handler_class = type(
+            "_H",
+            (_ProxyHandler,),
+            {"config": config, "scanner": proxy.scanner},
+        )
+        handler = object.__new__(handler_class)
+        handler.path = "/big-pkg/1.0.0"
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = MagicMock()
+        handler.log_message = MagicMock()
+        with patch("picosentry.firewall.proxy.safe_urlopen", side_effect=ResponseTooLargeError("too big")):
+            handler.do_GET()
+            calls = [str(c) for c in handler.send_response.call_args_list]
+            assert any("502" in c for c in calls)
 
 
 class TestSafeUpstreamPath:

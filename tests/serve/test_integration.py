@@ -470,6 +470,15 @@ class TestWebhooksIntegration:
         )
         assert resp.status_code == 201
 
+    def test_create_webhook_rejects_unknown_field(self, client):
+        token, _ = _register_and_login(client, role="operator")
+        resp = client.post(
+            "/webhooks",
+            json={"url": "https://example.com/hook", "events": ["*"], "name": "x", "bogus": 1},
+            headers=_auth_headers(token),
+        )
+        assert resp.status_code == 422, resp.text
+
     @pytest.mark.parametrize(
         "url",
         [

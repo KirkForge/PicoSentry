@@ -27,6 +27,13 @@ class BatchRunRequest(BaseModel):
     project_ids: list[str] = Field(..., min_length=1, max_length=20)
     timeout: int | None = Field(300, ge=10, le=3600)
 
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
 
 class ProjectStatus(BaseModel):
     id: str
@@ -116,6 +123,13 @@ class WebhookCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="Webhook name")
     secret: str | None = Field(default=None, min_length=16, max_length=128, description="HMAC signing secret")
 
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
 
 class SchedulerJobParams(BaseModel):
     category: str | None = Field(None, pattern="^[a-z_]+$", max_length=100)
@@ -137,9 +151,23 @@ class SchedulerJobCreateRequest(BaseModel):
     params: SchedulerJobParams | None = Field(default=None, description="Job parameters")
     enabled: bool = Field(default=True, description="Whether the job is active")
 
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
 
 class OrgTierUpgradeRequest(BaseModel):
     tier: str = Field(..., pattern="^(free|starter|pro|enterprise)$")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
 
 
 class OrgCreateRequest(BaseModel):
@@ -147,10 +175,24 @@ class OrgCreateRequest(BaseModel):
     slug: str = Field(..., min_length=2, max_length=50, pattern="^[a-z0-9-]+$")
     tier: str = Field("free", pattern="^(free|starter|pro|enterprise)$")
 
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
 
 class OrgMemberInviteRequest(BaseModel):
     user_id: int = Field(..., gt=0)
     role: str = Field("member", pattern="^(admin|member|viewer)$")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
 
 
 class BehavioralEvidenceItem(BaseModel):
@@ -177,6 +219,13 @@ class ScanRequest(BaseModel):
     target: str = Field(..., max_length=512, description="Path to project directory to scan")
     rules: list[str] | None = Field(None, description="Subset of rule IDs to run")
     format: str = Field("json", pattern="^(json|sarif)$")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
 
 
 class ScanResponse(BaseModel):

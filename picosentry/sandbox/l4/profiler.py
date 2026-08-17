@@ -87,13 +87,18 @@ def profile_from_sandbox_result(result: SandboxResult) -> BehavioralProfile:
         ".".join(result.command[:2]) if len(result.command) >= 2 else result.command[0] if result.command else "unknown"
     )
 
-    has_events = bool(result.events)
+    # Evidence policy (WO4.0.0-018): kernel events carrying addresses/paths
+    # are authoritative and win; otherwise fall through to the stdout regex —
+    # SCMP_ACT_LOG records carry no addresses/paths (v2.0.8 limitation) and
+    # seccomp-trace always appends such events, so the old "any event exists →
+    # ignore stdout" switch produced an empty profile exactly when SUS/timeout
+    # events fired on enforced backends. Trade-off (accepted by the WO):
+    # printed text can add findings a kernel tracer did not corroborate.
+    network_calls = _extract_network_from_events(result.events) or _extract_network_calls(combined)
 
-    network_calls = _extract_network_from_events(result.events) if has_events else _extract_network_calls(combined)
+    fs_ops = _extract_fs_from_events(result.events) or _extract_file_operations(combined)
 
-    fs_ops = _extract_fs_from_events(result.events) if has_events else _extract_file_operations(combined)
-
-    spawns = _extract_spawns_from_events(result.events) if has_events else _extract_spawns(combined)
+    spawns = _extract_spawns_from_events(result.events) or _extract_spawns(combined)
 
     dns_queries = _extract_dns_queries(combined)
     timing_points = _extract_timing_points(combined)

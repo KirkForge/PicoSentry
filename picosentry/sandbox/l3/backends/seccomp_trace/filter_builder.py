@@ -24,10 +24,15 @@ def build_filter(
     syscall_cache: dict[str, int],
 ) -> tuple[ctypes.c_void_p | None, set[str]]:
     blocked: set[str] = set()
-    has_kill = policy.default_action in (SyscallAction.DENY, SyscallAction.KILL) or any(
-        r.action in (SyscallAction.DENY, SyscallAction.KILL) for r in policy.rules
+    # Parity with seccomp_backend._build_filter (WO4.0.0-018): the default
+    # action follows the POLICY's default only. The old `has_kill` heuristic
+    # (any DENY rule anywhere → KILL_PROCESS default) made a permissive
+    # policy with one deny rule flip the whole-run verdict per backend —
+    # seccomp ALLOWed the unlisted syscalls, trace killed on them. Here
+    # SCMP_ACT_LOG is the trace backend's observational analog of ALLOW.
+    default_action = (
+        SCMP_ACT_KILL_PROCESS if policy.default_action in (SyscallAction.DENY, SyscallAction.KILL) else SCMP_ACT_LOG
     )
-    default_action = SCMP_ACT_KILL_PROCESS if has_kill else SCMP_ACT_LOG
 
     ctx = lib.seccomp_init(default_action)
     if not ctx:

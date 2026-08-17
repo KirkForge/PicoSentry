@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import os
+
 from picosentry.sandbox.l4.models import BehavioralProfile, SandboxFinding
 from picosentry.sandbox.models import Severity
 
@@ -69,11 +73,14 @@ def detect_filesystem_anomalies(
             )
 
         if op.operation in ("write", "create"):
+            # FP fix (WO4.0.0-018): packages legitimately write .sh shims and
+            # helper scripts inside their own workspace (relative paths);
+            # only absolute paths outside /tmp are flagged.
             matched_ext = next(
                 (
                     ext
                     for ext in SUSPICIOUS_WRITE_EXTENSIONS
-                    if path.lower().endswith(ext) and not path.startswith("/tmp/")
+                    if path.lower().endswith(ext) and os.path.isabs(path) and not path.startswith("/tmp/")
                 ),
                 None,
             )

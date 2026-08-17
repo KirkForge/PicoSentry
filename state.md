@@ -2,6 +2,31 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-17 (c): Marathon round — imports + bug probe + docs honesty — COMPLETE
+
+### Method
+3 parallel agents: SA-F lazy imports (picosentry/**), SA-G read-only deep bug probe (marathon), SA-H docs honesty audit (~150 claims, 32 files). Then orchestrator fixed the probe's proven HIGH/small items centrally. Commits `3899f98e` (imports), `9e2df092` (docs), `49f90f02` (security fixes) on `dev`.
+
+### Landed
+- **SA-F**: CLI cold start −76% (1.15→0.27s), picosentry.cli import 550→92ms. KEY correction: pytest 9 collects via AST — the 29.9s "collection" was xdist spawn + conftest imports; fastapi/webauthn are NOT collection-relevant and stay eager (decorator-bound).
+- **SA-G probe** → fixed centrally (S1-S4, S6, S7 + SSL env + experimental claims): sandbox env re-merge secret leak (CRITICAL, proven repro), unauth WS broadcast, webhook cross-tenant leak, anomaly alerts crash, /chains/summary shadowing, acknowledge_alert lastrowid, SSL env wiring, 53/3558/2930 claims.
+- **SA-H**: docs honesty — every fix listed in CHANGELOG; code-wrong flags below.
+
+### Gate (head `dev` @ 49f90f02)
+- ruff: All checks passed! · format: 659 files · mypy: 412 files clean
+- `pytest -m "not slow"`: **4689 passed, 18 skipped, 0 failed** (160.03s)
+- detect_changes: all changed symbols map to agent scopes + orchestrator fixes.
+
+### Pending / next (SA-G backlog — ranked, with fix sketches in this file's git history)
+- **MEDIUM (probe S5, S8-S11)**: /sandboxes not actually disabled w/o workspace root (misleading comment); RateLimit lock held across Redis call; postgres execute() never commits (idle-in-transaction + lost DML — CI postgres job masks it); /api/v1/scans 30s timeout vs real scans; audit middleware sync DB write on event loop.
+- **Auth mediums (verified worse than logged)**: MFA enroll overwrites existing TOTP w/o password re-verify (session-token theft → persistent 2FA control); TOTP replay window; /auth/revoke any-jti + no revocation-table cleanup; webauthn username enumeration.
+- **LOW**: restore_backup under live pool; scheduler batch CWD-relative script; retry-failed no-op logging a lie; landlock unreachable+stub; AlertHub unbounded keys; anomaly threshold bounds 0-1 vs real thresholds 5-85; watch rules unknown-keys silent; scheduler single-thread starvation; watch sink sqlite-per-record + silent drop; OTLP insecure=True; event emit() dead code.
+- **SA-H code-wrong flags**: doctor detector mismatch (L2-CAMP-* + 18 alias rule_ids not in RULE_INFO mapping — doctor still 2/10 RED); validation.py loader rejects 760 semantic-label fixtures (live --validate diverges from model card); password min_length=1 (docs now honest, code should enforce 8); landlock stub vs ADR-002; PyNaCl missing from extras (signed plugins); unified CLI doesn't expose inner check/advisories/cluster subcommands.
+- **ESCALATE (design)**: system-event tenancy model (org=None reaches everyone by design — classify at publish); sandbox env allowlist-vs-denylist ADR; audit middleware off event loop (background queue); scheduler worker pool vs inline 1h jobs.
+
+### Blocked
+- None. `dev` now 7 commits ahead of `main`.
+
 ## Session 2026-08-17 (b): Owner calls executed + CI dedup + test-speed — COMPLETE
 
 ### Method

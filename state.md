@@ -2,6 +2,26 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-17 (e): Workflow consolidation (owner-directed) — COMPLETE
+
+### What changed
+- **One WO truth**: root `WO/` (9 specs) folded into `docs/workorders/` (now 25 WOs + README); root folder deleted. Stale OPEN statuses resolved with CHANGELOG evidence or honestly marked UNVERIFIED.
+- **AGENTS.md v2**: entry files (AGENTS/state/CHANGELOG-head/lessons), session close order, WO4.0.0 next series, subagent worktree pattern (`wo/<series>/<slug>`, orchestrator --no-ff merges, green dev CI per merge), CI/test-speed contract (profiles, measurement-first, sleeps, env, budget guard, tiers), release policy (~20 commits or security-critical → ff main → bump → reproducible wheel → publish via `/home/henrik/madlab/Lockdown/.pypi`; PAT only for comprehensive GitHub work; never print/commit either).
+- workplan.md demoted explicitly to scratch (already gitignored).
+
+### Flow going forward (the owner-approved contract, now in AGENTS.md)
+startup: AGENTS.md → state.md → CHANGELOG head (+lessons). close: commit → lessons → state → CHANGELOG → clean tree → gates pasted. Routine → dev; risky/disjoint → WO worktree → orchestrator merge. Release at ~20 commits or security-critical.
+
+### Gate
+docs-only change; ruff clean; tree clean post-commit.
+
+### Pending / next
+- Carried from (d): detection-tuning round (npm metadata FPs, L2-CVE-001 fixtures, ecosystem-id expectations) then card re-baseline; design escalades (event scope ADR, audit-drop metrics wiring); gitnexus re-index.
+- `dev` 11 commits ahead of `main` — approaching the ~20-commit release trigger.
+
+### Blocked
+- None.
+
 ## Session 2026-08-17 (d): Backlog burn-down — auth/infra/landlock/benchmarks — COMPLETE
 
 ### Method

@@ -1,7 +1,7 @@
 # WO2.0.0-002 — Build Out Multi-Tenancy
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG 2026-08-12 "Multi-tenancy hardening (WO2.0.0-002)")
 **Owner:** subagent (worktree `wo/2.0.0/multi-tenancy`)
 **Gate:** `uv run pytest tests/ -m "not slow"` + `uv run ruff check` + `uv run mypy picosentry/`
 

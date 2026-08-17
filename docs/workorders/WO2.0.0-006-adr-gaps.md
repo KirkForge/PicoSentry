@@ -1,7 +1,7 @@
 # WO2.0.0-006 — ADR Gap: Multi-Tenancy + Serve Orchestration + LLM Watch
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** UNVERIFIED (spec predates status tracking; series reported COMPLETE — verify scope before reopening)
 **Owner:** subagent (worktree `wo/2.0.0/adr-gaps`)
 **Gate:** `uv run ruff check` + `uv run mypy picosentry/`
 

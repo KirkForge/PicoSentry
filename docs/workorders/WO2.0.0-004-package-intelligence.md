@@ -1,7 +1,7 @@
 # WO2.0.0-004 — Package Intelligence
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG "WO2.0.0-004 package intelligence: ADR-009")
 **Owner:** subagent (worktree `wo/2.0.0/package-intelligence`)
 **Gate:** `uv run pytest tests/ -m "not slow"` + `uv run ruff check` + `uv run mypy picosentry/`
 

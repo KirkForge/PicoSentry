@@ -1,7 +1,7 @@
 # WO2.0.0-010 — Role-Scoped Tokens + CORS Default
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG 2026-08-12 "Role-scoped tokens + CORS default")
 **Owner:** subagent (worktree `wo/2.0.0/role-scoped-tokens`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

@@ -1,7 +1,7 @@
 # WO2.0.0-007 — Auth Hardening: MFA/TOTP + JWT JTI Revocation + Account Lockout
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG 2026-08-12 "Auth hardening (WO2.0.0-007)")
 **Owner:** subagent (worktree `wo/2.0.0/auth-hardening`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

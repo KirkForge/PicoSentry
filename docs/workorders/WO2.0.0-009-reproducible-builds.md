@@ -1,7 +1,7 @@
 # WO2.0.0-009 — Reproducible Builds + Hash-Pinned Dependencies
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG 2026-08-12 "Reproducible builds + hash-pinned deps")
 **Owner:** subagent (worktree `wo/2.0.0/reproducible-builds`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/ -m "not slow"`
 

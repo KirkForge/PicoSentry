@@ -1,6 +1,12 @@
 # Workorder Series (docs/workorders)
 
+**Single source of work-order truth.** Every durable unit of work is a WO file here. `workplan.md` (gitignored) is per-session scratch, never truth. Root `WO/` was consolidated here 2026-08-17 and deleted.
+
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
+
+## WO4.0.0 — Fourth series (NEXT; not started)
+
+Create files as `WO4.0.0-NNN-slug.md` with Series/Status/Owner/Scope/Gate/Objective headers. Branch worktrees as `wo/4.0.0/<slug>` off `origin/dev`.
 
 ## WO3.0.0 — Third series (shipped; statuses verified against code 2026-08)
 
@@ -16,15 +22,24 @@ Improvement series to push the production review score up. Work happens in isola
 | [WO3.0.0-008](WO3.0.0-008-error-hierarchy.md) | Unified Exception Hierarchy + Bare-Except Cleanup | OPEN — `ErrorCodes` table exists (`sandbox/errors.py`); full hierarchy/cleanup not verified |
 | [WO3.0.0-009](WO3.0.0-009-slowloris-timeout.md) | Slowloris / Header-Read Timeout | COMPLETE at app layer — `PICOSHOGUN_LIMIT_CONCURRENCY`/`LIMIT_MAX_REQUESTS` wired in `api/server.py`; true header-read deadline documented as a reverse-proxy responsibility |
 | [WO3.0.0-010](WO3.0.0-010-recall-floor.md) | Tighten Detection Recall Floor | COMPLETE — mutation benchmark + `passes_recall_floor` (`scan/mutation_benchmark.py`, `tests/scan/test_mutation_benchmark.py`) |
+| [WO3.0.0-011](WO3.0.0-011-test-quality-dedup.md) | Test-quality dedup (two largest test files) | COMPLETE — merge `54a8b25f`; 210 tests passing |
+| [WO3.0.0-012](WO3.0.0-012-overengineering-audit.md) | Over-engineering audit | COMPLETE — report delivered; findings acted on in `42520317` |
+| [WO3.0.0-013](WO3.0.0-013-core-consolidation.md) | `_core` constant-time compare consolidation | COMPLETE — merge `50248aec` |
 
 ## WO2.0.0 — Second series (COMPLETE)
 
-- [WO2.0.0-007](WO2.0.0-007-auth-hardening.md) — Auth hardening: MFA/TOTP, JWT JTI revocation, account lockout
-- [WO2.0.0-008](WO2.0.0-008-audit-fsync.md) — Audit fsync + crash-recovery
-- [WO2.0.0-009](WO2.0.0-009-reproducible-builds.md) — Reproducible builds + hash-pinned deps
-- [WO2.0.0-010](WO2.0.0-010-role-scoped-tokens.md) — Role-scoped tokens + CORS default
-- [WO2.0.0-011](WO2.0.0-011-reachability.md) — Reachability analysis
-- [WO2.0.0-012](WO2.0.0-012-package-intel-depth.md) — Package intelligence: download counts + package age
+- [WO2.0.0-001](WO2.0.0-001-supply-chain-security.md) — Supply-chain security hardening — UNVERIFIED (spec predates status tracking)
+- [WO2.0.0-002](WO2.0.0-002-multi-tenancy.md) — Multi-tenancy hardening — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-003](WO2.0.0-003-error-handling.md) — Error handling — UNVERIFIED (spec predates status tracking)
+- [WO2.0.0-004](WO2.0.0-004-package-intelligence.md) — Package intelligence — COMPLETE (CHANGELOG, ADR-009)
+- [WO2.0.0-005](WO2.0.0-005-adr-audit-hash-chain.md) — ADR audit-hash-chain — UNVERIFIED (spec predates status tracking)
+- [WO2.0.0-006](WO2.0.0-006-adr-gaps.md) — ADR gaps — UNVERIFIED (spec predates status tracking)
+- [WO2.0.0-007](WO2.0.0-007-auth-hardening.md) — Auth hardening: MFA/TOTP, JWT JTI revocation, account lockout — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-008](WO2.0.0-008-audit-fsync.md) — Audit fsync + crash-recovery — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-009](WO2.0.0-009-reproducible-builds.md) — Reproducible builds + hash-pinned deps — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-010](WO2.0.0-010-role-scoped-tokens.md) — Role-scoped tokens + CORS default — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-011](WO2.0.0-011-reachability.md) — Reachability analysis — COMPLETE (CHANGELOG 2026-08-12)
+- [WO2.0.0-012](WO2.0.0-012-package-intel-depth.md) — Package intelligence: download counts + package age — COMPLETE (CHANGELOG 2026-08-12)
 
 ## Rules
 - Work in isolated worktrees off `dev`. Never touch `main` directly.

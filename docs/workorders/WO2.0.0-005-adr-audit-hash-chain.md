@@ -1,7 +1,7 @@
 # WO2.0.0-005 — ADR Gap: Audit Hash-Chain
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** UNVERIFIED (spec predates status tracking; series reported COMPLETE — verify scope before reopening)
 **Owner:** subagent (worktree `wo/2.0.0/adr-gaps`)
 **Gate:** `uv run ruff check` + `uv run mypy picosentry/`
 

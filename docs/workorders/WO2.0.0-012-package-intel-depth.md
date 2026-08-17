@@ -1,7 +1,7 @@
 # WO2.0.0-012 — Package Intelligence: Download Counts + Package Age
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG "WO2.0.0-012 package intel depth")
 **Owner:** subagent (worktree `wo/2.0.0/package-intel-depth`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/scan/ -m "not slow"`
 

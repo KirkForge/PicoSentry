@@ -1,7 +1,7 @@
 # WO2.0.0-008 — Audit fsync + Crash-Recovery
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (CHANGELOG 2026-08-12 "Audit fsync knob + crash-recovery")
 **Owner:** subagent (worktree `wo/2.0.0/audit-fsync`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

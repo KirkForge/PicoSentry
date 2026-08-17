@@ -1,7 +1,7 @@
 # WO2.0.0-001 — Supply-Chain Security Hardening
 
 **Series:** WO2.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** UNVERIFIED (spec predates status tracking; series reported COMPLETE — verify scope before reopening)
 **Owner:** subagent (worktree `wo/2.0.0/supply-chain`)
 **Gate:** `uv run pytest tests/ -m "not slow"` + `uv run ruff check` + `uv run mypy picosentry/`
 

@@ -56,16 +56,29 @@ class TestFirewallConfig:
     def test_defaults(self):
         config = FirewallConfig()
         assert config.listen_port == 3132
+        assert config.listen_host == "127.0.0.1"
         assert config.upstream_npm == "https://registry.npmjs.org"
         assert config.upstream_pypi == "https://pypi.org"
-        assert config.block_severities == ["CRITICAL", "HIGH"]
-        assert config.quarantine_severities == ["MEDIUM"]
+        assert config.block_severities == ["CRITICAL"]
+        assert config.quarantine_severities == ["HIGH", "MEDIUM"]
+        assert config.auth_token is None
+        assert config.quarantine_action == "tag"
         assert config.cache_ttl_seconds == 3600
         assert config.log_blocks is True
 
     def test_custom_port(self):
         config = FirewallConfig(listen_port=8080)
         assert config.listen_port == 8080
+
+    def test_custom_listen_host(self):
+        config = FirewallConfig(listen_host="0.0.0.0")
+        assert config.listen_host == "0.0.0.0"
+
+    def test_invalid_quarantine_action_rejected(self):
+        import pytest
+
+        with pytest.raises(ValueError):
+            FirewallConfig(quarantine_action="nonsense")
 
     def test_strips_trailing_slash(self):
         config = FirewallConfig(
@@ -252,3 +265,179 @@ class TestSanitizeHeader:
         from picosentry.firewall.proxy import _sanitize_header
 
         assert _sanitize_header("text/html\r\nX-Malicious: injected") == "text/htmlX-Malicious: injected"
+
+
+def _make_handler(path, config):
+    from picosentry.firewall.proxy import _ProxyHandler
+
+    proxy = FirewallProxy(config)
+    handler_class = type("_H", (_ProxyHandler,), {"config": config, "scanner": proxy.scanner})
+    handler = object.__new__(handler_class)
+    handler.path = path
+    handler.send_response = MagicMock()
+    handler.send_header = MagicMock()
+    handler.end_headers = MagicMock()
+    handler.wfile = MagicMock()
+    handler.log_message = MagicMock()
+    handler.headers = {}
+    return handler
+
+
+def _upstream_json(payload):
+    mock_resp = MagicMock()
+    mock_resp.status = 200
+    mock_resp.headers = MagicMock()
+    mock_resp.headers.get.return_value = "application/json"
+    return mock_resp, json.dumps(payload).encode()
+
+
+class TestProxyAuth:
+    def test_no_token_configured_allows_anonymous(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig())
+        handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.ALLOW, []))
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_safe.return_value = _upstream_json({"name": "safe-pkg"})
+            handler.do_GET()
+            assert any("200" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_missing_token_returns_401(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.do_GET()
+        assert any("401" in str(c) for c in handler.send_response.call_args_list)
+        headers = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+        assert headers.get("WWW-Authenticate") == "Bearer"
+
+    def test_wrong_token_returns_401(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.headers = {"Authorization": "Bearer wrong"}
+        handler.do_GET()
+        assert any("401" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_correct_bearer_token_passes(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.headers = {"Authorization": "Bearer sekrit"}
+        handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.ALLOW, []))
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_safe.return_value = _upstream_json({"name": "safe-pkg"})
+            handler.do_GET()
+            assert any("200" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_non_bearer_scheme_rejected(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.headers = {"Authorization": "Basic c2VrcmlpdA=="}
+        handler.do_GET()
+        assert any("401" in str(c) for c in handler.send_response.call_args_list)
+
+
+class TestQuarantineAction:
+    def test_tag_action_serves_body_with_headers(self):
+        handler = _make_handler("/warn-pkg/1.0.0", FirewallConfig())
+        handler.scanner.scan_metadata = MagicMock(
+            return_value=(FirewallVerdict.QUARANTINE, [_make_finding("L2-OBFS-001", "MEDIUM", "obf")])
+        )
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_safe.return_value = _upstream_json({"name": "warn-pkg"})
+            handler.do_GET()
+            assert any("200" in str(c) for c in handler.send_response.call_args_list)
+            headers = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+            assert headers.get("X-PicoSentry-Verdict") == "quarantine"
+
+    def test_block_action_returns_403(self):
+        handler = _make_handler("/warn-pkg/1.0.0", FirewallConfig(quarantine_action="block"))
+        handler.scanner.scan_metadata = MagicMock(
+            return_value=(FirewallVerdict.QUARANTINE, [_make_finding("L2-OBFS-001", "MEDIUM", "obf")])
+        )
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_safe.return_value = _upstream_json({"name": "warn-pkg"})
+            handler.do_GET()
+            assert any("403" in str(c) for c in handler.send_response.call_args_list)
+
+
+def _stream_resp(chunks):
+    resp = MagicMock()
+    resp.status = 200
+    resp.headers = MagicMock()
+    resp.headers.get.return_value = "application/octet-stream"
+    resp.read.side_effect = chunks
+    return resp
+
+
+class TestPassThroughStreaming:
+    def test_streams_chunks_and_tags_passthrough(self):
+        handler = _make_handler("/left-pad/-/left-pad-1.3.0.tgz", FirewallConfig())
+        chunks = [b"a" * 100, b"b" * 100, b""]
+        with patch("picosentry.firewall.proxy._open_upstream_stream", return_value=_stream_resp(chunks)):
+            handler.do_GET()
+        headers = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+        assert headers.get("X-PicoSentry-Verdict") == "passthrough"
+        assert headers.get("X-PicoSentry-Proxy") == "true"
+        written = b"".join(c.args[0] for c in handler.wfile.write.call_args_list)
+        assert written == b"a" * 100 + b"b" * 100
+
+    def test_aborts_when_body_exceeds_cap(self):
+        handler = _make_handler(
+            "/left-pad/-/left-pad-1.3.0.tgz",
+            FirewallConfig(pass_through_max_bytes=150),
+        )
+        chunks = [b"a" * 100, b"b" * 100, b"c" * 100, b""]
+        with patch("picosentry.firewall.proxy._open_upstream_stream", return_value=_stream_resp(chunks)):
+            handler.do_GET()
+        written = b"".join(c.args[0] for c in handler.wfile.write.call_args_list)
+        assert len(written) == 100  # cap=150 exceeded when chunk 2 lands -> abort before writing it
+        assert handler.close_connection is True
+
+    def test_upstream_http_error_proxied(self):
+        import urllib.error
+
+        handler = _make_handler("/left-pad/-/left-pad-1.3.0.tgz", FirewallConfig())
+        with patch(
+            "picosentry.firewall.proxy._open_upstream_stream",
+            side_effect=urllib.error.HTTPError("url", 404, "Not Found", None, None),
+        ):
+            handler.do_GET()
+            assert any("404" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_upstream_unreachable_502(self):
+        import urllib.error
+
+        handler = _make_handler("/left-pad/-/left-pad-1.3.0.tgz", FirewallConfig())
+        with patch(
+            "picosentry.firewall.proxy._open_upstream_stream",
+            side_effect=urllib.error.URLError("no route"),
+        ):
+            handler.do_GET()
+            assert any("502" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_http_upstream_refused(self):
+        from picosentry.scan._network import InsecureURLError
+
+        handler = _make_handler("/left-pad/-/left-pad-1.3.0.tgz", FirewallConfig(upstream_npm="http://registry.local"))
+        with patch(
+            "picosentry.firewall.proxy._open_upstream_stream",
+            side_effect=InsecureURLError("http"),
+        ):
+            handler.do_GET()
+            assert any("502" in str(c) for c in handler.send_response.call_args_list)
+
+
+class TestServeWiring:
+    def test_serve_binds_configured_host_and_port_threaded(self):
+        config = FirewallConfig(listen_host="127.0.0.1", listen_port=9999)
+        proxy = FirewallProxy(config)
+        with patch("picosentry.firewall.proxy.ThreadingHTTPServer") as mock_server_cls:
+            instance = mock_server_cls.return_value
+            proxy.serve()
+        mock_server_cls.assert_called_once()
+        bind_args = mock_server_cls.call_args[0][0]
+        assert bind_args == ("127.0.0.1", 9999)
+        assert instance.daemon_threads is True
+        instance.serve_forever.assert_called_once()
+
+    def test_serve_shutdown_on_keyboard_interrupt(self):
+        config = FirewallConfig()
+        proxy = FirewallProxy(config)
+        with patch("picosentry.firewall.proxy.ThreadingHTTPServer") as mock_server_cls:
+            instance = mock_server_cls.return_value
+            instance.serve_forever.side_effect = KeyboardInterrupt()
+            proxy.serve()
+            instance.shutdown.assert_called_once()

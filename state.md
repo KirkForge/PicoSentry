@@ -2,9 +2,15 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-17, five-explorer round) ═══
+# ═══ CURRENT STATE (2026-08-17, release 2.1.2 cut) ═══
 
-**Head `dev` is ~15 commits ahead of `main` (v2.1.1) — release trigger reached; do WO4.0.0-009 (release-mechanics) BEFORE cutting it.** All gates green at last close (ruff/format/mypy clean; `test.sh fast` 4806 passed, 0 failed, ~152s; doctor 10/10; scan --validate exit 0 at the honest 84.92/72.79 baseline).
+**v2.1.2 RELEASED 2026-08-17** — `main` ff'd to `31e737be` (= `dev`), tagged `v2.1.2`, PyPI live (digests verified: wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with both assets (publish button pending). Covers 31 dev commits: S1 sandbox env secret-leak, S2/S3 WS/webhook tenant leaks, WO4.0.0-001..008 P0 merges, honest card 100.00/90.87. Gates at release: fast 4954 passed / 0 failed (~139s), ruff+format+mypy clean, test_sarif 33 passed. WO4.0.0-001–008 merged into dev and shipped.
+
+**Open release-mechanics debt (WO4.0.0-009, now partially burned down, still open):**
+- Setuptools sdist ignores SOURCE_DATE_EPOCH (dir entries + PKG-INFO get wall-clock, files get fs mtimes) — normalized post-build this release via inline script; **script not yet committed** (pattern in lessons.md; belongs in `scripts/`). Wheel is natively reproducible.
+- SARIF-spec doc strings had been corrupted to "2.1.1" by the 2.1.1 global sed — corrected back to SARIF 2.1.0.
+- CI red herrings from GitHub 429/502 outage (Aug 17): arm64/3.12/pg15 jobs died downloading actions; 3.13 flaky 429s pass locally (27/27) and 3.11 passed same commit. **Real pre-existing CI bug: postgres-live(16) DSN parses dbname as `picoshogun/pg_live_test_org_pg_flows` (slash-join; failed differently Aug 13) — needs a fix, file:line TBD in workflow.**
+- Docker image for v2.1.2 NOT yet built/pushed (docker-bake default tag bumped; multiarch build pending WO4.0.0-009 tag fix — `--set '*.tags='` still drops `:latest`).
 
 ## Subsystem health (compiled from 5 read-only explorers, ~70 verified findings → 24 WOs)
 

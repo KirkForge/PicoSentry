@@ -21,10 +21,16 @@ class MetricsCollector:
     def __init__(self):
         self.metrics: dict[str, list[Metric]] = defaultdict(list)
         self.counters: dict[str, float] = defaultdict(float)
+        self.global_gauges: dict[str, float] = {}
         self._lock = threading.Lock()
         self._start_time = time.time()
         self._max_counter_keys = 1000
         self._counter_timestamps: dict[str, float] = {}
+
+    def set_global_gauge(self, name: str, value: float) -> None:
+        """Instance-wide gauge, never org-filtered (pipeline health signals)."""
+        with self._lock:
+            self.global_gauges[name] = value
 
     def gauge(self, name: str, value: float, labels: dict[str, str] | None = None):
         with self._lock:
@@ -101,6 +107,11 @@ class MetricsCollector:
         lines.append("# TYPE picoshogun_uptime_seconds gauge")
         lines.append(f"picoshogun_uptime_seconds {self.uptime_seconds()}")
 
+        for name, value in sorted(self.global_gauges.items()):
+            lines.append(f"# HELP picoshogun_{name} global gauge")
+            lines.append(f"# TYPE picoshogun_{name} gauge")
+            lines.append(f"picoshogun_{name} {value}")
+
         with self._lock:
             grouped = defaultdict(list)
             for metrics_list in self.metrics.values():
@@ -147,7 +158,12 @@ class MetricsCollector:
                     if f'"org_id": "{org_str}"' in key:
                         counters[key] = value
 
-        return {"uptime_seconds": self.uptime_seconds(), "metrics": metrics_data, "counters": counters}
+        return {
+            "uptime_seconds": self.uptime_seconds(),
+            "global_gauges": dict(self.global_gauges),
+            "metrics": metrics_data,
+            "counters": counters,
+        }
 
 
 metrics = MetricsCollector()

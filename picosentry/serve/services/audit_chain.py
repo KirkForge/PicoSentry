@@ -63,13 +63,14 @@ def append_audit_row(
     """Append one row, linked to the last committed row_hash in one transaction."""
     mgr = database or db
     details_json = details if isinstance(details, str) else json.dumps(details, sort_keys=True)
+    stored_user_id = user_id if user_id is not None else -1
     try:
         with _append_lock, mgr.transaction(immediate=True) as conn:
             if mgr.backend == "postgres":
                 mgr.execute_on(conn, "SELECT pg_advisory_xact_lock(?)", (_PG_CHAIN_LOCK_KEY,))
             rows = mgr.execute_on(conn, "SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1")
             prev_hash = rows[0]["row_hash"] if rows and rows[0].get("row_hash") else ""
-            row_hash = compute_row_hash(prev_hash, action, user_id, resource_id, details_json, ip_address)
+            row_hash = compute_row_hash(prev_hash, action, stored_user_id, resource_id, details_json, ip_address)
             mgr.execute_on(
                 conn,
                 """
@@ -80,7 +81,7 @@ def append_audit_row(
                 """,
                 (
                     action,
-                    user_id if user_id is not None else -1,
+                    stored_user_id,
                     resource_type,
                     resource_id,
                     details_json,
@@ -98,6 +99,17 @@ def append_audit_row(
         return False
 
 
+def _gap_explains(purged: set[int], prev_id, row_id: int) -> bool:
+    """True when a recorded purge covers every id between the surviving rows."""
+    if prev_id is None:
+        # Nothing survives before this row: explained only if a purge removed
+        # the entire id prefix 1..row_id-1.
+        return row_id > 1 and bool(purged) and all(i in purged for i in range(1, row_id))
+    if row_id == prev_id + 1:
+        return False  # adjacent surviving predecessor: any mismatch is real
+    return all(i in purged for i in range(prev_id + 1, row_id))
+
+
 def verify_audit_chain(
     org_id: int | None = None, limit: int | None = None, database: DatabaseManager | None = None
 ) -> dict[str, Any]:
@@ -106,9 +118,12 @@ def verify_audit_chain(
     Mirrors the sandbox audit verifier semantics: report the first break.
     Checks per row: (a) row_hash matches a recomputation from the stored
     fields, (b) prev_hash matches the row_hash of the immediately preceding
-    row in the table (a fork or off-chain insert breaks this).  Rows with
-    empty prev_hash/row_hash predate the chain (migration 11) and reset the
-    expected link, matching the legacy seeding behaviour.
+    row in the table (a fork or off-chain insert breaks this) — except where
+    a purge gap marker (``audit.purge`` row, WO4.0.0-004) covers every id
+    between the two surviving rows: retention deletions are authorized gaps,
+    not tampering.  Rows with empty prev_hash/row_hash predate the chain
+    (migration 11) and reset the expected link, matching the legacy seeding
+    behaviour.
     """
     mgr = database or db
     where = ""
@@ -124,11 +139,12 @@ def verify_audit_chain(
     try:
         rows = mgr.execute(
             f"""
-            SELECT a.*, (
-                SELECT p.row_hash FROM audit_log p
-                WHERE p.id < a.id ORDER BY p.id DESC LIMIT 1
-            ) AS prev_row_hash
-            FROM audit_log a {where} {limit_clause}
+            SELECT a.*, p.id AS prev_id, p.row_hash AS prev_row_hash
+            FROM audit_log a
+            LEFT JOIN audit_log p ON p.id = (
+                SELECT MAX(x.id) FROM audit_log x WHERE x.id < a.id
+            )
+            {where} {limit_clause}
         """,
             tuple(params),
         )
@@ -139,6 +155,12 @@ def verify_audit_chain(
     if limit is not None:
         rows = list(reversed(rows))
 
+    from picosentry.serve.services.audit_cleanup import load_purged_ids
+
+    # The chain is global; gap markers from every org's purge explain missing
+    # predecessors even when verifying a single org's slice.
+    purged = load_purged_ids(mgr)
+
     for row in rows:
         stored_prev = row["prev_hash"] or ""
         stored_hash = row["row_hash"] or ""
@@ -146,6 +168,8 @@ def verify_audit_chain(
             continue
         predecessor = row["prev_row_hash"] or ""
         if stored_prev != predecessor:
+            if _gap_explains(purged, row["prev_id"], row["id"]):
+                continue
             return {
                 "valid": False,
                 "rows_checked": len(rows),

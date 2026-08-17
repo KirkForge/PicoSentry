@@ -220,15 +220,8 @@ class AuthService:
         now = datetime.now(timezone.utc)
 
         with self._db.transaction() as conn:
-            cursor = conn.execute("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
-            row = cursor.fetchone()
-            if isinstance(row, dict):
-                user = row
-            elif row:
-                cols = [desc[0] for desc in cursor.description]
-                user = dict(zip(cols, row, strict=False))
-            else:
-                user = None
+            rows = self._db.execute_on(conn, "SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
+            user = rows[0] if rows else None
 
             if not user:
                 logger.warning("Auth failed: invalid credentials")
@@ -248,7 +241,9 @@ class AuthService:
                 return {"status": "invalid"}
 
             # Password is correct — reset the failure counter.
-            conn.execute("UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", (user["id"],))
+            self._db.execute_on(
+                conn, "UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", (user["id"],)
+            )
 
             totp_secret = user.get("totp_secret")
             if not mfa_verified:
@@ -263,9 +258,17 @@ class AuthService:
                     logger.info("User %s requires WebAuthn MFA", normalized)
                     return {"status": "mfa_required", "mfa_methods": ["webauthn"]}
 
-            conn.execute("UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
+            self._db.execute_on(conn, "UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
 
-        token = self._generate_token(user["id"], user["username"], user["role"])
+        org_id = None
+        try:
+            from picosentry.serve.services.orgs import Organization
+
+            user_orgs = Organization.list_orgs_for_user(user["id"])
+            org_id = user_orgs[0]["id"] if user_orgs else None
+        except Exception:
+            logger.debug("Org resolution at login failed", exc_info=True)
+        token = self._generate_token(user["id"], user["username"], user["role"], org_id=org_id)
 
         logger.info("User %s authenticated", user["username"])
         return {"status": "ok", "token": token, "user_id": user["id"], "role": user["role"]}
@@ -275,7 +278,8 @@ class AuthService:
         max_attempts = settings.security.lockout_max_attempts
         if attempts >= max_attempts:
             locked_until = now + timedelta(minutes=settings.security.lockout_window_minutes)
-            conn.execute(
+            self._db.execute_on(
+                conn,
                 "UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?",
                 (attempts, locked_until, user["id"]),
             )
@@ -283,9 +287,9 @@ class AuthService:
                 "Account %s locked until %s after %d failed attempts", user["username"], locked_until, attempts
             )
         else:
-            conn.execute("UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"]))
+            self._db.execute_on(conn, "UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"]))
 
-    def _generate_token(self, user_id: int, username: str, role: str) -> str:
+    def _generate_token(self, user_id: int, username: str, role: str, org_id: int | None = None) -> str:
         if not HAS_JWT:
             raise RuntimeError("PyJWT is required for token generation. Install with: pip install PyJWT")
 
@@ -297,6 +301,10 @@ class AuthService:
             "exp": datetime.now(timezone.utc) + timedelta(hours=self.expiration_hours),
             "iat": datetime.now(timezone.utc),
         }
+        if org_id is not None:
+            # Best-effort org stamp for audit middleware; enforcement paths
+            # (deps.get_current_org) always re-resolve membership.
+            payload["org_id"] = org_id
 
         if self._signing_key is not None:
             headers = {"kid": self._signing_kid}
@@ -328,6 +336,7 @@ class AuthService:
             "username": payload["username"],
             "role": payload["role"],
             "jti": jti,
+            "org_id": payload.get("org_id"),
         }
 
     def _decode_token(self, token: str) -> dict[str, Any] | None:
@@ -378,8 +387,8 @@ class AuthService:
         """
         cutoff = (datetime.now(timezone.utc) - timedelta(hours=self.expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
         with self._db.transaction() as conn:
-            cursor = conn.execute("DELETE FROM revoked_tokens WHERE revoked_at < ?", (cutoff,))
-            return max(cursor.rowcount, 0)
+            rows = self._db.execute_on(conn, "DELETE FROM revoked_tokens WHERE revoked_at < ? RETURNING id", (cutoff,))
+            return len(rows)
 
     def enroll_totp(self, user_id: int, username: str) -> dict[str, str] | None:
         """Generate and store a TOTP secret for a user. Returns secret + otpauth URI."""
@@ -416,7 +425,7 @@ class AuthService:
         matched = self._totp_match_timestep(secret, code)
         if matched is None or not self._totp_replay_ok(user, matched):
             return False
-        conn.execute("UPDATE users SET totp_last_timestep = ? WHERE id = ?", (matched, user["id"]))
+        self._db.execute_on(conn, "UPDATE users SET totp_last_timestep = ? WHERE id = ?", (matched, user["id"]))
         return True
 
     def verify_totp_for_user(self, user_id: int, code: str) -> bool:
@@ -613,14 +622,16 @@ class AuthService:
 
         try:
             with self._db.transaction() as conn:
-                cursor = conn.execute(
+                rows = self._db.execute_on(
+                    conn,
                     """
                     INSERT INTO users (username, password_hash, email, role)
                     VALUES (?, ?, ?, ?)
+                    RETURNING id
                 """,
                     (normalized, password_hash, email, role),
                 )
-                user_id = cursor.lastrowid
+                user_id = rows[0]["id"]
         except Exception:
             return None
 
@@ -737,8 +748,10 @@ class AuthService:
             if not key:
                 return False
         with self._db.transaction() as conn:
-            conn.execute(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
+            self._db.execute_on(
+                conn,
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?",
+                (datetime.now(timezone.utc), key_id),
             )
         return True
 
@@ -755,10 +768,13 @@ class AuthService:
         expires = datetime.now(timezone.utc) + timedelta(days=90)
 
         with self._db.transaction() as conn:
-            conn.execute(
-                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?", (datetime.now(timezone.utc), key_id)
+            self._db.execute_on(
+                conn,
+                "UPDATE api_keys SET is_active = 0, revoked_at = ? WHERE id = ?",
+                (datetime.now(timezone.utc), key_id),
             )
-            conn.execute(
+            self._db.execute_on(
+                conn,
                 """
                 INSERT INTO api_keys (key_hash, user_id, name, permissions, role, org_id, expires_at)
                 VALUES (?, ?, ?, ?, ?, ?, ?)

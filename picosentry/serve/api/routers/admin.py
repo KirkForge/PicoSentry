@@ -76,7 +76,14 @@ async def audit_verify(
     user: dict = Depends(require_role("admin")),
     org: dict = Depends(get_current_org),
 ):
-    return verify_audit_chain(org_id=org["id"], limit=limit)
+    from picosentry.serve.middleware.audit import writer_dropped_count
+    from picosentry.serve.services.correlation import correlation_engine
+
+    return {
+        **verify_audit_chain(org_id=org["id"], limit=limit),
+        "dropped_audit_records": writer_dropped_count(),
+        "dropped_correlation_events": correlation_engine.dropped_events,
+    }
 
 
 @router.post("/audit/purge", tags=["Audit"], response_model=AuditPurgeResponse)

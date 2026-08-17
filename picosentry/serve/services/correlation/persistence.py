@@ -40,7 +40,10 @@ def _db():
 
 
 def _dedup_key(event: CorrelatedEvent) -> str:
-    return sha256(f"{event.artifact_id}|{event.layer}|{event.rule_id}|{event.timestamp}".encode()).hexdigest()[:16]
+    org = event.org_id or ""
+    return sha256(f"{org}|{event.artifact_id}|{event.layer}|{event.rule_id}|{event.timestamp}".encode()).hexdigest()[
+        :16
+    ]
 
 
 def _count_events(db_manager) -> int:
@@ -48,31 +51,21 @@ def _count_events(db_manager) -> int:
     return row["c"] if row else 0
 
 
-def _events_insert_sql() -> str:
-    """Return backend-specific INSERT that ignores duplicate dedup_key."""
-    db = _db()
-    ph = db.dialect.placeholder()
-    if db.backend == "postgres":
-        return f"""
-            INSERT INTO correlation_events
-            (dedup_key, artifact_id, layer, rule_id, severity,
-             confidence, target, title, detail, timestamp, run_id)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-            ON CONFLICT (dedup_key) DO NOTHING
-        """
-    return f"""
-        INSERT OR IGNORE INTO correlation_events
-        (dedup_key, artifact_id, layer, rule_id, severity,
-         confidence, target, title, detail, timestamp, run_id)
-        VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-    """
+# ON CONFLICT ... DO NOTHING is portable: dedup_key is UNIQUE (migration 9)
+# and both SQLite >= 3.24 and Postgres accept the identical clause.
+_EVENTS_INSERT_SQL = """
+    INSERT INTO correlation_events
+    (dedup_key, artifact_id, layer, rule_id, severity,
+     confidence, target, title, detail, timestamp, run_id, org_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (dedup_key) DO NOTHING
+"""
 
 
 def _persist_events_impl(engine) -> int:
     if not engine.PERSIST_ENABLED:
         return 0
 
-    sql = _events_insert_sql()
     count = 0
     with engine._lock:
         for _artifact_id, events in list(engine._events.items()):
@@ -83,7 +76,7 @@ def _persist_events_impl(engine) -> int:
                     db = _db()
                     before = _count_events(db)
                     db.execute_insert(
-                        sql,
+                        _EVENTS_INSERT_SQL,
                         (
                             dedup_key,
                             event.artifact_id,
@@ -96,6 +89,7 @@ def _persist_events_impl(engine) -> int:
                             event.detail,
                             event.timestamp,
                             event.run_id,
+                            event.org_id,
                         ),
                     )
                     after = _count_events(db)
@@ -118,7 +112,7 @@ def _load_events_impl(engine) -> int:
         db = _db()
         rows = db.execute("""
             SELECT artifact_id, layer, rule_id, severity, confidence,
-                   target, title, detail, timestamp, run_id
+                   target, title, detail, timestamp, run_id, org_id
             FROM correlation_events
             ORDER BY timestamp ASC
         """)
@@ -134,6 +128,7 @@ def _load_events_impl(engine) -> int:
                 title=row["title"],
                 detail=row["detail"],
                 timestamp=row["timestamp"],
+                org_id=row["org_id"],
                 run_id=row["run_id"],
             )
 
@@ -160,14 +155,18 @@ def _persist_chains_cache_impl(engine) -> int:
         for (_org_id, artifact_id), chain in list(engine._chains.items()):
             event_count = sum(len(e) for e in chain.phases.values())
             phase_count = len(chain.phases)
+            # ponytail: correlation_chains is keyed by artifact_id (UNIQUE), so
+            # the same artifact owned by two orgs collapses to one cached row —
+            # the DB table is a report cache; the engine keeps per-org truth.
+            chain_org = int(_org_id) if _org_id is not None else None
             try:
                 if db.backend == "postgres":
                     db.execute(
                         f"""
                         INSERT INTO correlation_chains
                         (artifact_id, chain_score, severity, confidence,
-                         narrative, event_count, phase_count)
-                        VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                         narrative, event_count, phase_count, org_id)
+                        VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                         ON CONFLICT (artifact_id) DO UPDATE SET
                             chain_score = EXCLUDED.chain_score,
                             severity = EXCLUDED.severity,
@@ -185,6 +184,7 @@ def _persist_chains_cache_impl(engine) -> int:
                             chain.narrative,
                             event_count,
                             phase_count,
+                            chain_org,
                         ),
                     )
                 else:
@@ -216,8 +216,8 @@ def _persist_chains_cache_impl(engine) -> int:
                             f"""
                             INSERT INTO correlation_chains
                             (artifact_id, chain_score, severity, confidence,
-                             narrative, event_count, phase_count)
-                            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
+                             narrative, event_count, phase_count, org_id)
+                            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
                         """,
                             (
                                 artifact_id,
@@ -227,6 +227,7 @@ def _persist_chains_cache_impl(engine) -> int:
                                 chain.narrative,
                                 event_count,
                                 phase_count,
+                                chain_org,
                             ),
                         )
                 count += 1

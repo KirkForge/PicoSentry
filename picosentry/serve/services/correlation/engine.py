@@ -31,6 +31,11 @@ from picosentry.serve.services.correlation.persistence import (
 logger = logging.getLogger("picosentry.correlation")
 
 
+def _org_key(org_id) -> str | None:
+    """Normalize caller org ids (int or str) to the engine's str org space."""
+    return str(org_id) if org_id is not None else None
+
+
 class CorrelationEngine:
     PERSIST_ENABLED: ClassVar[bool] = False
 
@@ -49,6 +54,8 @@ class CorrelationEngine:
         self._max_events_per_minute = 10_000
         self._minute_bucket_start: float = 0.0
         self._minute_event_count = 0
+
+        self.dropped_events = 0  # monotonic backpressure drop counter (WO4.0.0-004)
 
         self._escalation_callbacks: list[Callable[[KillChainTimeline], None]] = []
 
@@ -81,6 +88,14 @@ class CorrelationEngine:
         self._minute_event_count += allowed
         return allowed
 
+    def _record_drops(self, count: int) -> None:
+        if count <= 0:
+            return
+        self.dropped_events += count
+        from picosentry.serve.services.metrics import metrics
+
+        metrics.set_global_gauge("dropped_correlation_events", self.dropped_events)
+
     def ingest(self, event: CorrelatedEvent) -> None:
         with self._lock:
             if self._allowed_by_backpressure(1) == 0:
@@ -89,6 +104,7 @@ class CorrelationEngine:
                     event.artifact_id,
                     event.rule_id,
                 )
+                self._record_drops(1)
                 return
 
             events = self._events[event.artifact_id]
@@ -125,6 +141,7 @@ class CorrelationEngine:
                     "Correlation ingestion dropped batch of %d events (rate limit)",
                     len(events),
                 )
+                self._record_drops(len(events))
                 return
 
             dropped = len(events) - allowed
@@ -146,6 +163,7 @@ class CorrelationEngine:
                     self._chains.pop((evicted_org, k), None)
 
         if dropped:
+            self._record_drops(dropped)
             logger.warning(
                 "Correlation ingestion dropped %d/%d events (rate limit)",
                 dropped,
@@ -154,8 +172,9 @@ class CorrelationEngine:
         logger.debug("Ingested batch of %d events", allowed)
 
     def kill_chain(self, artifact_id: str, org_id: str | None = None) -> KillChainTimeline | None:
+        org_key = _org_key(org_id)
         with self._lock:
-            cache_key = (org_id, artifact_id)
+            cache_key = (org_key, artifact_id)
             if cache_key in self._chains:
                 return self._chains[cache_key]
 
@@ -165,11 +184,12 @@ class CorrelationEngine:
 
             # Only events belonging to the requesting org (or global, org-less
             # events) contribute to this tenant's chain.
-            scoped = [e for e in events if e.org_id is None or e.org_id == org_id]
+            scoped = [e for e in events if e.org_id is None or e.org_id == org_key]
             if not scoped:
                 return None
 
             timeline = self._compute_timeline(artifact_id, scoped)
+            timeline.org_id = org_key
             self._chains[cache_key] = timeline
             return timeline
 
@@ -190,18 +210,20 @@ class CorrelationEngine:
             return results
 
     def all_artifact_ids(self, org_id: str | None = None) -> list[str]:
+        org_key = _org_key(org_id)
         with self._lock:
-            if org_id is None:
+            if org_key is None:
                 return list(self._events.keys())
             return [
                 artifact_id
                 for artifact_id, events in self._events.items()
-                if any(e.org_id is None or e.org_id == org_id for e in events)
+                if any(e.org_id is None or e.org_id == org_key for e in events)
             ]
 
-    def on_run_completed(self, project_id: str, run_id: str | None = None) -> None:
-
-        critical = self.critical_chains(threshold=0.7)
+    def on_run_completed(self, project_id: str, run_id: str | None = None, org_id: str | None = None) -> None:
+        # Org-scoped: a run by one tenant must only re-escalate that tenant's
+        # chains (plus org-less global events).
+        critical = self.critical_chains(threshold=0.7, org_id=org_id)
 
         for chain in critical:
             self._notify_escalated(chain)

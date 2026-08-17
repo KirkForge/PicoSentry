@@ -25,20 +25,24 @@ class Organization:
 
         try:
             with db.transaction() as conn:
-                cursor = conn.execute(
+                now = datetime.now(timezone.utc)
+                rows = db.execute_on(
+                    conn,
                     """
                     INSERT INTO orgs (name, slug, owner_id, tier, api_key_hash, is_active, created_at)
                     VALUES (?, ?, ?, ?, ?, 1, ?)
+                    RETURNING id
                 """,
-                    (name, slug, owner_user_id, tier, api_key_hash, datetime.now(timezone.utc)),
+                    (name, slug, owner_user_id, tier, api_key_hash, now),
                 )
-                org_id = cursor.lastrowid
-                conn.execute(
+                org_id = rows[0]["id"]
+                db.execute_on(
+                    conn,
                     """
                     INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
                     VALUES (?, ?, 'admin', ?, ?)
                 """,
-                    (org_id, owner_user_id, datetime.now(timezone.utc), datetime.now(timezone.utc)),
+                    (org_id, owner_user_id, now, now),
                 )
         except Exception:
             return None
@@ -132,8 +136,9 @@ class Organization:
         """
         db.execute_insert(
             """
-            INSERT OR IGNORE INTO org_projects (org_id, project_id, added_at)
+            INSERT INTO org_projects (org_id, project_id, added_at)
             VALUES (?, ?, ?)
+            ON CONFLICT (org_id, project_id) DO NOTHING
         """,
             (org_id, project_id, datetime.now(timezone.utc)),
         )
@@ -177,41 +182,3 @@ class Organization:
             (user_id,),
         )
         return [dict(r) for r in rows]
-
-
-ORG_MIGRATION = """
-CREATE TABLE IF NOT EXISTS orgs (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    slug TEXT UNIQUE NOT NULL,
-    owner_id INTEGER,
-    tier TEXT DEFAULT 'free',
-    api_key_hash TEXT UNIQUE,
-    is_active BOOLEAN DEFAULT 1,
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS org_users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER,
-    user_id INTEGER,
-    role TEXT DEFAULT 'member',
-    invited_at TIMESTAMP,
-    joined_at TIMESTAMP,
-    FOREIGN KEY (org_id) REFERENCES orgs(id),
-    FOREIGN KEY (user_id) REFERENCES users(id)
-);
-
-CREATE TABLE IF NOT EXISTS org_projects (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    org_id INTEGER,
-    project_id TEXT,
-    added_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (org_id) REFERENCES orgs(id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_orgs_slug ON orgs(slug);
-CREATE INDEX IF NOT EXISTS idx_orgs_key ON orgs(api_key_hash);
-CREATE INDEX IF NOT EXISTS idx_org_members ON org_users(org_id, user_id);
-"""

@@ -844,6 +844,49 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_last_timestep INTEGER;
     """,
     ),
+    Migration(
+        18,
+        "org_projects_unique",
+        """
+        -- WO4.0.0-003: ON CONFLICT (org_id, project_id) DO NOTHING needs a
+        -- unique index on both backends. Existing rows may predate this and
+        -- carry duplicates — keep the oldest row per pair first.
+        DELETE FROM org_projects WHERE id NOT IN (
+            SELECT MIN(id) FROM org_projects GROUP BY org_id, project_id
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_org_projects_org_project
+            ON org_projects(org_id, project_id);
+    """,
+        postgres_sql="""
+        DELETE FROM org_projects WHERE id NOT IN (
+            SELECT MIN(id) FROM org_projects GROUP BY org_id, project_id
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_org_projects_org_project
+            ON org_projects(org_id, project_id);
+    """,
+    ),
+    Migration(
+        19,
+        "add_org_id_to_correlation_events",
+        """
+        -- WO4.0.0-005: correlation events are tenant-stamped. org_id is TEXT
+        -- because the engine's org space is stringified ids (matches the
+        -- CorrelatedEvent model and engine cache keys). No semicolons in
+        -- comments: the runner splits statements on them.
+        ALTER TABLE correlation_events ADD COLUMN org_id TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_events_org
+            ON correlation_events(org_id, timestamp);
+    """,
+        postgres_sql="""
+        ALTER TABLE correlation_events ADD COLUMN IF NOT EXISTS org_id TEXT;
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_events_org
+            ON correlation_events(org_id, timestamp);
+    """,
+    ),
 ]
 
 __all__ = [

@@ -50,6 +50,7 @@ def build_event_from_intel(
     project_id: str,
     run_id: str | None = None,
     layer: str = "scan",
+    org_id: int | None = None,
 ) -> CorrelatedEvent | None:
     intel_type = intel.get("type", "")
     severity_str = intel.get("severity", "info")
@@ -86,6 +87,7 @@ def build_event_from_intel(
         title=intel_type.replace("_", " ").title(),
         detail=" | ".join(detail_parts) if detail_parts else str(intel_data),
         timestamp=datetime.now(timezone.utc).isoformat(),
+        org_id=str(org_id) if org_id is not None else None,
         run_id=run_id,
     )
 

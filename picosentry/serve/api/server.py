@@ -120,6 +120,7 @@ async def lifespan(app: FastAPI):
 
     def _chain_escalated_alert(chain):
         try:
+            chain_org = int(chain.org_id) if chain.org_id is not None else None
             _alert_hub_global.send(
                 project_id=chain.artifact_id,
                 alert_type="chain_escalated",
@@ -134,8 +135,9 @@ async def lifespan(app: FastAPI):
                     "phases": list(chain.phases.keys()),
                     "severity": chain.severity.value,
                     "phase_count": len(chain.phases),
-                    "event_count": sum(len(e) for e in chain.phases.values()),
+                    "event_count": sum(len(e) for e in chain.phases),
                 },
+                org_id=chain_org,
             )
         except (OSError, ValueError):
             logger.exception("Chain escalation alert failed")
@@ -315,7 +317,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 api_v1 = APIRouter(prefix=settings.api.api_prefix)
 
 
-app.add_middleware(AuditMiddleware)
 app.add_middleware(
     RateLimitMiddleware,
     max_requests_per_ip=100,
@@ -350,6 +351,11 @@ app.add_middleware(
 app.add_middleware(HTTPSEnforcementMiddleware, enabled=settings.is_production())
 app.add_middleware(DocsRestrictionMiddleware, enabled=settings.is_production())
 app.add_middleware(CORSHardeningMiddleware, block_wildcard_in_production=settings.is_production())
+# WO4.0.0-004: Audit added LAST = OUTERMOST, so rate-limited (429),
+# oversized (413) and DDoS-blocked requests — which short-circuit in the
+# middlewares below — still reach the tamper-evident audit log. RequestID
+# sits inside audit, so blocked rows still carry the correlation id.
+app.add_middleware(AuditMiddleware)
 
 
 app.include_router(health.router)

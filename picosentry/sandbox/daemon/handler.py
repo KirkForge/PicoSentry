@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler
 from typing import TYPE_CHECKING
 
@@ -41,6 +42,10 @@ class PicoDomeHandler(
     auth: TokenAuth = TokenAuth(rbac=rbac)
     job_store: PersistentScanJobStore | ScanJobStore | SQLiteScanJobStore = PersistentScanJobStore()
     rate_limiter: TokenBucketLimiter = TokenBucketLimiter()
+    # Scan worker pool (set by PicoDomeDaemon at init). None = run inline
+    # (direct handler use in tests / library embedding).
+    scan_executor: ThreadPoolExecutor | None = None
+    scan_slots: threading.Semaphore | None = None
     _start_time: float = time.time()
     _stats_lock: threading.Lock = threading.Lock()
     _scan_count: int = 0

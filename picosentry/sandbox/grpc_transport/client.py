@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import json
 import logging
+import os
 import time
 from typing import Any
 
@@ -62,6 +63,7 @@ class PicoDomeGRPCClient:
         timeout: float = 30.0,
         max_retries: int = 3,
         retry_delay: float = 1.0,
+        token: str | None = None,
     ) -> None:
         self._target = target
         self._mtls_config = mtls_config
@@ -70,6 +72,11 @@ class PicoDomeGRPCClient:
         self._retry_delay = retry_delay
         self._channel = None
         self._stub = None
+        self._token = token if token is not None else os.environ.get("PICODOME_API_TOKEN", "")
+
+    def _metadata(self) -> list[tuple[str, str]]:
+        """Authorization metadata for the server's auth interceptor (WO4.0.0-002)."""
+        return [("authorization", f"Bearer {self._token}")] if self._token else []
 
     def _ensure_channel(self) -> None:
         if self._channel is not None:
@@ -190,7 +197,7 @@ class PicoDomeGRPCClient:
             if self._stub is None:
                 self._stub = pb2_grpc.PicoDomeServiceStub(self._channel)
 
-            response = self._stub.Scan(request, timeout=timeout)
+            response = self._stub.Scan(request, timeout=timeout, metadata=self._metadata())
 
             return ScanResult(
                 result_json=response.result_json,
@@ -227,7 +234,7 @@ class PicoDomeGRPCClient:
                 "/picodome.PicoDomeService/Scan",
                 request_serializer=lambda x: x,
                 response_deserializer=lambda x: x,
-            )(request_data, timeout=timeout)
+            )(request_data, timeout=timeout, metadata=self._metadata())
 
             resp = json.loads(response_data.decode("utf-8"))
             return ScanResult.from_dict(resp)
@@ -262,7 +269,7 @@ class PicoDomeGRPCClient:
             request = pb2.HealthCheckRequest()
             if self._stub is None:
                 self._stub = pb2_grpc.PicoDomeServiceStub(self._channel)
-            response = self._stub.Health(request, timeout=5.0)
+            response = self._stub.Health(request, timeout=5.0, metadata=self._metadata())
 
             return {
                 "healthy": response.healthy,
@@ -278,7 +285,7 @@ class PicoDomeGRPCClient:
                     "/picodome.PicoDomeService/Health",
                     request_serializer=lambda x: x,
                     response_deserializer=lambda x: x,
-                )(b"", timeout=5.0)
+                )(b"", timeout=5.0, metadata=self._metadata())
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError as e:
                 logger.exception("gRPC Health RPC failed")
@@ -294,7 +301,7 @@ class PicoDomeGRPCClient:
             request = pb2.PolicyGetRequest(name=name, version=version or 0)
             if self._stub is None:
                 self._stub = pb2_grpc.PicoDomeServiceStub(self._channel)
-            response = self._stub.GetPolicy(request, timeout=10.0)
+            response = self._stub.GetPolicy(request, timeout=10.0, metadata=self._metadata())
 
             return {
                 "policy_json": response.policy_json,
@@ -310,7 +317,7 @@ class PicoDomeGRPCClient:
                     "/picodome.PicoDomeService/GetPolicy",
                     request_serializer=lambda x: x,
                     response_deserializer=lambda x: x,
-                )(request_data, timeout=10.0)
+                )(request_data, timeout=10.0, metadata=self._metadata())
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError:
                 logger.exception("gRPC GetPolicy RPC failed")
@@ -341,7 +348,7 @@ class PicoDomeGRPCClient:
             )
             if self._stub is None:
                 self._stub = pb2_grpc.PicoDomeServiceStub(self._channel)
-            response = self._stub.QueryAudit(request, timeout=10.0)
+            response = self._stub.QueryAudit(request, timeout=10.0, metadata=self._metadata())
 
             return {
                 "events_json": response.events_json,
@@ -365,7 +372,7 @@ class PicoDomeGRPCClient:
                     "/picodome.PicoDomeService/QueryAudit",
                     request_serializer=lambda x: x,
                     response_deserializer=lambda x: x,
-                )(request_data, timeout=10.0)
+                )(request_data, timeout=10.0, metadata=self._metadata())
                 return json.loads(response_data.decode("utf-8"))
             except grpc.RpcError:
                 logger.exception("gRPC QueryAudit RPC failed")

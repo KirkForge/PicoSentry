@@ -271,7 +271,11 @@ class PicoDomeGetRoutesMixin:
         from picosentry.sandbox.policy_versioned import get_policy_store
 
         store = get_policy_store()
-        pv = store.load(name)
+        try:
+            pv = store.load(name)
+        except ValueError:
+            self._send_error(ErrorCodes.INVALID_POLICY, detail=f"Invalid policy name: {name!r}")
+            return
         if pv:
             self._send_json(pv.to_dict())
         else:

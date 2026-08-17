@@ -26,6 +26,14 @@ def _default_store_dir() -> Path:
 _DEFAULT_STORE_DIR = _default_store_dir()
 
 
+def _validate_policy_name(name: str) -> None:
+    """Reject path separators and traversal in policy names (same rule as
+    l3.policy.load_policy). The read path always validated; the write path
+    used to mkdir/write under caller-controlled paths (WO4.0.0-002)."""
+    if not name or "/" in name or "\\" in name or ".." in name:
+        raise ValueError(f"Invalid policy name: {name!r}")
+
+
 @dataclass(frozen=True)
 class PolicyVersion:
     policy: Policy
@@ -71,6 +79,7 @@ class VersionedPolicyStore:
         change_description: str = "",
     ) -> PolicyVersion:
         name = policy.name
+        _validate_policy_name(name)
         policy_dir = self._store_dir / name
         policy_dir.mkdir(parents=True, exist_ok=True)
 
@@ -116,6 +125,7 @@ class VersionedPolicyStore:
         return pv
 
     def load(self, name: str, version: int | None = None) -> PolicyVersion | None:
+        _validate_policy_name(name)
         if version is None:
             latest_path = self._store_dir / name / "latest.json"
             if latest_path.is_file():
@@ -183,6 +193,7 @@ class VersionedPolicyStore:
         )
 
     def list_versions(self, name: str) -> list[PolicyVersion]:
+        _validate_policy_name(name)
         return self._list_versions(name)
 
     def verify_integrity(self, name: str) -> list[str]:

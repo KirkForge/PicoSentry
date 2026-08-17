@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import concurrent.futures
 import hashlib
 import json
 import logging
-import os
 import time
 import uuid
 from importlib import import_module
@@ -70,11 +70,10 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
 
 
 def _max_scan_timeout_seconds() -> float:
-    """Upper bound for scan timeout from env (default 300 s)."""
-    try:
-        return max(1.0, float(os.environ.get("PICODOME_MAX_SCAN_TIMEOUT", "300")))
-    except ValueError:
-        return 300.0
+    """Upper bound for scan timeout from env (default 300 s). Shared with the gRPC transport."""
+    from picosentry.sandbox.daemon.constants import max_scan_timeout_seconds
+
+    return max_scan_timeout_seconds()
 
 
 # Maps daemon API ``backend`` values to the fully-qualified backend class.
@@ -225,6 +224,82 @@ class PicoDomePostRoutesMixin:
                     self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
                     return
 
+            executor = self.scan_executor
+            if executor is None:
+                # No daemon-managed pool (direct handler use): run inline.
+                try:
+                    result = self._run_scan_job(job_id, command, policy, timeout, backend, actor, release_slot=False)
+                    self._send_json(result, status=201)
+                except (OSError, RuntimeError):
+                    self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
+                return
+
+            if self.scan_slots is not None and not self.scan_slots.acquire(blocking=False):
+                self.job_store.update(
+                    job_id,
+                    status="failed",
+                    completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    error="scan queue full",
+                )
+                logger.warning("Scan queue full — rejecting job %s", job_id)
+                self._send_error(ErrorCodes.RATE_LIMITED, detail="scan queue full")
+                return
+
+            self.job_store.update(job_id, status="queued")
+            try:
+                future = executor.submit(self._run_scan_job, job_id, command, policy, timeout, backend, actor)
+            except RuntimeError:
+                # Executor already shut down (daemon stopping, or a stale
+                # executor reference) — run inline rather than fail the scan.
+                logger.warning("Scan executor unavailable — running job %s inline", job_id)
+                try:
+                    try:
+                        result = self._run_scan_job(
+                            job_id, command, policy, timeout, backend, actor, release_slot=False
+                        )
+                    finally:
+                        if self.scan_slots is not None:
+                            self.scan_slots.release()
+                    self._send_json(result, status=201)
+                except (OSError, RuntimeError):
+                    self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
+                return
+            try:
+                result = future.result()
+            except concurrent.futures.CancelledError:
+                self._send_error(ErrorCodes.NOT_READY, detail="scan cancelled during shutdown")
+            except (OSError, RuntimeError):
+                logger.exception("Scan job failed")
+                self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
+            else:
+                self._send_json(result, status=201)
+        except (OSError, RuntimeError):
+            self.job_store.update(
+                job_id,
+                status="failed",
+                completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                error="scan execution failed",
+            )
+            logger.exception("Scan job failed")
+            self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
+
+    def _run_scan_job(
+        self: PicoDomeHandler,
+        job_id: str,
+        command: list[str],
+        policy: Any,
+        timeout: float,
+        backend: SandboxBackend | None,
+        actor: str,
+        release_slot: bool = True,
+    ) -> dict[str, Any]:
+        """Execute one scan; runs on a worker thread when the daemon pool is active.
+
+        Job store transitions: queued → running → completed/failed.
+        """
+        try:
+            self.job_store.update(job_id, status="running")
+
             sandbox_result = sandbox_run(
                 command=command,
                 policy=policy,
@@ -285,17 +360,18 @@ class PicoDomePostRoutesMixin:
             except (OSError, ValueError, TypeError):
                 logger.exception("Retention save failed")
 
-            self._send_json(result, status=201)
-
-        except (OSError, RuntimeError):
+            return result
+        except BaseException:
             self.job_store.update(
                 job_id,
                 status="failed",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 error="scan execution failed",
             )
-            logger.exception("Scan job failed")
-            self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
+            raise
+        finally:
+            if release_slot and self.scan_slots is not None:
+                self.scan_slots.release()
 
     def _handle_create_policy(self: PicoDomeHandler, token: str) -> None:
         try:

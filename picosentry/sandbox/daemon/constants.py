@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 
 API_VERSION = "v1"
@@ -25,13 +26,148 @@ if _ENTERPRISE_MODE and CORS_ALLOW_ORIGINS == "*":
     )
 
 
+ALLOWED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "echo",
+        "printf",
+        "cat",
+        "head",
+        "tail",
+        "sort",
+        "wc",
+        "grep",
+        "jq",
+        "yq",
+        "npm",
+        "npx",
+        "yarn",
+        "pnpm",
+        "pip",
+        "pip3",
+        "cargo",
+        "go",
+        "mvn",
+        "gradle",
+        "make",
+        "cmake",
+        "dotnet",
+        "gem",
+        "bundle",
+        "php",
+        "composer",
+    }
+)
+
+DENIED_COMMANDS: frozenset[str] = frozenset(
+    {
+        "rm",
+        "rmdir",
+        "mkfs",
+        "dd",
+        "format",
+        "shutdown",
+        "reboot",
+        "halt",
+        "poweroff",
+        "passwd",
+        "useradd",
+        "userdel",
+        "usermod",
+        "groupadd",
+        "groupdel",
+        "iptables",
+        "ip6tables",
+        "nft",
+        "systemctl",
+        "service",
+        "mount",
+        "umount",
+        "crontab",
+        "ssh",
+        "telnet",
+        "nc",
+        "ncat",
+        "curl",
+        "wget",
+        "bash",
+        "sh",
+        "zsh",
+        "fish",
+        "python",
+        "python3",
+        "perl",
+        "ruby",
+        "node",
+        "sudo",
+        "su",
+        "doas",
+        "chmod",
+        "chown",
+        "chgrp",
+        "chattr",
+    }
+)
+
+
+def validate_command(command: list[str]) -> str | None:
+    """Shared command allow/deny check — used by the HTTP handler and the gRPC servicer."""
+    if not command:
+        return "Empty command"
+    from pathlib import Path as _Path
+
+    base_name = _Path(command[0]).name
+
+    if _ENTERPRISE_MODE:
+        if base_name not in ALLOWED_COMMANDS:
+            return f"Command '{base_name}' is not in enterprise allowlist"
+    elif base_name in DENIED_COMMANDS:
+        return f"Command '{base_name}' is denied by server policy"
+    return None
+
+
+def max_scan_timeout_seconds() -> float:
+    """Upper bound for scan timeout from env (default 300 s). Shared by HTTP and gRPC."""
+    try:
+        return max(1.0, float(os.environ.get("PICODOME_MAX_SCAN_TIMEOUT", "300")))
+    except ValueError:
+        return 300.0
+
+
+def workspace_root() -> Path:
+    """Server-side workspace root that caller-supplied scan cwd values are confined to."""
+    return Path(os.environ.get("PICODOME_WORKSPACE_ROOT", str(Path.home() / ".picodome" / "workspace")))
+
+
+def confine_cwd(cwd: str | None) -> Path | None:
+    """Resolve a caller-supplied cwd against the workspace root.
+
+    Returns the resolved path if it stays inside the workspace root, otherwise
+    None (caller must reject). Empty/None cwd returns None meaning "server default".
+    """
+    if not cwd:
+        return None
+    root = workspace_root().resolve()
+    resolved = Path(cwd).resolve()
+    try:
+        resolved.relative_to(root)
+    except ValueError:
+        return None
+    return resolved
+
+
 __all__ = [
+    "ALLOWED_COMMANDS",
     "API_VERSION",
     "CORS_ALLOW_HEADERS",
     "CORS_ALLOW_METHODS",
     "CORS_ALLOW_ORIGINS",
     "CORS_MAX_AGE",
+    "DENIED_COMMANDS",
     "_CORS_ALLOW_ORIGINS_LIST",
     "_CORS_DENY_BY_DEFAULT",
     "_ENTERPRISE_MODE",
+    "confine_cwd",
+    "max_scan_timeout_seconds",
+    "validate_command",
+    "workspace_root",
 ]

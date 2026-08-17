@@ -47,6 +47,7 @@ class PicoDomeGRPCServer:
         max_workers: int = 10,
         scan_fn: Callable | None = None,
         analyze_fn: Callable | None = None,
+        auth: Any | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -57,6 +58,11 @@ class PicoDomeGRPCServer:
         self._start_time = time.time()
         self._scan_engine = _ScanEngine(scan_fn=scan_fn, analyze_fn=analyze_fn)
         self._scan_count = 0
+        if auth is None:
+            from picosentry.sandbox.auth import TokenAuth
+
+            auth = TokenAuth()
+        self._auth = auth
 
     def start(self) -> None:
         if not is_grpc_available():
@@ -65,12 +71,24 @@ class PicoDomeGRPCServer:
         import grpc
 
         from picosentry.sandbox.grpc_transport._servicer import PicoDomeServicer
+        from picosentry.sandbox.grpc_transport.auth import assert_secure_transport, build_auth_interceptor
 
-        self._server = grpc.server(futures.ThreadPoolExecutor(max_workers=self._max_workers))
+        server_credentials = None
+        if self._mtls_config is not None:
+            server_credentials = self._create_server_credentials(self._mtls_config)
+
+        # Plaintext beyond loopback is a hard startup failure (WO4.0.0-002).
+        assert_secure_transport(self._host, server_credentials is not None)
+
+        self._server = grpc.server(
+            futures.ThreadPoolExecutor(max_workers=self._max_workers),
+            interceptors=[build_auth_interceptor(self._auth)],
+        )
         self._servicer = PicoDomeServicer(
             scan_engine=self._scan_engine,
             start_time=self._start_time,
             scan_count_ref=self,
+            auth=self._auth,
         )
 
         try:
@@ -89,17 +107,13 @@ class PicoDomeGRPCServer:
 
             add_servicer_manually(self._servicer, self._server)
 
-        server_credentials = None
-        if self._mtls_config is not None:
-            server_credentials = self._create_server_credentials(self._mtls_config)
-
         address = f"{self._host}:{self._port}"
         if server_credentials:
             self._server.add_secure_port(address, server_credentials)
             logger.info("gRPC server starting with TLS on %s", address)
         else:
             self._server.add_insecure_port(address)
-            logger.info("gRPC server starting (plaintext) on %s", address)
+            logger.info("gRPC server starting (plaintext, loopback-only) on %s", address)
 
         try:
             from picosentry.sandbox.audit import AuditEventType, get_audit_logger

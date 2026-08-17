@@ -13,30 +13,55 @@ logger = logging.getLogger("picodome.grpc_transport.servicer")
 
 
 class PicoDomeServicer:
-    def __init__(self, scan_engine, start_time: float, scan_count_ref: Any) -> None:
+    def __init__(self, scan_engine, start_time: float, scan_count_ref: Any, auth: Any | None = None) -> None:
         self._scan_engine = scan_engine
         self._start_time = start_time
         self._scan_count_ref = scan_count_ref
+        self._auth = auth
 
     def Scan(self, request, context):
         self._audit_log("SCAN_START", detail=f"command={list(request.command)}")
 
         try:
             command = list(request.command) if hasattr(request, "command") else []
+
+            # Same command policy as the HTTP daemon (WO4.0.0-002).
+            from picosentry.sandbox.daemon.constants import validate_command
+
+            deny_error = validate_command(command)
+            if deny_error:
+                self._audit_log("SCAN_ERROR", detail=deny_error)
+                return self._reject(context, "PERMISSION_DENIED", deny_error)
+
             policy_name = request.policy if hasattr(request, "policy") else ""
-            timeout = request.timeout if hasattr(request, "timeout") and request.timeout else 30.0
+            raw_timeout = request.timeout if hasattr(request, "timeout") and request.timeout else 30.0
+            from picosentry.sandbox.daemon.constants import max_scan_timeout_seconds
+
+            timeout = min(float(raw_timeout), max_scan_timeout_seconds())
+
             cwd = request.cwd if hasattr(request, "cwd") and request.cwd else None
+            if cwd:
+                from picosentry.sandbox.daemon.constants import confine_cwd
+
+                confined = confine_cwd(cwd)
+                if confined is None:
+                    self._audit_log("SCAN_ERROR", detail=f"cwd outside workspace root: {cwd}")
+                    return self._reject(context, "PERMISSION_DENIED", "cwd escapes workspace root")
+                cwd = str(confined)
 
             policy = None
             if policy_name:
                 try:
-                    from pathlib import Path
-
                     from picosentry.sandbox.l3.policy import load_policy
 
-                    policy = load_policy(Path(policy_name))
+                    policy = load_policy(name=policy_name, verify_signature=True)
+                except FileNotFoundError:
+                    return self._reject(context, "NOT_FOUND", f"policy '{policy_name}' not found")
                 except (OSError, RuntimeError, ValueError, TypeError, ImportError) as e:
-                    logger.debug("Policy '%s' not found, using default: %s", policy_name, e)
+                    logger.warning("Policy '%s' rejected: %s", policy_name, e)
+                    return self._reject(context, "INVALID_ARGUMENT", f"invalid policy '{policy_name}'")
+
+            tenant_id = self._resolve_tenant(context)
 
             sandbox_result = self._scan_engine.scan(
                 command=command,
@@ -65,7 +90,8 @@ class PicoDomeServicer:
 
             self._audit_log(
                 "SCAN_COMPLETE",
-                detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}",
+                detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}"
+                f" tenant={tenant_id}",
             )
 
             try:
@@ -94,6 +120,10 @@ class PicoDomeServicer:
                 )
 
         except Exception as e:
+            if not getattr(context, "is_active", lambda: True)():
+                # context.abort() already terminated this RPC — propagate, don't
+                # log it as a scan failure.
+                raise
             logger.exception("Scan RPC failed")
             self._audit_log("SCAN_ERROR", detail=type(e).__name__)
 
@@ -155,6 +185,8 @@ class PicoDomeServicer:
 
     def GetPolicy(self, request, context):
         name = request.name if hasattr(request, "name") else ""
+        if name and ("/" in name or "\\" in name or ".." in name):
+            return self._reject(context, "INVALID_ARGUMENT", f"Invalid policy name: {name!r}")
 
         try:
             from picosentry.sandbox.policy_versioned import get_policy_store
@@ -237,6 +269,35 @@ class PicoDomeServicer:
                     "count": count,
                 }
             )
+
+    def _reject(self, context, code_name: str, detail: str):
+        """Abort the RPC with a gRPC status code. Real contexts raise on abort."""
+        import grpc
+
+        code = {
+            "UNAUTHENTICATED": grpc.StatusCode.UNAUTHENTICATED,
+            "PERMISSION_DENIED": grpc.StatusCode.PERMISSION_DENIED,
+            "INVALID_ARGUMENT": grpc.StatusCode.INVALID_ARGUMENT,
+            "NOT_FOUND": grpc.StatusCode.NOT_FOUND,
+        }.get(code_name, grpc.StatusCode.INVALID_ARGUMENT)
+        context.abort(code, detail)
+        return
+
+    def _resolve_tenant(self, context) -> str:
+        """Tenant resolution mirroring the HTTP daemon's _resolve_tenant."""
+        try:
+            from picosentry.sandbox.grpc_transport.auth import bearer_token_from_metadata, metadata_value
+            from picosentry.sandbox.tenant import get_tenant_registry
+
+            token = bearer_token_from_metadata(context.invocation_metadata())
+            header_tenant = metadata_value(context.invocation_metadata(), "x-tenant") or None
+            import hashlib
+
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest() if token else ""
+            return str(get_tenant_registry().resolve_tenant(token_hash, header_tenant=header_tenant))
+        except Exception:
+            logger.debug("tenant resolution failed", exc_info=True)
+            return ""
 
     def _audit_log(self, event_type: str, detail: str = "") -> None:
         try:

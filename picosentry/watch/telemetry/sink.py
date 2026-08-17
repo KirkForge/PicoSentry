@@ -33,14 +33,24 @@ class TelemetrySink:
     def __init__(self, config: TelemetryConfig | None = None) -> None:
         self._config = config or TelemetryConfig()
         self._start_time = time.monotonic()
+        # Single source of truth for metrics is the PrometheusMetrics instance
+        # (WO4.0.0-016): the former parallel `_metrics` dict was rendered
+        # ALONGSIDE the prometheus families, emitting duplicate HELP/TYPE
+        # blocks — Prometheus rejects the whole scrape.
         self._prometheus = PrometheusMetrics()
-        self._metrics: dict[str, int | float] = {
-            "picowatch_requests_total": 0,
-            "picowatch_prompt_blocked_total": 0,
-            "picowatch_prompt_score_sum": 0.0,
-            "picowatch_output_violations_total": 0,
-            "picowatch_scan_duration_ms_sum": 0.0,
-        }
+        # Pre-register the base families so an idle server still exposes them
+        # at zero (Prometheus convention; also keeps /metrics scrapeable before
+        # the first request).
+        for _name in (
+            "picowatch_requests_total",
+            "picowatch_prompt_blocked_total",
+            "picowatch_prompt_score_sum",
+            "picowatch_output_validated_total",
+            "picowatch_output_violations_total",
+            "picowatch_scan_duration_ms_sum",
+        ):
+            self._prometheus.inc_counter(_name, 0)
+        self._prometheus.set_gauge("picowatch_dropped_audit_records", 0)
         self._init_audit_db()
 
         self.cleanup_audit()
@@ -110,14 +120,8 @@ class TelemetrySink:
         return hmac.new(self._audit_key(), msg.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
     def record_prompt_scan(self, result: PromptScanResult, request_id: str | None = None) -> None:
-        self._metrics["picowatch_requests_total"] += 1
-        self._metrics["picowatch_prompt_score_sum"] = float(self._metrics["picowatch_prompt_score_sum"]) + result.score
-        self._metrics["picowatch_scan_duration_ms_sum"] = (
-            float(self._metrics["picowatch_scan_duration_ms_sum"]) + result.duration_ms
-        )
-
-        if result.blocked:
-            self._metrics["picowatch_prompt_blocked_total"] = int(self._metrics["picowatch_prompt_blocked_total"]) + 1
+        self._prometheus.inc_counter("picowatch_prompt_score_sum", result.score)
+        self._prometheus.inc_counter("picowatch_scan_duration_ms_sum", result.duration_ms)
 
         model = result.details.get("model") if result.details else None
         labels = {"model": model} if model else None
@@ -154,13 +158,7 @@ class TelemetrySink:
         )
 
     def record_validation(self, result: ValidationResult, request_id: str | None = None) -> None:
-        if result.violations:
-            self._metrics["picowatch_output_violations_total"] = (
-                int(self._metrics["picowatch_output_violations_total"]) + 1
-            )
-        self._metrics["picowatch_scan_duration_ms_sum"] = (
-            float(self._metrics["picowatch_scan_duration_ms_sum"]) + result.duration_ms
-        )
+        self._prometheus.inc_counter("picowatch_scan_duration_ms_sum", result.duration_ms)
 
         self._prometheus.inc_counter("picowatch_requests_total")
         if result.valid:
@@ -234,6 +232,7 @@ class TelemetrySink:
                     self._close_audit_conn()
                     if attempt == 2:
                         self.dropped_audit_records += 1
+                        self._prometheus.set_gauge("picowatch_dropped_audit_records", self.dropped_audit_records)
                         logger.warning(
                             "Failed to write audit log entry after retry (dropped_audit_records=%d)",
                             self.dropped_audit_records,
@@ -260,33 +259,8 @@ class TelemetrySink:
         return invalid_rows
 
     def render_prometheus(self) -> str:
-        lines: list[str] = []
-
-        lines.append("# HELP picowatch_requests_total Total requests processed")
-        lines.append("# TYPE picowatch_requests_total counter")
-        lines.append(f"picowatch_requests_total {self._metrics['picowatch_requests_total']}")
-
-        lines.append("# HELP picowatch_prompt_blocked_total Total prompts blocked")
-        lines.append("# TYPE picowatch_prompt_blocked_total counter")
-        lines.append(f"picowatch_prompt_blocked_total {self._metrics['picowatch_prompt_blocked_total']}")
-
-        lines.append("# HELP picowatch_prompt_score_sum Cumulative prompt scores")
-        lines.append("# TYPE picowatch_prompt_score_sum counter")
-        lines.append(f"picowatch_prompt_score_sum {self._metrics['picowatch_prompt_score_sum']}")
-
-        lines.append("# HELP picowatch_output_violations_total Total output violations")
-        lines.append("# TYPE picowatch_output_violations_total counter")
-        lines.append(f"picowatch_output_violations_total {self._metrics['picowatch_output_violations_total']}")
-
-        lines.append("# HELP picowatch_scan_duration_ms_sum Cumulative scan duration in ms")
-        lines.append("# TYPE picowatch_scan_duration_ms_sum counter")
-        lines.append(f"picowatch_scan_duration_ms_sum {self._metrics['picowatch_scan_duration_ms_sum']}")
-
-        if self._prometheus._histograms:
-            lines.append("")
-            lines.append(self._prometheus.render())
-
-        return "\n".join(lines) + "\n"
+        """Single-family exposition: every series comes from PrometheusMetrics."""
+        return self._prometheus.render()
 
     def health(
         self,

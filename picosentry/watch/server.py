@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import logging
 import os
 import secrets
@@ -78,6 +79,36 @@ def _get_client_ip(request: Request) -> str:
     return "unknown"
 
 
+def _byte_size(text: str) -> int:
+    """Byte size of the payload — ``len(text)`` under-counts astral-plane text
+    by up to 4x against the configured byte budget (WO4.0.0-016)."""
+    return len(text.encode("utf-8", errors="replace"))
+
+
+async def _body_size_limit(request: Request, call_next: Any) -> Any:
+    """Reject oversized bodies on write endpoints BEFORE the JSON parse.
+
+    Content-Length based (mirrors serve's RequestSizeLimitMiddleware pattern):
+    a 10MB hostile body is dropped at the header instead of being buffered and
+    parsed in full inside the event loop.
+    """
+    if request.method in ("POST", "PUT", "PATCH"):
+        content_length = request.headers.get("content-length")
+        if content_length:
+            try:
+                if int(content_length) > _MAX_BODY_BYTES:
+                    return JSONResponse(
+                        status_code=413,
+                        content={"error": "Request body too large", "max_bytes": _MAX_BODY_BYTES},
+                    )
+            except (ValueError, TypeError):
+                pass
+    return await call_next(request)
+
+
+_MAX_BODY_BYTES = 32 * 1024 * 1024
+
+
 async def _verify_api_key(
     api_key: str,
     x_api_key: str | None = Header(None, alias="X-API-Key"),
@@ -142,6 +173,10 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             status_code=500,
             content={"error": "internal_server_error"},
         )
+
+    @app.middleware("http")
+    async def body_size_limit_middleware(request: Request, call_next: Any) -> Any:
+        return await _body_size_limit(request, call_next)
 
     @app.middleware("http")
     async def security_headers_middleware(request: Request, call_next: Any) -> Any:
@@ -233,14 +268,17 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
     ) -> dict[str, Any] | Response:
         text = body.text
 
-        if len(text) > config.max_prompt_size:
+        if _byte_size(text) > config.max_prompt_size:
             raise HTTPException(
                 status_code=413,
                 detail=f"Input exceeds maximum size ({config.max_prompt_size} bytes). Rejecting immediately.",
             )
 
         try:
-            result = prompt_guard.check(text, context=body.context)
+            # to_thread keeps the event loop live while the (CPU-bound) guard
+            # runs — one large prompt no longer freezes /v1/health and every
+            # other request (WO4.0.0-016).
+            result = await asyncio.to_thread(prompt_guard.check, text, body.context)
         except Exception:
             logger.exception("Prompt guard evaluation failed")
             if config.fail_closed:
@@ -281,7 +319,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         _auth: None = Depends(verify_api_key),
     ) -> dict[str, Any] | Response:
 
-        if len(body.output) > config.max_output_size:
+        if _byte_size(body.output) > config.max_output_size:
             raise HTTPException(
                 status_code=413,
                 detail=f"Output exceeds maximum size ({config.max_output_size} bytes). Rejecting immediately.",
@@ -300,7 +338,9 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
             )
 
         try:
-            result = output_guard.validate(body.output, schema=body.json_schema, prompt_result=prompt_result)
+            result = await asyncio.to_thread(
+                output_guard.validate, body.output, schema=body.json_schema, prompt_result=prompt_result
+            )
         except SchemaTooLargeError as exc:
             raise HTTPException(status_code=413, detail=str(exc)) from exc
         except Exception:
@@ -364,6 +404,11 @@ def create_admin_app(
 
     admin_deps = [Depends(verify_admin_api_key)] if admin_auth_required else []
 
+    # Admin endpoints face the same unthrottled key-guess surface as the main
+    # app (WO4.0.0-016): rate-limit per IP and set the standard security
+    # headers — previously only the main app had either.
+    admin_limiter = RateLimiter(max_requests=config.rate_limit, window_seconds=config.rate_limit_window)
+
     app = FastAPI(
         title="PicoWatch Admin",
         version=__version__,
@@ -371,6 +416,31 @@ def create_admin_app(
         docs_url="/docs" if config.enable_docs else None,
         redoc_url="/redoc" if config.enable_docs else None,
     )
+
+    @app.exception_handler(Exception)
+    async def _admin_global_exception_handler(_request: Request, _exc: Exception):
+        logger.exception("Unhandled error in PicoWatch admin request")
+        return JSONResponse(status_code=500, content={"error": "internal_server_error"})
+
+    @app.middleware("http")
+    async def admin_security_headers_middleware(request: Request, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    @app.middleware("http")
+    async def admin_rate_limit_middleware(request: Request, call_next: Any) -> Any:
+        if request.url.path != "/v1/health":
+            client_ip = _get_client_ip(request)
+            if not admin_limiter.is_allowed(client_ip):
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded. Try again later."},
+                    headers={"Retry-After": str(config.rate_limit_window)},
+                )
+        return await call_next(request)
 
     @app.get("/v1/health")
     async def admin_health() -> dict[str, Any]:

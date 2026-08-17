@@ -1,20 +1,41 @@
 from __future__ import annotations
 
+import hmac
 import json
 import logging
 import urllib.parse
 import urllib.request
 import urllib.error
-from http.server import HTTPServer, BaseHTTPRequestHandler
+from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from typing import Any
 
 from picosentry.firewall.scanner import FirewallScanner, FirewallVerdict, classify_path
-from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, UnsafeURLError, safe_urlopen
+from picosentry.scan._network import (
+    InsecureURLError,
+    ResponseTooLargeError,
+    UnsafeURLError,
+    assert_url_safe,
+    safe_urlopen,
+)
 
 _MAX_ERROR_BODY = 1 << 20
-_MAX_PASS_THROUGH_BYTES = 512 * 1024 * 1024  # ponytail: 512MB cap; stream to disk if legit tarballs exceed it
+_STREAM_CHUNK_BYTES = 64 * 1024
+_USER_AGENT = "picosentry-firewall/1.0"
 
 logger = logging.getLogger("picosentry.firewall.proxy")
+
+
+def _open_upstream_stream(url: str, timeout: int):
+    """Open an upstream response for streaming, with safe_urlopen's SSRF/HTTPS checks.
+
+    Unlike safe_urlopen this does NOT buffer the body — the caller copies it
+    in chunks so a huge tarball never lands in memory (WO4.0.0-022).
+    """
+    if not url.lower().startswith("https://"):
+        raise InsecureURLError(f"Refusing non-HTTPS upstream URL (MITM risk): {url}")
+    assert_url_safe(url)
+    req = urllib.request.Request(url, headers={"User-Agent": _USER_AGENT})
+    return urllib.request.urlopen(req, timeout=timeout)
 
 
 def _sanitize_header(value: str) -> str:
@@ -37,23 +58,38 @@ class FirewallConfig:
     def __init__(
         self,
         listen_port: int = 3132,
+        listen_host: str = "127.0.0.1",
         upstream_npm: str = "https://registry.npmjs.org",
         upstream_pypi: str = "https://pypi.org",
         block_severities: list[str] | None = None,
         quarantine_severities: list[str] | None = None,
+        auth_token: str | None = None,
+        quarantine_action: str = "tag",
         cache_ttl_seconds: int = 3600,
         cache_max_entries: int = 10_000,
         scan_timeout_seconds: int = 30,
+        pass_through_max_bytes: int = 512 * 1024 * 1024,
         log_blocks: bool = True,
     ) -> None:
+        if quarantine_action not in ("tag", "block"):
+            raise ValueError(f"quarantine_action must be 'tag' or 'block', got {quarantine_action!r}")
         self.listen_port = listen_port
+        # Default loopback: a metadata firewall has no auth by default and must
+        # not be reachable from the network unless explicitly exposed.
+        self.listen_host = listen_host
         self.upstream_npm = upstream_npm.rstrip("/")
         self.upstream_pypi = upstream_pypi.rstrip("/")
-        self.block_severities = block_severities or ["CRITICAL", "HIGH"]
-        self.quarantine_severities = quarantine_severities or ["MEDIUM"]
+        # Default posture: BLOCK on CRITICAL only; HIGH/MEDIUM quarantine-tag
+        # (see FirewallScanner — blocking on HIGH metadata breaks every benign
+        # package with an install script).
+        self.block_severities = block_severities or ["CRITICAL"]
+        self.quarantine_severities = quarantine_severities or ["HIGH", "MEDIUM"]
+        self.auth_token = auth_token
+        self.quarantine_action = quarantine_action
         self.cache_ttl_seconds = cache_ttl_seconds
         self.cache_max_entries = cache_max_entries
         self.scan_timeout_seconds = scan_timeout_seconds
+        self.pass_through_max_bytes = pass_through_max_bytes
         self.log_blocks = log_blocks
 
 
@@ -61,7 +97,23 @@ class _ProxyHandler(BaseHTTPRequestHandler):
     config: FirewallConfig
     scanner: FirewallScanner
 
+    def _authorized(self) -> bool:
+        token = self.config.auth_token
+        if token is None:
+            return True
+        presented = self.headers.get("Authorization", "")
+        expected = f"Bearer {token}"
+        return hmac.compare_digest(presented, expected)
+
     def do_GET(self) -> None:
+        if not self._authorized():
+            self.send_response(401)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("WWW-Authenticate", "Bearer")
+            self.end_headers()
+            self.wfile.write(b'{"error": "unauthorized"}')
+            return
+
         parsed = classify_path(self.path)
         if parsed is None:
             self._proxy_pass()
@@ -77,7 +129,7 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             return
 
         try:
-            req = urllib.request.Request(upstream_url, headers={"User-Agent": "picosentry-firewall/1.0"})
+            req = urllib.request.Request(upstream_url, headers={"User-Agent": _USER_AGENT})
             resp, body = safe_urlopen(req, timeout=self.config.scan_timeout_seconds)
             content_type = resp.headers.get("Content-Type", "application/json")
             status = resp.status
@@ -116,10 +168,11 @@ class _ProxyHandler(BaseHTTPRequestHandler):
         verdict, findings = self.scanner.scan_metadata(ecosystem, name, version, metadata)
 
         if verdict == FirewallVerdict.ALLOW:
-            self._send_response(status, content_type, body)
+            self._send_response(status, content_type, body, extra_headers=[("X-PicoSentry-Verdict", "allow")])
             return
 
-        if verdict == FirewallVerdict.QUARANTINE:
+        quarantine_tags = verdict == FirewallVerdict.QUARANTINE
+        if quarantine_tags and self.config.quarantine_action == "tag":
             reasons_str = ",".join(f.rule_id for f in findings)
             self._send_response(
                 status,
@@ -151,7 +204,7 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             indent=2,
         )
 
-        if verdict == FirewallVerdict.BLOCK and self.config.log_blocks:
+        if self.config.log_blocks and (verdict == FirewallVerdict.BLOCK or quarantine_tags):
             logger.warning(
                 "BLOCKED %s/%s@%s: %d findings",
                 ecosystem,
@@ -174,6 +227,13 @@ class _ProxyHandler(BaseHTTPRequestHandler):
         return urllib.parse.urljoin(base + "/", safe_path.lstrip("/"))
 
     def _proxy_pass(self) -> None:
+        """Stream non-classified paths (tarballs, static assets) upstream→client in bounded memory.
+
+        Documented decision (WO4.0.0-022, docs/FIREWALL.md): this is a metadata
+        firewall — tarballs are passed through UNINSPECTED and tagged with
+        X-PicoSentry-Verdict: passthrough. Artifact scanning happens elsewhere
+        (picosentry scan on the extracted tarball).
+        """
         url = self._guess_upstream(self.path)
         if url is None:
             self.send_response(400)
@@ -182,25 +242,40 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             self.wfile.write(b'{"error": "invalid path"}')
             return
         try:
-            req = urllib.request.Request(url, headers={"User-Agent": "picosentry-firewall/1.0"})
-            resp, body = safe_urlopen(req, timeout=30, max_bytes=_MAX_PASS_THROUGH_BYTES)
-            self._send_response(resp.status, resp.headers.get("Content-Type", "application/octet-stream"), body)
-            resp.close()
+            resp = _open_upstream_stream(url, timeout=self.config.scan_timeout_seconds)
         except urllib.error.HTTPError as exc:
             self.send_response(exc.code)
             self.end_headers()
-        except (
-            urllib.error.URLError,
-            OSError,
-            TimeoutError,
-            UnicodeDecodeError,
-            json.JSONDecodeError,
-            InsecureURLError,
-            ResponseTooLargeError,
-            UnsafeURLError,
-        ):
+            return
+        except (urllib.error.URLError, OSError, TimeoutError, InsecureURLError, UnsafeURLError):
             self.send_response(502)
             self.end_headers()
+            return
+
+        with resp:
+            self.send_response(resp.status)
+            content_type = resp.headers.get("Content-Type", "application/octet-stream")
+            self.send_header("Content-Type", _sanitize_header(content_type))
+            self.send_header("X-PicoSentry-Proxy", "true")
+            self.send_header("X-PicoSentry-Verdict", "passthrough")
+            self.end_headers()
+            total = 0
+            try:
+                while True:
+                    chunk = resp.read(_STREAM_CHUNK_BYTES)
+                    if not chunk:
+                        break
+                    total += len(chunk)
+                    if total > self.config.pass_through_max_bytes:
+                        # Cannot unsend headers — truncate and close so the
+                        # client sees a cut connection instead of us silently
+                        # buffering a 512MB+ body in memory.
+                        logger.warning("Pass-through body exceeded %d bytes for %s", total, self.path)
+                        self.close_connection = True
+                        break
+                    self.wfile.write(chunk)
+            except OSError:
+                self.close_connection = True
 
     def _guess_upstream(self, path: str) -> str | None:
         safe_path = _safe_upstream_path(path)
@@ -239,8 +314,13 @@ class FirewallProxy:
 
     def serve(self) -> None:
         handler = type("_Handler", (_ProxyHandler,), {"config": self.config, "scanner": self.scanner})
-        server = HTTPServer(("0.0.0.0", self.config.listen_port), handler)
-        logger.info("PicoSentry firewall proxy listening on port %d", self.config.listen_port)
+        server = ThreadingHTTPServer((self.config.listen_host, self.config.listen_port), handler)
+        server.daemon_threads = True  # never let a stuck client connection block shutdown
+        logger.info(
+            "PicoSentry firewall proxy listening on %s:%d",
+            self.config.listen_host,
+            self.config.listen_port,
+        )
         try:
             server.serve_forever()
         except KeyboardInterrupt:

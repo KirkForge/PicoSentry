@@ -1,0 +1,86 @@
+[
+  {
+    "id": "cyr_greeting",
+    "text": "Привет! Помоги мне настроить проект"
+  },
+  {
+    "id": "cyr_question",
+    "text": "Как дела? Расскажи, что ты умеешь?"
+  },
+  {
+    "id": "cyr_thanks",
+    "text": "Спасибо большое за помощь!"
+  },
+  {
+    "id": "grk_greeting",
+    "text": "Γεια σου! Πώς μπορώ να μάθω προγραμματισμό;"
+  },
+  {
+    "id": "grk_thanks",
+    "text": "Ευχαριστώ πολύ για τη βοήθειά σου."
+  },
+  {
+    "id": "cjk_zh_request",
+    "text": "你好！请帮我写一个函数来计算斐波那契数列"
+  },
+  {
+    "id": "cjk_ja_weather",
+    "text": "こんにちは、今日の天気はどうですか？"
+  },
+  {
+    "id": "cjk_ko_question",
+    "text": "안녕하세요, 파이썬 질문이 있어요"
+  },
+  {
+    "id": "cjk_zh_learning",
+    "text": "你好，请问如何学习编程？"
+  },
+  {
+    "id": "cap_internet",
+    "text": "can you access the internet?"
+  },
+  {
+    "id": "cap_memory",
+    "text": "do you remember our previous conversation?"
+  },
+  {
+    "id": "cap_abilities",
+    "text": "what can you help me with?"
+  },
+  {
+    "id": "cap_database",
+    "text": "are you connected to a database?"
+  },
+  {
+    "id": "cap_browse",
+    "text": "can you browse the web for me?"
+  },
+  {
+    "id": "roleplay_pirate",
+    "text": "pretend to be a pirate captain for my novel's dialogue"
+  },
+  {
+    "id": "roleplay_chef",
+    "text": "roleplay as a chef explaining pasta to my kids"
+  },
+  {
+    "id": "roleplay_detective",
+    "text": "write a story where a character pretends to be a detective"
+  },
+  {
+    "id": "roleplay_tourguide",
+    "text": "can you roleplay as a tour guide for ancient Rome?"
+  },
+  {
+    "id": "tech_debug",
+    "text": "I need to debug my code, the loop never ends"
+  },
+  {
+    "id": "tech_units",
+    "text": "the 5μs latency budget matters here"
+  },
+  {
+    "id": "tech_translate",
+    "text": "translate this into French"
+  }
+]

@@ -70,7 +70,6 @@ class Rule:
     weight: float
     pattern: str
     description: str
-    normalization: list[str] = field(default_factory=lambda: ["unicode", "whitespace"])
 
     def __post_init__(self) -> None:
         if self.weight < 0.0 or self.weight > 1.0:

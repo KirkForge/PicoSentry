@@ -40,7 +40,10 @@ classifier see the text:
 - Spaced-character collapse (`i g n o r e` -> `ignore`).
 - Punctuation collapse (`ignore.all.previous` -> `ignore all previous`).
 - HTML/C/line comment stripping.
-- Base64, ROT13, and URL decoding with rescan.
+- Base64 (standard and URL-safe alphabets), hex, ROT13, and URL decoding
+  with rescan — applied to both the raw text and its NFKC-normalized variant,
+  so fullwidth- or zero-width-wrapped payloads are still decoded. Decoded
+  variants are deduped and capped at 32 per request.
 
 ### Regex rule engine
 
@@ -48,7 +51,6 @@ Rules are YAML files in `picosentry/watch/rules/prompt_injection/` and
 `picosentry/watch/rules/output_policy/`. Each rule has:
 
 - `id`, `category`, `weight` (0.0–1.0), `pattern`, `description`.
-- Optional `normalization` list (default: unicode, whitespace).
 
 Rules are deterministic, versioned by a SHA-256 corpus hash, and sorted by id
 for reproducible evaluation order.
@@ -69,7 +71,7 @@ The classifier is intentionally conservative:
 
 - A single ambiguous keyword is capped at warn level.
 - Benign contextual markers (`"I made a typo"`, `"correction"`, thanks,
-  apologies) suppress weak signals.
+  apologies, fiction framing like `"for my novel"`) suppress weak signals.
 - Strong structural signals or multiple families can still override suppression.
 
 The classifier can be disabled via config:
@@ -113,6 +115,11 @@ detections cannot regress.
 4. **Fast pre-filter role.** It is best used as the first tier in a layered
    defense: block obvious attacks cheaply, then send borderline prompts to a
    heavier model-based guard.
+5. **Roleplay framing false positives.** A short imperative that starts a
+   roleplay with no benign context ("act as if you are tired") reads as a
+   structural signal and can block; fiction framing ("for my novel") or
+   question form avoids it. The corpus floor (`tests/watch/fixtures/`) pins
+   the benign roleplay set that must keep passing.
 
 ## HTTP server hardening
 

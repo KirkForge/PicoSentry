@@ -161,7 +161,8 @@ class TestRuleDetailEndpoint:
         response = client_no_auth.get(f"/v1/rules/{rule_id}")
         data = response.json()
         assert "pattern" in data
-        assert "normalization" in data
+        # normalization metadata was removed (never read) — must not resurface
+        assert "normalization" not in data
 
     def test_rule_detail_404_for_unknown(self, client_no_auth: TestClient) -> None:
         response = client_no_auth.get("/v1/rules/nonexistent_rule_id")

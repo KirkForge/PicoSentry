@@ -283,3 +283,30 @@ class TestOutputGuardSchemaLimits:
         guard = OutputGuard(config=config)
         with pytest.raises(SchemaTooLargeError):
             guard.validate("{}", schema={"a": {"b": {"c": {}}}})
+
+
+class TestOutputGuardFailClosed:
+    """WO4.0.0-007: the output guard must fail closed on a missing corpus."""
+
+    def test_fail_closed_blocks_on_missing_rules_dir(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path / "does-not-exist", fail_closed=True)
+        guard = OutputGuard(config=config)
+        assert guard.rules_loaded == 0
+        result = guard.validate("The weather is sunny today.")
+        assert result.valid is False
+        assert "fail_closed_no_rules" in result.violations
+
+    def test_fail_closed_blocks_on_empty_rules_dir(self, tmp_path: Path) -> None:
+        base = tmp_path / "rules"
+        (base / "output_policy").mkdir(parents=True)
+        config = _make_config(base, fail_closed=True)
+        guard = OutputGuard(config=config)
+        result = guard.validate("The weather is sunny today.")
+        assert result.valid is False
+        assert "fail_closed_no_rules" in result.violations
+
+    def test_fail_open_still_passes_without_rules(self, tmp_path: Path) -> None:
+        config = _make_config(tmp_path / "does-not-exist", fail_closed=False)
+        guard = OutputGuard(config=config)
+        result = guard.validate("The weather is sunny today.")
+        assert result.valid is True

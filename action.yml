@@ -5,10 +5,6 @@ inputs:
     description: 'Path to scan'
     required: false
     default: '.'
-  config:
-    description: 'Path to config file'
-    required: false
-    default: ''
   sarif-file:
     description: 'Path to write SARIF output'
     required: false
@@ -44,9 +40,6 @@ runs:
       shell: bash
       run: |
         ARGS=(scan "${{ inputs.path }}" --format sarif --output "${{ inputs.sarif-file }}")
-        if [ -n "${{ inputs.config }}" ]; then
-          ARGS+=(--config "${{ inputs.config }}")
-        fi
         if [ -n "${{ inputs.severity-threshold }}" ]; then
           ARGS+=(--severity-threshold "${{ inputs.severity-threshold }}")
         fi

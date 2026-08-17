@@ -150,6 +150,12 @@ The server verifies the signature against the trusted-public-key allowlist
 (`BUNDLED_TRUSTED_PUBLIC_KEYS` or `PICOSHOGUN_TRUSTED_PUBLIC_KEYS`) before
 loading the plugin.
 
+> **PyNaCl is required for both signing and verification** and is not pulled in
+> by any `picosentry` extra — install it explicitly (`pip install pynacl`) on
+> both the signing host and the server. Without it the server logs
+> "pynacl is not installed" and treats signed plugins as unsigned, which means
+> a `REQUIRE_SIGNED_PLUGINS=1` deployment will refuse every plugin.
+
 ## Deployment
 
 Plugins are loaded from directories listed in `PICOSHOGUN_PLUGIN_DIR`

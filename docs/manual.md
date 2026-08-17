@@ -24,7 +24,7 @@
 
 | Command | What you get |
 |---------|-------------|
-| `pip install picosentry` | Core: scanner, sandbox, watch (lightweight, `pyyaml` only) |
+| `pip install picosentry` | Core: scanner, sandbox, watch (lightweight: `pyyaml` + `cryptography`) |
 | `pip install picosentry[scan]` | + `requests` for online corpus management |
 | `pip install picosentry[serve]` | + FastAPI server, dashboard, auth, scheduler |
 | `pip install picosentry[watch-server]` | + FastAPI + uvicorn for watch HTTP daemon |
@@ -33,7 +33,7 @@
 | `pip install picosentry[grpc]` | + `grpcio>=1.50` for the sandbox gRPC transport (committed protobuf stubs included in the wheel, no `grpc_tools` required) |
 | `pip install picosentry[all]` | Everything (including `[grpc]`) |
 
-The default `pip install picosentry` is deliberately lightweight — it pulls in only `pyyaml`, which is enough to run `picosentry scan` against any project. To use the API server, dashboard, or HTTP corpus refresh, install the matching extras.
+The default `pip install picosentry` is deliberately lightweight — it pulls in only `pyyaml` and `cryptography`, which is enough to run `picosentry scan` against any project. To use the API server, dashboard, or HTTP corpus refresh, install the matching extras.
 
 ---
 
@@ -46,7 +46,7 @@ picosentry scan --format json ./project         # JSON output
 picosentry scan --format sarif ./project        # SARIF output
 picosentry scan --format cyclonedx ./project    # CycloneDX SBOM
 picosentry scan --verify-determinism ./project  # assert SHA-256 stability
-picosentry scan --diff scan-a.json scan-b.json  # compare two scans
+picosentry diff scan-a.json scan-b.json       # compare two scans
 picosentry scan --fail-on high ./project        # exit non-zero on HIGH+
 picosentry sandbox echo "hello"                 # kernel-level enforcement
 picosentry watch scan-prompt --text "..."       # LLM prompt guard
@@ -68,6 +68,8 @@ picosentry health
 | 0 | Clean — no findings at or above the threshold |
 | 1 | Findings at or above `--fail-on` severity |
 | 2 | Scan error (invalid target, missing deps, etc.) |
+| 3 | Scan timed out (`--timeout`) |
+| 4 | Rule error (`--fail-on-rule-error`) or determinism failure (`--verify-determinism`) |
 
 ---
 
@@ -120,7 +122,7 @@ picosentry update --ecosystem npm --top 5000
 picosentry update --ecosystem all --top 10000
 ```
 
-Supported ecosystems: `npm`, `pypi`, `go`, `cargo`, `maven`, `rubygems`, `nuget`. npm and PyPI have live registry fetchers; other ecosystems merge a built-in fallback with any names supplied via `--source-url`. The command writes a `corpus.json` manifest, and the scanner warns when any ecosystem corpus is older than 30 days.
+Supported ecosystems: `npm`, `pypi`, `go`, `cargo`, `maven`, `rubygems`, `nuget`. All seven have live registry fetchers (`_fetch_npm` … `_fetch_nuget` in `picosentry/scan/cli_commands/update.py`); ecosystems without a curated fetcher fall back to a built-in list, and `--source-url` can override the source for any ecosystem. The command writes a `corpus.json` manifest, and the scanner warns when any ecosystem corpus is older than 30 days.
 
 ---
 
@@ -132,7 +134,7 @@ The `picosentry serve` runtime discovers plugins from three places, in priority 
 2. **`PICOSHOGUN_PLUGIN_DIR`** env var (comma-separated list of paths).
 3. **`~/.picosentry/plugins/`** if it exists.
 
-The bundled `picosentry/serve/plugins/` (which ships `test_plugin` and `discord_notifier`) is always scanned last. Each plugin lives in its own subdirectory containing `plugin.json` (manifest) and a Python entry-point module. Manifests are validated against `picosentry/serve/services/plugin_manager.py:REQUIRED_MANIFEST_FIELDS` and may be Ed25519-signed — the `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1` env var turns signature verification from a warning into a hard refusal to load.
+The bundled `picosentry/serve/plugins/` (which ships `test_plugin` and `test_discord_notifier`) is always scanned last. Each plugin lives in its own subdirectory containing `plugin.json` (manifest) and a Python entry-point module. Manifests are validated against `picosentry/serve/services/plugin_manager.py:REQUIRED_MANIFEST_FIELDS` and may be Ed25519-signed — the `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1` env var turns signature verification from a warning into a hard refusal to load.
 
 ### Creating a plugin
 
@@ -219,7 +221,7 @@ After `LOCKOUT_MAX_ATTEMPTS` (default `5`) consecutive failed logins for a usern
 
 Advisory findings (L2-ADV-001, L2-CVE-001, etc.) carry a **`reachable`** boolean — `True` when the vulnerable package is imported/used in the scanned source, `False` when present but unused — computed by `picosentry/scan/rules/advisory_check.py`.
 
-Full rule catalog: [`picosentry/scan/docs/rules/`](../picosentry/scan/docs/rules/) (50 L2 rule_ids in `RULE_INFO`; `RULE_ID_ALIASES` expands 3 detectors to 13 sub-rule_ids).
+Full rule catalog: [`picosentry/scan/docs/rules/`](../picosentry/scan/docs/rules/) (53 L2 rule_ids in `RULE_INFO`; `RULE_ID_ALIASES` expands 3 detectors to 13 sub-rule_ids).
 
 ---
 
@@ -253,11 +255,11 @@ Where PicoSentry is weaker: pip-audit and osv-scanner have wider and more freque
 
 - **Admission controller is beta.** It is live-tested against kind; the real-cluster matrix in `.github/workflows/admission-kind.yml` exercises pod admission decisions across K8s v1.28–v1.30.
 
-- **Has published detection-benchmark data** in [`docs/model-card.md`](model-card.md). The current corpus is 6495 fixtures (5558 positive, 930 negative, 7 tricky) / 50 rules / 94.44% mean precision / 68.89% mean recall. See "Honest limitations" in that document for what the numbers do and don't prove.
+- **Has published detection-benchmark data** in [`docs/model-card.md`](model-card.md). The current corpus is 6495 fixtures (3558 positive, 2930 negative, 7 tricky) / 53 rules / 94.44% mean precision / 68.89% mean recall. See "Honest limitations" in that document for what the numbers do and don't prove.
 
 - **Does not advertise a CVE database on its own.** CVE matching uses the OSV corpus (`[scan]` extra); offline-only operation pulls from the local corpus snapshot.
 
-- **Beta components have per-component security reviews.** See [`docs/SECURITY_REVIEW.md`](SECURITY_REVIEW.md) (`serve`), [`docs/SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md) (`daemon`), [`docs/SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md) (`admission`), and [`docs/SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md) (`cluster mode`).
+- **Beta components have per-component threat documentation.** See [`docs/THREAT_MODEL.md`](THREAT_MODEL.md) (all boundaries) and [`docs/SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md) (entry points, previously-fixed findings, hardening table).
 
 If a feature is listed as Experimental, treat it as not production-ready.
 
@@ -278,9 +280,10 @@ examples/
     npm-postinstall-exfil/    reproducible npm post-install fixture
     prompt-injection/         reproducible prompt-injection fixture
 docs/
-    rules/          per-rule documentation (see picosentry/scan/docs/rules/)
-    strategic/      design docs and architecture
-    PLUGIN_DEVELOPMENT.md  how to write, sign, and deploy plugins
+    adr/           Architecture Decision Records
+    ops/           operational runbook
+    workorders/    improvement workorder specs
+    (per-rule documentation lives in picosentry/scan/docs/rules/)
 tests/             test suite
 ```
 
@@ -290,7 +293,7 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
@@ -301,6 +304,6 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg / 7 tricky), 50 rules, 94.44% prec, 68.89% recall — see [model card](docs/model-card.md) |
+| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg / 7 tricky), 53 rules, 94.44% prec, 68.89% recall — see [model card](model-card.md) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.1.1` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.1 published |

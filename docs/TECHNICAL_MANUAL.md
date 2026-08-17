@@ -63,9 +63,9 @@ combines four capabilities in a single binary:
 
 | Command | What you get |
 |---------|-------------|
-| `pip install picosentry` | Core: scanner, sandbox, watch (`pyyaml` only) |
+| `pip install picosentry` | Core: scanner, sandbox, watch (`pyyaml` + `cryptography` only) |
 | `pip install picosentry[scan]` | + `requests` for online corpus/advisory updates |
-| `pip install picosentry[serve]` | + FastAPI, PyJWT, passlib, pydantic — full API server |
+| `pip install picosentry[serve]` | + FastAPI, PyJWT, bcrypt, pyotp, webauthn, pydantic — full API server |
 | `pip install picosentry[watch-server]` | + FastAPI + uvicorn for the watch HTTP daemon |
 | `pip install picosentry[otel]` | + OpenTelemetry tracing |
 | `pip install picosentry[sigstore]` | + Sigstore signing for corpus packs |
@@ -106,7 +106,7 @@ picosentry scan --format github ./project         # SARIF file + markdown summar
 picosentry scan --fail-on high ./project          # exit 1 on HIGH+ findings
 picosentry scan --severity-threshold medium ./project  # show MEDIUM+
 picosentry scan --verify-determinism ./project    # assert SHA-256 stability
-picosentry scan --diff scan-a.json scan-b.json    # compare two scans
+picosentry diff scan-a.json scan-b.json           # compare two scans (own subcommand)
 picosentry scan --validate                       # run validation harness
 picosentry scan --baseline baseline.json ./project  # suppress known findings
 picosentry scan --baseline-update baseline.json ./project  # update baseline
@@ -165,9 +165,13 @@ picosentry sandbox --backend seccomp-trace ./run  # syscall observability (Linux
 picosentry sandbox --backend seatbelt ./run       # macOS seatbelt
 picosentry sandbox --backend subprocess ./run     # unconfined subprocess (for testing)
 picosentry sandbox --policy policy.yml ./run      # custom policy
-picosentry sandbox analyze --input report.json    # analyze a sandbox report
-picosentry sandbox rules                         # list L4 behavioral rules
+python -m picosentry.sandbox analyze --input report.json  # L4 analysis on an L3 report
+python -m picosentry.sandbox rules               # list L4 behavioral rules
 ```
+
+(`analyze` and `rules` belong to the legacy `picodome` inner CLI, reachable via
+`python -m picosentry.sandbox`; they are not subcommands of the unified
+`picosentry sandbox`.)
 
 | Flag | Description |
 |------|-------------|
@@ -268,8 +272,8 @@ Supported ecosystems: `npm`, `pypi`, `go`, `cargo`, `maven`, `rubygems`, `nuget`
 
 ## 4. Detection rules
 
-PicoSentry ships **50 L2 rule IDs** in `RULE_INFO` (with 3 detectors expanded by
-`RULE_ID_ALIASES` into 13 sub-rule IDs, for a total of 50 measurable rule IDs
+PicoSentry ships **53 L2 rule IDs** in `RULE_INFO` (40 primary detectors plus
+13 sub-rule IDs produced by expanding 3 detectors through `RULE_ID_ALIASES`,
 across 7 ecosystems).
 
 | Rule ID | Name | Description | Severity | Category |
@@ -324,6 +328,9 @@ across 7 ecosystems).
 | L2-NUGET-DEPC-001 | nuget_dep_confusion | Internal NuGet packages without private package source configuration | CRITICAL | dependency |
 | L2-NUGET-ADV-001 | nuget_advisory_vulnerability | Checks .NET packages against OSV advisory database for known CVEs | HIGH | vulnerability |
 | L2-BUILD-001 | dangerous_build_hooks | Build scripts (Cargo, Go, RubyGems, Maven, NuGet) that spawn processes, download code, or read credentials during install | CRITICAL | execution |
+| L2-INTEL-001 | suspicious_new_package | Very low download count and very young package age (suspicious new package) | MEDIUM | supply-chain |
+| L2-NSCOL-001 | namespace_collision | New low-download package claiming a well-known namespace/scope prefix | MEDIUM | supply-chain |
+| L2-VCONF-001 | version_confusion | Popular, established package pinned at a placeholder version (0.0.0/1.0.0) — possible version-squatting | MEDIUM | supply-chain |
 
 Per-rule documentation: [`picosentry/scan/docs/rules/`](../picosentry/scan/docs/rules/)
 
@@ -369,6 +376,7 @@ All JSON/SARIF outputs are deterministic when `--deterministic-output` is used
 |---------|----------|-------------|
 | **seccomp-bpf** | Linux | Kernel-level syscall allowlist enforcement. Blocks unexpected syscalls at the kernel boundary. |
 | **seccomp-trace** | Linux | Observability mode — logs syscalls without killing the process. Requires `CONFIG_SECCOMP_LOG=y`. **Path/address arguments on events are not yet captured.** |
+| **landlock** | Linux ≥5.13 | Path-based filesystem ACL (`get_backend("landlock")`, falls back to seccomp when unavailable). Not selectable via `--backend`; enforces a fixed read-only/read-write path set that does **not** yet honor per-policy paths, and captures no stdout/stderr. |
 | **seatbelt** | macOS | Apple Seatbelt profile for basic filesystem and process restrictions. |
 | **subprocess** | Any | Unconfined subprocess fallback (for testing only; no enforcement). |
 | **auto** | Any | Selects the best available backend per platform. |
@@ -385,9 +393,13 @@ All JSON/SARIF outputs are deterministic when `--deterministic-output` is used
 - It does **not** provide a full VM or container boundary.
 - It does **not** trace every syscall by default; `seccomp-trace` is opt-in and
   argument-limited.
-- It does **not** provide path-based filesystem access control. A prior landlock
-  claim was **retracted** (see ADR-002). Filesystem access is bounded by the
-  child's working directory and the syscall allowlist.
+- It does **not** provide path-based filesystem access control through the CLI
+  surface. A `LandlockBackend` exists (`get_backend("landlock")`,
+  `picosentry/sandbox/l3/backends/landlock_backend.py`, Linux ≥ 5.13, seccomp
+  fallback) but is not exposed via `--backend` and enforces a fixed path set
+  that does not yet honor per-policy paths — see ADR-002's addendum.
+  Filesystem access is otherwise bounded by the child's working directory and
+  the syscall allowlist.
 - It does **not** guarantee detection of all malware.
 
 ### gRPC transport
@@ -443,8 +455,8 @@ passing through.
 battle-tested in broad multi-tenant production.
 
 - **Framework:** FastAPI + uvicorn
-- **Auth:** JWT (PyJWT) with bcrypt/PBKDF2 password hashing; API key support with
-  scoped permissions (`read`, `write`, `admin`).
+- **Auth:** JWT (PyJWT) with bcrypt/PBKDF2 password hashing; role-scoped API keys
+  (`viewer`/`operator`/`admin`) enforced through the same RBAC checks as JWTs.
 - **RBAC:** `viewer < operator < admin` role hierarchy with `require_role` and
   `require_permission` dependencies.
 - **Multi-tenancy:** Flat `org_id` scoping on reads/writes; `org_projects`
@@ -457,8 +469,8 @@ battle-tested in broad multi-tenant production.
   (100 IP/min default), DDoS shield, 10 MB body limit, 30 s timeout.
 - **Dashboard:** Built-in web dashboard for scan results, alerts, and project management.
 
-See [SECURITY_REVIEW.md](SECURITY_REVIEW.md) for the full security review and
-honest limitations.
+See [THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY-ATTACK-SURFACE.md](SECURITY-ATTACK-SURFACE.md)
+for trust boundaries, attack surface, and honest limitations.
 
 ---
 
@@ -474,7 +486,7 @@ Plugins are discovered from three locations, in priority order:
 2. `PICOSHOGUN_PLUGIN_DIR` env var (comma-separated paths).
 3. `~/.picosentry/plugins/` if it exists.
 
-The bundled `picosentry/serve/plugins/` (`test_plugin`, `discord_notifier`) is
+The bundled `picosentry/serve/plugins/` (`test_plugin`, `test_discord_notifier`) is
 always scanned last.
 
 ### Signing and trust (ADR-004)
@@ -622,7 +634,7 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
 | Watch rule load failure | **pass** (fail-open) | `PICOSENTRY_WATCH_FAIL_CLOSED=true` |
 | Watch rule evaluation crash | **pass** unless fail-closed | `PICOSENTRY_WATCH_FAIL_CLOSED=true` |
 | Plugin worker timeout | worker terminated, call raises | tune `timeout` per plugin |
-| Corpus older than threshold | CLI exits 5 | `--check-corpus-age` |
+| Corpus older than threshold | CLI exits 5 (`--check-corpus-age`, currently only on the inner `check` command — see `picosentry/scan/cli_commands/check.py`; not yet wired into the unified `picosentry` CLI) | wire up / use `picosentry scan` staleness warning |
 | Rate-limiter table full | new distinct IPs denied | increase `max_clients` |
 | Serve auth failure | HTTP 401/403 | — |
 | Cluster token missing | cluster manager does not start | set `PICODOME_CLUSTER_TOKEN` |
@@ -631,18 +643,17 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
 
 ### ADR references
 
-- **ADR-002** — Kernel sandbox via seccomp-bpf. The sandbox uses seccomp-bpf
-  only; a prior landlock claim was **retracted** (no landlock backend has ever
-  been implemented). See [`docs/adr/ADR-002-kernel-sandbox.md`](adr/ADR-002-kernel-sandbox.md).
+- **ADR-002** — Kernel sandbox via seccomp-bpf. The CLI sandbox surface is
+  seccomp-bpf; a `LandlockBackend` was later added behind
+  `get_backend("landlock")` (not CLI-exposed, fixed path set — see the ADR's
+  addendum). See [`docs/adr/ADR-002-kernel-sandbox.md`](adr/ADR-002-kernel-sandbox.md).
 - **ADR-004** — Plugin trust boundary: signing is authenticity, sandboxing is
   safety. See [`docs/adr/ADR-004-plugin-trust-boundary.md`](adr/ADR-004-plugin-trust-boundary.md).
 
-### Per-component security reviews
+### Per-component security documentation
 
-- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — `serve`
-- [`SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md) — `daemon`
-- [`SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md) — `admission`
-- [`SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md) — `cluster mode`
+- [`THREAT_MODEL.md`](THREAT_MODEL.md) — trust boundaries, failure modes, all components
+- [`SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md) — entry points, previously-fixed findings, hardening table
 
 ---
 
@@ -653,8 +664,9 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
 - **Sandbox does not provide full VM/container isolation.** It enforces syscalls
   via seccomp-bpf and observes behavioral events. It does **not** trace every
   syscall by default; `seccomp-trace` is opt-in and argument-limited. There is
-  **no path-based filesystem ACL** — a prior landlock claim was retracted per
-  ADR-002.
+  no policy-driven path-based filesystem ACL in the CLI sandbox (the existing
+  landlock backend is not CLI-exposed and uses a fixed path set — see ADR-002
+  addendum).
 
 - **Watch is a fast pre-filter, not a semantic guarantee.** Paraphrase, novel
   phrasing, encoding tricks, or adversarial prompts can still slip through.
@@ -674,13 +686,17 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
 
 - **Serve is Beta.** Security review complete, regression tests in place. Known
   limitations: in-memory rate limiter by default (Redis backend available), no
-  global session revocation list, minimal password policy (8-char minimum). See
-  [SECURITY_REVIEW.md](SECURITY_REVIEW.md).
+  global session revocation list, effectively no password policy (the register
+  endpoint enforces `min_length=1`). See
+  [THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY-ATTACK-SURFACE.md](SECURITY-ATTACK-SURFACE.md).
 
 - **Detection benchmarks are published.** See [`docs/model-card.md`](model-card.md).
-  The v2.1.1 corpus is **6495 fixtures** (5558 positive / 930 negative / 7
-  tricky) across **50 rules** / **7 ecosystems**. **94.44% mean precision /
-  68.89% mean recall**. Zero false positives on negative fixtures. Advisory rules
+  The corpus is **6495 fixtures** (3558 positive / 2930 negative / 7 tricky)
+  across **7 ecosystems**; the 2026-07-29 benchmark run measured **94.44% mean
+  precision / 68.89% mean recall** over 54 rule IDs (50 static at the time + 4
+  campaign matchers); `RULE_INFO` has since grown to 53 static rules
+  (+`L2-INTEL-001`, `L2-NSCOL-001`, `L2-VCONF-001`), which are not yet in the
+  per-rule table. Zero false positives on negative fixtures. Advisory rules
   (L2-*-ADV-001) show low recall in offline mode because OSV data is not
   available without network or `--advisory-db`. See the model card for honest
   per-rule breakdowns and what the numbers do and don't prove.
@@ -688,10 +704,9 @@ Persistence, dedup, and per-minute backpressure are tested in CI.
 - **CVE matching requires OSV corpus.** Offline-only operation uses the local
   snapshot; online mode (`[scan]` extra) can query the OSV API directly.
 
-- **Strategic docs 03 (Reachability/VEX/Remediation) and 04 (AI Agent Security)**
-  are design documents, not yet implemented features. See
-  [`docs/strategic/03-reachability-vex-remediation.md`](strategic/03-reachability-vex-remediation.md)
-  and [`docs/strategic/04-ai-agent-security.md`](strategic/04-ai-agent-security.md).
+- **Reachability/VEX/Remediation and AI-agent-security design work is deferred.**
+  These were design tracks in the former `docs/strategic/` directory, which no
+  longer exists; no shipped feature tracks them.
 
 ---
 
@@ -703,10 +718,10 @@ picosentry/
     scan/           supply-chain scanner (CLI: picosentry scan)
         cli/        CLI subcommand dispatch
         corpus/     IoC corpus packs and indexing
-        rules/      50 L2 detection rules
+        rules/      53 L2 detection rules
         docs/       per-rule documentation
     sandbox/        runtime kernel sandbox (CLI: picosentry sandbox)
-        l3/         L3 sandbox engine + backends (seccomp-bpf, seatbelt, subprocess)
+        l3/         L3 sandbox engine + backends (seccomp-bpf, seccomp-trace, landlock, seatbelt, subprocess)
         l4/         L4 behavioral analysis
         daemon/     PicoDome daemon (HTTP + gRPC)
         grpc_transport/  gRPC transport and proto stubs
@@ -716,7 +731,7 @@ picosentry/
         api/        FastAPI routers and middleware
         front/      Web dashboard (HTML/CSS/JS)
         services/   business logic, plugin manager, plugin host
-        plugins/    bundled plugins (test_plugin, discord_notifier)
+        plugins/    bundled plugins (test_plugin, test_discord_notifier)
         database/   SQLite/Postgres backend, pools, migrations
         config/     settings, version
     experimental.py feature-maturity tracking (source of truth)
@@ -726,12 +741,13 @@ examples/
     prompt-injection/          reproducible prompt-injection fixture
 docs/
     adr/           Architecture Decision Records
-    strategic/     design docs and roadmaps
-    rules/         per-rule documentation (symlinked from picosentry/scan/docs/rules/)
+    ops/           operational runbook
+    workorders/    improvement workorder specs
+    (per-rule documentation lives in picosentry/scan/docs/rules/)
 tests/            test suite
 deploy/
     kubernetes/    K8s deployment manifests
-    helm/          Helm chart for PicoDome daemon
+    helm/          Helm charts (picodome daemon, picodome-admission)
 ```
 
 ---
@@ -742,7 +758,7 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place |
@@ -753,13 +769,13 @@ Source of truth: [`picosentry/experimental.py`](../picosentry/experimental.py).
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg / 7 tricky), 50 rules, 94.44% mean precision, 68.89% mean recall — see [model card](model-card.md) |
+| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg / 7 tricky), 53 rules, 94.44% mean precision, 68.89% mean recall — see [model card](model-card.md) |
 | Docker image | **Stable** | `kirkforge/picodome:v2.1.1` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.1 published |
 
 ---
 
-*This manual is a complete replacement for `docs/manual.md`. Key corrections
-vs. the old manual: 50 L2 rule IDs (not 49 or 54); 6495 fixtures (not 1048);
-68.89% mean recall (not 73.79%); landlock references removed (retracted per
-ADR-002); strategic docs 03 and 04 marked as deferred.*
+*Supersedes `docs/manual.md` (both are maintained; this is the extended
+reference). Landlock references updated: a landlock backend now exists behind
+`get_backend("landlock")` but is not CLI-exposed (ADR-002 addendum). The
+former `docs/strategic/` design docs were removed; those tracks are deferred.*

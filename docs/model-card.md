@@ -8,12 +8,16 @@
 
 | Layer | Type | Count |
 |---|---|---|
-| **L2** | Static scan rules (`RULE_INFO`) | 50 |
+| **L2** | Static scan rules (`RULE_INFO`) | 53 |
 | **L2** | Campaign benchmarks (`L2-CAMP-*`) | 4 |
 | **L4** | Sandbox behavioral detectors | 15 |
-| **Total** | | **69** |
+| **Total** | | **72** |
 
 The 4 `L2-CAMP-*` entries are campaign-specific IoC matchers validated against known attack packages, not general-purpose static rules. They are included in the per-rule table for transparency but are not counted as detection rules above.
+
+Note: the 2026-07-29 benchmark run below predates three static rules added since
+(`L2-INTEL-001`, `L2-NSCOL-001`, `L2-VCONF-001`; `RULE_INFO` grew 50 → 53).
+Those three are not yet exercised by the per-rule table.
 
 ## Three Detection Modes
 

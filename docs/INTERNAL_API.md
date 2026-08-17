@@ -18,12 +18,12 @@ for contributors who need to navigate the codebase quickly.
 | Watch prompt guard | `picosentry/watch/prompt_guard/` | L5 prompt-injection detection. |
 | Watch output guard | `picosentry/watch/output_guard/` | L6 output-policy validation. |
 | Watch telemetry | `picosentry/watch/telemetry/` | Audit/metrics sink. |
-| Serve API | `picosentry/serve/server.py` | FastAPI application factory. |
+| Serve API | `picosentry/serve/api/server.py` | FastAPI application factory. |
 | Serve services | `picosentry/serve/services/` | Auth, orchestrator, plugin host, webhooks, etc. |
 | Serve config | `picosentry/serve/config/` | Settings and JSON schemas. |
 | Daemon | `picosentry/sandbox/daemon/` | Sandbox-as-a-service HTTP + gRPC daemon. |
 | Correlation | `picosentry/serve/services/correlation/` | Cross-layer kill-chain correlation. |
-| Cluster | `picosentry/serve/services/cluster.py` | Gossip-based cluster manager. |
+| Cluster | `picosentry/sandbox/cluster/` | Gossip-based cluster manager (daemon-side). |
 | Plugin system | `picosentry/serve/services/plugin_*.py` | Plugin host, manager, and interface. |
 | _core | `picosentry/_core/` | Cross-cutting utilities (security check, version). |
 
@@ -34,16 +34,16 @@ for contributors who need to navigate the codebase quickly.
 | File | Symbol | Purpose |
 |------|--------|---------|
 | `picosentry/scan/engine.py` | `ScanEngine` | Register rules and run scans. |
-| `picosentry/scan/engine.py` | `create_default_engine()` | Factory with all bundled rules. |
+| `picosentry/scan/engine.py` | `create_default_engine()` | Factory with all bundled rules; imports each `detect_*` and calls `engine.register(rule_id, fn)`. |
 | `picosentry/scan/engine.py` | `ScanEngine.scan(target, ...)` | Execute a scan and return `ScanResult`. |
-| `picosentry/scan/rules/__init__.py` | `RULE_REGISTRY` | Mapping from `rule_id` to rule callable. |
+| `picosentry/scan/rules/__init__.py` | `RULE_INFO` / `RULE_ID_ALIASES` | Rule metadata registry (id → name/severity/category) and detector → sub-rule_id expansion. |
 | `picosentry/scan/models.py` | `Finding` | Structured detection result. |
-| `picosentry/scan/cli.py` | `scan_command` | CLI entry point for `picosentry scan`. |
+| `picosentry/scan/cli.py` | `main` | Legacy inner CLI entry point for the scan package. |
 
 ### Adding a rule
 
-1. Implement a callable in `picosentry/scan/rules/`.
-2. Register it in `picosentry/scan/rules/__init__.py`.
+### 1. Implement a callable in `picosentry/scan/rules/`.
+2. Import it in `create_default_engine()` (`picosentry/scan/engine.py`) and call `engine.register(rule_id, fn)`; add a `RULE_INFO` entry so the rule is catalogued.
 3. Add fixtures in `tests/scan/fixtures/validation/`.
 4. Run `picosentry scan --validate`.
 
@@ -74,7 +74,7 @@ See [`EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) for a worked example.
 
 | File | Symbol | Purpose |
 |------|--------|---------|
-| `picosentry/sandbox/l3/engine.py` | `get_backend(...)` | Selects and instantiates a backend. |
+| `picosentry/sandbox/l3/backends/__init__.py` | `get_backend(...)` | Selects and instantiates a backend (`seccomp`, `landlock`, `subprocess`). |
 | `picosentry/sandbox/l3/backends/base.py` | `SandboxBackend` | Abstract backend interface. |
 | `picosentry/sandbox/l3/backends/seccomp_backend.py` | `SeccompBackend` | Linux seccomp-bpf enforcement. |
 | `picosentry/sandbox/l3/backends/subprocess_backend.py` | `SubprocessBackend` | Fallback subprocess runner. |
@@ -93,7 +93,7 @@ See [`EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) for a worked example.
 
 | File | Symbol | Purpose |
 |------|--------|---------|
-| `picosentry/serve/server.py` | `create_app(...)` | FastAPI app factory. |
+| `picosentry/serve/api/server.py` | `create_app(...)` | FastAPI app factory. |
 | `picosentry/serve/services/auth.py` | `AuthService` | User/token/auth helpers. |
 | `picosentry/serve/services/orchestrator.py` | `Orchestrator` | Coordinates scan/sandbox/watch runs. |
 | `picosentry/serve/services/plugin_manager.py` | `PluginManager` | Loads and dispatches plugins. |
@@ -102,7 +102,7 @@ See [`EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) for a worked example.
 | `picosentry/serve/services/webhooks.py` | `WebhookDispatcher` | Alert webhook delivery. |
 | `picosentry/serve/services/websocket_manager.py` | `WebSocketManager` | Live results streaming. |
 | `picosentry/serve/services/scheduler.py` | `Scheduler` | Periodic task runner. |
-| `picosentry/serve/config/settings.py` | `Settings` | Pydantic settings + env loading. |
+| `picosentry/serve/config/settings.py` | `Settings` | Dataclass settings + env loading (`PICOSHOGUN_*`). |
 
 ### Plugin interface
 
@@ -122,15 +122,15 @@ See [`EXTENSION_GUIDE.md`](EXTENSION_GUIDE.md) for a worked example.
 
 ## CLI dispatch
 
-`picosentry/cli.py` uses subcommands defined in:
+`picosentry/cli.py` builds the root parser; command modules under
+`picosentry/cli_commands/` call `register(name, add_arguments, cmd)` at import
+time. Legacy inner CLIs also exist per package:
 
-- `picosentry/scan/cli_commands/`
-- `picosentry/sandbox/cli_commands/`
+- `picosentry/scan/cli_commands/` (scan-package commands, incl. `check`)
+- `picosentry/sandbox/cli_commands/` (picodome inner CLI: `analyze`, `pipeline`,
+  `cluster`, `audit`, `notary`, … — run via `python -m picosentry.sandbox`)
 - `picosentry/watch/cli.py`
 - `picosentry/serve/cli.py`
-
-Each subcommand module exposes a `register_*` function that adds its commands
-to the main parser.
 
 ## Testing helpers
 
@@ -432,6 +432,17 @@ Audit log statistics.
 | Auth | `admin` role |
 | Response | `{ "total_entries": int, "oldest_entry": str|null, "newest_entry": str|null, "top_actions": [...], "retention_policy": {...} }` |
 
+#### `GET /audit/verify`
+
+Recompute the tamper-evident audit hash chain (`prev_hash`/`row_hash`, ADR-006)
+and report whether it is intact. Source: `services/audit_chain.py:verify_audit_chain`.
+
+| Field | Value |
+|-------|-------|
+| Auth | `admin` role |
+| Query params | `limit` (optional — verify only the most recent N rows) |
+| Response | `{ "valid": bool, "rows_checked": int, "violation": str|null, "row_id": int|null }` — reports the first chain break |
+
 #### `POST /audit/purge`
 
 Purge old audit log entries.
@@ -467,7 +478,10 @@ Authenticated WebSocket fanout for real-time event streaming.
 **Connecting:**
 
 - Connect to `ws://host:port/ws` (or `wss://` in production).
-- Optional: pass `?token=<jwt>` as a query parameter for connect-time auth.
+- Optional: pass `?token=<jwt>` as a query parameter for connect-time auth —
+  **development only**: in production (`PICOSHOGUN_ENV=production`) the server
+  accepts the connection and immediately closes with 4001 ("Query-string auth
+  not allowed in production; use in-band auth").
 - If a token is provided and invalid, the server accepts the connection then
   closes with code **4001** and reason `"Invalid authentication token"`.
 
@@ -536,4 +550,5 @@ Subscribed clients receive:
 
 PicoSentry's scanner and watch guard rely on deterministic behavior. Any code
 path that introduces randomness, wall-clock timing, or non-deterministic IDs
-must be isolated and documented. See `docs/determinism.md`.
+must be isolated and documented (see the "Determinism" bullets in
+[`CONTRIBUTING.md`](../CONTRIBUTING.md) and `picosentry scan --verify-determinism`).

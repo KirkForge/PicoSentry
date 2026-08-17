@@ -1,7 +1,7 @@
 # WO3.0.0-001 — RS256 JWT + JWK Rotation
 
 **Series:** WO3.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (verified in code 2026-08 — see workorders/README.md)
 **Owner:** subagent (worktree `wo/3.0.0/jwt-rs256`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

@@ -16,7 +16,7 @@ All detection logic (50 rules across 7 ecosystems) runs offline against a local 
 - Deterministic output: same package always produces the same result
 - No API keys, no latency, no rate limits in CI
 - Works fully air-gapped; Docker image bundles all rules
-- LLM-based detection has high false-positive variance; rule-based maintains a measurable CI floor (100% fixture pass rate)
+- LLM-based detection has high false-positive variance; rule-based maintains a measurable CI floor (85% mean precision / 70% mean recall in `tests/scan/test_validation.py` — the floor was lowered from 100% when the corpus grew past hand-curated fixtures with known offline gaps)
 
 ## Consequences
 

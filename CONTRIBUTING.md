@@ -39,12 +39,12 @@ picosentry/
     rules/
     models.py
     validation.py
-  watch/            # LLM prompt/output guard (beta)
+  watch/            # LLM prompt/output guard (stable)
     prompt_guard/
     output_guard/
     server.py
     telemetry/
-  sandbox/          # runtime sandbox (beta)
+  sandbox/          # runtime sandbox (stable)
     l3/             # syscall policy backends
     l4/             # behavioral analysis
     daemon/
@@ -82,7 +82,7 @@ Entry points for the most common changes:
 
 ## Guidelines
 
-- **Determinism matters**: Don't introduce randomness, timing-dependent logic, or non-deterministic IDs into findings. Read `docs/determinism.md`.
+- **Determinism matters**: Don't introduce randomness, timing-dependent logic, or non-deterministic IDs into findings. Read the "Determinism contract" section of `docs/INTERNAL_API.md`.
 - **Add tests**: New rules need test fixtures with known-good and known-bad examples.
 - **Sort imports**: Run `ruff check picosentry/ --fix` before committing.
 - **One feature per PR**: Small, focused PRs get reviewed faster.

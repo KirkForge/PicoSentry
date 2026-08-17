@@ -1,7 +1,7 @@
 # WO3.0.0-007 — Distributed Rate Limiting Fail-Closed
 
 **Series:** WO3.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (verified in code 2026-08 — see workorders/README.md)
 **Owner:** subagent (worktree `wo/3.0.0/rate-limit-failclosed`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

@@ -15,7 +15,9 @@ by typosquatted packages on PyPI.
 picosentry scan examples/pypi-obfuscated-setup/
 ```
 
-Expected findings:
-- **L2-EVAL-001**: Eval/dynamic execution in setup.py
-- **L2-OBF-001**: Base64-encoded strings in setup files
-- **L2-EXFIL-001**: Network call during install
+Expected findings (rule IDs as of v2.1.1):
+
+- **L2-PYPI-POST-001**: setup.py with install-time code execution
+- **L2-PYPI-OBFS-001**: eval()/exec() dynamic execution in setup.py
+- **L2-PYPI-OBFS-002**: Base64-decoded payloads
+- **L2-PYPI-OBFS-007**: Base64 decode followed by exec/eval

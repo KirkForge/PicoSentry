@@ -94,8 +94,13 @@ python scripts/test_doctor.py --areas pytest-serve
 
 ### Detect
 
+The scanner warns when any ecosystem corpus is older than 30 days. An
+exit-code gate (`--check-corpus-age`) exists on the inner `check` command
+(`picosentry/scan/cli_commands/check.py`) but is **not yet wired into the
+unified `picosentry` CLI**, so CI must call the inner scan CLI:
+
 ```bash
-picosentry scan check --check-corpus-age 30
+python -m picosentry.scan check . --check-corpus-age 30
 ```
 
 Exit codes:
@@ -108,7 +113,7 @@ In CI, use the exit code to block a release when the bundled corpus is too
 old:
 
 ```yaml
-- run: picosentry scan check --check-corpus-age 30
+- run: python -m picosentry.scan check . --check-corpus-age 30
 ```
 
 ### Remediate
@@ -133,10 +138,10 @@ old:
    ```bash
    cat plugins/<name>/plugin.json
    ```
-2. Inspect the worker stderr:
-   ```bash
-   picosentry serve plugin logs --name <name>
-   ```
+2. Inspect the worker stderr (plugin workers inherit the server's logger; the
+   host logs `Plugin worker for '<name>' did not respond within ...` and worker
+   tracebacks to the serve log — there is no `picosentry serve plugin logs`
+   subcommand):
 3. Validate the signature against the trusted-public-key allowlist.
 4. If the plugin is untrusted or misbehaving:
    - Remove it from the plugin directory.
@@ -150,7 +155,7 @@ old:
 
 1. Reproduce with the watch CLI:
    ```bash
-   echo "suspicious prompt" | picosentry watch scan --rules rules/
+   picosentry watch scan-prompt --file suspicious-prompt.txt
    ```
 2. Check the normalized input and matched rules in the output.
 3. If the bypass is due to encoding (base64, ROT13, homoglyphs), add a rule
@@ -160,7 +165,8 @@ old:
 
 ### False positive (benign prompt blocked)
 
-1. Run with `--verbose` to see which rule matched.
+1. Re-run and read the matched-rule list in the scan output (`scan-prompt` has
+   no `--verbose` flag; matched rules and scores are always in the output).
 2. Lower the rule weight or tighten the regex so it does not match benign
    patterns.
 3. Add a negative test case in `tests/watch/`.
@@ -246,13 +252,13 @@ export PICODOME_TLS_CA=/certs/ca.crt
 export PICODOME_STORE_BACKEND=jsonl
 export PICODOME_JOB_STORE_DIR=/var/lib/picodome
 
-picosentry sandbox daemon --host=0.0.0.0 --port=8443
+picosentry daemon --host=0.0.0.0 --port=8443
 ```
 
 For gRPC transport:
 
 ```bash
-picosentry sandbox daemon --host=0.0.0.0 --port=8443 --transport=grpc --grpc-port=50051
+picosentry daemon --host=0.0.0.0 --port=8443 --transport=grpc --grpc-port=50051
 ```
 
 ### mTLS certificate rotation
@@ -309,8 +315,7 @@ If an audit sink (file/syslog/webhook) is failing:
 2. Inspect the daemon log for `Failed to initialize sink` or `Failed to start sink`.
 3. For webhook failures, verify `PICODOME_WEBHOOK_URL` and `PICODOME_WEBHOOK_TOKEN`.
 4. To fail closed when sinks cannot start, stop the daemon and do not restart until
-   the sink is healthy. A fail-closed audit mode is not yet implemented; see
-   `docs/SECURITY_REVIEW_DAEMON.md`.
+   the sink is healthy. A fail-closed audit mode is not yet implemented.
 
 ### Metrics endpoint
 
@@ -328,23 +333,23 @@ Use the Helm `networkPolicy.ingress.from` list to restrict sources.
    export PICODOME_CLUSTER_ADDRESS=0.0.0.0
    export PICODOME_CLUSTER_PORT=8444
    export PICODOME_CLUSTER_BACKEND=memory
-   picosentry sandbox daemon --host=0.0.0.0 --port=8443
+   picosentry daemon --host=0.0.0.0 --port=8443
    ```
 2. Join additional nodes:
    ```bash
-   picodome cluster join <seed-node>:8444 \
+   python -m picosentry.sandbox cluster join <seed-node>:8444 \
      --cluster-token "$PICODOME_CLUSTER_TOKEN" \
      --node-id node-2
    ```
 3. Check status:
    ```bash
-   picodome cluster status
+   python -m picosentry.sandbox cluster status
    ```
 
 ### Adding and removing nodes
 
-- To add: run `picodome cluster join` on the new node pointing at any existing peer.
-- To remove gracefully: run `picodome cluster leave` on the node. The leader
+- To add: run `python -m picosentry.sandbox cluster join` on the new node pointing at any existing peer.
+- To remove gracefully: run `python -m picosentry.sandbox cluster leave` on the node. The leader
   redistributes pending scans to remaining members.
 
 ### Token rotation
@@ -355,20 +360,20 @@ propagated through gossip snapshots; old tokens remain accepted until retired.
 
 1. Rotate the token on any node:
    ```bash
-   picodome cluster rotate-token
+   python -m picosentry.sandbox cluster rotate-token
    ```
    Or provide a specific value:
    ```bash
-   picodome cluster rotate-token --new-token $(openssl rand -hex 32)
+   python -m picosentry.sandbox cluster rotate-token --new-token $(openssl rand -hex 32)
    ```
 2. Wait for gossip to propagate the new token to all peers. Verify with:
    ```bash
-   picodome cluster status
+   python -m picosentry.sandbox cluster status
    ```
 3. Retire old tokens once all peers have acknowledged the new one (default
    grace window is 300 seconds):
    ```bash
-   picodome cluster rotate-token --retire-after 0
+   python -m picosentry.sandbox cluster rotate-token --retire-after 0
    ```
 
 If you must use the legacy single-token mode, all nodes still share
@@ -381,7 +386,7 @@ For stronger identity, use mTLS gossip instead:
 export PICODOME_CLUSTER_TLS_CERT=/certs/cluster.crt
 export PICODOME_CLUSTER_TLS_KEY=/certs/cluster.key
 export PICODOME_CLUSTER_TLS_CA=/certs/cluster-ca.crt
-picodome cluster join <seed-node>:8444 --tls-cert ... --tls-key ... --tls-ca ...
+python -m picosentry.sandbox cluster join <seed-node>:8444 --tls-cert ... --tls-key ... --tls-ca ...
 ```
 
 ### Split-brain / disaster recovery
@@ -390,7 +395,7 @@ picodome cluster join <seed-node>:8444 --tls-cert ... --tls-key ... --tls-ca ...
 2. Pick the node with the most recent state (check the SQLite backend or the
    newest JSONL file modification time).
 3. Restart that node alone; it will auto-elect as leader.
-4. Rejoin the remaining nodes one at a time and verify `picodome cluster status`.
+4. Rejoin the remaining nodes one at a time and verify `python -m picosentry.sandbox cluster status`.
 5. If state diverged, accept that scans assigned during the partition may need
    manual reconciliation (the merge is optimistic).
 
@@ -434,25 +439,13 @@ connection failed`.
 If the MCP tools report a stale index or fail with `LadybugDB unavailable`
 / `Resource temporarily unavailable`:
 
-1. Kill orphaned GitNexus / LadybugDB locks:
+1. Rebuild the index from the project root:
    ```bash
-   scripts/gitnexus-kill-orphans.sh
+   node .gitnexus/run.cjs analyze
+   # or: npx gitnexus analyze
    ```
-2. Rebuild the index inside the pinned Docker container (the host Node/libssl
-   combination cannot reliably write the native `lbug` database on this
-   machine):
-   ```bash
-   scripts/gitnexus-analyze.sh
-   ```
-3. Restart or reconnect your editor's GitNexus MCP client so it opens the
+2. Restart or reconnect your editor's GitNexus MCP client so it opens the
    freshly built `lbug` database without a stale file handle.
-
-If you need a stable MCP server entry point (for example, when an editor lets
-you configure a custom server command), use:
-
-```bash
-scripts/gitnexus-mcp-server.sh
-```
 
 ## Emergency contacts and rollback
 

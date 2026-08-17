@@ -48,7 +48,7 @@ documented non-hash-pinned ceiling (upgrade path: `uv export --frozen`).
 
 ## Health endpoint rate-limiting
 
-The PicoShogun API (`picosentry serve`) and the PicoDome daemon (`picosentry sandbox daemon`) both exempt their health/readiness probes from per-actor rate limits:
+The PicoShogun API (`picosentry serve`) and the PicoDome daemon (`picosentry daemon`) both exempt their health/readiness probes from per-actor rate limits:
 
 - `/health`, `/health/live`, `/health/ready` (PicoShogun)
 - `/health`, `/ready` (PicoDome)
@@ -150,9 +150,9 @@ python3 -m picosentry._core.security_check \
 
 ## See also
 
-- [`picosentry/_core/security_check.py`](../../picosentry/_core/security_check.py)
+- [`picosentry/_core/security_check.py`](../picosentry/_core/security_check.py)
   — shared checker used by the Helm init container and CI lint
-- [`tests/sandbox/check_deploy_security.py`](../../tests/sandbox/check_deploy_security.py)
+- [`tests/sandbox/check_deploy_security.py`](../tests/sandbox/check_deploy_security.py)
   — manifest-level deployment security lint
-- [`README.md`](../../README.md) — current maturity status and honest
+- [`README.md`](../README.md) — current maturity status and honest
   limitations

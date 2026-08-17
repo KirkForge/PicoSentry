@@ -50,7 +50,7 @@ def detect_network_beacon(target: Path) -> list[Finding]:
         if "attacker.example.com" in text:
             findings.append(
                 Finding(
-                    rule_id="L2-NET-999",
+                    rule_id="L2-NETEX-999",
                     severity=Severity.CRITICAL,
                     confidence=Confidence.EXACT,
                     package=target.name,
@@ -75,25 +75,34 @@ Best practices:
 
 ### 3. Register the rule
 
-Rules are wired in `picosentry/scan/rules/__init__.py`. Add your callable to the
-registry dict so the engine can find it:
+Rules are wired in `picosentry/scan/engine.py` (`create_default_engine`): import
+your callable and register it, then add a metadata entry in
+`picosentry/scan/rules/__init__.py` (`RULE_INFO`) so the rule is catalogued:
 
 ```python
-from .network_beacon import detect_network_beacon
+# picosentry/scan/engine.py — inside create_default_engine()
+from .rules.network_beacon import detect_network_beacon
 
-RULE_REGISTRY: dict[str, Callable[..., list[Finding]]] = {
-    # ... existing rules ...
-    "L2-NET-999": detect_network_beacon,
-}
+engine.register("L2-NETEX-999", detect_network_beacon)
+```
+
+```python
+# picosentry/scan/rules/__init__.py
+"L2-NETEX-999": {
+    "name": "network_beacon",
+    "description": "Hard-coded attacker C2 domain",
+    "severity": "CRITICAL",
+    "category": "supply-chain",
+},
 ```
 
 Use a rule ID prefix that matches the existing scheme:
 
-- `L2-NET-*` — network behavior
-- `L2-OBS-*` — obfuscation
-- `L2-ADV-*` — advisory/CVE
-- `L2-IOC-*` — indicator of compromise
-- `L2-TYP-*` — typosquat / dep confusion
+- `L2-*-TYPO-001` — typosquat (per ecosystem)
+- `L2-*-DEPC-001` — dependency confusion
+- `L2-*-OBFS-*` — obfuscation
+- `L2-*-ADV-001` — advisory/CVE
+- `L2-IOC-*` / `L2-NETEX-*` / `L2-INTEL-*` — IoC, network exfiltration, package intel
 
 ### 4. Add fixtures
 
@@ -114,15 +123,16 @@ tests/scan/fixtures/validation/
       index.js
 ```
 
-A `fixture.json` looks like this:
+A `fixture.json` looks like this (`label` must be exactly `positive` or
+`negative`; optional keys: `expected_findings`/`unexpected_findings` assertion
+objects, `forbidden_rule_ids`, `strict`):
 
 ```json
 {
-  "name": "network_beacon_exfil",
   "label": "positive",
-  "expected_rule_ids": ["L2-NET-999"],
-  "forbidden_rule_ids": [],
-  "skip_rules": []
+  "description": "Reference to a hard-coded C2 domain",
+  "expected_rule_ids": ["L2-NETEX-999"],
+  "forbidden_rule_ids": []
 }
 ```
 
@@ -133,7 +143,9 @@ picosentry scan --validate
 python -m pytest tests/scan/test_validation.py -v
 ```
 
-The project maintains a 100% fixture-pass CI floor; if your rule raises false
+The CI floor (`test_validation_passes_at_100_percent_on_current_fixtures`) fails
+below **85% mean precision / 70% mean recall** — known offline gaps (advisory,
+dep-confusion rules) sit under that floor by design; if your rule raises false
 positives on existing negative fixtures, adjust the pattern or add more
 negatives.
 
@@ -248,11 +260,11 @@ Key responsibilities:
 
 ### 2. Register the backend
 
-Edit `picosentry/sandbox/l3/engine.py`:
+Edit `picosentry/sandbox/l3/backends/__init__.py` (`get_backend`):
 
-1. Import the new backend in the existing lazy-import blocks.
-2. Add it to the `available` list when `is_available()` returns `True`.
-3. Add a `if requested == "firejail": ...` branch in `get_backend(...)`.
+1. Import the new backend.
+2. Add a `if name == "firejail": ...` branch returning it (falling back to an
+   available backend when `is_available()` is False).
 
 ### 3. Add tests
 

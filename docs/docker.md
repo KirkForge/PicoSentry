@@ -49,6 +49,6 @@ matching manifest from the multi-arch image.
 ## Runtime smoke test
 
 ```bash
-docker run --rm kirkforge/picosentry:latest --version
-docker run --rm kirkforge/picosentry:latest sandbox echo "hello"
+docker run --rm kirkforge/picodome:latest --version
+docker run --rm kirkforge/picodome:latest sandbox echo "hello"
 ```

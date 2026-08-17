@@ -41,7 +41,7 @@ picosentry scan examples/pypi-obfuscated-setup/
 ```text
 🦞 PicoSentry
 Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.1.1 | Corpus: vef6b3b3115bb
+Engine: v2.1.1 | Corpus: vabd36dc30c3f
 Scan ID: 08057439b4ba08d8
 
 Packages scanned: 0
@@ -69,7 +69,7 @@ The scan fires 5+ findings across obfuscation, post-install, and exfiltration ru
 
 Advisory findings also carry a **`reachable`** flag — `True` when the vulnerable package is actually imported/used in the scanned source, so you can triage present-but-unused CVEs (`rules/advisory_check.py`).
 
-**50 L2 rules (65 with L4 behavioral detectors) across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
+**53 L2 rules (68 with L4 behavioral detectors) across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
 Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 
 ---
@@ -79,12 +79,14 @@ Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
 | Ecosystem | Typosquat | Dep Confusion | Obfuscation | CVE Match | License |
 |-----------|:---------:|:-------------:|:-----------:|:---------:|:-------:|
 | npm | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PyPI | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Go | ✅ | ✅ | — | ✅ | ✅ |
-| Cargo | ✅ | ✅ | — | ✅ | ✅ |
-| Maven | ✅ | ✅ | — | ✅ | ✅ |
-| RubyGems | ✅ | ✅ | — | ✅ | ✅ |
-| NuGet | ✅ | ✅ | — | ✅ | ✅ |
+| PyPI | ✅ | ✅ | ✅ | ✅ | — |
+| Go | ✅ | ✅ | — | ✅ | — |
+| Cargo | ✅ | ✅ | — | ✅ | — |
+| Maven | ✅ | ✅ | — | ✅ | — |
+| RubyGems | ✅ | ✅ | — | ✅ | — |
+| NuGet | ✅ | ✅ | — | ✅ | — |
+
+License detection (`L2-LICENSE-001`) reads npm `package.json` license fields only.
 
 ---
 
@@ -106,7 +108,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 
 | Component | Status | Notes |
 |-----------|--------|-------|
-| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 50 rules, 6495 fixtures |
+| `picosentry scan` | **Stable** | Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 6495 fixtures |
 | `picosentry sandbox` | **Stable** | seccomp-bpf enforces; gRPC + HTTP daemon; L4 behavioral analysis; seccomp-trace is opt-in and argument-limited |
 | `picosentry watch` | **Stable** | Deterministic regex + lexical classifier pre-filter for prompt injection (L5) and output validation (L6); not a semantic/LLM guarantee; CLI + HTTP server |
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place. Auth hardening: MFA/TOTP enrollment, JWT `jti` revocation, account lockout, role-scoped API keys (`services/auth.py`) |
@@ -117,7 +119,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 6495 fixtures (5558 pos / 930 neg), 50 rules, 94.44% prec, 68.89% recall — see docs/model-card.md |
+| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg), 53 rules, 94.44% prec, 68.89% recall — see docs/model-card.md |
 | Docker image | **Stable** | `kirkforge/picodome:v2.1.1` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.1 published |
 
@@ -147,8 +149,8 @@ pip install picosentry[all]            # everything
 `picosentry scan` (core scanner), `sandbox` (isolation), `watch` (LLM guards), `serve` (API server), `daemon` (sandbox-as-a-service), `admission` (K8s webhook), `corpus` (IoC packs), `diff` (compare scans), `doctor` (self-verification), `firewall` (network policy), `rules` (list/disable rules), `init` (project config), `health` (status check), `version`, `update`.
 
 - **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
-- **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 50 rules (50 L2 + 65 L4 behavioral), precision/recall per rule
-- **[Security reviews](docs/SECURITY_REVIEW.md)** — per-component security analysis
+- **[Detection benchmarks](docs/model-card.md)** — 6495 fixtures, 53 L2 + 15 L4 behavioral rules, precision/recall per rule
+- **[Threat model](docs/THREAT_MODEL.md)** / **[attack surface](docs/SECURITY-ATTACK-SURFACE.md)** — trust boundaries and per-component analysis
 - **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
 
 **Supply chain:** wheel builds are **reproducible** — `SOURCE_DATE_EPOCH` is pinned from the commit timestamp in `release.yml`, the Dockerfile, and CI, so the same source yields a byte-identical wheel (asserted by the CI `reproducible-build` job).
@@ -159,7 +161,7 @@ pip install picosentry[all]            # everything
 
 - **Deterministic** — same inputs + same policy = same SHA-256 output
 - **Offline by default** — no phone-home, no remote API calls
-- **Lightweight core** — default install pulls only `pyyaml`
+- **Lightweight core** — default install pulls only `pyyaml` + `cryptography`
 - **Typed** — full annotations, `py.typed` shipped
 
 ---

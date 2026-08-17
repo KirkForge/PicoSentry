@@ -2,20 +2,20 @@
 
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
 
-## WO3.0.0 — Third series (in progress)
+## WO3.0.0 — Third series (shipped; statuses verified against code 2026-08)
 
 | ID | Title | Status |
 |----|-------|--------|
-| [WO3.0.0-001](WO3.0.0-001-jwt-rs256.md) | RS256 JWT + JWK Rotation | OPEN |
-| [WO3.0.0-002](WO3.0.0-002-namespace-collision.md) | Namespace/Scope Collision Detection | OPEN |
-| [WO3.0.0-003](WO3.0.0-003-version-confusion.md) | Version-Confusion Detection | OPEN |
-| [WO3.0.0-004](WO3.0.0-004-osv-realtime.md) | Real-Time OSV Advisory Feed | OPEN |
-| [WO3.0.0-005](WO3.0.0-005-backup-encryption.md) | Backup Encryption + Offsite (S3/GCS) | OPEN |
-| [WO3.0.0-006](WO3.0.0-006-webauthn.md) | WebAuthn/FIDO2 MFA | OPEN |
-| [WO3.0.0-007](WO3.0.0-007-rate-limit-failclosed.md) | Distributed Rate Limiting Fail-Closed | OPEN |
-| [WO3.0.0-008](WO3.0.0-008-error-hierarchy.md) | Unified Exception Hierarchy + Bare-Except Cleanup | OPEN |
-| [WO3.0.0-009](WO3.0.0-009-slowloris-timeout.md) | Slowloris / Header-Read Timeout | OPEN |
-| [WO3.0.0-010](WO3.0.0-010-recall-floor.md) | Tighten Detection Recall Floor | OPEN |
+| [WO3.0.0-001](WO3.0.0-001-jwt-rs256.md) | RS256 JWT + JWK Rotation | COMPLETE — `SecurityConfig.jwt_private_key`/`jwt_kid` (`settings.py`), RS256 signing + JWK in `services/auth.py` |
+| [WO3.0.0-002](WO3.0.0-002-namespace-collision.md) | Namespace/Scope Collision Detection | COMPLETE — `L2-NSCOL-001` in `RULE_INFO` |
+| [WO3.0.0-003](WO3.0.0-003-version-confusion.md) | Version-Confusion Detection | COMPLETE — `L2-VCONF-001` in `RULE_INFO` |
+| [WO3.0.0-004](WO3.0.0-004-osv-realtime.md) | Real-Time OSV Advisory Feed | COMPLETE — `OSVClient` (`scan/intelligence.py`), `--intelligence connected` |
+| [WO3.0.0-005](WO3.0.0-005-backup-encryption.md) | Backup Encryption + Offsite (S3/GCS) | COMPLETE — AES-GCM backup + S3 config (`services/backup.py`, `BackupConfig`) |
+| [WO3.0.0-006](WO3.0.0-006-webauthn.md) | WebAuthn/FIDO2 MFA | COMPLETE — `/auth/webauthn/*` endpoints, `webauthn` extra, `PICOSHOGUN_WEBAUTHN_*` |
+| [WO3.0.0-007](WO3.0.0-007-rate-limit-failclosed.md) | Distributed Rate Limiting Fail-Closed | COMPLETE — `PICOSHOGUN_RATELIMIT_REDIS_FAIL_CLOSED` (`settings.py`) |
+| [WO3.0.0-008](WO3.0.0-008-error-hierarchy.md) | Unified Exception Hierarchy + Bare-Except Cleanup | OPEN — `ErrorCodes` table exists (`sandbox/errors.py`); full hierarchy/cleanup not verified |
+| [WO3.0.0-009](WO3.0.0-009-slowloris-timeout.md) | Slowloris / Header-Read Timeout | COMPLETE at app layer — `PICOSHOGUN_LIMIT_CONCURRENCY`/`LIMIT_MAX_REQUESTS` wired in `api/server.py`; true header-read deadline documented as a reverse-proxy responsibility |
+| [WO3.0.0-010](WO3.0.0-010-recall-floor.md) | Tighten Detection Recall Floor | COMPLETE — mutation benchmark + `passes_recall_floor` (`scan/mutation_benchmark.py`, `tests/scan/test_mutation_benchmark.py`) |
 
 ## WO2.0.0 — Second series (COMPLETE)
 

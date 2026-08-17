@@ -50,8 +50,13 @@ chain from the persisted head.
 ## Consequences
 
 - The audit table is append-only in practice; deleting or editing a row is
-  detectable but not prevented. A verifier must recompute the chain to detect
-  tampering — the middleware does not currently expose a verification endpoint.
+  detectable but not prevented. ~~A verifier must recompute the chain to detect
+  tampering — the middleware does not currently expose a verification endpoint.~~
+  **Update (2026-08):** a verifier now exists — `GET /audit/verify`
+  (`picosentry/serve/api/routers/admin.py`) recomputes the chain via
+  `verify_audit_chain()` (`picosentry/serve/services/audit_chain.py`) and
+  reports the first break. The chain is also anchored to the DB head on
+  restart so the pre-restart link is preserved.
 - The chain is not cryptographically signed; it proves *internal consistency*
   (rows link to each other), not *authenticity* (that the writer was the
   legitimate server). An attacker who can rewrite the whole table can rebuild a

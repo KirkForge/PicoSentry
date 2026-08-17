@@ -22,7 +22,7 @@ flowchart TB
     end
 
     scan -->|"files / metadata"| Engine["Scan engine\n(picosentry/scan)"]
-    Engine -->|"matches"| Rules["Detection rules\n(50 rules, 7 ecosystems)"]
+    Engine -->|"matches"| Rules["Detection rules\n(53 rules, 7 ecosystems)"]
     Engine -->|"findings"| Formatter["Output formatters\n(SARIF / CycloneDX / table)"]
 
     sandbox -->|"command + policy"| L3["L3 sandbox\nseccomp-bpf / seatbelt / subprocess"]
@@ -126,16 +126,13 @@ development guide.
 | `picosentry watch` | HTTP / WebSocket | Bearer token | LLM prompt/output guard |
 | Kubernetes admission | HTTPS webhook | TLS cert + K8s ValidatingWebhookConfiguration | Pod security validation |
 
-## Security reviews
+## Security documentation
 
-- [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — `serve`
-- [`SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md) — `sandbox daemon`
-- [`SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md) — `admission`
-- [`SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md) — `cluster mode`
+- [`THREAT_MODEL.md`](THREAT_MODEL.md) — trust boundaries, failure modes, threats T1–T8
+- [`SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md) — entry points, secrets handling, hardening table
 
 ## See also
 
 - [`THREAT_MODEL.md`](THREAT_MODEL.md) — trust boundaries and threat analysis
 - [`PLUGIN_DEVELOPMENT.md`](PLUGIN_DEVELOPMENT.md) — plugin lifecycle and signing
-- [`docs/strategic/`](strategic/) — design decisions and roadmaps
 - [`docs/ops/runbook.md`](ops/runbook.md) — operational procedures

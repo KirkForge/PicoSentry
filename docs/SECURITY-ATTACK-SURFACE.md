@@ -12,16 +12,16 @@
 
 ### 1.2 Corpus pack import (`picosentry corpus import`)
 
-- **Input**: Signed JSON corpus pack (`.json` or `.json.gz`)
-- **Trust boundary**: Corpus packs are signature-verified against a trusted Ed25519 key before ingestion (ADR-003). Unsigned packs are rejected in production mode.
-- **Attack surface**: A maliciously crafted corpus pack could inject false-positive/negative rules. Mitigated by signature verification and the offline deterministic design (ADR-001).
+- **Input**: JSON corpus pack (optionally cryptographically signed)
+- **Trust boundary**: packs may carry Ed25519/minisign/Sigstore signatures; cryptographic verification at import is opt-in (`--verify-crypto`). Production trust is gated by source trust levels (`CorpusTrustLevel`, `corpus_governance.py`) — quarantined/too-low-trust sources are rejected.
+- **Attack surface**: A maliciously crafted corpus pack could inject false-positive/negative rules. Mitigated by opt-in signature verification, source trust gating, and the offline deterministic design (ADR-001).
 
 ### 1.3 Sandbox backends (`picosentry sandbox`)
 
 | Backend | Trust boundary | Status |
 |---------|---------------|--------|
-| seccomp-bpf (ADR-002) | Kernel-level syscall allowlist; blocks unexpected syscalls at the kernel boundary | Active (Beta) |
-| landlock | Path-based filesystem ACL | **Not implemented** (ADR-002 correction) |
+| seccomp-bpf (ADR-002) | Kernel-level syscall allowlist; blocks unexpected syscalls at the kernel boundary | Active (Stable) |
+| landlock | Path-based filesystem ACL | Implemented (`get_backend("landlock")`, ADR-002 addendum) but **not CLI-exposed**; enforces a fixed path set, does not yet honor per-policy paths, captures no stdout/stderr |
 | firejail | Process-level sandboxing; weaker than kernel seccomp | Not implemented |
 | Docker | Container isolation; strongest boundary but requires Docker daemon | Not implemented as sandbox backend |
 
@@ -29,7 +29,7 @@
 
 ### 1.4 Plugin system (ADR-004)
 
-- **Entry point**: `picosentry serve` loads plugins from `plugins/` directory
+- **Entry point**: `picosentry serve` loads plugins from `--plugin-dir`, `PICOSHOGUN_PLUGIN_DIR`, and `~/.picosentry/plugins/` (bundled `picosentry/serve/plugins/` always scanned last)
 - **Trust boundary**: Ed25519 manifest signature verification (authenticity) + `PluginHost` subprocess sandbox with deny-by-default capabilities (safety)
 - **Attack surface**: A signed-but-malicious plugin is confined to its declared capabilities. Unsigned plugins load in non-production but are sandboxed. Production requires `PICOSHOGUN_REQUIRE_SIGNED_PLUGINS=1`.
 
@@ -94,7 +94,7 @@
 | Python/uv packaging | Lockfile pinning, reproducible builds, sigstore signing | ADR-003 |
 | Plugin trust boundary | Signing = admission, sandbox = safety; never conflated | ADR-004 |
 | Supply-chain evidence | CycloneDX SBOM, SLSA provenance, sigstore wheel signatures | release.yml |
-| Docker cosign signing | Container image signed with cosign (pending release.yml update) | Task 2 |
+| Docker cosign signing | Container image signed with cosign in `release.yml` | release.yml |
 | MFA / TOTP | Login requires a TOTP code when enabled; enroll/verify via `/auth/mfa/*` (`services/auth.py`) | WO2.0.0-007 |
 | JWT `jti` revocation | JWTs carry a `jti`; `POST /auth/revoke` adds to a `revoked_tokens` table, `validate_token` rejects revoked `jti`s | WO2.0.0-007 |
 | Account lockout | After `LOCKOUT_MAX_ATTEMPTS` (5) failed logins an account locks for `LOCKOUT_WINDOW_MINUTES` (15) | WO2.0.0-007 |
@@ -103,6 +103,7 @@
 | Audit fsync | Audit JSONL writes are fsync'd by default (`PICODOME_AUDIT_FSYNC`) | WO2.0.0-008 |
 | Reachability | Advisory findings flag `reachable: bool` (package imported/used) | WO2.0.0-011 |
 | Package intel depth | `download_count` + `package_age_days`; `L2-INTEL-001` flags new low-download packages | WO2.0.0-012 |
+| Serve audit hash-chain verifier | `GET /audit/verify` recomputes the `prev_hash`/`row_hash` chain (`services/audit_chain.py:verify_audit_chain`, ADR-006) | a48e1eff |
 
 ## 6. Out-of-scope items
 
@@ -122,5 +123,4 @@
 | ADR-004: Plugin trust boundary | [`docs/adr/ADR-004-plugin-trust-boundary.md`](adr/ADR-004-plugin-trust-boundary.md) |
 | ADR-005: Component naming | [`docs/adr/ADR-005-picoshogun-picosentry-naming.md`](adr/ADR-005-picoshogun-picosentry-naming.md) |
 | Threat model | [`docs/THREAT_MODEL.md`](THREAT_MODEL.md) |
-| Pentest engagement guide | [`docs/PENTEST-README.md`](PENTEST-README.md) |
 | Model card | [`docs/model-card.md`](model-card.md) |

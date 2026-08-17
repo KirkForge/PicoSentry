@@ -1,7 +1,7 @@
 # WO3.0.0-005 — Backup Encryption + Offsite (S3/GCS)
 
 **Series:** WO3.0.0 (improvement loop)
-**Status:** OPEN
+**Status:** COMPLETE (verified in code 2026-08 — see workorders/README.md)
 **Owner:** subagent (worktree `wo/3.0.0/backup-encryption`)
 **Gate:** `uv run ruff check picosentry/ tests/ scripts/` + `uv run mypy picosentry/` + `uv run pytest tests/serve/ -m "not slow"`
 

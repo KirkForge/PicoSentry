@@ -15,7 +15,9 @@ by real supply-chain attacks (e.g., `event-stream`, `eslint-scope`).
 picosentry scan examples/npm-postinstall-exfil/
 ```
 
-Expected findings:
-- **L2-POST-001**: Postinstall script execution
-- **L2-EXFIL-003**: postinstall script contains network calls
-- **L2-OBF-001**: Base64-encoded hostnames
+Expected findings (rule IDs as of v2.1.1):
+
+- **L2-POST-001**: Install scripts with network/credential access
+- **L2-CRED-001**: Install script reading credentials/env vars
+- **L2-PROV-001** / **L2-FORK-001** / **L2-MAINT-001**: provenance and maintainer red flags
+- **L2-LOCK-001**, **L2-ENGIN-001**, **L2-LICENSE-001**: lockfile/engine/license issues

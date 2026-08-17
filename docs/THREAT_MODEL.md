@@ -24,13 +24,9 @@ Source of truth for component maturity is [`picosentry/experimental.py`](../pico
 
 "Beta" means the component works, has regression/security tests, and is
 suitable for controlled production use, but has not been battle-tested in a
-broad multi-tenant deployment. See the per-component security reviews for
-specific blockers and honest limitations:
-
-- [`docs/SECURITY_REVIEW.md`](SECURITY_REVIEW.md) — `serve`
-- [`docs/SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md) — `daemon`
-- [`docs/SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md) — `admission`
-- [`docs/SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md) — `cluster mode`
+broad multi-tenant deployment. See the trust-boundary sections below and
+[`SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md) for specific
+blockers and honest limitations.
 
 ## Assets
 
@@ -96,10 +92,13 @@ specific blockers and honest limitations:
 ### Boundary 3: Sandbox / daemon runtime enforcement
 
 - **Assumption:** the host OS and kernel are trusted.
-- **Enforcement:** Linux seccomp-bpf blocks dangerous syscalls. There is no
-  path-based filesystem access-control layer in the sandbox today (a prior
-  landlock claim was retracted — see ADR-002); filesystem access is bounded by
-  the   child's working directory and the syscall allowlist. The daemon uses
+- **Enforcement:** Linux seccomp-bpf blocks dangerous syscalls. The CLI sandbox
+  has no policy-driven path-based filesystem ACL today: a `LandlockBackend`
+  exists (`get_backend("landlock")`, Linux ≥ 5.13, seccomp fallback) but is
+  not exposed via `--backend` and enforces a fixed read-only/read-write path
+  set that does not yet honor per-policy paths (see the ADR-002 addendum).
+  Filesystem access is otherwise bounded by the child's working directory and
+  the syscall allowlist. The daemon uses
   TLS/mTLS for its HTTP/gRPC interfaces. Audit sinks (file, syslog, webhook)
   are opt-in; the JSONL audit log is chain-hashed and each line is fsync'd by
   default (`PICODOME_AUDIT_FSYNC`) so a recorded event survives a crash.
@@ -107,7 +106,7 @@ specific blockers and honest limitations:
   configs that are not present on every distribution. macOS uses the lighter
   Seatbelt backend. The sandbox is **enforcement** for syscalls, not full
   system-call tracing or observability. The daemon is **Beta**; see
-  [`SECURITY_REVIEW_DAEMON.md`](SECURITY_REVIEW_DAEMON.md).
+  [`SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md).
 
 ### Boundary 4: `serve` API and multi-tenancy
 
@@ -120,9 +119,10 @@ specific blockers and honest limitations:
   revoked via `POST /auth/revoke` and are rejected at validation. Users may
   enroll TOTP so login requires a one-time code. API keys can be minted scoped
   to a role and org and are enforced through the same RBAC checks as JWTs.
-- **Limits:** `serve` is **Beta**. See
-  [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md) for honest limitations such as
-  in-memory rate limiting and minimal password policy.
+- **Limits:** `serve` is **Beta**. Honest limitations include in-memory rate
+  limiting by default (Redis backend available) and effectively no password
+  policy (register enforces `min_length=1`) —
+  see [`SECURITY-ATTACK-SURFACE.md`](SECURITY-ATTACK-SURFACE.md).
 
 ### Boundary 5: Admission webhook
 
@@ -130,8 +130,7 @@ specific blockers and honest limitations:
 - **Enforcement:** TLS required in production; pod validation policy is
   fail-closed by default (`PICODOME_ADMISSION_FAIL_CLOSED=true`).
 - **Limits:** a misconfigured webhook without a validator will deny all pods.
-  The admission controller is **Beta**; see
-  [`SECURITY_REVIEW_ADMISSION.md`](SECURITY_REVIEW_ADMISSION.md).
+  The admission controller is **Beta**.
 
 ### Boundary 6: Cluster gossip
 
@@ -140,8 +139,7 @@ specific blockers and honest limitations:
 - **Enforcement:** membership requires the `PICODOME_CLUSTER_TOKEN`; mTLS is
   optional. State snapshots are merged, not blindly trusted.
 - **Limits:** the protocol has not been formally reviewed for Byzantine or
-  network-partition behavior. Cluster mode is **Beta**; see
-  [`SECURITY_REVIEW_CLUSTER.md`](SECURITY_REVIEW_CLUSTER.md).
+  network-partition behavior. Cluster mode is **Beta**.
 
 ## Failure Modes and Defaults
 
@@ -152,7 +150,7 @@ specific blockers and honest limitations:
 | Watch rule load failure | **pass** (fail-open) | `PICOSENTRY_WATCH_FAIL_CLOSED=true` |
 | Watch rule evaluation crash | **pass** unless fail-closed is on | `PICOSENTRY_WATCH_FAIL_CLOSED=true` |
 | Plugin worker timeout | worker terminated, call raises | tune `timeout` per plugin |
-| Corpus older than threshold | CLI exits 5 | `--check-corpus-age` |
+| Corpus older than threshold | scanner warns (30-day staleness check); exit 5 gate exists on the inner `check` command, not yet wired into the unified CLI | `--check-corpus-age` on `picosentry/scan/cli_commands/check.py` |
 | Rate-limiter table full | new distinct IPs denied | increase `max_clients` |
 | `serve` auth failure | HTTP 401/403 | — |
 | Cluster token missing | cluster manager does not start | set `PICODOME_CLUSTER_TOKEN` |

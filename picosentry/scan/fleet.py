@@ -174,15 +174,20 @@ class FleetManager:
             return
         try:
             data = json.loads(state_file.read_text(encoding="utf-8"))
-            for tid, td in data.get("targets", {}).items():
-                self._targets[tid] = FleetTarget.from_dict(td)
-            for rn, rd in data.get("rollouts", {}).items():
-                self._rollouts[rn] = RolloutPolicy.from_dict(rd)
-            for sn, sd in data.get("statuses", {}).items():
-                self._statuses[sn] = RolloutStatus.from_dict(sd)
-            self._previous_policies = data.get("previous_policies", {})
-        except (json.JSONDecodeError, OSError) as e:
+            # Parse fully into locals before touching self — a ValueError halfway
+            # through must not leave partial state that _save_state would then
+            # persist, clobbering the (still-recoverable) on-disk state.
+            targets = {tid: FleetTarget.from_dict(td) for tid, td in data.get("targets", {}).items()}
+            rollouts = {rn: RolloutPolicy.from_dict(rd) for rn, rd in data.get("rollouts", {}).items()}
+            statuses = {sn: RolloutStatus.from_dict(sd) for sn, sd in data.get("statuses", {}).items()}
+            previous_policies = data.get("previous_policies", {})
+        except (json.JSONDecodeError, OSError, ValueError, TypeError, KeyError) as e:
             logger.warning("Failed to load fleet state: %s", e)
+            return
+        self._targets = targets
+        self._rollouts = rollouts
+        self._statuses = statuses
+        self._previous_policies = previous_policies
 
     def _save_state(self) -> None:
         state_file = self._state_file()

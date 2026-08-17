@@ -85,7 +85,9 @@ _UNICODE_OBFUSCATION_PATTERN = re.compile(
 )
 
 _COMPRESSED_PAYLOAD_PATTERN = re.compile(
-    r"""__(?:import__|import)\(['"]zlib['"]\)""",
+    # The attack signal is a zlib-compressed blob fed to exec/eval — whether
+    # zlib was pulled in via __import__() or a plain `import zlib` statement.
+    r"""(?:__import__|import)\(['"]zlib['"]\)|(?:\bexec\s*\(\s*zlib\.decompress|\bzlib\.decompress[\s\S]{0,120}?\bexec\s*\()""",
 )
 
 _MARSHAL_LOAD_PATTERN = re.compile(

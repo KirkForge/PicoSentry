@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Go typosquat: muxx mimicking mux",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

@@ -1,0 +1,17 @@
+{
+  "label": "negative",
+  "description": "A clean PyPI package 'clean-serialization-lib' with no suspicious patterns. Should produce zero findings.",
+  "forbidden_rule_ids": [
+    "L2-PYPI-OBFS-001",
+    "L2-PYPI-OBFS-002",
+    "L2-PYPI-OBFS-003",
+    "L2-PYPI-OBFS-004",
+    "L2-PYPI-OBFS-005",
+    "L2-PYPI-OBFS-006",
+    "L2-PYPI-OBFS-007",
+    "L2-PYPI-POST-001",
+    "L2-PYPI-TYPO-001",
+    "L2-PYPI-DEPC-001",
+    "L2-PYPI-ADV-001"
+  ]
+}

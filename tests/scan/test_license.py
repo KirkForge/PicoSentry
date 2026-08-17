@@ -23,14 +23,21 @@ class TestNoLicenseField:
     """Packages missing the license field entirely."""
 
     def test_no_license_field(self, tmp_path, corpus_dir):
-        """Package with no license field → MEDIUM finding."""
-        pkg = {"name": "no-license-pkg", "version": "1.0.0"}
+        """No license + install script (risk signal) → MEDIUM finding."""
+        pkg = {"name": "no-license-pkg", "version": "1.0.0", "scripts": {"install": "node setup.js"}}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
         findings = detect_license_issues(tmp_path)
         assert len(findings) == 1
         assert findings[0].rule_id == "L2-LICENSE-001"
         assert findings[0].severity.value == "MEDIUM"
         assert "no license field" in findings[0].message.lower()
+
+    def test_no_license_field_bare_manifest_is_silent(self, tmp_path, corpus_dir):
+        """No license on a bare root manifest is hygiene noise, not a finding."""
+        pkg = {"name": "no-license-pkg", "version": "1.0.0"}
+        (tmp_path / "package.json").write_text(json.dumps(pkg))
+        findings = detect_license_issues(tmp_path)
+        assert not findings
 
     def test_empty_license_field(self, tmp_path, corpus_dir):
         """Package with empty string license → unknown finding."""
@@ -248,8 +255,8 @@ class TestIntegrationWithEngine:
         assert "L2-LICENSE-001" in engine.list_rules()
 
     def test_scan_with_no_license(self, tmp_path):
-        """Full engine scan detects missing license."""
-        pkg = {"name": "no-license-app", "version": "1.0.0"}
+        """Full engine scan detects missing license when install hooks present."""
+        pkg = {"name": "no-license-app", "version": "1.0.0", "scripts": {"postinstall": "node i.js"}}
         (tmp_path / "package.json").write_text(json.dumps(pkg))
 
         engine = create_default_engine()

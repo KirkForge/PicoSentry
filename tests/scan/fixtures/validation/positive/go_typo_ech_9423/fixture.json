@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Go typosquat: ech mimicking echo",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

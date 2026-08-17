@@ -1,8 +1,0 @@
-{
-  "label": "multi_attack",
-  "description": "Multi-attack: pypi_multi_depc_cred variant 6",
-  "expected_rule_ids": [
-    "L2-PYPI-DEPC-001",
-    "L2-CRED-001"
-  ]
-}

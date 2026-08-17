@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2020-1938: tomcat@9.0.30",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

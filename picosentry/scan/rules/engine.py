@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
-from .utils import iter_node_modules, load_package_json
+from .utils import has_execution_risk, iter_node_modules, load_package_json
 
 __all__ = ["detect_engine_issues"]
 
@@ -19,6 +19,9 @@ def _is_overly_permissive(version_str: str) -> bool:
         base = stripped[2:].strip()
         parts = base.split(".")
         if all(p == "0" for p in parts if p.isdigit()):
+            return True
+        # A floor below Node 4 (EOL since 2016) is no practical constraint.
+        if parts and parts[0].isdigit() and int(parts[0]) < 4:
             return True
     return False
 
@@ -66,7 +69,9 @@ def _check_engines(pkg: dict, pkg_json_path: Path) -> list[Finding]:
                     ],
                 )
             )
-        else:
+        elif has_execution_risk(pkg, pkg_json_path):
+            # ponytail: informational "no engines" only for installed deps — root
+            # manifests without engines are hygiene noise (1210 corpus FPs).
             findings.append(
                 Finding(
                     rule_id="L2-ENGIN-001",

@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "PyPI typosquat: flaask mimicking flask",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

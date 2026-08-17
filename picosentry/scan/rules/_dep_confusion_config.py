@@ -9,6 +9,7 @@ from .go_utils import detect_go_project
 from .nuget_utils import detect_nuget_project
 from .pypi_utils import detect_pypi_project
 from .rubygems_utils import detect_rubygems_project
+from .utils import detect_npm_project
 
 __all__ = [
     "_CARGO_CONFIG",
@@ -19,6 +20,7 @@ __all__ = [
     "_MAVEN_INTERNAL_GROUP_PATTERNS",
     "_MAVEN_KNOWN_SAFE_ARTIFACTS",
     "_MAVEN_PUBLIC_GROUP_PREFIXES",
+    "_NPM_CONFIG",
     "_NUGET_CONFIG",
     "_PYPI_CONFIG",
     "_RUBYGEMS_CONFIG",
@@ -155,6 +157,13 @@ _MAVEN_KNOWN_SAFE_ARTIFACTS: frozenset[str] = frozenset(
 )
 
 
+_NPM_CONFIG = DepConfusionConfig(
+    ecosystem="npm",
+    rule_id="L2-DEPC-001",
+    detect_project=detect_npm_project,
+    internal_patterns=_INTERNAL_ALL_PATTERNS,
+)
+
 _GO_CONFIG = DepConfusionConfig(
     ecosystem="go",
     rule_id="L2-GO-DEPC-001",
@@ -199,7 +208,9 @@ _PYPI_CONFIG = DepConfusionConfig(
     ecosystem="pypi",
     rule_id="L2-PYPI-DEPC-001",
     detect_project=detect_pypi_project,
-    internal_patterns=_INTERNAL_PREFIX_PATTERNS,
+    # PyPI names use underscores (`company_auth`), not only hyphen prefixes —
+    # match the shared pattern list like cargo/rubygems do.
+    internal_patterns=_INTERNAL_ALL_PATTERNS,
 )
 
 _NUGET_CONFIG = DepConfusionConfig(

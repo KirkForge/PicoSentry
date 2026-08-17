@@ -225,6 +225,10 @@ def _check_maintainer_signals(
         )
 
     if author_count == 0 and not has_scripts and pkg_name != "root":
+        # ponytail: no-author info only matters for installed deps or when the
+        # package executes code — bare root manifests are hygiene noise.
+        if "node_modules" not in pkg_json.parts and not (pkg_intel and pkg_intel.has_install_scripts):
+            return
         evidence = "author field missing, maintainers field missing"
         if pkg_intel is not None:
             evidence = _enforce_maintainer_evidence(evidence, pkg_intel)

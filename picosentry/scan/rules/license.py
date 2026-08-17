@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
-from .utils import iter_node_modules, load_package_json
+from .utils import has_execution_risk, iter_node_modules, load_package_json
 
 __all__ = ["detect_license_issues"]
 
@@ -109,25 +109,28 @@ def _scan_package_json(pkg_json: Path) -> list[Finding]:
     license_field = data.get("license")
 
     if license_field is None:
-        findings.append(
-            Finding(
-                rule_id="L2-LICENSE-001",
-                severity=Severity.MEDIUM,
-                confidence=Confidence.EXACT,
-                package=pkg_label,
-                file=str(pkg_json),
-                message=f"Package {pkg_label} has no license field — legal status unknown",
-                evidence="license field missing from package.json",
-                remediation=(
-                    f"Contact the {pkg_name} maintainer to add a license. "
-                    "Packages without a license cannot be legally used in most projects."
-                ),
-                references=[
-                    "https://docs.npmjs.com/cli/v10/configuring-npm/package-json#license",
-                    "https://spdx.org/licenses/",
-                ],
+        if has_execution_risk(data, pkg_json):
+            # ponytail: missing-license only with a risk signal — bare root
+            # manifests are hygiene noise, not supply-chain findings.
+            findings.append(
+                Finding(
+                    rule_id="L2-LICENSE-001",
+                    severity=Severity.MEDIUM,
+                    confidence=Confidence.EXACT,
+                    package=pkg_label,
+                    file=str(pkg_json),
+                    message=f"Package {pkg_label} has no license field — legal status unknown",
+                    evidence="license field missing from package.json",
+                    remediation=(
+                        f"Contact the {pkg_name} maintainer to add a license. "
+                        "Packages without a license cannot be legally used in most projects."
+                    ),
+                    references=[
+                        "https://docs.npmjs.com/cli/v10/configuring-npm/package-json#license",
+                        "https://spdx.org/licenses/",
+                    ],
+                )
             )
-        )
         return findings
 
     if isinstance(license_field, dict):

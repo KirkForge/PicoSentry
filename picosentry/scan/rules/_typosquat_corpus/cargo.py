@@ -4,6 +4,9 @@ BUILTIN_CARGO_TOP_100: list[str] = sorted(
     [
         "serde",
         "tokio",
+        # mio: top-tier async I/O crate (100M+ downloads); priority membership
+        # lets the short-name guard match 3-char typos (0io, mio2) of it.
+        "mio",
         "rand",
         "reqwest",
         "clap",

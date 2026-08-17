@@ -1,0 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "clean-fixture-loader"
+version = "0.1.0"
+description = "A clean Python library: clean-fixture-loader"
+requires-python = ">=3.9"
+dependencies = []

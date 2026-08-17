@@ -1,0 +1,8 @@
+[package]
+name = "clean_logger_crate"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_logger_crate"
+license = "MIT"
+
+[dependencies]

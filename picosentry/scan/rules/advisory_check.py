@@ -20,7 +20,7 @@ from .nuget_utils import collect_nuget_deps, detect_nuget_project
 from .pypi_lock_parser import parse_poetry_lock, parse_requirements_txt, parse_uv_lock
 from .pypi_utils import detect_pypi_project, iter_site_packages, load_pyproject_toml
 from .rubygems_utils import detect_rubygems_project, parse_gemfile, parse_gemfile_lock
-from .utils import iter_node_modules, load_package_json
+from .utils import get_dep_names_with_specs, iter_node_modules, load_package_json
 
 logger = logging.getLogger("picosentry.advisory_check")
 
@@ -28,6 +28,16 @@ __all__ = ["detect_all_advisory_vulnerabilities"]
 
 
 _advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
+# ponytail: bounded cache, oldest-entry eviction — unbounded growth only matters
+# for long-lived processes scanning many corpus dirs; upgrade path: LRU.
+_ADVISORY_DB_CACHE_MAX = 8
+
+
+def _advisory_db_cache_put(cache_key: tuple[str, str], db: AdvisoryDB, load_time: float) -> None:
+    if len(_advisory_db_cache) >= _ADVISORY_DB_CACHE_MAX:
+        oldest = min(_advisory_db_cache, key=lambda k: _advisory_db_cache[k][1])
+        del _advisory_db_cache[oldest]
+    _advisory_db_cache[cache_key] = (db, load_time)
 
 
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
@@ -45,7 +55,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(path)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from %s: %d advisories", advisory_db_path, db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
@@ -55,7 +65,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(candidate)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from corpus: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
 
     default_dir = default_advisory_dir()
@@ -63,7 +73,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(default_dir)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from default: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
 
     return None
@@ -87,6 +97,12 @@ def _collect_npm_packages(target: Path) -> list[tuple[str, str, str, Path]]:
             pkg_name = pkg.get("name", "root")
             pkg_version = pkg.get("version", "unknown")
             packages.append((pkg_name, pkg_version, f"{pkg_name}@{pkg_version}", root_pkg))
+            # Declared dependencies are advisory-relevant even when
+            # node_modules/ is absent (e.g. CI before install): every other
+            # ecosystem's collector reads the manifest; npm must too or
+            # vulnerable deps are silently skipped.
+            for dep_name, dep_spec in sorted(get_dep_names_with_specs(pkg).items()):
+                packages.append((dep_name, str(dep_spec), f"{dep_name}@{dep_spec}", root_pkg))
 
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)

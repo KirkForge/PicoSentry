@@ -17,6 +17,25 @@ logger = logging.getLogger("picosentry.validation")
 POSITIVE_LABELS = frozenset({"positive", "typosquat", "obfuscation", "dep_confusion", "cve", "multi_attack"})
 
 
+def known_rule_ids() -> frozenset[str]:
+    """All rule ids the default engine can emit (incl. campaign matchers).
+
+    Used by the loader to flag fixtures that expect a rule id which does
+    not exist — the L2-CVE-001 / L2-NPM-OBFS-001 class of authoring bug
+    that silently registers as recall loss.
+    """
+    from .rules import RULE_INFO
+
+    ids = set(RULE_INFO)
+    try:
+        from .campaigns import iter_campaigns
+
+        ids.update(c.rule_id for c in iter_campaigns())
+    except Exception:  # pragma: no cover - campaign loading is best-effort here
+        logger.debug("Campaign rule ids unavailable for known-rule check", exc_info=True)
+    return frozenset(ids)
+
+
 @dataclass(frozen=True)
 class FindingAssertion:
     """Per-finding gate for a fixture (opt-in via fixture.json).
@@ -152,6 +171,9 @@ class ValidationReport:
     total_negative: int = 0
     fixture_results: tuple[tuple[str, str, tuple[str, ...]], ...] = ()
     """(fixture_name, "PASS" | "FAIL", (missing_rule_ids_or_unexpected_rule_ids,))"""
+    unknown_rule_expectations: tuple[tuple[str, str], ...] = ()
+    """(fixture_name, unknown_rule_id) — expectations against rule ids that
+    don't exist; each one is guaranteed recall loss, so surface it."""
 
     @property
     def mean_precision(self) -> float:
@@ -187,6 +209,9 @@ class ValidationReport:
                 {"fixture": name, "outcome": outcome, "details": list(details)}
                 for name, outcome, details in self.fixture_results
             ],
+            "unknown_rule_expectations": [
+                {"fixture": name, "rule_id": rule_id} for name, rule_id in self.unknown_rule_expectations
+            ],
         }
 
     def to_text(self) -> str:
@@ -198,6 +223,11 @@ class ValidationReport:
         )
         lines.append(f"mean precision: {self.mean_precision:.2%}")
         lines.append(f"mean recall:    {self.mean_recall:.2%}")
+        if self.unknown_rule_expectations:
+            lines.append("")
+            lines.append(f"unknown expected_rule_ids: {len(self.unknown_rule_expectations)}")
+            for name, rule_id in self.unknown_rule_expectations:
+                lines.append(f"  {name}: expects nonexistent rule {rule_id}")
         lines.append("")
         lines.append("Per-rule metrics:")
         lines.append(f"  {'rule_id':<28} {'TP':>4} {'FP':>4} {'FN':>4} {'precision':>10} {'recall':>8}")
@@ -396,12 +426,20 @@ def run_validation(
     fixtures = discover_fixtures(validation_root)
     metrics, fixture_results = _metrics_from_fixtures(fixtures, advisory_db_path=advisory_db_path)
 
+    known = known_rule_ids()
+    unknown_expectations = tuple(
+        (spec.name, rid) for spec in fixtures for rid in spec.expected_rule_ids if rid not in known
+    )
+    for name, rid in unknown_expectations:
+        logger.warning("Fixture %s expects unknown rule id %s — guaranteed recall loss", name, rid)
+
     report = ValidationReport(
         rule_metrics=tuple(metrics[r] for r in sorted(metrics)),
         total_fixtures=len(fixtures),
         total_positive=sum(1 for f in fixtures if f.label == "positive"),
         total_negative=sum(1 for f in fixtures if f.label == "negative"),
         fixture_results=tuple(fixture_results),
+        unknown_rule_expectations=unknown_expectations,
     )
 
     if output_path is not None:

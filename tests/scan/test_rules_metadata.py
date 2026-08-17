@@ -17,18 +17,31 @@ from picosentry.scan.rules import DISPATCHED_RULE_IDS, RULE_INFO
 
 FIXTURES = Path(__file__).resolve().parent / "fixtures" / "validation" / "positive"
 
-# One representative fixture per non-npm ecosystem plus a campaign fixture:
-# each exercises a code path that emits ecosystem-dispatched or L2-CAMP ids.
+# One representative fixture family per non-npm ecosystem plus a campaign
+# fixture: each exercises a code path that emits ecosystem-dispatched or
+# L2-CAMP ids. Fixtures are discovered by prefix because the corpus
+# generators append random (seeded, but regen-shifting) suffixes.
 # (No rubygems fixture currently fires an L2-RUBYGEMS-* rule — see the
 # model-card recall gap — so that ecosystem has no emitting representative.)
-REPRESENTATIVE_FIXTURES = (
-    "cargo_typo_cla_5092",
-    "go_typo_beego_5562",
-    "maven_typo_commons_lang_1035",
-    "nuget_typo_EntityFrameork_5915",
-    "pypi_depc_company-auth_4228",
-    "camp_trapdoor_npm",
+REPRESENTATIVE_PREFIXES = (
+    "cargo_typo_",
+    "go_typo_",
+    "maven_typo_",
+    "nuget_typo_",
+    "pypi_depc_",
 )
+
+
+def _representative_fixtures() -> list[str]:
+    names = []
+    for prefix in REPRESENTATIVE_PREFIXES:
+        matches = sorted(p.name for p in FIXTURES.iterdir() if p.is_dir() and p.name.startswith(prefix))
+        assert matches, f"no fixture found for prefix {prefix!r} — corpus regenerated?"
+        names.append(matches[0])
+    camp = "camp_trapdoor_npm"
+    assert (FIXTURES / camp).is_dir(), f"fixture {camp} not found"
+    names.append(camp)
+    return names
 
 
 @pytest.fixture(scope="module")
@@ -57,7 +70,7 @@ class TestEmittedRuleIdsRegistered:
         """Scans must only emit ids that exist in RULE_INFO (or the L2-CAMP-*
         campaign namespace) — otherwise doctor's cross-reference and the
         rule docs drift from what scans actually detect."""
-        for name in REPRESENTATIVE_FIXTURES:
+        for name in _representative_fixtures():
             target = FIXTURES / name
             assert target.is_dir(), f"fixture {name} not found"
             result = engine.scan(target)

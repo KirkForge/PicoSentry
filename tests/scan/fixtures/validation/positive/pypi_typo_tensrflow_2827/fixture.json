@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: tensrflow mimicking tensorflow",
+  "expected_rule_ids": [
+    "L2-PYPI-TYPO-001"
+  ]
+}

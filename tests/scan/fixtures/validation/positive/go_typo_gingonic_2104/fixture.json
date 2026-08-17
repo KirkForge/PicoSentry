@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Go typosquat: gingonic mimicking gin-gonic",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

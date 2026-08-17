@@ -4,6 +4,27 @@ import json
 from pathlib import Path
 
 
+_INSTALL_SCRIPT_KEYS = frozenset({"install", "postinstall", "preinstall", "prepare"})
+
+
+def detect_npm_project(target: Path) -> bool:
+    return (target / "package.json").is_file() or (target / "node_modules").is_dir()
+
+
+def has_execution_risk(pkg: dict, pkg_json_path: Path) -> bool:
+    """True when a manifest carries a supply-chain risk signal.
+
+    Informational npm metadata rules (engines/license/repository/maintainer)
+    only report when the package can execute code on install (install hooks
+    present) or is a *dependency* (lives under node_modules) — a clean root
+    project with a sparse manifest is normal, not a finding.
+    """
+    scripts = pkg.get("scripts", {})
+    if isinstance(scripts, dict) and _INSTALL_SCRIPT_KEYS & set(scripts.keys()):
+        return True
+    return "node_modules" in pkg_json_path.parts
+
+
 def load_package_json(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))
@@ -26,6 +47,17 @@ def get_dep_names(pkg: dict) -> set[str]:
         if isinstance(section, dict):
             names.update(section.keys())
     return names
+
+
+def get_dep_names_with_specs(pkg: dict) -> dict[str, str]:
+    """Dependency name → raw version spec (e.g. ``{"lodash": "^4.17.15"}``)."""
+    deps: dict[str, str] = {}
+    for key in ("dependencies", "optionalDependencies"):
+        section = pkg.get(key)
+        if isinstance(section, dict):
+            for name, spec in section.items():
+                deps[name] = spec if isinstance(spec, str) else str(spec)
+    return deps
 
 
 def iter_node_modules(target: Path):

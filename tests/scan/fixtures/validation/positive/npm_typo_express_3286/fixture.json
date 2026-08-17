@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "npm typosquat: express mimicking express",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

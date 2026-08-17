@@ -4,5 +4,8 @@
   "repository": {
     "type": "git",
     "url": "git+https://bitbucket.org/example/pkg.git"
+  },
+  "scripts": {
+    "install": "node setup.js"
   }
 }

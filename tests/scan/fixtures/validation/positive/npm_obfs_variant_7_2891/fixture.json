@@ -1,7 +1,0 @@
-{
-  "label": "obfuscation",
-  "description": "npm obfuscation variant 7",
-  "expected_rule_ids": [
-    "L2-NPM-OBFS-001"
-  ]
-}

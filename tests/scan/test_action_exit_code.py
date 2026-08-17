@@ -37,7 +37,13 @@ def _scan_fresh(fixture_name: str, extra_args: list[str] | None = None) -> subpr
     fixture = FIXTURES_DIR / fixture_name
     if not fixture.is_dir():
         pytest.skip(f"fixture {fixture_name} not available")
-    args = PICOSENTRY + ["scan", str(fixture)] + (extra_args or [])
+    args = PICOSENTRY + ["scan", str(fixture)] + (extra_args or ())
+    return subprocess.run(args, capture_output=True, text=True, timeout=60)
+
+
+def _scan_fresh_dir(target_dir, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
+    """Scan an ad-hoc project directory (no fixture caching)."""
+    args = PICOSENTRY + ["scan", str(target_dir)] + (extra_args or ())
     return subprocess.run(args, capture_output=True, text=True, timeout=60)
 
 
@@ -74,17 +80,33 @@ class TestExitCodeEnforcement:
         # This should exit 0 if no critical findings exist
         assert result.returncode in (0, 1), f"Unexpected exit code: {result.returncode}. stderr: {result.stderr}"
 
-    def test_clean_project_exit_code_with_any_findings(self):
+    def test_clean_project_exit_code_with_any_findings(self, tmp_path):
         """Scanning with --exit-code exits 1 if ANY findings exist (even LOW/INFO).
 
-        The clean_project fixture has a LOW finding (L2-ENGIN-001: missing engines field).
-        --exit-code means "exit 1 if any findings found" — severity is irrelevant.
-        This is the behavior the GitHub Action depends on.
+        The clean_project fixture is now genuinely clean (metadata rules are
+        gated on risk signals), so a project with a minor finding is built
+        inline: an overly permissive engines constraint is a MEDIUM finding
+        without any attack payload.
         """
-        result = _scan("clean_project", ["--exit-code"])
+        pkg = {
+            "name": "loose-engines",
+            "version": "1.0.0",
+            "license": "MIT",
+            "engines": {"node": "*"},
+            "repository": {"type": "git", "url": "https://github.com/clean/loose-engines"},
+        }
+        (tmp_path / "package.json").write_text(json.dumps(pkg))
+        result = _scan_fresh_dir(tmp_path, ["--exit-code"])
         assert result.returncode == 1, (
             f"picosentry --exit-code with any findings should exit 1, "
             f"got {result.returncode}. stdout: {result.stdout[:200]}"
+        )
+
+    def test_truly_clean_project_exits_zero_with_exit_code(self):
+        """The clean_project fixture has no findings at all — exits 0 with --exit-code."""
+        result = _scan("clean_project", ["--exit-code"])
+        assert result.returncode == 0, (
+            f"clean project with --exit-code should exit 0, got {result.returncode}. stdout: {result.stdout[:200]}"
         )
 
     def test_malicious_project_no_exit_code_exits_zero(self):
@@ -123,19 +145,17 @@ class TestActionResultOutputs:
         assert findings_count > 0, "shai_hulud should have findings in JSON output"
 
     def test_action_result_has_low_finding_on_clean_project(self):
-        """The 'clean' project fixture has 1 LOW finding (missing engines field).
+        """The 'clean' project fixture is genuinely clean — zero findings.
 
-        This is intentional — it tests that even INFO/LOW findings are reported.
-        A truly clean project would need no findings at all.
+        Metadata informational findings are gated on risk signals (install
+        hooks / installed dependency), so a well-formed root manifest with
+        author, license, repository and engines produces no findings at all.
         """
         result = _scan("clean_project", ["--format", "json"])
         assert result.returncode == 0
         data = json.loads(result.stdout)
         findings = data.get("findings", [])
-        assert len(findings) >= 1, f"clean_project should have at least 1 finding, got {len(findings)}"
-        assert any(f["severity"] in ("LOW", "INFO") for f in findings), (
-            f"clean_project findings should include LOW/INFO, got {[f['severity'] for f in findings]}"
-        )
+        assert findings == [], f"clean_project should have zero findings, got {findings}"
 
     def test_action_result_fail_on_malicious_scan(self):
         """A scan with findings should produce result=fail when using --exit-code."""

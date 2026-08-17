@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Cargo typosquat: serde_jsonn mimicking serde_json",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

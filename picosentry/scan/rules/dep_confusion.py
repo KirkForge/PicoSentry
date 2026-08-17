@@ -13,6 +13,7 @@ from ._dep_confusion_config import (
     _MAVEN_INTERNAL_GROUP_PATTERNS,
     _MAVEN_KNOWN_SAFE_ARTIFACTS,
     _MAVEN_PUBLIC_GROUP_PREFIXES,
+    _NPM_CONFIG,
     _NUGET_CONFIG,
     _PYPI_CONFIG,
     _RUBYGEMS_CONFIG,
@@ -216,6 +217,23 @@ def _pypi_has_private_index(target: Path) -> bool:
 
 _NPMRC_REGISTRY_PATTERN = "registry="
 _NPM_INTERNAL_SCOPES = frozenset({"@internal/", "@private/"})
+# Scope words treated as org-internal namespaces, mirroring the vocabulary the
+# shared pattern list already trusts for unscoped names in every ecosystem.
+_NPM_INTERNAL_SCOPE_WORDS = frozenset({"internal", "private", "company", "corp", "acme", "my"})
+
+
+def _npm_dep_looks_internal(dep_name: str, npm_internal_scopes: frozenset[str]) -> bool:
+    """True when an npm dependency looks like an internal package.
+
+    Scoped deps are internal when the scope is a configured/known internal
+    scope or the scope word itself reads as internal (@company/billing).
+    Unscoped deps fall back to the shared pattern list — the same
+    high-confidence check the other six ecosystems use.
+    """
+    if dep_name.startswith("@") and "/" in dep_name:
+        scope = dep_name.split("/", 1)[0].lstrip("@").lower()
+        return dep_name.startswith(tuple(npm_internal_scopes)) or scope in _NPM_INTERNAL_SCOPE_WORDS
+    return _looks_internal_base(dep_name, _NPM_CONFIG)
 
 
 def _get_go_pinned_deps(target: Path) -> set[str]:
@@ -293,7 +311,7 @@ def detect_all_dep_confusion(target: Path, package_intel: dict[str, PackageIntel
                 npm_internal_scopes = _get_npm_internal_scopes()
 
                 for dep_name in sorted(all_deps):
-                    is_internal = any(dep_name.startswith(p) for p in npm_internal_scopes)
+                    is_internal = _npm_dep_looks_internal(dep_name, npm_internal_scopes)
 
                     if is_internal and not has_private:
                         findings.append(

@@ -1,5 +1,8 @@
 {
   "name": "unlicensed",
   "version": "1.0.0",
-  "description": "No license field"
+  "description": "No license field",
+  "scripts": {
+    "install": "node setup.js"
+  }
 }

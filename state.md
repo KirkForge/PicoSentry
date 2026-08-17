@@ -2,6 +2,31 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-17 (d): Backlog burn-down — auth/infra/landlock/benchmarks — COMPLETE
+
+### Method
+4 parallel agents (SA-I auth/edge, SA-J serve infra, SA-K scan doctor+validation, SA-L watch/sandbox/cli) + orchestrator reconciliation (revocation-purge wiring, pynacl extra, benchmark re-baseline + gate alignment). Commits `e689b4ba` (hardening), `31e169c9` (re-baseline) on `dev`.
+
+### Landed (all 16 assigned items + 2 reconciliations)
+- Auth: MFA/WebAuthn enroll takeover, TOTP replay, /auth/revoke ownership+purge, username enumeration, password min_length 8.
+- Infra: postgres execute() commits, audit writer queue, redis-outside-lock (+latent deadlock fix), scheduler (script path, thread offload, org-stamping, real retry), AlertHub cap, anomaly bounds, /sandboxes 503, /scans timeout exemption, restore quiesce, emit() deleted.
+- Watch: OTLP secure-by-scheme, sink persistent conn + drop counter, rules unknown-key errors.
+- Sandbox/CLI: landlock selectable + cwd + stdout capture + pipe-deadlock fix; unified CLI check/advisories/cluster; pynacl in serve extra.
+- **Benchmark honesty**: loader counts full corpus (6488+7=6495); card re-baselined 94.44/68.89 → **84.92/72.79** (not reproducible — causes documented in model-card); 3 inconsistent precision gates aligned at 0.84; doctor 10/10.
+
+### Gate (head `dev` @ 31e169c9)
+- ruff/format/mypy clean · `pytest -m "not slow"`: **4806 passed, 20 skipped, 0 failed** (152.04s; +117 tests)
+- `scan --validate` exit 0 · `picosentry doctor` 10 pass.
+
+### Pending / next
+- **Detection tuning round (from re-baseline evidence)**: 5 npm metadata rules (L2-ENGIN/FORK/LICENSE/MAINT/PROV-001) FP on ~1210 sparse generated clean manifests — gate them on additional risk signals or regenerate clean fixtures with metadata; 115 cve fixtures expect nonexistent L2-CVE-001 — implement rule or fix expectations; expand-script wrote npm ecosystem ids (L2-TYPO-001) for cargo/go/etc fixtures (177-234 FNs each) — fix expected_rule_ids per ecosystem. Each raises precision/recall honestly; re-baseline card after.
+- Design escalades STILL OPEN: system-event classification at publish (org=None default remains for non-scheduler publishers — webhook/alert paths now stamped; a formal scope field is the ADR); audit-drop counter metrics wiring; scheduler skip-status persistence.
+- Probe LOWs not yet done: none material — S12 retry (done), S13 landlock (done), S14/S15/S16/S17 (done), remaining: watch sink metrics wiring, landlock ops doc note (CAP_SYS_ADMIN/NO_NEW_PRIVS prerequisite — in SA-L report).
+- `dev` now 10 commits ahead of `main` — ff when ready; gitnexus index stale (landlock, OSVClient) — re-index when convenient.
+
+### Blocked
+- None.
+
 ## Session 2026-08-17 (c): Marathon round — imports + bug probe + docs honesty — COMPLETE
 
 ### Method

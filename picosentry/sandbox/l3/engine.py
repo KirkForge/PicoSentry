@@ -7,6 +7,7 @@ import threading
 
 import re
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
 from picosentry.sandbox.l3.models import Policy, SandboxResult
 from picosentry.sandbox.l3.policy import default_policy
@@ -316,9 +317,12 @@ def sandbox_run(
         policy = default_policy()
 
     # env IS the child's complete environment — backends never merge it over
-    # os.environ (that would re-leak every stripped secret). Strip secret
-    # patterns before the dict reaches any backend.
-    env = _strip_env(dict(os.environ)) if env is None else _strip_env(env)
+    # os.environ (that would re-leak every stripped secret). env=None means
+    # the shared ALLOWLIST (see l3/backends/_env_defaults.py, WO4.0.0-010) —
+    # the old denylist approach leaked everything the patterns missed.
+    # Explicit dicts still get _strip_env'd as defense in depth (the serve
+    # router also imports _strip_env for its own path).
+    env = default_child_env() if env is None else _strip_env(env)
 
     if backend is None:
         if allow_degraded is not None:

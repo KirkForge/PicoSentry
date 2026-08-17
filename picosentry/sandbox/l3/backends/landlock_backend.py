@@ -15,6 +15,7 @@ import tempfile
 import time
 from typing import TYPE_CHECKING
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends._rlimits import kill_process_group, set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -507,11 +508,7 @@ class LandlockBackend(SandboxBackend):
                     os._exit(127)
                 os.close(ruleset_fd)
                 try:
-                    child_env = (
-                        dict(env)
-                        if env is not None
-                        else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")}
-                    )
+                    child_env = dict(env) if env is not None else default_child_env()
                     if env is None:
                         child_env["TMPDIR"] = workspace_root
                     os.execvpe(command[0], command, child_env)

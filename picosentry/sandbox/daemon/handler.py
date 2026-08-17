@@ -5,7 +5,7 @@ import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
 from http.server import BaseHTTPRequestHandler
-from typing import TYPE_CHECKING
+from typing import Any
 
 from picosentry.sandbox.auth import RBAC, TokenAuth
 from picosentry.sandbox.daemon.constants import API_VERSION
@@ -18,11 +18,8 @@ from picosentry.sandbox.daemon.handler_routes_post import PicoDomePostRoutesMixi
 from picosentry.sandbox.ratelimit import TokenBucketLimiter
 from picosentry.sandbox.tracing import trace_daemon_request
 
-if TYPE_CHECKING:
-    from picosentry.sandbox.daemon.job_store import ScanJobStore
-    from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
-
 from picosentry.sandbox.daemon.store import PersistentScanJobStore
+from picosentry.sandbox.tenant.store import TenantAwareScanJobStore
 
 logger = logging.getLogger("picodome.daemon")
 
@@ -40,7 +37,10 @@ class PicoDomeHandler(
 
     rbac: RBAC = RBAC()
     auth: TokenAuth = TokenAuth(rbac=rbac)
-    job_store: PersistentScanJobStore | ScanJobStore | SQLiteScanJobStore = PersistentScanJobStore()
+    # Tenant-scoped by default (WO4.0.0-010); PicoDomeDaemon replaces this with
+    # a tenant-wrapped persistent store at init. Any: tests embed raw stores,
+    # and the spoken contract is the TenantAwareScanJobStore API.
+    job_store: Any = TenantAwareScanJobStore(PersistentScanJobStore())
     rate_limiter: TokenBucketLimiter = TokenBucketLimiter()
     # Scan worker pool (set by PicoDomeDaemon at init). None = run inline
     # (direct handler use in tests / library embedding).

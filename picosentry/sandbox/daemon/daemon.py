@@ -58,11 +58,12 @@ class PicoDomeDaemon:
         self._cluster_manager: Any | None = None
 
         backend = self._store_backend.lower()
+        raw_store: Any
         if backend == "sqlite":
             from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
 
             db_path = os.environ.get("PICODOME_SQLITE_PATH")
-            PicoDomeHandler.job_store = SQLiteScanJobStore(
+            raw_store = SQLiteScanJobStore(
                 db_path=Path(db_path) if db_path else None,
             )
             logger.info("Using SQLite job store backend")
@@ -70,8 +71,14 @@ class PicoDomeDaemon:
             from picosentry.sandbox.daemon.store import PersistentScanJobStore
 
             store_dir = Path(self._job_store_dir) if self._job_store_dir else None
-            PicoDomeHandler.job_store = PersistentScanJobStore(store_dir=store_dir)
+            raw_store = PersistentScanJobStore(store_dir=store_dir)
             logger.info("Using JSONL job store backend")
+
+        # Tenant scoping at the store boundary (WO4.0.0-010): the daemon never
+        # exposes the raw store — every get/list/update carries tenant_id.
+        from picosentry.sandbox.tenant.store import TenantAwareScanJobStore
+
+        PicoDomeHandler.job_store = TenantAwareScanJobStore(raw_store)
 
         # Rebuild auth from the CURRENT environment. PicoDomeHandler's import-time
         # TokenAuth predates any PICODOME_API_TOKENS set after import (e.g.

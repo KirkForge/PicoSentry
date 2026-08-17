@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import os
 import platform
 import subprocess
 import tempfile
 from pathlib import Path
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends._rlimits import kill_process_group, sandbox_preexec
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -114,11 +114,7 @@ class SeatbeltBackend(SandboxBackend):
             try:
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
-                run_env = (
-                    dict(env)
-                    if env is not None
-                    else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
-                )
+                run_env = dict(env) if env is not None else default_child_env()
 
                 proc = subprocess.Popen(
                     sandbox_cmd,

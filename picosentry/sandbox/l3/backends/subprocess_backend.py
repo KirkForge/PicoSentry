@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import logging
-import os
 import re
 import subprocess
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends._rlimits import kill_process_group, sandbox_preexec
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -51,35 +51,9 @@ class SubprocessBackend(SandboxBackend):
         env = session.env
 
         try:
-            if env is not None:
-                run_env = dict(env)
-            else:
-                run_env = {
-                    k: v
-                    for k, v in os.environ.items()
-                    if k
-                    in (
-                        "PATH",
-                        "HOME",
-                        "USER",
-                        "LANG",
-                        "LC_ALL",
-                        "LC_CTYPE",
-                        "TERM",
-                        "TMPDIR",
-                        "TEMP",
-                        "TMP",
-                        "LD_LIBRARY_PATH",
-                        "DYLD_LIBRARY_PATH",
-                        "PYTHONPATH",
-                        "PYTHONHOME",
-                        "PYTHONIOENCODING",
-                        "NODE_PATH",
-                        "NPM_CONFIG_PREFIX",
-                        "PICODOME_SANDBOX_BACKEND",
-                        "PICODOME_ALLOW_DEGRADED",
-                    )
-                }
+            # env=None → shared allowlist (WO4.0.0-010): same contract on every
+            # backend, never the unfiltered daemon environment.
+            run_env = dict(env) if env is not None else default_child_env()
 
             proc = subprocess.Popen(
                 command,

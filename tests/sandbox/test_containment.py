@@ -145,13 +145,20 @@ class TestTimeoutKillsProcessGroup:
     def test_grandchildren_die_on_timeout(self):
         """Regression: bare proc.kill() left grandchildren holding the stdout
         pipe — communicate() then hung forever. The group kill must take the
-        whole tree and the run must return promptly."""
+        whole tree and the run must return promptly.
+
+        Backend pinned to subprocess: the hang was in its communicate() path,
+        and auto-detect picks seccomp here which (correctly) kills the shell
+        on its first fork under the default policy.
+        """
+        from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
+
         marker = "picodome-gc-regression-4f2a"
         result = sandbox_run(
             ["sh", "-c", f"sh -c 'sleep 30 # {marker}' & sleep 30 # {marker}"],
             default_policy(),
             timeout=1.0,
-            allow_degraded=True,
+            backend=SubprocessBackend(),
         )
         assert result.overall_verdict.value == "KILL"
         assert any(e.rule_id == "L3-TIMEOUT-001" for e in result.events)
@@ -186,16 +193,19 @@ class TestForkBombBounded:
 
     @posix_only
     def test_spawn_flood_bounded_by_nproc_and_killed_on_timeout(self, monkeypatch):
+        from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
+
         marker = "picodome-forkbomb-77aa"
-        monkeypatch.setenv("PICODOME_PROCESS_LIMIT", "8")
+        monkeypatch.setenv("PICODOME_PROCESS_LIMIT", "512")
         result = sandbox_run(
             ["sh", "-c", f"while :; do sleep 5 # {marker} & done"],
             default_policy(),
             timeout=3.0,
-            allow_degraded=True,
+            backend=SubprocessBackend(),
         )
-        # The flood is bounded (most forks fail under RLIMIT_NPROC) and the
-        # timeout group-kill removes whatever did spawn.
+        # The flood is bounded (forks fail under RLIMIT_NPROC once the
+        # headroom is spent) and the timeout group-kill removes whatever
+        # did spawn.
         assert result.overall_verdict.value == "KILL"
         assert result.duration_ms < 30_000, "sandbox_run must not hang on a fork flood"
         assert _proc_count_with_marker(marker) == 0

@@ -9,6 +9,7 @@ import subprocess
 import time
 import warnings
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends._rlimits import kill_process_group, set_resource_limits
 from picosentry.sandbox.l3.backends._seccomp_common import (
     FS_READ_SYSCALLS,
@@ -160,11 +161,7 @@ class SeccompBackend(SandboxBackend):
             if session is not None:
                 session.resources.open_fds.extend([out_r, out_w, err_r, err_w])
 
-            child_env = (
-                dict(env)
-                if env is not None
-                else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
-            )
+            child_env = dict(env) if env is not None else default_child_env()
             env_list = child_env
 
             with warnings.catch_warnings():

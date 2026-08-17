@@ -167,7 +167,9 @@ class PicoDomePostRoutesMixin:
 
         tenant_id = self._resolve_tenant(token)
 
-        self.job_store.add(job_id, command, actor)
+        # Tenant-scoped add (WO4.0.0-010): the job is persisted with its
+        # owning tenant so later reads are denied cross-tenant.
+        self.job_store.add(job_id, command, actor, tenant_id=tenant_id)
 
         try:
             audit = get_audit_logger()
@@ -228,7 +230,9 @@ class PicoDomePostRoutesMixin:
             if executor is None:
                 # No daemon-managed pool (direct handler use): run inline.
                 try:
-                    result = self._run_scan_job(job_id, command, policy, timeout, backend, actor, release_slot=False)
+                    result = self._run_scan_job(
+                        job_id, command, policy, timeout, backend, actor, tenant_id, release_slot=False
+                    )
                     self._send_json(result, status=201)
                 except (OSError, RuntimeError):
                     self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
@@ -237,6 +241,7 @@ class PicoDomePostRoutesMixin:
             if self.scan_slots is not None and not self.scan_slots.acquire(blocking=False):
                 self.job_store.update(
                     job_id,
+                    tenant_id=tenant_id,
                     status="failed",
                     completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                     error="scan queue full",
@@ -245,9 +250,11 @@ class PicoDomePostRoutesMixin:
                 self._send_error(ErrorCodes.RATE_LIMITED, detail="scan queue full")
                 return
 
-            self.job_store.update(job_id, status="queued")
+            self.job_store.update(job_id, tenant_id=tenant_id, status="queued")
             try:
-                future = executor.submit(self._run_scan_job, job_id, command, policy, timeout, backend, actor)
+                future = executor.submit(
+                    self._run_scan_job, job_id, command, policy, timeout, backend, actor, tenant_id
+                )
             except RuntimeError:
                 # Executor already shut down (daemon stopping, or a stale
                 # executor reference) — run inline rather than fail the scan.
@@ -255,7 +262,7 @@ class PicoDomePostRoutesMixin:
                 try:
                     try:
                         result = self._run_scan_job(
-                            job_id, command, policy, timeout, backend, actor, release_slot=False
+                            job_id, command, policy, timeout, backend, actor, tenant_id, release_slot=False
                         )
                     finally:
                         if self.scan_slots is not None:
@@ -276,6 +283,7 @@ class PicoDomePostRoutesMixin:
         except (OSError, RuntimeError):
             self.job_store.update(
                 job_id,
+                tenant_id=tenant_id,
                 status="failed",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 error="scan execution failed",
@@ -291,6 +299,7 @@ class PicoDomePostRoutesMixin:
         timeout: float,
         backend: SandboxBackend | None,
         actor: str,
+        tenant_id: Any = None,
         release_slot: bool = True,
     ) -> dict[str, Any]:
         """Execute one scan; runs on a worker thread when the daemon pool is active.
@@ -298,7 +307,7 @@ class PicoDomePostRoutesMixin:
         Job store transitions: queued → running → completed/failed.
         """
         try:
-            self.job_store.update(job_id, status="running")
+            self.job_store.update(job_id, tenant_id=tenant_id, status="running")
 
             sandbox_result = sandbox_run(
                 command=command,
@@ -312,9 +321,16 @@ class PicoDomePostRoutesMixin:
             profile = profile_from_sandbox_result(sandbox_result)
             analysis_result = engine.analyze(profile, deterministic=False)
 
+            from picosentry.sandbox.daemon.redaction import redact_sandbox_output
+
+            # getattr: embedded/test result objects may not carry events.
+            sandbox_dict = redact_sandbox_output(
+                sandbox_result.to_dict(deterministic=False), getattr(sandbox_result, "events", [])
+            )
+
             result = {
                 "job_id": job_id,
-                "sandbox": sandbox_result.to_dict(deterministic=False),
+                "sandbox": sandbox_dict,
                 "analysis": analysis_result.to_dict(deterministic=False),
                 "l3_verdict": sandbox_result.overall_verdict.value,
                 "l4_verdict": analysis_result.overall_verdict.value,
@@ -323,12 +339,14 @@ class PicoDomePostRoutesMixin:
                 "isolation_level": sandbox_result.isolation_level,
                 "enforcement_guarantee": sandbox_result.enforcement_guarantee,
                 "degraded": sandbox_result.degraded,
+                "output_redacted": bool(sandbox_dict.get("stdout_redacted") or sandbox_dict.get("stderr_redacted")),
                 "policy_name": policy.name,
                 "policy_version": policy.version,
             }
 
             self.job_store.update(
                 job_id,
+                tenant_id=tenant_id,
                 status="completed",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 result=result,
@@ -364,6 +382,7 @@ class PicoDomePostRoutesMixin:
         except BaseException:
             self.job_store.update(
                 job_id,
+                tenant_id=tenant_id,
                 status="failed",
                 completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
                 error="scan execution failed",

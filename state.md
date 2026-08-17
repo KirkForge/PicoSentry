@@ -2,15 +2,19 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-17, release 2.1.2 cut) ═══
+# ═══ CURRENT STATE (2026-08-17, WO4.0.0 009-023 round merged) ═══
 
-**v2.1.2 RELEASED 2026-08-17** — `main` ff'd to `31e737be` (= `dev`), tagged `v2.1.2`, PyPI live (digests verified: wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with both assets (publish button pending). Covers 31 dev commits: S1 sandbox env secret-leak, S2/S3 WS/webhook tenant leaks, WO4.0.0-001..008 P0 merges, honest card 100.00/90.87. Gates at release: fast 4954 passed / 0 failed (~139s), ruff+format+mypy clean, test_sarif 33 passed. WO4.0.0-001–008 merged into dev and shipped.
+**v2.1.2 RELEASED 2026-08-17** — PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with assets. WO4.0.0-001..008 verified vs codebase (WO files updated, commit a591e4e4): 001 PARTIAL (real-execution landlock CI job + seccomp composition open), 003's pg-live CI bug FIXED by WO-017, rest DONE.
 
-**Open release-mechanics debt (WO4.0.0-009, now partially burned down, still open):**
-- Setuptools sdist ignores SOURCE_DATE_EPOCH (dir entries + PKG-INFO get wall-clock, files get fs mtimes) — normalized post-build this release via inline script; **script not yet committed** (pattern in lessons.md; belongs in `scripts/`). Wheel is natively reproducible.
-- SARIF-spec doc strings had been corrupted to "2.1.1" by the 2.1.1 global sed — corrected back to SARIF 2.1.0.
-- CI red herrings from GitHub 429/502 outage (Aug 17): arm64/3.12/pg15 jobs died downloading actions; 3.13 flaky 429s pass locally (27/27) and 3.11 passed same commit. **Real pre-existing CI bug: postgres-live(16) DSN parses dbname as `picoshogun/pg_live_test_org_pg_flows` (slash-join; failed differently Aug 13) — needs a fix, file:line TBD in workflow.**
-- Docker image for v2.1.2 NOT yet built/pushed (docker-bake default tag bumped; multiarch build pending WO4.0.0-009 tag fix — `--set '*.tags='` still drops `:latest`).
+**WO4.0.0 009-023 round MERGED to dev (5 subagents, 5 branches, zero conflicts), gates green at close: fast 5151 passed / 111s, ruff+format+mypy clean, integration serve+sandbox+watch 2754 passed.**
+- 009 DONE: docker tag clobbering fixed (bake TAG var override), `scripts/normalize_sdist.py` committed + wired into release.yml + reproducible-build job, --version asserts, deploy yaml v2.1.2 + drift-guard tests.
+- 017 DONE: CI path-filter hole closed (pinned by tests/test_ci_paths.py), postgres-live dbname slash-join FIXED (was `picoshogun/pg_live_*`), matrix 3.10-3.14, nightly coverage merge, integration exports PICODOME_SANDBOX_TESTS=1.
+- 010/011/018 DONE: tenant job store wired, env allowlist all 5 backends, exfil redaction; killpg timeout kills + RLIMIT_CPU (NPROC opt-in, shared-uid ceiling documented), L4 evidence-merge profiler + FP recalibration + L4-RULES.md.
+- 012/013 DONE: health_check scheduler branch + anomaly rules fire end-to-end + threat_score= intel aggregate; /health TTL+single-flight+off-loop, ReadWriteLock replaces global DB mutex.
+- 014 PARTIAL (1.33× measured, parallel fan-out measured WORSE — GIL, documented; typo DP remains), 015 DONE (maven SBOM fires, CycloneDX 1.4-1.6, recursive ecosystem detect), 016 PARTIAL (2.8× to 8.8s/MB, <1s/MB needs fused pass — deferred), 022 DONE (version-scoped verdicts, streaming proxy, auth; typosquat short-name calibration flagged), 023 DONE-prototype (gateway shim, streaming honestly annotated).
+- 019/020/021 P2 PARTIALS per WO files (gossip rotation pending HMAC announcements; API_WORKERS>1 still unsupported; tier enforcement not built).
+
+**Open follow-ups (next session):** WO-001 landlock real-exec CI job + seccomp composition · L2-TYPO-001 short-name calibration (`pkg`→BLOCK) + firewall CLI knobs (noted in WO-022) · L2-LOCK-001 fires on every registry-metadata manifest (near-universal quarantine; firewall excludes it, scan-side still open) · watch <1s/MB fused pass · 020/021 remainder.
 
 ## Subsystem health (compiled from 5 read-only explorers, ~70 verified findings → 24 WOs)
 

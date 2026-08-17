@@ -24,8 +24,6 @@ from .package_intel import PackageIntel, PackageIntelligence
 
 DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
 
-RULE_TIMEOUT_SECONDS = DEFAULT_RULE_TIMEOUT_SECONDS
-
 logger = logging.getLogger("picosentry.engine")
 
 

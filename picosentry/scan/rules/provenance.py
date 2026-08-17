@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from ..models import Confidence, Finding, Severity
-from .utils import iter_node_modules, load_package_json
+from .utils import has_execution_risk, iter_node_modules, load_package_json
 
 __all__ = ["detect_provenance_issues"]
 
@@ -36,25 +36,28 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
 
     repo = pkg.get("repository")
     if not repo:
-        findings.append(
-            Finding(
-                rule_id="L2-PROV-001",
-                severity=Severity.LOW,
-                confidence=Confidence.HIGH,
-                package=pkg_label,
-                file=str(pkg_json),
-                message=f"Package '{pkg_name}' has no repository field — provenance cannot be verified",
-                evidence="repository field missing",
-                remediation=(
-                    "Packages without a repository URL cannot be verified for provenance. "
-                    "Check the npm registry page for source information."
-                ),
-                references=[
-                    "https://docs.npmjs.com/generating-provenance-statements",
-                ],
+        # ponytail: missing-repo only with a risk signal — bare root manifests
+        # are hygiene noise (corpus FPs).
+        if has_execution_risk(pkg, pkg_json):
+            findings.append(
+                Finding(
+                    rule_id="L2-PROV-001",
+                    severity=Severity.LOW,
+                    confidence=Confidence.HIGH,
+                    package=pkg_label,
+                    file=str(pkg_json),
+                    message=f"Package '{pkg_name}' has no repository field — provenance cannot be verified",
+                    evidence="repository field missing",
+                    remediation=(
+                        "Packages without a repository URL cannot be verified for provenance. "
+                        "Check the npm registry page for source information."
+                    ),
+                    references=[
+                        "https://docs.npmjs.com/generating-provenance-statements",
+                    ],
+                )
             )
-        )
-    elif isinstance(repo, str) and "github.com" not in repo.lower():
+    elif isinstance(repo, str) and "github.com" not in repo.lower() and has_execution_risk(pkg, pkg_json):
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",

@@ -28,6 +28,16 @@ __all__ = ["detect_all_advisory_vulnerabilities"]
 
 
 _advisory_db_cache: dict[tuple[str, str], tuple[AdvisoryDB, float]] = {}
+# ponytail: bounded cache, oldest-entry eviction — unbounded growth only matters
+# for long-lived processes scanning many corpus dirs; upgrade path: LRU.
+_ADVISORY_DB_CACHE_MAX = 8
+
+
+def _advisory_db_cache_put(cache_key: tuple[str, str], db: AdvisoryDB, load_time: float) -> None:
+    if len(_advisory_db_cache) >= _ADVISORY_DB_CACHE_MAX:
+        oldest = min(_advisory_db_cache, key=lambda k: _advisory_db_cache[k][1])
+        del _advisory_db_cache[oldest]
+    _advisory_db_cache[cache_key] = (db, load_time)
 
 
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
@@ -45,7 +55,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(path)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from %s: %d advisories", advisory_db_path, db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
         logger.warning("Advisory DB at %s has no advisories", advisory_db_path)
         return None
@@ -55,7 +65,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(candidate)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from corpus: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
 
     default_dir = default_advisory_dir()
@@ -63,7 +73,7 @@ def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> A
         db = AdvisoryDB(default_dir)
         if db.advisory_count > 0:
             logger.info("Loaded advisory DB from default: %d advisories", db.advisory_count)
-            _advisory_db_cache[cache_key] = (db, time.time())
+            _advisory_db_cache_put(cache_key, db, time.time())
             return db
 
     return None

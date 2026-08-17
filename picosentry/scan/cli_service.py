@@ -466,7 +466,9 @@ class ScanOrchestrator:
         enterprise = is_enterprise_mode() or getattr(self.args, "enterprise", False)
         fail_closed = getattr(self.args, "fail_on_rule_error", False) or enterprise
         if fail_closed:
-            failed_rules = [r for r in result.rule_executions if r.status == "failed"]
+            # "timeout" must fail closed too — a rule whose timebox expired saw
+            # at most part of the target, which is an error for fail-closed use.
+            failed_rules = [r for r in result.rule_executions if r.status != "ok"]
             if failed_rules:
                 for r in failed_rules:
                     print(f"Rule {r.rule_id} FAILED: {r.error}", file=sys.stderr)
@@ -623,6 +625,15 @@ class ScanOrchestrator:
         precision_ok = report.mean_precision >= 0.84
         recall_ok = report.mean_recall >= 0.70
         passes = precision_ok and recall_ok
+
+        if report.unknown_rule_expectations:
+            print(
+                f"\nunknown expected_rule_ids: {len(report.unknown_rule_expectations)} "
+                "(fixtures expect rule ids that do not exist — recall loss by construction)",
+                file=sys.stderr,
+            )
+            for name, rid in report.unknown_rule_expectations[:20]:
+                print(f"  {name}: expects nonexistent rule {rid}", file=sys.stderr)
 
         print(
             f"\nfixtures: {report.total_fixtures} "

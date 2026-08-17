@@ -33,22 +33,7 @@ def _check_minisign() -> bool:
     if _HAS_MINISIGN is None:
         import shutil
 
-        if shutil.which("minisign"):
-            _HAS_MINISIGN = True
-            return _HAS_MINISIGN
-        try:
-            import subprocess
-
-            result = subprocess.run(
-                ["minisign", "-V"],
-                capture_output=True,
-                timeout=5,
-                check=False,
-            )
-
-            _HAS_MINISIGN = result.returncode is not None
-        except (FileNotFoundError, subprocess.TimeoutExpired, OSError):
-            _HAS_MINISIGN = importlib.util.find_spec("minisign") is not None
+        _HAS_MINISIGN = shutil.which("minisign") is not None or importlib.util.find_spec("minisign") is not None
     return _HAS_MINISIGN
 
 

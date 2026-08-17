@@ -544,8 +544,10 @@ class TestIoCRegression:
 
         Expected detections:
         - L2-BUND-001: bundledDependencies includes flatmap-stream not in deps
-        - L2-POST-001: (if install scripts present)
-        - L2-PROV-001: missing repository field
+
+        The manifest has no install hooks, so informational metadata findings
+        (missing repository etc.) are gated off by design — the bundled shadow
+        is the actual attack vector and must always fire.
         """
         fixture = FIXTURES_DIR / "event_stream"
         if not fixture.is_dir():
@@ -557,8 +559,6 @@ class TestIoCRegression:
         rule_ids = {f.rule_id for f in result.findings}
         # Must detect bundled shadow (the actual attack vector)
         assert "L2-BUND-001" in rule_ids, f"Expected L2-BUND-001, got: {rule_ids}"
-        # Must detect missing provenance
-        assert "L2-PROV-001" in rule_ids, f"Expected L2-PROV-001, got: {rule_ids}"
 
     def test_shai_hulud_worm(self):
         """Shai-Hulud npm worm — postinstall self-propagation.
@@ -620,10 +620,9 @@ class TestIoCRegression:
         """left-pad@1.3.0 — dependency chaos IoC.
 
         A tiny 11-line package whose unpublish broke babel, react-native, kibana.
-        Expected detections:
-        - L2-MAINT-001: no author or maintainer fields
-        Note: left-pad has a repo and 0 dependencies, so L2-PROV-001 and L2-LOCK-001
-        don't fire — but it's still a supply chain risk due to single-point-of-failure.
+        The manifest is clean (repo present, no hooks, no deps) — the historical
+        risk is social, not in the manifest, so metadata rules stay silent by
+        design. Regression-guards the risk-signal gating.
         """
         fixture = FIXTURES_DIR / "left_pad"
         if not fixture.is_dir():
@@ -633,8 +632,7 @@ class TestIoCRegression:
         result = engine.scan(fixture)
 
         rule_ids = {f.rule_id for f in result.findings}
-        # Must detect missing maintainer info (unmaintained risk)
-        assert "L2-MAINT-001" in rule_ids, f"Expected L2-MAINT-001, got: {rule_ids}"
+        assert "L2-MAINT-001" not in rule_ids, f"clean root manifest must stay silent, got: {rule_ids}"
 
     def test_crossenv_credential_theft(self):
         """crossenv@1.0.0 — credential theft via postinstall + preinstall.
@@ -1147,7 +1145,32 @@ class TestMaintainerChange:
         )
 
     def test_no_author_no_scripts(self, tmp_path):
-        """No author and no scripts — medium severity signal."""
+        """No author on an installed dependency (node_modules) — medium severity signal."""
+        nm_pkg = tmp_path / "node_modules" / "mystery-pkg"
+        nm_pkg.mkdir(parents=True)
+        (nm_pkg / "package.json").write_text(
+            json.dumps(
+                {
+                    "name": "mystery-pkg",
+                    "version": "0.1.0",
+                }
+            )
+        )
+        from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
+
+        findings = detect_maintainer_changes(tmp_path)
+        no_author = [
+            f
+            for f in findings
+            if f.rule_id == "L2-MAINT-001"
+            and "no author" in f.message.lower()
+            and "install scripts" not in f.message.lower()
+        ]
+        assert len(no_author) >= 1, f"Expected no-author finding, got: {[f.message for f in findings]}"
+        assert no_author[0].severity == Severity.MEDIUM
+
+    def test_no_author_bare_root_manifest_is_silent(self, tmp_path):
+        """A bare root manifest without author info is hygiene noise, not a finding."""
         project = _make_project(
             tmp_path,
             {
@@ -1158,15 +1181,7 @@ class TestMaintainerChange:
         from picosentry.scan.rules.maintainer_change import detect_maintainer_changes
 
         findings = detect_maintainer_changes(project)
-        no_author = [
-            f
-            for f in findings
-            if f.rule_id == "L2-MAINT-001"
-            and "no author" in f.message.lower()
-            and "install scripts" not in f.message.lower()
-        ]
-        assert len(no_author) >= 1, f"Expected no-author finding, got: {[f.message for f in findings]}"
-        assert no_author[0].severity == Severity.MEDIUM
+        assert not [f for f in findings if f.rule_id == "L2-MAINT-001"]
 
     def test_short_author_name(self, tmp_path):
         """Very short author name — pseudonymous risk."""

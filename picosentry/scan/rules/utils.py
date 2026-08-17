@@ -4,6 +4,27 @@ import json
 from pathlib import Path
 
 
+_INSTALL_SCRIPT_KEYS = frozenset({"install", "postinstall", "preinstall", "prepare"})
+
+
+def detect_npm_project(target: Path) -> bool:
+    return (target / "package.json").is_file() or (target / "node_modules").is_dir()
+
+
+def has_execution_risk(pkg: dict, pkg_json_path: Path) -> bool:
+    """True when a manifest carries a supply-chain risk signal.
+
+    Informational npm metadata rules (engines/license/repository/maintainer)
+    only report when the package can execute code on install (install hooks
+    present) or is a *dependency* (lives under node_modules) — a clean root
+    project with a sparse manifest is normal, not a finding.
+    """
+    scripts = pkg.get("scripts", {})
+    if isinstance(scripts, dict) and _INSTALL_SCRIPT_KEYS & set(scripts.keys()):
+        return True
+    return "node_modules" in pkg_json_path.parts
+
+
 def load_package_json(path: Path) -> dict:
     try:
         data = json.loads(path.read_text(encoding="utf-8", errors="replace"))

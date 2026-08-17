@@ -112,8 +112,6 @@ class CampaignPackage:
         for required in ("campaign_id", "schema_version", "severity", "description", "ecosystem", "rule_id"):
             if required not in data:
                 raise ValueError(f"iocs.json {path}: missing required field {required!r}")
-        if data["rule_id"] != data.get("rule_id"):
-            pass
         return data
 
     @staticmethod

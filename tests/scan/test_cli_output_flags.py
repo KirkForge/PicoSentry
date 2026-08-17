@@ -319,13 +319,14 @@ class TestQuietAndSummary:
         assert "HARD PINCH" in proc.stdout or "SOFT PINCH" in proc.stdout or "NUDGE" in proc.stdout
 
     def test_quiet_clean_project(self, tmp_path):
-        """--quiet on project with only minor findings should show summary."""
+        """--quiet on a truly clean project prints the all-clear line."""
         project = _make_project(
             tmp_path,
             {
                 "name": "clean-pkg",
                 "version": "1.0.0",
                 "license": "MIT",
+                "engines": {"node": ">=18.0.0"},
                 "repository": {"type": "git", "url": "https://github.com/clean/clean-pkg"},
             },
         )
@@ -337,7 +338,7 @@ class TestQuietAndSummary:
             timeout=30,
         )
         assert proc.returncode == 0
-        assert "PicoSentry" in proc.stdout
+        assert "All clear" in proc.stdout
 
     def test_quiet_with_findings(self, tmp_path):
         """--quiet on malicious project should show summary with rule counts."""

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import cast
 
 from ..models import Confidence, Finding, Severity
-from .utils import iter_node_modules, load_package_json
+from .utils import has_execution_risk, iter_node_modules, load_package_json
 
 __all__ = ["detect_fork_drift"]
 
@@ -165,24 +165,27 @@ def _check_fork(pkg: dict, pkg_json: Path) -> list[Finding]:
 
     repo_url = _extract_repo_url(pkg)
     if not repo_url:
-        findings.append(
-            Finding(
-                rule_id="L2-FORK-001",
-                severity=Severity.LOW,
-                confidence=Confidence.LOW,
-                package=pkg_label,
-                file=str(pkg_json),
-                message=f"Package '{pkg_name}' has no repository URL — provenance cannot be verified",
-                evidence="repository field missing or empty",
-                remediation=(
-                    f"Check the npm page for '{pkg_name}' to verify the canonical repository. "
-                    "Packages without repository URLs may be forks or abandoned packages."
-                ),
-                references=[
-                    "https://docs.npmjs.com/cli/v10/configuring-npm/package-json#repository",
-                ],
+        if has_execution_risk(pkg, pkg_json):
+            # ponytail: informational missing-repo only with a risk signal —
+            # bare root manifests legitimately omit repository (corpus FPs).
+            findings.append(
+                Finding(
+                    rule_id="L2-FORK-001",
+                    severity=Severity.LOW,
+                    confidence=Confidence.LOW,
+                    package=pkg_label,
+                    file=str(pkg_json),
+                    message=f"Package '{pkg_name}' has no repository URL — provenance cannot be verified",
+                    evidence="repository field missing or empty",
+                    remediation=(
+                        f"Check the npm page for '{pkg_name}' to verify the canonical repository. "
+                        "Packages without repository URLs may be forks or abandoned packages."
+                    ),
+                    references=[
+                        "https://docs.npmjs.com/cli/v10/configuring-npm/package-json#repository",
+                    ],
+                )
             )
-        )
         return findings
 
     author = pkg.get("author", "")

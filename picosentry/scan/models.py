@@ -231,8 +231,10 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             d["rule_status"] = {
                 r.rule_id: r.to_dict(deterministic_output=deterministic_output) for r in self.rule_executions
             }
-            any_failed = any(r.status == "failed" for r in self.rule_executions)
-            d["scan_completeness"] = "partial" if any_failed else "complete"
+            # Any non-ok execution (failed OR timed out) means the scan did not
+            # see the whole target — report partial, never "complete".
+            any_degraded = any(r.status != "ok" for r in self.rule_executions)
+            d["scan_completeness"] = "partial" if any_degraded else "complete"
         if self.policy_result is not None and hasattr(self.policy_result, "to_dict"):
             d["policy"] = self.policy_result.to_dict()
 

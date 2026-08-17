@@ -2,6 +2,8 @@
 test_engine.py — Tests for L2-ENGIN-001 engine constraint detection.
 """
 
+import json
+
 from picosentry.scan.engine import create_default_engine
 from picosentry.scan.models import Severity
 from picosentry.scan.rules.engine import detect_engine_issues
@@ -13,7 +15,7 @@ class TestEngineConstraints:
     """Test L2-ENGIN-001 engine constraint detection."""
 
     def test_no_engines_no_scripts(self, tmp_path):
-        """Missing engines with no scripts → LOW."""
+        """Bare root manifest without engines is hygiene noise — silent."""
         project = _make_project(
             tmp_path,
             {
@@ -22,6 +24,14 @@ class TestEngineConstraints:
             },
         )
         findings = detect_engine_issues(project)
+        assert not findings
+
+    def test_no_engines_no_scripts_inside_node_modules(self, tmp_path):
+        """Installed dependency without engines → LOW informational."""
+        nm_pkg = tmp_path / "node_modules" / "no-engines"
+        nm_pkg.mkdir(parents=True)
+        (nm_pkg / "package.json").write_text(json.dumps({"name": "no-engines", "version": "1.0.0"}))
+        findings = detect_engine_issues(tmp_path)
         assert any(f.rule_id == "L2-ENGIN-001" and f.severity == Severity.LOW for f in findings)
 
     def test_no_engines_with_install_scripts(self, tmp_path):
@@ -130,13 +140,14 @@ class TestEngineConstraints:
         assert not any("npm without node" in f.evidence.lower() for f in findings if f.rule_id == "L2-ENGIN-001")
 
     def test_empty_engines_object(self, tmp_path):
-        """engines: {} → treated as missing (no constraint)."""
+        """engines: {} on a package with install hooks → treated as missing."""
         project = _make_project(
             tmp_path,
             {
                 "name": "empty-engines",
                 "version": "1.0.0",
                 "engines": {},
+                "scripts": {"install": "node build.js"},
             },
         )
         findings = detect_engine_issues(project)

@@ -22,6 +22,11 @@ case "$profile" in
     # WO4.0.0-017: make the push matrix broader than fast — malicious_workload
     # tests skip unless the sandbox env is set. ~21s of extra tests per leg.
     export PICODOME_SANDBOX_TESTS=1
+    # Real-execution backend tests (landlock / seccomp-trace) self-gate via
+    # each backend's is_available() probe — they run wherever the kernel
+    # actually supports them and skip honestly elsewhere.
+    export PICODOME_HAS_LANDLOCK=1
+    export PICODOME_HAS_SECCOMP=1
     extra=(--timeout=120 --durations=25 --durations-min=0.25)
     ;;
   full)
@@ -31,6 +36,8 @@ case "$profile" in
   nightly)
     marker=''
     export PICODOME_SANDBOX_TESTS=1
+    export PICODOME_HAS_LANDLOCK=1
+    export PICODOME_HAS_SECCOMP=1
     extra=(--timeout=900 --durations=25 --durations-min=0.25 --junitxml=.pytest-artifacts/junit.xml)
     mkdir -p .pytest-artifacts
     ;;

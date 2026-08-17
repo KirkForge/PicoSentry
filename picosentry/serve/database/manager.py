@@ -134,7 +134,14 @@ class DatabaseManager:
         if isinstance(self._pool, SQLitePool):
             return conn.execute(sql, params)
         cursor = conn.cursor()
-        cursor.execute(sql, params)
+        if params:
+            cursor.execute(sql, params)
+        else:
+            # psycopg2 activates %-interpolation whenever a params argument is
+            # present — even an empty tuple — so DDL containing a literal '%'
+            # (migration CASE ... LIKE '%admin%') dies with IndexError.
+            # With no parameters to bind, execute the SQL bare.
+            cursor.execute(sql)
         return cursor
 
     def _row_to_dict(self, row, cursor) -> dict:

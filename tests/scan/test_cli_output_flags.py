@@ -251,6 +251,17 @@ class TestSARIFOutput:
         assert sarif_str == reserialized
 
 
+def _error_worker(*args, **kwargs):
+    """Module-level worker double: puts an error marker in the result queue.
+
+    Must live at module scope — multiprocessing's forkserver start method
+    (Python 3.14 default) pickles the Process target by reference, and both
+    locally-defined functions and MagicMock patches are unpicklable.
+    """
+    result_queue = args[-1]
+    result_queue.put(("error", "engine blew up"))
+
+
 class TestQuietAndSummary:
     """Test --quiet and --summary CLI flags."""
 
@@ -264,19 +275,16 @@ class TestQuietAndSummary:
 
         project = _make_project(tmp_path, {"name": "x", "version": "1.0.0"})
 
-        config = PicoSentryConfig()
-        with (
-            patch.object(config, "merge_cli", return_value=config),
-            patch.object(scan_module, "_scan_worker") as mock_worker,
-        ):
-            # Simulate the worker leaving an error marker in the queue.
-            def _put_error(*args, **kwargs):
-                result_queue = args[-1]
-                result_queue.put(("error", "engine blew up"))
-
-            mock_worker.side_effect = _put_error
+        # Patch with the module-level function itself (new=), not a MagicMock:
+        # the function becomes the multiprocessing.Process target and must
+        # survive pickling under 3.14's default forkserver start method.
+        with patch.object(scan_module, "_scan_worker", new=_error_worker):
             with pytest.raises(scan_module.ScanError, match="engine blew up"):
-                _run_scan(argparse.Namespace(timeout=1), project, merged_config=config)
+                _run_scan(
+                    argparse.Namespace(timeout=1),
+                    project,
+                    merged_config=PicoSentryConfig(),
+                )
 
     def test_summary_clean_project(self, tmp_path):
         """--summary on project with only minor findings should work."""

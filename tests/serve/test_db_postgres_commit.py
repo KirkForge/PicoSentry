@@ -160,3 +160,49 @@ class TestSqliteDefaultBackendUnchanged:
 
         reopened = DatabaseManager(db_path=db_file, backend="sqlite")
         assert reopened.execute_one("SELECT k FROM t")["k"] == "kept"
+
+
+class _StrictPsycopg2Cursor(_FakePGCursor):
+    """Emulates psycopg2 interpolation semantics faithfully.
+
+    psycopg2 runs pyformat interpolation whenever a params argument is
+    PRESENT — even an empty tuple — so DDL containing a literal '%'
+    (migration CASE ... LIKE '%admin%') dies with IndexError. The fake
+    records whether params was actually passed so tests can pin the fix.
+    """
+
+    def __init__(self, conn):
+        super().__init__(conn)
+        self.params_passed: list[bool] = []
+
+    def execute(self, sql, params=None):
+        self.params_passed.append(params is not None)
+        if params is not None and "%" in sql and "%s" not in sql:
+            # psycopg2 pyformat: a literal '%' that is not a placeholder has
+            # no matching params entry -> IndexError (as seen on pg-live CI).
+            raise IndexError("tuple index out of range")
+        super().execute(sql)
+
+
+def _strict_conn() -> tuple[_FakePGConn, _StrictPsycopg2Cursor]:
+    conn = _FakePGConn()
+    cursor = _StrictPsycopg2Cursor(conn)
+    conn.cursor = lambda: cursor  # type: ignore[method-assign]
+    return conn, cursor
+
+
+class TestNoParamsNoInterpolation:
+    """Regression (WO4.0.0-017 pg-live fix): literal % in DDL must execute bare."""
+
+    def test_ddl_with_literal_percent_executes_without_params(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        ddl = "CREATE VIEW v AS SELECT CASE WHEN permissions LIKE '%admin%' THEN 'admin' END"
+        mgr.execute_on(conn, ddl + ";")
+        assert cursor.params_passed[-1] is False
+
+    def test_parameterized_queries_still_pass_params(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("SELECT * FROM users WHERE id = %s", ("7",))
+        assert cursor.params_passed[-1] is True

@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-from pathlib import Path
 from unittest.mock import patch
 
 import pytest
@@ -172,10 +171,17 @@ class TestCheckLicense:
                 }
             )
         )
+        # Capture the REAL isfile before patching: on Python 3.14 pathlib
+        # delegates Path.is_file() back to os.path.isfile, so a side_effect
+        # calling Path(p).is_file() recurses into the patch forever.
+        real_isfile = os.path.isfile
         with (
             patch.dict(os.environ, {}, clear=True),
             patch("os.getcwd", return_value=str(tmp_path)),
-            patch("os.path.isfile", side_effect=lambda p: p == str(license_path) or Path(p).is_file()),
+            patch(
+                "os.path.isfile",
+                side_effect=lambda p: p == str(license_path) or real_isfile(p),
+            ),
         ):
             _reset_cache()
             info = check_license()

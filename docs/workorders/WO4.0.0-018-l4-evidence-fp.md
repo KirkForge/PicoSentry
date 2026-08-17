@@ -1,7 +1,7 @@
 # WO4.0.0-018 — Sandbox: L4 evidence pipeline + FP tuning
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE 2026-08-17 (worktree `wo/4.0.0/sandbox-p1`) — evidence policy supersedes the old TestSpoofGuard contract (trade-off documented in profiler.py + test_profiler.py TestEvidencePolicy: kernel events with data win; text fills the address-less SCMP_ACT_LOG gap; text may add uncorroborated findings). DENIED_COMMANDS decision: wrappers (env/xargs/nohup/timeout/stdbuf) denied as entrypoints; interpreter-vs-L4-baseline split documented in daemon/constants.py. L4 per-rule docs: docs/rules/L4-RULES.md. Evidence: tests/sandbox/test_l4_fp_benign.py (benign corpus 0 CRITICAL), test_profiler.py, test_seccomp_trace_backend.py.
 **Owner:** (unassigned — worktree `wo/4.0.0/l4-evidence`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/sandbox/l4/{profiler.py,detectors/*.py}`, `picosentry/sandbox/l3/backends/seccomp_trace/**`, `picosentry/sandbox/l4/differ.py`, `picosentry/sandbox/daemon/handler_mixins.py`, `picosentry/sandbox/docs/rules/` (add L4 docs)

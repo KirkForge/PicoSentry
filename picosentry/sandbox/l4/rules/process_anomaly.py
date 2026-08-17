@@ -70,7 +70,9 @@ def detect_process_anomalies(
                 )
             )
 
-    if len(profile.spawns) > 5:
+    # FP fix (WO4.0.0-018): npm/pip installs routinely spawn 6+ helpers
+    # (node-gyp, lifecycle scripts, resolvers); >10 is the anomaly bar.
+    if len(profile.spawns) > 10:
         spawn_names = [s.executable for s in profile.spawns]
         findings.append(
             SandboxFinding(

@@ -58,6 +58,14 @@ ALLOWED_COMMANDS: frozenset[str] = frozenset(
     }
 )
 
+# Policy decision (WO4.0.0-018): interpreters (node/python/…) and command
+# WRAPPERS (env/xargs/nohup/timeout/stdbuf) are denied as scan ENTRYPOINTS —
+# both are arbitrary-code-execution by the caller, and before the wrappers
+# were listed, `env bash -c …` sailed past a denylist that banned `bash`.
+# This intentionally means the shipped L4 "python-script"/node baselines do
+# not fire via daemon submits — they serve the library/CLI paths (workspace
+# scans, pipeline). find/awk/sed remain allowed: partial-risk file tools,
+# documented split rather than a false promise.
 DENIED_COMMANDS: frozenset[str] = frozenset(
     {
         "rm",
@@ -105,6 +113,11 @@ DENIED_COMMANDS: frozenset[str] = frozenset(
         "chown",
         "chgrp",
         "chattr",
+        "env",
+        "xargs",
+        "nohup",
+        "timeout",
+        "stdbuf",
     }
 )
 

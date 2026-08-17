@@ -1,7 +1,7 @@
 # WO4.0.0-011 — Sandbox: containment hardening (killpg, RLIMIT_CPU/NPROC)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE 2026-08-17 (worktree `wo/4.0.0/sandbox-p1`) with one documented deviation: RLIMIT_NPROC defaults OFF (opt-in via PICODOME_PROCESS_LIMIT>0). RLIMIT_NPROC is per-UID HOST-wide while /proc sees only the PID namespace — any default bound made every fork fail on shared-UID hosts (verified empirically on this box: forks fail at limit 590 while /proc reports 74 uid procs). RLIMIT_CPU defaults 3600 s. Evidence: tests/sandbox/test_containment.py (group-kill regression, gated fork-flood round passes under PICODOME_SANDBOX_TESTS=1).
 **Owner:** (unassigned — worktree `wo/4.0.0/containment`)
 **Priority:** P1 · Effort M · Risk M
 **Scope:** `picosentry/sandbox/l3/backends/**`, `picosentry/sandbox/l3/_rlimits.py`, `picosentry/sandbox/process_manager.py`, `tests/sandbox/`

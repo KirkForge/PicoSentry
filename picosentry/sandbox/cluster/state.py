@@ -186,18 +186,17 @@ class ClusterState:
             nodes = self._backend.load_all_nodes()
             scans = self._backend.load_all_scans()
             leader_id = self._backend.get_leader_id()
+            # WO4.0.0-019: snapshots carry token IDs (digests) + versions,
+            # never secret material. The legacy raw ``cluster_token`` field is
+            # gone; merge_state still accepts raw token_store snapshots from
+            # older peers for rolling upgrades.
             snapshot: dict[str, Any] = {
                 "nodes": [n.to_dict() for n in nodes],
                 "scans": [s.to_dict() for s in scans],
                 "leader_id": leader_id,
                 "timestamp": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "token_store": self._token_store.to_snapshot(),
+                "token_store": self._token_store.to_gossip_snapshot(),
             }
-            # Preserve backwards compatibility with peers that only look for
-            # the old ``cluster_token`` field.
-            primary = self._token_store.primary_token
-            if primary:
-                snapshot["cluster_token"] = primary
             return snapshot
 
     def merge_state(self, snapshot: dict[str, Any]) -> None:
@@ -207,31 +206,45 @@ class ClusterState:
             if token_store_snapshot:
                 from picosentry.sandbox.cluster.token_store import ClusterTokenStore
 
-                remote_store = ClusterTokenStore.from_snapshot(token_store_snapshot)
-                remote_accepted = remote_store.accepted_tokens
-                local_accepted = self._token_store.accepted_tokens
-                # Peers must share at least one accepted token, or the remote
-                # primary token must be one we already accept. This prevents a
-                # completely unrelated cluster from merging with ours while still
-                # allowing graceful token rotation.
-                common = remote_accepted & local_accepted
-                remote_primary = remote_store.primary_token
-                if (
-                    self.cluster_token
-                    and not common
-                    and remote_primary not in local_accepted
-                    and self.cluster_token not in remote_accepted
-                ):
-                    raise ValueError("cluster token mismatch")
+                remote_accepted = token_store_snapshot.get("accepted", [])
+                if remote_accepted and "digest" in remote_accepted[0]:
+                    # Secret-free gossip format: verify shared trust by digest
+                    # intersection. No adoption — a digest cannot be
+                    # re-materialized into a token (rotation via gossip is
+                    # deliberately disabled; see to_gossip_snapshot).
+                    remote_digests = {entry.get("digest") for entry in remote_accepted}
+                    if self.cluster_token and not (remote_digests & self._token_store.accepted_digests()):
+                        raise ValueError("cluster token mismatch")
+                else:
+                    # Legacy peer still shipping raw tokens (rolling upgrade).
+                    remote_store = ClusterTokenStore.from_snapshot(token_store_snapshot)
+                    remote_accepted_tokens = remote_store.accepted_tokens
+                    local_accepted = self._token_store.accepted_tokens
+                    # Peers must share at least one accepted token, or the remote
+                    # primary token must be one we already accept. This prevents a
+                    # completely unrelated cluster from merging with ours while still
+                    # allowing graceful token rotation.
+                    common = remote_accepted_tokens & local_accepted
+                    remote_primary = remote_store.primary_token
+                    if (
+                        self.cluster_token
+                        and not common
+                        and remote_primary not in local_accepted
+                        and self.cluster_token not in remote_accepted_tokens
+                    ):
+                        raise ValueError("cluster token mismatch")
 
-                # Adopt any tokens from the remote store we do not yet accept.
-                for info in remote_store.accepted_token_infos:
-                    if not self._token_store.is_accepted(info.token):
-                        self._token_store.adopt_token(
-                            info.token,
-                            version=info.version,
-                            issued_at=info.issued_at,
-                        )
+                    # Adopt any tokens from the remote store we do not yet accept.
+                    # ponytail: ceiling — any member with one valid token can
+                    # inject accepted tokens cluster-wide this way; HMAC-signed
+                    # rotation announcements are the upgrade path.
+                    for info in remote_store.accepted_token_infos:
+                        if not self._token_store.is_accepted(info.token):
+                            self._token_store.adopt_token(
+                                info.token,
+                                version=info.version,
+                                issued_at=info.issued_at,
+                            )
             elif self.cluster_token and remote_token != self.cluster_token:
                 # Legacy peers that do not send token_store snapshots.
                 raise ValueError("cluster token mismatch")

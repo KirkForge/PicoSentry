@@ -92,16 +92,24 @@ class TestPersistentScanJobStore:
         assert data["job_id"] == "file-test"
 
     def test_max_jobs_eviction(self, store_dir):
-        """Store should keep only max_jobs most recent."""
+        """Store keeps only max_jobs most recent.
+
+        WO4.0.0-019: the cap now applies at RUNTIME on add (it previously
+        bound only at load — a long-running daemon grew without limit)."""
         store = PersistentScanJobStore(store_dir=store_dir, max_jobs=3)
         store.add("job-1", ["echo", "1"], "admin")
         store.add("job-2", ["echo", "2"], "admin")
         store.add("job-3", ["echo", "3"], "admin")
         store.add("job-4", ["echo", "4"], "admin")
 
-        # After loading, only the most recent max_jobs should be kept
         recent = store.list_recent(limit=10)
-        assert len(recent) == 4  # all 4 in memory before compaction
+        assert len(recent) == 3  # runtime cap on add
+        ids = {j["job_id"] for j in recent}
+        assert ids == {"job-2", "job-3", "job-4"}  # oldest evicted
+
+        # Reload still honors the cap.
+        store2 = PersistentScanJobStore(store_dir=store_dir, max_jobs=3)
+        assert len(store2.list_recent(limit=10)) == 3
 
     def test_empty_store(self, store_dir):
         """Empty store should return empty lists."""

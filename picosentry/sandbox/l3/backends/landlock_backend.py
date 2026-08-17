@@ -10,13 +10,13 @@ import os
 import platform
 import select
 import shutil
-import signal
 import stat
 import tempfile
 import time
 from typing import TYPE_CHECKING
 
-from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
+from picosentry.sandbox.l3.backends._rlimits import kill_process_group, set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     RuleTarget,
@@ -474,10 +474,14 @@ class LandlockBackend(SandboxBackend):
 
             pid = os.fork()
             if pid == 0:
-                # Child: dup2 → chdir → rlimits → no_new_privs → restrict → exec
-                # (cwd must be resolved before the ruleset applies).
+                # Child: setsid → chdir → rlimits → no_new_privs → restrict → exec
+                # (own session so a timeout kill takes the whole tree; cwd must
+                # be resolved before the ruleset applies).
                 os.close(out_r)
                 os.close(err_r)
+                if hasattr(os, "setsid"):
+                    with contextlib.suppress(OSError):
+                        os.setsid()
                 os.dup2(out_w, 1)
                 os.dup2(err_w, 2)
                 os.close(out_w)
@@ -504,11 +508,7 @@ class LandlockBackend(SandboxBackend):
                     os._exit(127)
                 os.close(ruleset_fd)
                 try:
-                    child_env = (
-                        dict(env)
-                        if env is not None
-                        else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")}
-                    )
+                    child_env = dict(env) if env is not None else default_child_env()
                     if env is None:
                         child_env["TMPDIR"] = workspace_root
                     os.execvpe(command[0], command, child_env)
@@ -537,8 +537,10 @@ class LandlockBackend(SandboxBackend):
                         exit_code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -os.WTERMSIG(status)
                         break
                     if time.monotonic() >= deadline:
+                        # Child ran setsid() (pgid == pid): kill the group so
+                        # grandchildren die too (WO4.0.0-011).
+                        kill_process_group(pid)
                         with contextlib.suppress(OSError):
-                            os.kill(pid, signal.SIGKILL)
                             _, status = os.waitpid(pid, 0)
                         exit_code = -9
                         break

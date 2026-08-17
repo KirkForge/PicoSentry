@@ -134,18 +134,25 @@ def detect_dependency_confusion(
                 )
             )
 
-    findings.extend(
-        SandboxFinding(
-            rule_id="L4-DEP-004",
-            severity=Severity.HIGH,
-            message=f"Registry override attempt: {pattern} in {spawn.executable}",
-            location=spawn.executable,
-            evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
-        )
-        for spawn in profile.spawns
-        for pattern in SUSPICIOUS_REGISTRY_ARG_PATTERNS
-        if pattern.lower() in " ".join(spawn.args).lower()
-    )
+    # FP fix (WO4.0.0-018): --registry=/--index-url= with a public mirror is
+    # routine CI practice; HIGH only when the override points somewhere
+    # internal/suspicious or off-TLS, else MEDIUM visibility.
+    _INTERNAL_VALUE_HINTS = (".internal", ".local", "company", "http://")
+    for spawn in profile.spawns:
+        for pattern in SUSPICIOUS_REGISTRY_ARG_PATTERNS:
+            args_lower = " ".join(spawn.args).lower()
+            if pattern.lower() in args_lower:
+                internal = any(hint in args_lower for hint in _INTERNAL_VALUE_HINTS)
+                severity = Severity.HIGH if internal else Severity.MEDIUM
+                findings.append(
+                    SandboxFinding(
+                        rule_id="L4-DEP-004",
+                        severity=severity,
+                        message=f"Registry override attempt: {pattern} in {spawn.executable}",
+                        location=spawn.executable,
+                        evidence={"executable": spawn.executable, "args": spawn.args[:5], "pattern": pattern},
+                    )
+                )
 
     standard_ports = {0, 22, 80, 443}
     for call in profile.network_calls:

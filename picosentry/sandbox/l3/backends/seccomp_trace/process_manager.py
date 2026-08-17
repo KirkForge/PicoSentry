@@ -4,11 +4,11 @@ import contextlib
 import ctypes
 import logging
 import os
-import signal
 import time
 import warnings
 from pathlib import Path
 
+from picosentry.sandbox.l3.backends._rlimits import kill_process_group
 from picosentry.sandbox.l3.backends._seccomp_common import SCMP_ACT_LOG
 
 logger = logging.getLogger("picodome.l3.seccomp_trace.process_manager")
@@ -74,11 +74,11 @@ def wait_with_timeout(
             pass
 
     if exit_code is None:
-        try:
-            os.kill(pid, signal.SIGKILL)
+        # The child ran setsid() before exec (pgid == pid): kill the whole
+        # group so pipe-holding grandchildren die too (WO4.0.0-011).
+        kill_process_group(pid)
+        with contextlib.suppress(OSError):
             os.waitpid(pid, 0)
-        except OSError:
-            pass
         exit_code = -1
 
     os.close(out_fd)

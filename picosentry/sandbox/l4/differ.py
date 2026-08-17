@@ -3,6 +3,20 @@ from __future__ import annotations
 from picosentry.sandbox.l4.models import Baseline, BehavioralProfile, DriftResult
 
 
+def _host_of(address: str) -> str:
+    """Host part of an address that may be a bare host, host:port, or URL.
+
+    Baselines list domains; observed addresses are frequently full URLs
+    (stdout-derived evidence) — comparing raw strings guaranteed drift for
+    every benign npm fetch (WO4.0.0-018).
+    """
+    from urllib.parse import urlparse
+
+    candidate = address if "//" in address else f"//{address}"
+    parsed = urlparse(candidate)
+    return (parsed.hostname or address).lower()
+
+
 def compare_profile_to_baseline(
     profile: BehavioralProfile,
     baseline: Baseline,
@@ -43,9 +57,10 @@ def compare_profile_to_baseline(
         drift_flags.append(f"Timing: {profile.total_runtime_ms}ms (expected {low}-{high}ms)")
 
     if baseline.allowed_domains and "*" not in baseline.allowed_domains:
+        allowed_domains = {d.lower() for d in baseline.allowed_domains}
         for call in profile.network_calls:
             address_stripped = call.address.replace(".", "").replace(":", "")
-            if not address_stripped.isdigit() and call.address not in baseline.allowed_domains:
+            if not address_stripped.isdigit() and _host_of(call.address) not in allowed_domains:
                 if not network_drift:
                     network_drift = True
                     drift_count += 1

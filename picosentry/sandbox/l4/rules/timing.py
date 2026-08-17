@@ -8,11 +8,14 @@ def detect_timing_anomalies(
 ) -> list[SandboxFinding]:
     findings: list[SandboxFinding] = []
 
+    # FP fix (WO4.0.0-018): trivial fast commands (echo, --version) complete
+    # in <5ms legitimately; a fast no-op is an informational signal, not a
+    # MEDIUM that alone flips the verdict to SUSPICIOUS.
     if profile.total_runtime_ms < 5 and profile.exit_code == 0:
         findings.append(
             SandboxFinding(
                 rule_id="L4-TIME-001",
-                severity=Severity.MEDIUM,
+                severity=Severity.LOW,
                 message=f"Execution completed in {profile.total_runtime_ms}ms — unusually fast, possible no-op",
                 location=profile.package,
                 evidence={"runtime_ms": profile.total_runtime_ms},

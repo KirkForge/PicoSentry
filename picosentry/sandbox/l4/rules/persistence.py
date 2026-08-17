@@ -33,7 +33,17 @@ def detect_persistence(
         if op.operation not in ("write", "create", "chmod", "chown"):
             continue
         for path_prefix, description, severity in PERSISTENCE_PATHS:
-            if op.path == path_prefix or op.path.startswith(path_prefix) or op.path.endswith(path_prefix):
+            # FP fix (WO4.0.0-018): the old blanket `endswith` matched any
+            # path tail (e.g. "myproject/etc/rc.local"). Suffix semantics are
+            # kept only where they are the intent: user-home dotfile entries
+            # ("/.ssh/...") and "~"-relative macOS paths.
+            if path_prefix.startswith("~"):
+                matched = op.path.endswith(path_prefix[1:])
+            elif path_prefix.startswith("/."):
+                matched = op.path.endswith(path_prefix)
+            else:
+                matched = op.path == path_prefix or op.path.startswith(path_prefix)
+            if matched:
                 findings.append(
                     SandboxFinding(
                         rule_id="L4-PERSIST-001",

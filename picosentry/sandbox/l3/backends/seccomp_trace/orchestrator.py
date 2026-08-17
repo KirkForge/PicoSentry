@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import warnings
 
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
 from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
@@ -139,11 +140,7 @@ class SeccompTraceBackend(SandboxBackend):
             if session is not None:
                 session.resources.open_fds.extend([out_r, out_w, err_r, err_w])
 
-            child_env = (
-                dict(env)
-                if env is not None
-                else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
-            )
+            child_env = dict(env) if env is not None else default_child_env()
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)
@@ -152,6 +149,10 @@ class SeccompTraceBackend(SandboxBackend):
             if pid == 0:
                 os.close(out_r)
                 os.close(err_r)
+                # Own session so a timeout kill can take the whole tree (WO4.0.0-011).
+                if hasattr(os, "setsid"):
+                    with contextlib.suppress(OSError):
+                        os.setsid()
                 os.dup2(out_w, 1)
                 os.dup2(err_w, 2)
                 os.close(out_w)

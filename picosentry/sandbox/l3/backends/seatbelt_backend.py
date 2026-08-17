@@ -2,13 +2,13 @@ from __future__ import annotations
 
 import contextlib
 import logging
-import os
 import platform
 import subprocess
 import tempfile
 from pathlib import Path
 
-from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
+from picosentry.sandbox.l3.backends._env_defaults import default_child_env
+from picosentry.sandbox.l3.backends._rlimits import kill_process_group, sandbox_preexec
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     Policy,
@@ -114,11 +114,7 @@ class SeatbeltBackend(SandboxBackend):
             try:
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
-                run_env = (
-                    dict(env)
-                    if env is not None
-                    else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
-                )
+                run_env = dict(env) if env is not None else default_child_env()
 
                 proc = subprocess.Popen(
                     sandbox_cmd,
@@ -126,7 +122,7 @@ class SeatbeltBackend(SandboxBackend):
                     stderr=subprocess.PIPE,
                     cwd=cwd,
                     env=run_env,
-                    preexec_fn=set_resource_limits,
+                    preexec_fn=sandbox_preexec,
                 )
                 if session is not None:
                     session.resources.proc = proc
@@ -137,7 +133,9 @@ class SeatbeltBackend(SandboxBackend):
                     stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
                     stderr = stderr_bytes.decode("utf-8", errors="replace").strip()
                 except subprocess.TimeoutExpired:
-                    proc.kill()
+                    # Kill the whole session group (WO4.0.0-011): sandbox-exec
+                    # children keep the pipe write-ends open otherwise.
+                    kill_process_group(proc.pid)
                     stdout_bytes, stderr_bytes = proc.communicate()
                     stdout = stdout_bytes.decode("utf-8", errors="replace").strip()
                     stderr = stderr_bytes.decode("utf-8", errors="replace").strip()

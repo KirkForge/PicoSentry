@@ -434,11 +434,20 @@ class TestStraceFormatTextFallback:
 # ── Regression guards for bugs found in code review ────────────
 
 
-class TestSpoofGuard:
-    """Events must be authoritative; text cannot inject phantom calls."""
+class TestEvidencePolicy:
+    """Evidence-source policy (WO4.0.0-018).
 
-    def test_events_block_phantom_text_network(self):
-        """When events exist, empty network from events means NO network."""
+    Supersedes the old TestSpoofGuard contract ("any event exists → ignore
+    stdout"): SCMP_ACT_LOG records carry no addresses/paths (v2.0.8) and
+    seccomp-trace always appends such events, so that switch emptied the
+    profile exactly when SUS/timeout events fired on enforced backends.
+    New policy: kernel events WITH data are authoritative per category;
+    otherwise stdout regex fills the gap. Accepted trade-off: printed text
+    can add uncorroborated findings — kernel data always wins when present.
+    """
+
+    def test_kernel_network_data_wins_over_text(self):
+        """Events carrying addresses are authoritative for their category."""
         result = SandboxResult(
             command=["node", "test.js"],
             overall_verdict=Verdict.ALLOW,
@@ -446,63 +455,67 @@ class TestSpoofGuard:
             duration_ms=100,
             events=[
                 SandboxEvent(
-                    rule_id="L3-FS-001",
+                    rule_id="L3-NET-001",
                     verdict=Verdict.ALLOW,
-                    operation="file_write_indicator",
-                    detail="Write detected: /tmp/foo",
-                    path="/tmp/foo",
+                    operation="network_outbound",
+                    detail="IP address found: 1.2.3.4",
+                    address="1.2.3.4",
                 ),
             ],
             stdout="connect to 8.8.8.8:443",
             stderr="",
         )
         profile = profile_from_sandbox_result(result)
-        # Events exist (filesystem), so network should not be scraped from text
-        assert len(profile.network_calls) == 0, "Text-derived phantom network injected despite events existing"
+        addresses = {c.address for c in profile.network_calls}
+        assert addresses == {"1.2.3.4"}, "Kernel network evidence must win over printed text"
 
-    def test_events_block_phantom_text_fs(self):
-        """When events exist, empty fs_ops from events means NO text-derived fs."""
+    def test_addressless_log_events_fall_through_to_stdout(self):
+        """The WO-018 regression: an SCMP_ACT_LOG-shaped event (no address)
+        must NOT blank the profile — stdout evidence is recovered."""
         result = SandboxResult(
-            command=["node", "test.js"],
+            command=["node", "install.js"],
             overall_verdict=Verdict.ALLOW,
             exit_code=0,
             duration_ms=100,
             events=[
                 SandboxEvent(
-                    rule_id="L3-NET-001",
+                    rule_id="L3-TRACE-NET",
                     verdict=Verdict.ALLOW,
                     operation="network_outbound",
-                    detail="IP address found: 1.2.3.4",
-                    address="1.2.3.4",
+                    detail="connect syscall (no address: SCMP_ACT_LOG)",
                 ),
             ],
-            stdout="writing to /etc/shadow",
+            stdout="fetching https://registry.npmjs.org/pkg from 93.184.216.34:443",
             stderr="",
         )
         profile = profile_from_sandbox_result(result)
-        assert len(profile.fs_ops) == 0, "Text-derived /etc/shadow phantom injected despite events existing"
+        assert any(c.address == "93.184.216.34" for c in profile.network_calls), (
+            "Address-less LOG event must fall through to stdout-derived evidence"
+        )
 
-    def test_events_block_phantom_text_spawn(self):
-        """When events exist, empty spawns from events means NO text-derived spawn."""
+    def test_sus_events_do_not_blank_stdout_evidence(self):
+        """Post-hoc SUS pattern events (text-derived, no addresses) must not
+        hide stdout evidence for every other category — the exact bug that
+        emptied L4 profiles on enforced backends."""
         result = SandboxResult(
-            command=["node", "test.js"],
-            overall_verdict=Verdict.ALLOW,
+            command=["python3", "-c", "print('x')"],
+            overall_verdict=Verdict.DENY,
             exit_code=0,
             duration_ms=100,
             events=[
                 SandboxEvent(
-                    rule_id="L3-NET-001",
-                    verdict=Verdict.ALLOW,
-                    operation="network_outbound",
-                    detail="IP address found: 1.2.3.4",
-                    address="1.2.3.4",
+                    rule_id="L3-SUS-009",
+                    verdict=Verdict.DENY,
+                    operation="ssh_key_access",
+                    detail="pattern",
                 ),
             ],
-            stdout="executing: /bin/malware",
+            stdout="reading /etc/passwd and executing: /bin/sh",
             stderr="",
         )
         profile = profile_from_sandbox_result(result)
-        assert len(profile.spawns) == 0, "Text-derived /bin/malware phantom injected despite events existing"
+        assert any(op.path == "/etc/passwd" for op in profile.fs_ops)
+        assert any(s.executable == "/bin/sh" for s in profile.spawns)
 
 
 class TestStraceIPv6RealFormat:

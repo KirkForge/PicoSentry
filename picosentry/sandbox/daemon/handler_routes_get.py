@@ -244,7 +244,11 @@ class PicoDomeGetRoutesMixin:
         self.wfile.write(body)
 
     def _handle_get_scan(self: PicoDomeHandler, job_id: str) -> None:
-        job = self.job_store.get(job_id)
+        # Tenant scoping (WO4.0.0-010): a scan:read token only sees its own
+        # tenant's jobs — cross-tenant access is indistinguishable from
+        # "no such job" so existence is not leaked.
+        tenant_id = self._resolve_tenant(self._get_token())
+        job = self.job_store.get(job_id, tenant_id=tenant_id)
         if job:
             self._send_json(job)
         else:
@@ -252,7 +256,8 @@ class PicoDomeGetRoutesMixin:
 
     def _handle_list_scans(self: PicoDomeHandler, query: dict) -> None:
         limit = _clamped_limit(query, "limit", 50)
-        jobs = self.job_store.list_recent(limit=limit)
+        tenant_id = self._resolve_tenant(self._get_token())
+        jobs = self.job_store.list_recent(tenant_id=tenant_id, limit=limit)
         self._send_json(
             {
                 "scans": jobs,

@@ -1,7 +1,7 @@
 # WO4.0.0-019 — Sandbox: cluster trust + partition healing
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** PARTIAL 2026-08-17 (worktree `wo/4.0.0/sandbox-p1`). Landed: digest-only gossip snapshots (no secret material; legacy raw snapshots still mergeable for rolling upgrades), slow-cadence OFFLINE-peer re-probe + heal via merge, scheduled retire_stale_tokens (PICODOME_CLUSTER_TOKEN_GRACE_SECONDS, default 3600/0=off), scheduled retention run_cleanup (PICODOME_RETENTION_INTERVAL_SECONDS, default daily/0=off), JSONL runtime max_jobs cap, SQLite queries inside the lock, Redis zset prune. NOT landed: HMAC-with-primary rotation announcements (rotation via gossip deliberately disabled — digest snapshots cannot carry new token material; rotate = config distribution until announcements exist), check_hostname=False ceiling, JSONL append-only compaction between rewrites. Evidence: tests/sandbox/test_cluster_trust_healing.py, updated test_cluster.py / test_cluster_3node.py protocol contracts.
 **Owner:** (unassigned — worktree `wo/4.0.0/cluster-trust`)
 **Priority:** P2 · Effort M · Risk M (protocol change; cluster is BETA)
 **Scope:** `picosentry/sandbox/cluster/{orchestrator.py,state.py,token_store.py}`, `tests/sandbox/test_cluster*.py`

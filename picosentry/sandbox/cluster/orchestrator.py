@@ -402,18 +402,49 @@ class ClusterManager:
         # Run less frequently than heartbeats — gossip is heavier (HTTP call).
         gossip_interval = self._heartbeat_interval * 3
 
+        cycle = 0
         while self._running:
+            cycle += 1
+            # Slow-cadence OFFLINE-peer re-probe (WO4.0.0-019): after a
+            # transient partition both sides mark each other OFFLINE and the
+            # old ONLINE-only peer list never probed again — the split-brain
+            # survived restarts. Every 10th cycle, offline peers get one
+            # probe; a live peer's snapshot re-ONLINEs it via merge.
+            self._gossip_round(include_offline=cycle % 10 == 0)
+
+            # Token hygiene (WO4.0.0-019): retire stale accepted tokens on
+            # the same slow cadence instead of CLI-only. The grace window is
+            # the rotation compromise period — keep it short.
             try:
-                peers = [n for n in self._state.list_nodes(status=NodeStatus.ONLINE) if n.node_id != self._node_id]
-                for peer in peers:
-                    try:
-                        self._fetch_and_merge_peer(peer)
-                    except (OSError, RuntimeError, ValueError) as e:
-                        logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
+                self._retire_tokens_if_configured()
             except (OSError, RuntimeError):
-                logger.exception("Gossip loop error")
+                logger.exception("Token retirement failed")
 
             self._stop_event.wait(timeout=gossip_interval)
+
+    def _gossip_round(self, include_offline: bool = False) -> None:
+        """One gossip pass over the peers (separated from _gossip_loop for
+        testability)."""
+        try:
+            statuses = {NodeStatus.ONLINE} | ({NodeStatus.OFFLINE} if include_offline else set())
+            peers = [n for n in self._state.list_nodes() if n.node_id != self._node_id and n.status in statuses]
+            for peer in peers:
+                try:
+                    self._fetch_and_merge_peer(peer)
+                except (OSError, RuntimeError, ValueError) as e:
+                    logger.debug("Gossip with peer %s failed: %s", peer.node_id, e)
+        except (OSError, RuntimeError):
+            logger.exception("Gossip loop error")
+
+    def _retire_tokens_if_configured(self) -> None:
+        import os
+
+        try:
+            grace = float(os.environ.get("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", "3600"))
+        except (ValueError, TypeError):
+            grace = 3600.0
+        if grace > 0:
+            self.retire_stale_tokens(grace)
 
     def _fetch_and_merge_peer(self, peer: ClusterNode) -> None:
         """Fetch snapshot from a single peer and merge it into local state."""

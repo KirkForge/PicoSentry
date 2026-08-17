@@ -277,7 +277,9 @@ class TestL4ProcessAnomaly:
     def test_detects_excessive_spawns(self):
         from picosentry.sandbox.l4.rules.process_anomaly import detect_process_anomalies
 
-        spawns = [ProcessSpawn(executable=f"/usr/bin/cmd{i}", args=[]) for i in range(6)]
+        # >10 is the anomaly bar (WO4.0.0-018): npm/pip installs routinely
+        # spawn 6+ helpers; the old >5 threshold flagged every big install.
+        spawns = [ProcessSpawn(executable=f"/usr/bin/cmd{i}", args=[]) for i in range(11)]
         profile = BehavioralProfile(
             package="suspicious-pkg",
             spawns=spawns,
@@ -285,6 +287,18 @@ class TestL4ProcessAnomaly:
         )
         findings = detect_process_anomalies(profile)
         assert any(f.rule_id == "L4-PROC-003" for f in findings)
+
+    def test_ten_spawns_is_within_normal_install_range(self):
+        from picosentry.sandbox.l4.rules.process_anomaly import detect_process_anomalies
+
+        spawns = [ProcessSpawn(executable=f"/usr/bin/cmd{i}", args=[]) for i in range(10)]
+        profile = BehavioralProfile(
+            package="benign-pkg",
+            spawns=spawns,
+            total_runtime_ms=100,
+        )
+        findings = detect_process_anomalies(profile)
+        assert not any(f.rule_id == "L4-PROC-003" for f in findings)
 
     def test_clean_profile_no_findings(self):
         from picosentry.sandbox.l4.rules.process_anomaly import detect_process_anomalies

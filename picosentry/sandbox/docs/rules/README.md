@@ -30,6 +30,9 @@ These rules detect suspicious patterns in sandboxed command output when using th
 
 ## L4 Behavioral Detector Rules
 
+Full per-rule reference (detection, severity, recalibration notes):
+[L4-RULES.md](L4-RULES.md)
+
 | Rule | Detects | Severity |
 |------|---------|----------|
 | L4-TIME | Anomalous timing, no-op, busy-wait | MEDIUM/HIGH |

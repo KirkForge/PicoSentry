@@ -1,7 +1,7 @@
 # WO4.0.0-010 — Sandbox: tenant wiring + secret hygiene
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE 2026-08-17 (worktree `wo/4.0.0/sandbox-p1`) — deliverable 2 half RESOLVED-PREEXISTING: `SandboxResult.to_dict()` already omits stdout/stderr, so exfiltrated bytes never reached callers; the redaction layer was still landed as a regression guard (marker+sha256+len+flag on SUS-003/008/009). Evidence: tests/sandbox/test_tenant_daemon.py, tests/sandbox/test_env_allowlist.py. Env ADR: allowlist in `l3/backends/_env_defaults.py`, shared by all 5 backends.
 **Owner:** (unassigned — worktree `wo/4.0.0/sandbox-tenant-secrets`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/sandbox/tenant/**`, `picosentry/sandbox/daemon/{daemon.py,handler_routes_*.py}`, `picosentry/sandbox/l3/engine.py`, `picosentry/sandbox/l3/backends/_env_defaults.py` (new shared module), `tests/sandbox/`

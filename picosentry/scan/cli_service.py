@@ -458,9 +458,19 @@ class ScanOrchestrator:
                     "  <dependencies>",
                 ]
                 for p in packages:
-                    gid = p["name"]
+                    coords = p["name"]
+                    # SBOM maven names carry 'group:artifact' coordinates (sbom.py
+                    # _maven_display_name); both elements are required or the pom
+                    # parsers drop the dependency (WO4.0.0-015).
+                    if ":" in coords:
+                        gid, aid = coords.split(":", 1)
+                    else:
+                        gid, aid = coords, coords
                     ver = p["version"]
-                    lines.append(f"    <dependency><groupId>{gid}</groupId><version>{ver}</version></dependency>")
+                    lines.append(
+                        f"    <dependency><groupId>{gid}</groupId>"
+                        f"<artifactId>{aid}</artifactId><version>{ver}</version></dependency>"
+                    )
                 lines.append("  </dependencies>")
                 lines.append("</project>")
                 filepath.write_text("\n".join(lines))

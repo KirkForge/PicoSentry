@@ -323,4 +323,7 @@ def detect_pypi_project(target: Path) -> bool:
         if (target / indicator).is_file():
             return True
 
-    return bool((target / ".venv").is_dir())
+    # Rule layer scans site-packages under BOTH .venv/ and venv/ — the project
+    # detector used to check .venv only, leaving plain-`venv` projects
+    # unscanned by the pypi rule family (WO4.0.0-015).
+    return (target / ".venv").is_dir() or (target / "venv").is_dir()

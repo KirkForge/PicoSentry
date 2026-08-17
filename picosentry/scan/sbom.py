@@ -43,9 +43,30 @@ _CYCLONEDX_TYPE_MAP: dict[str, str] = {
     "application": "application",
 }
 
-_CYCLONEDX_NS = "http://cyclonedx.org/schema/bom/1.5"
-
 _MAX_XML_BYTES = 10 * 1024 * 1024  # ponytail: 10MB cap rejects billion-laughs amplification
+
+
+def _purl_namespace(purl: str) -> str:
+    """Namespace segment of a purl: pkg:maven/org.apache/commons-io@1.4 -> 'org.apache'."""
+    if not purl.startswith("pkg:"):
+        return ""
+    body = purl[4:].split("@", 1)[0].split("?", 1)[0]
+    segments = body.split("/")
+    return "/".join(segments[1:-1]) if len(segments) >= 3 else ""
+
+
+def _maven_display_name(name: str, group: str, purl: str) -> str:
+    """Maven coordinates as 'group:artifact' (WO4.0.0-015).
+
+    Maven SBOM components carry the artifact in ``name`` and the groupId in
+    ``group`` (CycloneDX) or the purl namespace. Without the group the
+    generated pom.xml cannot carry both <groupId> and <artifactId>, and the
+    maven parsers drop the dependency entirely — silently zero findings.
+    """
+    if ":" in name:
+        return name  # already coordinates (e.g. 'org.apache:commons-io')
+    gid = group or _purl_namespace(purl)
+    return f"{gid}:{name}" if gid else name
 
 
 def _safe_xml_parse(data: bytes | str) -> ElementTree.Element | None:
@@ -158,6 +179,9 @@ def _parse_cyclonedx_json(data: dict) -> list[PackageRef]:
         version = comp.get("version", "")
         purl = comp.get("purl", "")
         ecosystem = _ecosystem_from_purl(purl) if purl else "unknown"
+        if ecosystem == "maven":
+            group = comp.get("group", "") if isinstance(comp.get("group", ""), str) else ""
+            name = _maven_display_name(name, group, purl)
         refs.append(PackageRef(name=name, version=version, ecosystem=ecosystem, purl=purl))
     return refs
 
@@ -166,27 +190,35 @@ def _parse_cyclonedx_xml(data: bytes) -> list[PackageRef]:
     root = _safe_xml_parse(data)
     if root is None:
         return []
+    # Derive the document's namespace from the root tag so CycloneDX 1.4/1.5/1.6
+    # (and future revisions) all parse — the version is part of the namespace URI.
+    tag = root.tag or ""
+    ns = tag.split("}", 1)[0].lstrip("{") if tag.startswith("{") else ""
+
+    def _find_child(element: ElementTree.Element, name: str) -> ElementTree.Element | None:
+        if ns:
+            el = element.find(f"{{{ns}}}{name}")
+            if el is not None:
+                return el
+        return element.find(name)
+
     refs: list[PackageRef] = []
     for comp in root.iter():
-        tag = comp.tag.split("}")[-1] if "}" in comp.tag else comp.tag
-        if tag != "component":
+        ctag = comp.tag.split("}")[-1] if "}" in comp.tag else comp.tag
+        if ctag != "component":
             continue
         name = comp.get("name", "") or ""
         if not name:
-            name_el = comp.find(f"{{{_CYCLONEDX_NS}}}name")
-            if name_el is None:
-                name_el = comp.find("name")
+            name_el = _find_child(comp, "name")
             if name_el is not None and name_el.text:
                 name = name_el.text
-        version_el = comp.find(f"{{{_CYCLONEDX_NS}}}version")
-        if version_el is None:
-            version_el = comp.find("version")
+        version_el = _find_child(comp, "version")
         version = (version_el.text if version_el is not None else comp.get("version", "")) or ""
-        purl_el = comp.find(f"{{{_CYCLONEDX_NS}}}purl")
-        if purl_el is None:
-            purl_el = comp.find("purl")
+        purl_el = _find_child(comp, "purl")
         purl = (purl_el.text if purl_el is not None else comp.get("purl", "")) or ""
         ecosystem = _ecosystem_from_purl(purl) if purl else "unknown"
+        if ecosystem == "maven":
+            name = _maven_display_name(name, comp.get("group", "") or "", purl)
         refs.append(PackageRef(name=name, version=version, ecosystem=ecosystem, purl=purl))
     return refs
 
@@ -210,6 +242,8 @@ def _parse_spdx_json(data: dict) -> list[PackageRef]:
             pkg_manager = pkg.get("packageManager", "")
             if isinstance(pkg_manager, str) and pkg_manager:
                 ecosystem = _SPDX_PKG_MANAGER_MAP.get(pkg_manager.lower(), pkg_manager.lower())
+        if ecosystem == "maven":
+            name = _maven_display_name(name, "", purl)
         refs.append(PackageRef(name=name, version=version, ecosystem=ecosystem, purl=purl))
     return refs
 

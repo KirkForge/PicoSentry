@@ -1,8 +1,7 @@
 # WO4.0.0-022 — Firewall: productization
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/registry-firewall`)
+**Status:** OPEN — NOT STARTED in `wo/4.0.0/scan-watch-p1` (2026-08-17): this WO's file scope (`picosentry/firewall/**`, `tests/firewall/**`, `docs/FIREWALL.md`) is outside that worktree's exclusive ownership (scan/** + watch/**); it needs its own worktree per the WO's owner field (`wo/4.0.0/registry-firewall`). Also note dependency: the default-BLOCK short-name FP it hits depends on WO4.0.0-008's FP gating (landed in 2.1.2) — re-verify the repro before scoping the fix.
 **Priority:** P2 · Effort M-L · Risk M
 **Scope:** `picosentry/firewall/{proxy.py,scanner.py,config.py}`, `docs/FIREWALL.md` (new)
 

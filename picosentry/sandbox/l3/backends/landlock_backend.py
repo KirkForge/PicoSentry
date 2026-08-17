@@ -3,18 +3,25 @@ from __future__ import annotations
 import contextlib
 import ctypes
 import datetime
+import errno
+import glob as _glob
 import logging
 import os
 import platform
 import select
+import shutil
 import signal
+import stat
+import tempfile
 import time
 from typing import TYPE_CHECKING
 
 from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
+    RuleTarget,
     SandboxResult,
+    SyscallAction,
     Verdict,
 )
 
@@ -40,7 +47,7 @@ LANDLOCK_ACCESS_FS_MAKE_SYM = 1 << 12
 LANDLOCK_ACCESS_FS_REFER = 1 << 13
 LANDLOCK_ACCESS_FS_TRUNCATE = 1 << 14
 
-LANDLOCK_ACCESS_FS_ALL = (
+LANDLOCK_ACCESS_FS_V1 = (
     LANDLOCK_ACCESS_FS_EXECUTE
     | LANDLOCK_ACCESS_FS_WRITE_FILE
     | LANDLOCK_ACCESS_FS_READ_FILE
@@ -54,23 +61,44 @@ LANDLOCK_ACCESS_FS_ALL = (
     | LANDLOCK_ACCESS_FS_MAKE_FIFO
     | LANDLOCK_ACCESS_FS_MAKE_BLOCK
     | LANDLOCK_ACCESS_FS_MAKE_SYM
+)
+LANDLOCK_ACCESS_FS_ALL = LANDLOCK_ACCESS_FS_V1 | LANDLOCK_ACCESS_FS_REFER | LANDLOCK_ACCESS_FS_TRUNCATE
+
+# Bits valid on a path-beneath rule whose parent_fd is a file, not a directory.
+_FILE_ONLY_ACCESS = (
+    LANDLOCK_ACCESS_FS_EXECUTE
+    | LANDLOCK_ACCESS_FS_WRITE_FILE
+    | LANDLOCK_ACCESS_FS_READ_FILE
     | LANDLOCK_ACCESS_FS_REFER
     | LANDLOCK_ACCESS_FS_TRUNCATE
 )
 
 LANDLOCK_ACCESS_NET_BIND_TCP = 1 << 0
 LANDLOCK_ACCESS_NET_CONNECT_TCP = 1 << 1
+LANDLOCK_ACCESS_NET_ALL = LANDLOCK_ACCESS_NET_BIND_TCP | LANDLOCK_ACCESS_NET_CONNECT_TCP
 
 LANDLOCK_RULE_PATH_BENEATH = 1
-LANDLOCK_RULE_NET_PORT = 2
 
+LANDLOCK_CREATE_RULESET_VERSION = 1 << 0
+
+_PR_SET_NO_NEW_PRIVS = 38
+
+# Kernel versions that introduced each access right (for honest error messages).
+_NET_MIN_KERNEL = "6.7"
+_REFER_MIN_KERNEL = "5.19"
+_TRUNCATE_MIN_KERNEL = "6.2"
+_NET_ABI = 4  # landlock ABI introducing the network access rights
+
+# The landlock syscall allocation is uniform across architectures (x86_64
+# syscall_64.tbl matches asm-generic/unistd.h, which aarch64/riscv64 use).
+# The per-arch map is kept so a genuinely divergent arch is a one-line add.
 _SYSCALL_NUMBERS: dict[str, tuple[int, int, int]] = {
-    "x86_64": (446, 447, 448),
+    "x86_64": (444, 445, 446),
     "aarch64": (444, 445, 446),
 }
 
 _ARCH = platform.machine()
-_CREATE, _ADD, _RESTRICT = _SYSCALL_NUMBERS.get(_ARCH, (446, 447, 448))
+_CREATE, _ADD, _RESTRICT = _SYSCALL_NUMBERS.get(_ARCH, (444, 445, 446))
 
 
 class _LandlockRulesetAttr(ctypes.Structure):
@@ -84,13 +112,6 @@ class _LandlockPathBeneathAttr(ctypes.Structure):
     _fields_ = [
         ("allowed_access", ctypes.c_uint64),
         ("parent_fd", ctypes.c_int32),
-    ]
-
-
-class _LandlockNetPortAttr(ctypes.Structure):
-    _fields_ = [
-        ("allowed_access", ctypes.c_uint64),
-        ("port", ctypes.c_uint64),
     ]
 
 
@@ -131,19 +152,41 @@ def _syscall(libc: ctypes.CDLL, num: int, *args) -> int:
     return ret if ret >= 0 else -err
 
 
+def _landlock_abi_version(libc: ctypes.CDLL) -> int:
+    """Highest supported landlock ABI (0 = landlock not usable here)."""
+    ret = _syscall(libc, _CREATE, None, 0, LANDLOCK_CREATE_RULESET_VERSION)
+    return ret if isinstance(ret, int) and ret >= 0 else 0
+
+
+def _abi_fs_bits(abi: int) -> int:
+    bits = LANDLOCK_ACCESS_FS_V1
+    if abi >= 2:
+        bits |= LANDLOCK_ACCESS_FS_REFER
+    if abi >= 3:
+        bits |= LANDLOCK_ACCESS_FS_TRUNCATE
+    # ponytail: ABI 5 IOCTL_DEV not handled — ioctls stay unrestricted; add when a policy needs it
+    return bits
+
+
 def _landlock_create_ruleset(libc: ctypes.CDLL, attr: _LandlockRulesetAttr) -> int:
     ret = _syscall(libc, _CREATE, ctypes.byref(attr), ctypes.sizeof(attr), 0)
     if isinstance(ret, int) and ret < 0:
-        errno = -ret
-        if errno == 2:
+        errno_num = -ret
+        if errno_num == errno.ENOENT:
             raise LandlockUnavailable("landlock not built into kernel (ENOENT)")
-        if errno == 38:
+        if errno_num == errno.ENOSYS:
             raise LandlockUnavailable("landlock syscall not implemented (ENOSYS)")
-        if errno == 1:
+        if errno_num == errno.EPERM:
             raise LandlockUnavailable("landlock requires CAP_SYS_ADMIN or no_new_privs (EPERM)")
-        if errno == 95:
-            raise LandlockUnavailable("landlock not supported (EOPNOTSUPP)")
-        raise LandlockUnavailable(f"landlock_create_ruleset failed: errno={errno}")
+        if errno_num == errno.EOPNOTSUPP:
+            raise LandlockUnavailable("landlock disabled at boot (EOPNOTSUPP; check lsm= kernel param)")
+        if errno_num == errno.E2BIG:
+            kver = _kernel_version()
+            raise LandlockUnavailable(
+                f"kernel {kver} rejects requested access rights — REFER needs >= {_REFER_MIN_KERNEL}, "
+                f"TRUNCATE >= {_TRUNCATE_MIN_KERNEL}, NET >= {_NET_MIN_KERNEL} (E2BIG)"
+            )
+        raise LandlockUnavailable(f"landlock_create_ruleset failed: errno={errno_num}")
     return ret
 
 
@@ -159,6 +202,190 @@ def _landlock_restrict_self(libc: ctypes.CDLL, ruleset_fd: int) -> int:
     if isinstance(ret, int) and ret < 0:
         logger.warning("landlock_restrict_self failed: errno=%d", -ret)
     return ret
+
+
+def _set_no_new_privs(libc: ctypes.CDLL) -> int:
+    """prctl(PR_SET_NO_NEW_PRIVS, 1) — required before unprivileged restrict_self."""
+    ret = libc.prctl(_PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)
+    return ret if isinstance(ret, int) else 0
+
+
+def _target_denied(policy: Policy, target: RuleTarget) -> bool:
+    for rule in policy.rules:
+        if rule.target == target:
+            if rule.action == SyscallAction.ALLOW:
+                return False
+            if rule.action in (SyscallAction.DENY, SyscallAction.KILL):
+                return True
+    return policy.default_action in (SyscallAction.DENY, SyscallAction.KILL)
+
+
+def _explicitly_denied(policy: Policy, target: RuleTarget) -> bool:
+    return any(
+        rule.target == target and rule.action in (SyscallAction.DENY, SyscallAction.KILL) for rule in policy.rules
+    )
+
+
+def _net_handling(policy: Policy, abi: int) -> tuple[int, list[str]]:
+    """Handled NET bits + honest ceiling labels for deny rules landlock cannot enforce.
+
+    Handled bits follow effective denial (explicit rule or default_action=DENY);
+    ceiling labels — which mark the result degraded — only fire on rules the
+    policy explicitly denies, so ambient catch-all posture (which landlock never
+    fully covers, e.g. process_spawn) does not render "degraded" meaningless.
+    """
+    ceilings: list[str] = []
+    handled = 0
+    out_denied = _target_denied(policy, RuleTarget.NETWORK_OUT)
+    bind_denied = _target_denied(policy, RuleTarget.NETWORK_BIND)
+    if abi >= _NET_ABI:
+        if out_denied:
+            handled |= LANDLOCK_ACCESS_NET_CONNECT_TCP
+        if bind_denied:
+            handled |= LANDLOCK_ACCESS_NET_BIND_TCP
+        # ponytail: allow side stays unhandled — landlock has no wildcard port, so
+        # "allow all connects" would need 65535 add_rule calls; port-scoped allows
+        # wait for a policy that actually lists ports/addresses
+    else:
+        if _explicitly_denied(policy, RuleTarget.NETWORK_OUT):
+            ceilings.append(f"network_out (needs kernel >= {_NET_MIN_KERNEL})")
+        if _explicitly_denied(policy, RuleTarget.NETWORK_BIND):
+            ceilings.append(f"network_bind (needs kernel >= {_NET_MIN_KERNEL})")
+    if _explicitly_denied(policy, RuleTarget.NETWORK_IN):
+        ceilings.append("network_in (landlock cannot restrict inbound/accept)")
+    if _explicitly_denied(policy, RuleTarget.DNS_QUERY):
+        ceilings.append("dns_query (landlock cannot restrict UDP)")
+    return handled, ceilings
+
+
+def _glob_anchor(pattern: str) -> str | None:
+    """Longest glob-free directory prefix of a policy path (None = unbounded)."""
+    if pattern.startswith("**"):
+        return None
+    cut = len(pattern)
+    for i, ch in enumerate(pattern):
+        if ch in "*?[":
+            cut = i
+            break
+    anchor = pattern[:cut].rstrip("/")
+    return anchor or None
+
+
+def _has_glob_chars(pattern: str) -> bool:
+    return any(c in pattern for c in "*?[")
+
+
+def _is_ancestor_or_eq(ancestor: str, path: str) -> bool:
+    if ancestor == "/":
+        return True
+    return path == ancestor or path.startswith(ancestor + os.sep)
+
+
+def _build_grants(policy: Policy, command: list[str], workspace_root: str, handled_fs: int) -> list[tuple[str, int]]:
+    """Translate Policy rules into (path, access-bits) grants for the ruleset.
+
+    Launch parity with the seccomp backend: the runtime tree (loader, binaries)
+    must stay readable/executable regardless of FILE_EXEC rules — seccomp exempts
+    execve from explicit blocking for the same reason. "/proc/self"-style paths
+    are kept literal: they must be granted in the child, where "self" resolves
+    to the sandboxed process (a parent-side rule would pin the parent's pid).
+    """
+    grants: dict[str, int] = {}
+
+    def grant(path: str, bits: int) -> None:
+        if not os.path.isabs(path):
+            path = os.path.join(workspace_root, path)
+        key = path if path.startswith("/proc/self") else os.path.realpath(path)
+        grants[key] = grants.get(key, 0) | (bits & handled_fs)
+
+    read_denied = _target_denied(policy, RuleTarget.FILE_READ)
+    write_denied = _target_denied(policy, RuleTarget.FILE_WRITE)
+
+    ro = LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR
+    if not read_denied:
+        # EXECUTE is required on the runtime tree: the kernel loads the ELF
+        # interpreter at execve time and that access is EXECUTE-checked too.
+        for p in ("/usr", "/lib", "/lib64", "/bin", "/sbin"):
+            grant(p, ro | LANDLOCK_ACCESS_FS_EXECUTE)
+        grant("/etc", ro)
+        cmd_path = shutil.which(command[0]) or command[0]
+        # The runtime needs more than the binary's dir: interpreters discover
+        # their stdlib/pyvenv.cfg from both the argv[0] tree and the resolved
+        # binary's install tree (venvs symlink to an external prefix).
+        for chain in (os.path.realpath(cmd_path), os.path.abspath(cmd_path)):
+            bin_dir = os.path.dirname(chain)
+            grant(bin_dir, ro | LANDLOCK_ACCESS_FS_EXECUTE)
+            parent = os.path.dirname(bin_dir)
+            if parent not in ("", "/"):
+                grant(parent, ro)  # install/venv root: lib/, pyvenv.cfg
+        for rule in policy.rules:
+            if rule.target == RuleTarget.FILE_READ and rule.action == SyscallAction.ALLOW:
+                if not rule.paths:
+                    grant("/", ro)  # path-blind allow-all-read, mirroring seccomp semantics
+                    continue
+                for p in rule.paths:
+                    anchor = _glob_anchor(p)
+                    if anchor is None:
+                        logger.debug("landlock: unbounded glob %s not representable (covered by base/cwd anchors)", p)
+                        continue
+                    grant(anchor, ro)
+
+    for rule in policy.rules:
+        if rule.target == RuleTarget.FILE_EXEC and rule.action == SyscallAction.ALLOW:
+            for p in rule.paths:
+                if "**" in p:
+                    logger.debug("landlock: unbounded exec glob %s skipped", p)
+                    continue
+                matches = sorted(_glob.glob(p)) if _has_glob_chars(p) else [p]
+                for m in matches:
+                    grant(m, LANDLOCK_ACCESS_FS_EXECUTE | LANDLOCK_ACCESS_FS_READ_FILE)
+
+    if not write_denied:
+        rw = handled_fs & ~LANDLOCK_ACCESS_FS_EXECUTE
+        # ponytail: workspace is data-not-code — execve of freshly written payloads
+        # is withheld; a runtime that must exec its own output needs a FILE_EXEC allow
+        grant(workspace_root, rw)
+        for rule in policy.rules:
+            if rule.target == RuleTarget.FILE_WRITE and rule.action == SyscallAction.ALLOW:
+                if not rule.paths:
+                    logger.debug("landlock: path-blind write allow not widened to '/' (ceiling: list paths)")
+                    continue
+                for p in rule.paths:
+                    anchor = _glob_anchor(p)
+                    if anchor is None:
+                        continue
+                    target = os.path.realpath(anchor if os.path.isabs(anchor) else os.path.join(workspace_root, anchor))
+                    if _is_ancestor_or_eq(target, workspace_root):
+                        grant(workspace_root, rw)  # tighten broad ancestors (e.g. /tmp) to the workspace
+                    else:
+                        grant(target, rw)
+
+    return sorted(grants.items())
+
+
+def _add_path_rule(libc: ctypes.CDLL, ruleset_fd: int, path: str, bits: int) -> None:
+    if bits == 0:
+        return
+    try:
+        path_fd = os.open(path, os.O_PATH | os.O_CLOEXEC)
+    except OSError:
+        logger.debug("landlock: skipping inaccessible path %s", path)
+        return
+    try:
+        mode = os.fstat(path_fd).st_mode
+        if not stat.S_ISDIR(mode):
+            if not stat.S_ISREG(mode):
+                # ponytail: chardev/fifo/socket inodes (e.g. /dev/null) cannot hold
+                # landlock rules — device writes stay denied; redirect to workspace
+                logger.debug("landlock: skipping non-regular path %s", path)
+                return
+            bits &= _FILE_ONLY_ACCESS  # directory-only rights on a file fd are EINVAL
+        rule_attr = _LandlockPathBeneathAttr()
+        rule_attr.allowed_access = bits
+        rule_attr.parent_fd = path_fd
+        _landlock_add_rule(libc, ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, rule_attr)
+    finally:
+        os.close(path_fd)
 
 
 class LandlockBackend(SandboxBackend):
@@ -187,16 +414,10 @@ class LandlockBackend(SandboxBackend):
             libc = ctypes.CDLL("libc.so.6", use_errno=True)
         except OSError:
             return False
-        attr = _LandlockRulesetAttr()
-        attr.handled_access_fs = LANDLOCK_ACCESS_FS_ALL
-        attr.handled_access_net = 0
-        try:
-            fd = _landlock_create_ruleset(libc, attr)
-            os.close(fd)
-            return True
-        except LandlockUnavailable:
-            logger.debug("landlock probe failed, marking unavailable")
+        if _landlock_abi_version(libc) < 1:
+            logger.debug("landlock ABI probe failed (not built in or disabled via lsm=)")
             return False
+        return True
 
     def run(
         self,
@@ -207,74 +428,54 @@ class LandlockBackend(SandboxBackend):
         env: dict | None = None,
     ) -> SandboxResult:
         if not self.is_available():
-            if self._fallback_to_seccomp:
-                from picosentry.sandbox.l3.backends.seccomp_backend import SeccompBackend
-
-                logger.info("landlock unavailable, falling back to seccomp-only")
-                return SeccompBackend().run(command, policy, timeout=timeout, cwd=cwd, env=env)
-            raise LandlockUnavailable("landlock backend unavailable and fallback disabled")
+            return self._unavailable(command, policy, timeout, cwd, env, "landlock unavailable")
 
         libc = self._get_libc()
         start_time = time.monotonic()
 
-        workspace_root = cwd or "/tmp"
-        read_only_paths = {"/usr", "/lib", "/lib64", "/bin", "/sbin", "/etc", "/proc", "/sys", "/dev"}
-        read_write_paths = {workspace_root}
+        abi = _landlock_abi_version(libc)
+        if abi < 1:
+            return self._unavailable(command, policy, timeout, cwd, env, "landlock ABI probe failed at run time")
+
+        workspace_root = os.path.realpath(cwd) if cwd else tempfile.mkdtemp(prefix="picodome-landlock-")
+        created_workspace = cwd is None
+
+        handled_fs = _abi_fs_bits(abi)
+        handled_net, net_ceilings = _net_handling(policy, abi)
+        if net_ceilings:
+            logger.warning(
+                "landlock: policy denies %s but this kernel (ABI %d) cannot enforce it",
+                ", ".join(net_ceilings),
+                abi,
+            )
+
+        grants = _build_grants(policy, command, workspace_root, handled_fs)
 
         attr = _LandlockRulesetAttr()
-        attr.handled_access_fs = LANDLOCK_ACCESS_FS_ALL
-        attr.handled_access_net = 0
+        attr.handled_access_fs = handled_fs
+        attr.handled_access_net = handled_net
 
         try:
             ruleset_fd = _landlock_create_ruleset(libc, attr)
         except LandlockUnavailable:
-            if self._fallback_to_seccomp:
-                from picosentry.sandbox.l3.backends.seccomp_backend import SeccompBackend
-
-                logger.info("landlock ruleset creation failed, falling back to seccomp-only")
-                return SeccompBackend().run(command, policy, timeout=timeout, cwd=cwd, env=env)
-            raise
+            if created_workspace:
+                shutil.rmtree(workspace_root, ignore_errors=True)
+            return self._unavailable(command, policy, timeout, cwd, env, "landlock ruleset creation failed")
 
         out_r: int | None = None
         err_r: int | None = None
         try:
-            for path in sorted(read_only_paths):
-                try:
-                    path_fd = os.open(path, os.O_PATH | os.O_DIRECTORY)
-                except OSError:
-                    logger.debug("landlock: skipping read-only path %s (not accessible)", path)
-                    continue
-                try:
-                    rule_attr = _LandlockPathBeneathAttr()
-                    rule_attr.allowed_access = (
-                        LANDLOCK_ACCESS_FS_READ_FILE | LANDLOCK_ACCESS_FS_READ_DIR | LANDLOCK_ACCESS_FS_EXECUTE
-                    )
-                    rule_attr.parent_fd = path_fd
-                    _landlock_add_rule(libc, ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, rule_attr)
-                finally:
-                    os.close(path_fd)
-
-            for path in sorted(read_write_paths):
-                try:
-                    path_fd = os.open(path, os.O_PATH | os.O_DIRECTORY)
-                except OSError:
-                    logger.debug("landlock: skipping read-write path %s (not accessible)", path)
-                    continue
-                try:
-                    rule_attr = _LandlockPathBeneathAttr()
-                    rule_attr.allowed_access = LANDLOCK_ACCESS_FS_ALL
-                    rule_attr.parent_fd = path_fd
-                    _landlock_add_rule(libc, ruleset_fd, LANDLOCK_RULE_PATH_BENEATH, rule_attr)
-                finally:
-                    os.close(path_fd)
+            for path, bits in grants:
+                if not path.startswith("/proc/self"):
+                    _add_path_rule(libc, ruleset_fd, path, bits)
 
             out_r, out_w = os.pipe()
             err_r, err_w = os.pipe()
 
             pid = os.fork()
             if pid == 0:
-                # Child: dup2 → chdir → rlimits → restrict → exec (mirrors seccomp
-                # ordering; cwd must be resolved before the ruleset applies).
+                # Child: dup2 → chdir → rlimits → no_new_privs → restrict → exec
+                # (cwd must be resolved before the ruleset applies).
                 os.close(out_r)
                 os.close(err_r)
                 os.dup2(out_w, 1)
@@ -292,6 +493,13 @@ class LandlockBackend(SandboxBackend):
                 except Exception:
                     os._exit(127)
 
+                # "/proc/self"-style grants resolve to this child only here.
+                for path, bits in grants:
+                    if path.startswith("/proc/self"):
+                        _add_path_rule(libc, ruleset_fd, path, bits)
+
+                if _set_no_new_privs(libc) != 0:
+                    os._exit(127)
                 if _landlock_restrict_self(libc, ruleset_fd) < 0:
                     os._exit(127)
                 os.close(ruleset_fd)
@@ -299,8 +507,10 @@ class LandlockBackend(SandboxBackend):
                     child_env = (
                         dict(env)
                         if env is not None
-                        else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
+                        else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG")}
                     )
+                    if env is None:
+                        child_env["TMPDIR"] = workspace_root
                     os.execvpe(command[0], command, child_env)
                 except Exception:
                     os._exit(126)
@@ -354,7 +564,12 @@ class LandlockBackend(SandboxBackend):
                 if leftover is not None:
                     with contextlib.suppress(OSError):
                         os.close(leftover)
+            if created_workspace:
+                shutil.rmtree(workspace_root, ignore_errors=True)
             raise
+
+        if created_workspace:
+            shutil.rmtree(workspace_root, ignore_errors=True)
 
         elapsed = time.monotonic() - start_time
 
@@ -370,10 +585,26 @@ class LandlockBackend(SandboxBackend):
             backend_name=self.name,
             isolation_level=self.isolation_level,
             enforcement_guarantee=self.enforcement_guarantee,
-            degraded=False,
+            degraded=bool(net_ceilings),
             stdout=b"".join(stdout_chunks).decode("utf-8", errors="replace").strip(),
             stderr=b"".join(stderr_chunks).decode("utf-8", errors="replace").strip(),
         )
+
+    def _unavailable(
+        self,
+        command: list[str],
+        policy: Policy,
+        timeout: float | None,
+        cwd: str | None,
+        env: dict | None,
+        reason: str,
+    ) -> SandboxResult:
+        if self._fallback_to_seccomp:
+            from picosentry.sandbox.l3.backends.seccomp_backend import SeccompBackend
+
+            logger.info("%s, falling back to seccomp-only", reason)
+            return SeccompBackend().run(command, policy, timeout=timeout, cwd=cwd, env=env)
+        raise LandlockUnavailable(f"{reason} and fallback disabled")
 
     def run_in_session(self, session: SandboxSession) -> SandboxResult:
         return self.run(

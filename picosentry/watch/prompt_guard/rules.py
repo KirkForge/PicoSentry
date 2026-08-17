@@ -100,7 +100,7 @@ def _extract_required_literals(parsed: list) -> tuple[tuple[str, ...], ...]:
 
 
 class RuleEngine:
-    def __init__(self, rules_dir: Path | None = None) -> None:
+    def __init__(self, rules_dir: Path | None = None, allowed_categories: frozenset[str] | None = None) -> None:
         self._rules_dir = rules_dir
         self._rules: list[Rule] = []
         self._compiled: dict[str, re.Pattern[str]] = {}
@@ -108,6 +108,7 @@ class RuleEngine:
         self._corpus_hash = "no-rules-loaded"
         self._rules_expected: int = 0
         self._load_errors: list[str] = []
+        self._allowed_categories = allowed_categories
         if rules_dir and rules_dir.exists():
             self._load_rules(rules_dir)
 
@@ -194,6 +195,12 @@ class RuleEngine:
             seen.add(rule.id)
             deduped.append(rule)
         self._rules = deduped
+        if self._allowed_categories is not None:
+            # Tenant profile selection (WO4.0.0-023): keep only the chosen
+            # categories. rules_expected still counts the full corpus so the
+            # coverage warning below only fires for genuine load failures.
+            deduped = [r for r in deduped if r.category in self._allowed_categories]
+            self._rules = deduped
         self._rules_expected = expected_count
 
         for rule in self._rules:
@@ -215,7 +222,9 @@ class RuleEngine:
 
         loaded = len(self._rules)
         errors = len(self._load_errors)
-        if loaded < expected_count:
+        if self._allowed_categories is not None:
+            logger.info("Loaded %d rules for profile categories %s", loaded, sorted(self._allowed_categories))
+        elif loaded < expected_count:
             logger.warning(
                 "Rule coverage gap: loaded %d/%d rules (%d errors). Rule IDs with issues: %s",
                 loaded,

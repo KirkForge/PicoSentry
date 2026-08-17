@@ -1,8 +1,7 @@
 # WO4.0.0-023 — Watch: API-compat gateway shim (prototype)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/gateway-shim`)
+**Status:** DONE (prototype scope, 2026-08-17, worktree `wo/4.0.0/scan-watch-p1`) — `picosentry/watch/gateway.py`: OpenAI-compatible `POST /v1/chat/completions` passthrough (httpx, lazy import, injectable client for tests); prompt scan BEFORE forward (blocked prompt never reaches upstream, 400 with `picowatch` metadata: verdict, score, rules, explanations with rule id + match span); output validated on the non-streaming response with metadata + optional `block_on_output_violation`. Streaming: full prompt scan + honest pass-through (`X-Picowatch-Output-Scanned: false`, `scan_stream_chunk` stub documents the chunk-boundary ceiling). Per-tenant profiles: `TenantProfile(allowed_categories, threshold_block)` selected by gateway API key (RuleEngine gained `allowed_categories`; profile threshold override copies the sub-config so it cannot leak into other profiles). Tests: tests/watch/test_gateway.py (5). Not built (documented in module docstring): retries, routing, usage rewriting, non-chat endpoints.
 **Priority:** P2 · Effort L · Risk M (scope creep — prototype minimal first)
 **Scope:** `picosentry/watch/` (new shim module), reuses prompt_guard/output_guard
 

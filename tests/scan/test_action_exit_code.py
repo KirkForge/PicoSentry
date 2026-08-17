@@ -106,8 +106,7 @@ class TestExitCodeEnforcement:
         """The clean_project fixture has no findings at all — exits 0 with --exit-code."""
         result = _scan("clean_project", ["--exit-code"])
         assert result.returncode == 0, (
-            f"clean project with --exit-code should exit 0, got {result.returncode}. "
-            f"stdout: {result.stdout[:200]}"
+            f"clean project with --exit-code should exit 0, got {result.returncode}. stdout: {result.stdout[:200]}"
         )
 
     def test_malicious_project_no_exit_code_exits_zero(self):

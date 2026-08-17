@@ -67,3 +67,47 @@ in `_seccomp_common.py`. Key properties:
 - **Tests:** `tests/sandbox/test_landlock_backend.py` validates kernel-version gate logic, fallback behavior, and arch-portable syscall number selection.
 - **CI matrix:** A `test-landlock` job is recommended on `ubuntu-24.04` (6.x kernel) to verify the landlock path, and on `ubuntu-22.04` (5.15 kernel) to verify seccomp-only fallback. `# ceiling: arm64 native sandbox CI blocked on runner availability`
 - **This is NOT a retraction of the Correction.** The Correction accurately documented that landlock was fiction at the time. This addendum records that the fiction is now real code with real tests.
+## Addendum (2026-08, WO4.0.0-001): Landlock made real
+
+The 2026-07 addendum shipped a backend that was dead on x86_64 and
+policy-blind everywhere (WO4.0.0-001 evidence). Corrected and verified on a
+kernel 7.0 x86_64 host (landlock ABI 8):
+
+- **Syscall table fixed:** the allocation is uniform across architectures —
+  `create_ruleset=444, add_rule=445, restrict_self=446` (x86_64
+  `syscall_64.tbl` matches `asm-generic/unistd.h`, which aarch64 uses). The
+  old table's x86_64 `(446,447,448)` called `restrict_self` as "create",
+  which is also why the availability probe surfaced EPERM.
+  `tests/sandbox/test_landlock_backend.py` derives the expected numbers from
+  installed kernel headers (never literals) and live-probes the ABI.
+- **Availability = ABI probe:** `landlock_create_ruleset(NULL, 0,
+  LANDLOCK_CREATE_RULESET_VERSION)` returns the highest supported ABI
+  (unprivileged, safe). Handled access bits are scoped by that ABI (REFER
+  needs 5.19/ABI2, TRUNCATE 6.2/ABI3, NET 6.7/ABI4); a 5.13–6.1 host now
+  probes clean instead of failing with generic EINVAL.
+- **no_new_privs:** the child calls `prctl(PR_SET_NO_NEW_PRIVS, 1)` before
+  `landlock_restrict_self` — required for unprivileged restriction (the old
+  code never set it; restrict would have failed EPERM even with correct
+  numbers).
+- **Policy translation:** `Policy` paths become path-beneath grants.
+  Launch parity with seccomp: the runtime tree (/usr, /lib, /bin, /sbin +
+  the command's binary dir and its install/venv root, incl. the ELF
+  interpreter, whose exec is EXECUTE-checked) stays readable/executable.
+  `cwd=None` gets a fresh private `mkdtemp` workspace (never bare `/tmp`);
+  write paths that are ancestors of the workspace are tightened to the
+  workspace; `/proc` is never granted wholesale (only `/proc/self`, resolved
+  in the child so it names the sandboxed process, not the parent);
+  no EXECUTE on `/dev` or the workspace (data-not-code). Network:
+  `network_out`/`network_bind` deny → handled NET bits with no rules (all
+  TCP connect/bind → EACCES) on ABI ≥ 4 kernels.
+- **Honest ceilings (marked `degraded=True` + warning, never silent):**
+  network deny on < 6.7 kernels; `network_in` and `dns_query` (UDP) are not
+  restrictable by landlock at any version; allow-side network scoping is
+  unhandled (no wildcard port — 65535 rules would be needed for "allow
+  all"); chardev nodes like `/dev/null` cannot hold landlock rules, so
+  device writes stay denied; seccomp+landlock composition (both filters in
+  one child) remains future defense-in-depth.
+- **Verified round-trips (PICODOME_HAS_LANDLOCK=1):** allow (`true`, `pwd`),
+  EACCES on writes outside the workspace into world-writable `/tmp`, EACCES
+  on TCP connect, and CLI-level `picosentry sandbox pipeline touch
+  /tmp/x --backend landlock` → DENY with no file created.

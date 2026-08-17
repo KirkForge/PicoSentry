@@ -202,3 +202,138 @@ class TestAuditIntegrity:
 
         invalid = sink.verify_audit_integrity()
         assert len(invalid) == 1
+
+
+class TestAuditWritePersistence:
+    """_audit_write: persistent locked connection, retry-once, drop counter."""
+
+    def _result(self) -> PromptScanResult:
+        return PromptScanResult(
+            blocked=False,
+            score=0.2,
+            rules_matched=[],
+            corpus_hash="abc",
+            corpus_version="1.0",
+            duration_ms=0.5,
+        )
+
+    def test_persistent_connection_reused_across_writes(self, tmp_path, monkeypatch) -> None:
+        """Only one sqlite connect for many records (no per-record connect)."""
+        import sqlite3
+
+        import picosentry.watch.telemetry.sink as sink_mod
+
+        config = TelemetryConfig(audit_db_path=tmp_path / "audit.db")
+        sink = TelemetrySink(config=config)
+
+        real_connect = sqlite3.connect
+        calls: list[int] = []
+
+        def counting_connect(*args, **kwargs):
+            calls.append(1)
+            return real_connect(*args, **kwargs)
+
+        monkeypatch.setattr(sink_mod.sqlite3, "connect", counting_connect)
+        for _ in range(5):
+            sink.record_prompt_scan(self._result())
+        assert len(calls) == 1  # single persistent connection for 5 records
+
+        conn = sqlite3.connect(str(config.audit_db_path))
+        assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == 5
+        conn.close()
+
+    def test_failed_write_increments_dropped_counter_and_logs(self, tmp_path, monkeypatch, caplog) -> None:
+        """Final write failure increments dropped_audit_records and logs the count."""
+        import logging
+        import sqlite3
+        from unittest.mock import MagicMock
+
+        import picosentry.watch.telemetry.sink as sink_mod
+
+        config = TelemetryConfig(audit_db_path=tmp_path / "audit.db")
+        sink = TelemetrySink(config=config)
+        assert sink.dropped_audit_records == 0
+        sink._audit_conn = None
+
+        broken = MagicMock()
+        broken.execute.side_effect = sqlite3.OperationalError("disk I/O error")
+        monkeypatch.setattr(sink_mod.sqlite3, "connect", MagicMock(return_value=broken))
+
+        with caplog.at_level(logging.WARNING, logger="picowatch"):
+            sink.record_prompt_scan(self._result())
+            sink.record_validation(
+                ValidationResult(
+                    valid=True,
+                    score=0.0,
+                    violations=[],
+                    corpus_hash="abc",
+                    corpus_version="1.0",
+                    duration_ms=0.5,
+                )
+            )
+
+        assert sink.dropped_audit_records == 2
+        assert "dropped_audit_records=2" in caplog.text
+
+    def test_transient_database_error_retries_then_succeeds(self, tmp_path) -> None:
+        """A stale connection is closed, reopened, and the record lands (self-heal)."""
+        import sqlite3
+
+        class StaleConn:
+            def execute(self, *args, **kwargs):
+                raise sqlite3.OperationalError("database is locked")
+
+            def close(self) -> None:
+                pass
+
+        config = TelemetryConfig(audit_db_path=tmp_path / "audit.db")
+        sink = TelemetrySink(config=config)
+        sink.record_prompt_scan(self._result())  # opens the persistent connection
+
+        stale = StaleConn()
+        sink._audit_conn = stale  # type: ignore[assignment]
+
+        sink.record_prompt_scan(self._result())
+
+        assert sink.dropped_audit_records == 0
+        assert sink._audit_conn is not stale  # self-healed onto a fresh connection
+        conn = sqlite3.connect(str(config.audit_db_path))
+        assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == 2
+        conn.close()
+
+    def test_concurrent_writes_from_threads_do_not_corrupt(self, tmp_path) -> None:
+        """Parallel writers serialize on the lock; all rows land, checksums valid."""
+        import threading
+
+        config = TelemetryConfig(audit_db_path=tmp_path / "audit.db")
+        sink = TelemetrySink(config=config)
+
+        n_threads, per_thread = 8, 10
+
+        def worker(tid: int) -> None:
+            for i in range(per_thread):
+                sink.record_prompt_scan(
+                    PromptScanResult(
+                        blocked=False,
+                        score=0.1,
+                        rules_matched=[],
+                        corpus_hash="abc",
+                        corpus_version="1.0",
+                        duration_ms=0.1,
+                        details={"worker": tid, "seq": i},
+                    )
+                )
+
+        threads = [threading.Thread(target=worker, args=(t,)) for t in range(n_threads)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        assert sink.dropped_audit_records == 0
+        assert sink.verify_audit_integrity() == []
+        import sqlite3
+
+        conn = sqlite3.connect(str(config.audit_db_path))
+        assert conn.execute("SELECT COUNT(*) FROM audit_log").fetchone()[0] == n_threads * per_thread
+        conn.close()

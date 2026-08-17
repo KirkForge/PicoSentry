@@ -343,6 +343,69 @@ class TestTraceOutputValidation:
             trace_output_validation(invalid_result)
 
 
+# ─── OTLP transport security (insecure flag) tests ──────────────────────
+
+
+class TestEndpointInsecure:
+    """OTLP exporter security must be derived from the endpoint scheme."""
+
+    def test_https_endpoint_is_secure(self, monkeypatch) -> None:
+        monkeypatch.delenv("PICOWATCH_OTEL_INSECURE", raising=False)
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("https://otel.example.com:4317") is False
+
+    def test_grpcs_endpoint_is_secure(self, monkeypatch) -> None:
+        monkeypatch.delenv("PICOWATCH_OTEL_INSECURE", raising=False)
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("grpcs://otel.example.com:4317") is False
+
+    def test_http_endpoint_is_insecure(self, monkeypatch) -> None:
+        monkeypatch.delenv("PICOWATCH_OTEL_INSECURE", raising=False)
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("http://otel.internal:4317") is True
+
+    def test_schemeless_endpoint_is_insecure(self, monkeypatch) -> None:
+        monkeypatch.delenv("PICOWATCH_OTEL_INSECURE", raising=False)
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("localhost:4317") is True
+
+    def test_env_override_forces_insecure(self, monkeypatch) -> None:
+        monkeypatch.setenv("PICOWATCH_OTEL_INSECURE", "true")
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("https://otel.example.com:4317") is True
+
+    def test_env_override_forces_secure(self, monkeypatch) -> None:
+        monkeypatch.setenv("PICOWATCH_OTEL_INSECURE", "false")
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("localhost:4317") is False
+
+    def test_env_override_garbage_falls_back_to_scheme(self, monkeypatch) -> None:
+        monkeypatch.setenv("PICOWATCH_OTEL_INSECURE", "maybe")
+        from picosentry.watch.telemetry.otel import _endpoint_insecure
+
+        assert _endpoint_insecure("https://otel.example.com:4317") is False
+
+    def test_init_tracing_passes_scheme_derived_insecure_to_exporter(self, clean_otel, monkeypatch) -> None:
+        """init_tracing(https://...) must not create a plaintext exporter."""
+        monkeypatch.delenv("PICOWATCH_OTEL_INSECURE", raising=False)
+        mock_modules = _make_mock_otel_modules()
+        with patch.dict(sys.modules, mock_modules):
+            from picosentry.watch.telemetry.otel import init_tracing
+
+            clean_otel._tracer = None
+            clean_otel._initialized = False
+            result = init_tracing(service_name="test-picowatch", endpoint="https://otel.example.com:4317")
+            assert result is True
+            exporter_cls = mock_modules["opentelemetry.exporter.otlp.proto.grpc.trace_exporter"].OTLPSpanExporter
+            assert exporter_cls.call_args.kwargs["insecure"] is False
+
+
 # ─── Server integration with OTel ────────────────────────────────────────
 
 

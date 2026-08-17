@@ -130,19 +130,23 @@ async def run_sandbox(
     # key, DB URL, webhook URLs, SMTP creds, etc. (PicoSentry-HIGH-1).
     env = {k: v for k, v in os.environ.items() if k not in _SANDBOX_ENV_DENYLIST}
 
-    # Require an explicit workspace root for POST /sandboxes.  Without it, the
-    # endpoint is disabled; with it, the endpoint only writes inside that root.
+    # Workspace-root gate, mirroring POST /scans: without an explicit root the
+    # endpoint is disabled (503) — previously it ran at the server's CWD.
+    # With a root configured, the sandbox runs inside that directory only.
     # This does not make seccomp path-aware (it cannot be), but it bounds the
     # blast radius to one configured directory per deployment.
     workspace_root = settings.security.scans_workspace_root
-    sandbox_cwd: str | None = None
-    if workspace_root is not None:
-        try:
-            workspace_root = Path(workspace_root).resolve()
-            env["PICOSHOGUN_SANDBOX_WORKSPACE_ROOT"] = str(workspace_root)
-            sandbox_cwd = str(workspace_root)
-        except (OSError, RuntimeError):
-            pass
+    if workspace_root is None:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "POST /sandboxes is disabled: PICOSHOGUN_SCANS_WORKSPACE_ROOT is not "
+                "configured. Set it to a directory operators are allowed to run sandboxes in."
+            ),
+        )
+    workspace_root = Path(workspace_root).resolve()
+    env["PICOSHOGUN_SANDBOX_WORKSPACE_ROOT"] = str(workspace_root)
+    sandbox_cwd = str(workspace_root)
 
     try:
         result = await asyncio.to_thread(

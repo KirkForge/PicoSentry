@@ -244,6 +244,25 @@ def _detect_backend(
                 available_backends=available,
             )
 
+        if requested == "landlock":
+            # Explicit-selection only: NOT in the auto-detect path — the landlock
+            # kernel feature (CONFIG_LSM + >= 5.13) is less common than libseccomp,
+            # so auto-picking it would flip behavior between hosts.
+            from picosentry.sandbox.l3.backends.landlock_backend import LandlockBackend
+
+            landlock_backend = LandlockBackend()
+            if landlock_backend.is_available():
+                logger.info("Using landlock backend (explicitly requested)")
+                return landlock_backend
+            if allow_degraded:
+                logger.warning("landlock requested but unavailable — degrading to subprocess (allow_degraded=True)")
+                return SubprocessBackend()
+            raise BackendUnavailableError(
+                "landlock",
+                "landlock not available (requires Linux >= 5.13 with landlock LSM enabled)",
+                available_backends=available,
+            )
+
         if requested == "subprocess":
             logger.info("Using subprocess backend (explicitly requested)")
             return SubprocessBackend()

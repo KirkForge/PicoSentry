@@ -7,6 +7,7 @@ import json
 import logging
 import os
 import sqlite3
+import threading
 import time
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -43,6 +44,10 @@ class TelemetrySink:
         self._init_audit_db()
 
         self.cleanup_audit()
+
+        self._audit_lock = threading.Lock()
+        self._audit_conn: sqlite3.Connection | None = None
+        self.dropped_audit_records = 0
 
     def _init_audit_db(self) -> None:
         conn = sqlite3.connect(str(self._config.audit_db_path))
@@ -190,6 +195,18 @@ class TelemetrySink:
             details=json.dumps(result.details) if result.details else None,
         )
 
+    _AUDIT_INSERT = """
+        INSERT INTO audit_log
+            (timestamp, event_type, request_id, score, verdict, rules, details, checksum)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    """
+
+    def _close_audit_conn(self) -> None:
+        if self._audit_conn is not None:
+            with contextlib.suppress(sqlite3.Error):
+                self._audit_conn.close()
+            self._audit_conn = None
+
     def _audit_write(
         self,
         event_type: str,
@@ -201,32 +218,26 @@ class TelemetrySink:
     ) -> None:
         timestamp = datetime.now(timezone.utc).isoformat()
         checksum = self._compute_checksum(timestamp, event_type, request_id, score, verdict, rules)
-        conn = None
-        try:
-            conn = sqlite3.connect(str(self._config.audit_db_path))
-            conn.execute(
-                """
-                INSERT INTO audit_log
-                    (timestamp, event_type, request_id, score, verdict, rules, details, checksum)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """,
-                (
-                    timestamp,
-                    event_type,
-                    request_id,
-                    score,
-                    verdict,
-                    rules,
-                    details,
-                    checksum,
-                ),
-            )
-            conn.commit()
-        except sqlite3.Error:
-            logger.warning("Failed to write audit log entry")
-        finally:
-            if conn:
-                conn.close()
+        row = (timestamp, event_type, request_id, score, verdict, rules, details, checksum)
+        # Called from async handlers: one locked write on a persistent connection
+        # keeps the event-loop blocking window to a single INSERT+commit.
+        with self._audit_lock:
+            for attempt in (1, 2):
+                try:
+                    if self._audit_conn is None:
+                        self._audit_conn = sqlite3.connect(str(self._config.audit_db_path), check_same_thread=False)
+                    self._audit_conn.execute(self._AUDIT_INSERT, row)
+                    self._audit_conn.commit()
+                    return
+                except sqlite3.DatabaseError:
+                    # Self-heal: drop the (possibly stale/corrupt) connection and retry once.
+                    self._close_audit_conn()
+                    if attempt == 2:
+                        self.dropped_audit_records += 1
+                        logger.warning(
+                            "Failed to write audit log entry after retry (dropped_audit_records=%d)",
+                            self.dropped_audit_records,
+                        )
 
     def verify_audit_integrity(self) -> list[int]:
         invalid_rows: list[int] = []

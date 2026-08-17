@@ -1,7 +1,7 @@
 import logging
 import sqlite3
 import threading
-from collections import defaultdict
+from collections import OrderedDict, defaultdict
 from datetime import datetime, timezone
 from typing import Any, cast
 
@@ -34,12 +34,16 @@ if psycopg2 is not None:
 
 logger = logging.getLogger("picoshogun.Alerts")
 
+# Cooldown bookkeeping is unbounded key growth otherwise (one entry per
+# project:alert_type ever seen); LRU-capped like the rate limiter's buckets.
+_MAX_RECENT_KEYS = 1024
+
 
 class AlertHub:
     """Routes alerts to configured channels (Discord, Slack, email, syslog) with cooldown deduplication."""
 
     def __init__(self):
-        self.recent_alerts = defaultdict(list)
+        self.recent_alerts: OrderedDict[str, list[datetime]] = OrderedDict()
         self.cooldown_seconds = settings.alerts.cooldown_seconds
         self.max_retries = settings.alerts.max_retries
         self._lock = threading.Lock()
@@ -72,6 +76,9 @@ class AlertHub:
                     return False
 
             self.recent_alerts[key].append(now)
+            self.recent_alerts.move_to_end(key)
+            while len(self.recent_alerts) > _MAX_RECENT_KEYS:
+                self.recent_alerts.popitem(last=False)
 
         alert_ids = []
         for channel in channels:

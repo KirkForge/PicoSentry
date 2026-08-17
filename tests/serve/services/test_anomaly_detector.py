@@ -137,3 +137,30 @@ class TestAnomalyDetectorHardening:
 
         with pytest.raises(NameError, match="programmer mistake"):
             detector._background_loop()
+
+
+class TestRuleThresholdBounds:
+    """Router validation must accept the thresholds shipped rules actually use."""
+
+    def test_thresholds_above_one_are_accepted(self):
+
+        from picosentry.serve.api.routers.anomaly import AnomalyRuleUpdateRequest
+
+        assert AnomalyRuleUpdateRequest(threshold=85.0).threshold == 85.0
+        assert AnomalyRuleUpdateRequest(threshold=1e9).threshold == 1e9
+
+    def test_negative_threshold_still_rejected(self):
+        from pydantic import ValidationError
+
+        from picosentry.serve.api.routers.anomaly import AnomalyRuleUpdateRequest
+
+        with pytest.raises(ValidationError):
+            AnomalyRuleUpdateRequest(threshold=-0.1)
+
+    def test_every_shipped_rule_threshold_is_valid(self):
+
+        from picosentry.serve.api.routers.anomaly import AnomalyRuleUpdateRequest
+        from picosentry.serve.services.anomaly_detector import DEFAULT_RULES
+
+        for rule in DEFAULT_RULES:  # shipped rules use 5/10/85 — raw values, not ratios
+            AnomalyRuleUpdateRequest(threshold=rule["threshold"])

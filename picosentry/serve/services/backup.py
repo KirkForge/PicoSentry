@@ -249,6 +249,17 @@ class BackupManager:
 
             db_backup = temp_dir / "database.sqlite3"
             if db_backup.exists():
+                # Coordinate with the live pool before swapping the file:
+                # close every thread's connection (close_all), copy the safety
+                # backup while the WAL is checkpointed, drop the -wal/-shm side
+                # files (a stale -wal replayed onto the restored DB corrupts
+                # it), then swap. Pools re-open lazily — acquire() probes
+                # liveness and reconnects to the restored file.
+                from picosentry.serve.database.manager import db as live_db
+
+                live_db.close()
+                for suffix in ("-wal", "-shm"):
+                    Path(f"{self.db_path}{suffix}").unlink(missing_ok=True)
                 current_backup = f"{self.db_path}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
                 shutil.copy2(str(self.db_path), current_backup)
 

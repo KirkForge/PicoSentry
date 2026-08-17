@@ -223,6 +223,34 @@ class TestScansWorkspace:
         )
         assert r.status_code in (401, 403, 503)
 
+    def test_sandbox_without_workspace_root_returns_503(self, client, monkeypatch):
+        """POST /sandboxes must mirror the /scans gate: no workspace root → disabled (503),
+        never a silent fallback to running at the server's CWD."""
+        import uuid as _uuid
+
+        from picosentry.serve.api.deps import auth_service
+        from picosentry.serve.config.settings import settings as _settings
+        from picosentry.serve.services.orgs import Organization
+
+        suffix = _uuid.uuid4().hex[:8]
+        op_id = auth_service.create_user(
+            username=f"sbx-op-{suffix}",
+            password="correct-horse-battery-staple",
+            email=f"sbx-op-{suffix}@example.com",
+            role="operator",
+        )
+        Organization.create(name=f"sbx-org-{suffix}", slug=f"sbx-org-{suffix}", owner_user_id=op_id, tier="free")
+        token = auth_service._generate_token(op_id, f"sbx-op-{suffix}", "operator")
+
+        monkeypatch.setattr(_settings.security, "scans_workspace_root", None)
+        r = client.post(
+            "/api/v1/sandboxes",
+            json={"command": ["true"], "timeout": 5},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r.status_code == 503, f"unset workspace should disable /sandboxes; got {r.status_code}: {r.text}"
+        assert "SCANS_WORKSPACE_ROOT" in r.text
+
     def test_scan_inside_workspace_allowed(self, client, auth_token, monkeypatch, tmp_path):
         from picosentry.serve.api.deps import auth_service
         from picosentry.serve.services.orgs import Organization

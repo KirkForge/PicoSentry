@@ -283,7 +283,15 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                         (project_id,),
                     )
                     if retry_count and retry_count["c"] < settings.orchestrator.retry_max:
-                        logger.info("Will retry %s after %ss", project_id, settings.orchestrator.retry_delay)
+                        delay = settings.orchestrator.retry_delay
+                        logger.info("Scheduling retry of %s in %ss", project_id, delay)
+                        # Daemon so an in-flight retry never blocks interpreter
+                        # exit. ponytail: in-process timer only — multi-worker
+                        # deployments retry per worker; persisted retry queue
+                        # if that ever matters.
+                        timer = threading.Timer(delay, self.run_project, args=(project_id, timeout, org_id))
+                        timer.daemon = True
+                        timer.start()
 
             db.execute_insert(
                 """

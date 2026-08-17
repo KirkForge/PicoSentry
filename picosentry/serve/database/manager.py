@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import contextlib
 import logging
 import sqlite3
 import sys
@@ -46,6 +47,9 @@ class DatabaseManager:
         self._backend = backend or settings.database.backend
         self._pool = create_pool(backend=self._backend, db_path=db_path)
         self._lock = self._pool.lock() if isinstance(self._pool, SQLitePool) else threading.Lock()
+        # Per-thread transaction() depth: execute() must not commit/rollback
+        # a transaction opened by an enclosing transaction() on this thread.
+        self._tx_depth = threading.local()
         self._init_migrations()
 
     @property
@@ -83,9 +87,14 @@ class DatabaseManager:
     def _get_connection(self):
         return self._pool.acquire()
 
+    def _in_transaction(self) -> bool:
+        return getattr(self._tx_depth, "depth", 0) > 0
+
     @contextmanager
     def transaction(self, immediate: bool = False):
         conn = self._get_connection()
+        depth = getattr(self._tx_depth, "depth", 0) + 1
+        self._tx_depth.depth = depth
         try:
             if isinstance(self._pool, SQLitePool):
                 # BEGIN IMMEDIATE takes the write lock up front, so concurrent
@@ -99,6 +108,8 @@ class DatabaseManager:
         except BaseException:
             conn.rollback()
             raise
+        finally:
+            self._tx_depth.depth = depth - 1
 
     def _cursor(self, conn, sql: str, params: tuple = ()):
         """Execute SQL and return cursor, handling backend differences.
@@ -122,10 +133,38 @@ class DatabaseManager:
         cols = [desc[0] for desc in cursor.description] if cursor.description else []
         return dict(zip(cols, row, strict=False))
 
+    def _finish_pg_statement(self, conn, cursor_description) -> None:
+        """End the implicit per-statement transaction on the postgres path.
+
+        PostgresPool connections run autocommit=False, so without this every
+        execute() left an idle-in-transaction session (snapshot/lock retention)
+        and DML was lost on restart unless a later execute_insert() happened to
+        commit the bleed-together transaction. Result-set statements (SELECT)
+        are rolled back — releasing the snapshot is enough; DML/DDL (no result
+        set) are committed so they are durable immediately. No-op on SQLite
+        (isolation_level=None connections are always autocommit) and inside an
+        explicit transaction() (the caller owns commit/rollback).
+        """
+        if isinstance(self._pool, SQLitePool) or self._in_transaction():
+            return
+        if cursor_description is None:
+            conn.commit()
+        else:
+            conn.rollback()
+
     def execute(self, sql: str, params: tuple = ()) -> list:
         with self._lock:
             conn = self._get_connection()
-            cursor = self._cursor(conn, sql, params)
+            try:
+                cursor = self._cursor(conn, sql, params)
+            except BaseException:
+                if not isinstance(self._pool, SQLitePool) and not self._in_transaction():
+                    # Clear the aborted transaction so the pooled connection
+                    # stays usable for the next statement.
+                    with contextlib.suppress(Exception):
+                        conn.rollback()
+                raise
+            self._finish_pg_statement(conn, cursor.description)
             # DDL and DML statements do not return a result set. SQLite tolerates
             # fetchall() in that case, but psycopg2 raises ProgrammingError, so
             # we guard on cursor.description before fetching.
@@ -160,7 +199,7 @@ class DatabaseManager:
             # session. Tables without a serial column will raise; we return 0.
             try:
                 cursor.execute("SELECT lastval()")
-                return cursor.fetchone()[0]
+                value = cursor.fetchone()[0]
             except Exception:
                 # lastval() can fail for tables without a serial column or when
                 # psycopg2 exposes OperationalError/ProgrammingError. We want to
@@ -170,8 +209,17 @@ class DatabaseManager:
                 # exception is a psycopg2 error before deciding to swallow it.
                 if psycopg2 is not None and isinstance(sys.exc_info()[1], psycopg2.Error):
                     logger.debug("lastval() not available for this table; returning 0")
-                    return 0
-                raise
+                    value = 0
+                else:
+                    raise
+            finally:
+                if not isinstance(self._pool, SQLitePool) and not self._in_transaction():
+                    # The lastval() SELECT (or its failure) opened/aborted
+                    # another implicit transaction; close it so the pooled
+                    # connection is clean for the next statement.
+                    with contextlib.suppress(Exception):
+                        conn.rollback()
+            return value
 
     def _migrate_orgs_api_key_hash(self):
 

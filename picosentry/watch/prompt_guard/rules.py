@@ -11,6 +11,9 @@ from picosentry.watch.types import Rule
 
 logger = logging.getLogger("picowatch.rules")
 
+# Keys Rule() actually consumes — anything else in a rule dict is a typo or drift.
+_RULE_FIELDS = frozenset({"id", "category", "weight", "pattern", "description", "normalization"})
+
 
 class RuleEngine:
     def __init__(self, rules_dir: Path | None = None) -> None:
@@ -62,6 +65,11 @@ class RuleEngine:
                     if not isinstance(rd, dict):
                         continue
                     expected_count += 1
+                    unknown_keys = set(rd) - _RULE_FIELDS
+                    if unknown_keys:
+                        msg = f"Unknown key(s) {', '.join(sorted(unknown_keys))} in rule in {yaml_file.name}"
+                        logger.warning(msg)
+                        self._load_errors.append(msg)
                     try:
                         rule = Rule(
                             id=rd["id"],

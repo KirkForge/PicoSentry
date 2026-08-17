@@ -6,6 +6,7 @@ import datetime
 import logging
 import os
 import platform
+import select
 import signal
 import time
 from typing import TYPE_CHECKING
@@ -234,6 +235,8 @@ class LandlockBackend(SandboxBackend):
                 return SeccompBackend().run(command, policy, timeout=timeout, cwd=cwd, env=env)
             raise
 
+        out_r: int | None = None
+        err_r: int | None = None
         try:
             for path in sorted(read_only_paths):
                 try:
@@ -265,14 +268,32 @@ class LandlockBackend(SandboxBackend):
                 finally:
                     os.close(path_fd)
 
+            out_r, out_w = os.pipe()
+            err_r, err_w = os.pipe()
+
             pid = os.fork()
             if pid == 0:
+                # Child: dup2 → chdir → rlimits → restrict → exec (mirrors seccomp
+                # ordering; cwd must be resolved before the ruleset applies).
+                os.close(out_r)
+                os.close(err_r)
+                os.dup2(out_w, 1)
+                os.dup2(err_w, 2)
+                os.close(out_w)
+                os.close(err_w)
+
+                if cwd:
+                    try:
+                        os.chdir(cwd)
+                    except OSError:
+                        os._exit(125)  # distinct code: requested cwd unusable
                 try:
                     set_resource_limits()
-                    _landlock_restrict_self(libc, ruleset_fd)
                 except Exception:
                     os._exit(127)
 
+                if _landlock_restrict_self(libc, ruleset_fd) < 0:
+                    os._exit(127)
                 os.close(ruleset_fd)
                 try:
                     child_env = (
@@ -285,9 +306,22 @@ class LandlockBackend(SandboxBackend):
                     os._exit(126)
             else:
                 os.close(ruleset_fd)
-                deadline = time.monotonic() + (timeout or 30.0)
+                os.close(out_w)
+                os.close(err_w)
+
+                stdout_chunks: list[bytes] = []
+                stderr_chunks: list[bytes] = []
                 exit_code: int | None = None
+                deadline = time.monotonic() + (timeout or 30.0)
                 while exit_code is None:
+                    # Drain while polling: a child writing >64KB would otherwise
+                    # block on the pipe buffer and never reach the deadline check.
+                    rlist, _, _ = select.select([out_r, err_r], [], [], 0.05)
+                    for fd in rlist:
+                        data = os.read(fd, 65536)
+                        if data:
+                            (stdout_chunks if fd == out_r else stderr_chunks).append(data)
+
                     wpid, status = os.waitpid(pid, os.WNOHANG)
                     if wpid == pid:
                         exit_code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -os.WTERMSIG(status)
@@ -298,10 +332,28 @@ class LandlockBackend(SandboxBackend):
                             _, status = os.waitpid(pid, 0)
                         exit_code = -9
                         break
-                    time.sleep(0.05)
+
+                # Final drain: child has exited and its write ends are closed (EOF).
+                for fd, chunks in ((out_r, stdout_chunks), (err_r, stderr_chunks)):
+                    with contextlib.suppress(OSError):
+                        os.set_blocking(fd, False)
+                    try:
+                        while True:
+                            data = os.read(fd, 65536)
+                            if not data:
+                                break
+                            chunks.append(data)
+                    except OSError:
+                        pass
+                    with contextlib.suppress(OSError):
+                        os.close(fd)
         except Exception:
             with contextlib.suppress(OSError):
                 os.close(ruleset_fd)
+            for leftover in (out_r, err_r):
+                if leftover is not None:
+                    with contextlib.suppress(OSError):
+                        os.close(leftover)
             raise
 
         elapsed = time.monotonic() - start_time
@@ -315,9 +367,12 @@ class LandlockBackend(SandboxBackend):
             duration_ms=int(elapsed * 1000),
             events=[],
             policy_name=policy.name if hasattr(policy, "name") else "landlock-default",
+            backend_name=self.name,
+            isolation_level=self.isolation_level,
+            enforcement_guarantee=self.enforcement_guarantee,
             degraded=False,
-            stdout="",
-            stderr="",
+            stdout=b"".join(stdout_chunks).decode("utf-8", errors="replace").strip(),
+            stderr=b"".join(stderr_chunks).decode("utf-8", errors="replace").strip(),
         )
 
     def run_in_session(self, session: SandboxSession) -> SandboxResult:

@@ -146,3 +146,39 @@ def test_restore_wrong_key_fails_safely(
         assert manager.restore_backup(str(backup_path), force=True) is False
     assert "decryption/integrity" in caplog.text
     assert (tmp_path / "db.sqlite3").read_text() == "test db"  # untouched
+
+
+def test_restore_under_live_pool_swaps_state(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """write -> backup -> mutate -> restore: the live pool must serve restored state.
+
+    restore_backup closes the manager's pool (all threads), drops stale
+    -wal/-shm side files, swaps the file, and the pool re-opens lazily on the
+    next query.
+    """
+    from picosentry.serve.config.settings import settings
+    from picosentry.serve.database import manager as db_manager_mod
+    from picosentry.serve.database.manager import DatabaseManager
+
+    db_file = tmp_path / "live.db"
+    monkeypatch.setattr(settings.database, "path", db_file)
+    monkeypatch.setattr(settings.database, "backup_dir", tmp_path / "backups")
+
+    mgr = DatabaseManager(db_path=db_file, backend="sqlite")
+    monkeypatch.setattr(db_manager_mod, "db", mgr)  # restore coordinates with this pool
+
+    mgr.execute("CREATE TABLE state (k TEXT, v TEXT)")
+    mgr.execute("INSERT INTO state (k, v) VALUES ('shape', 'original')")
+
+    bm = BackupManager()
+    backup = bm.create_backup(name="restore_pool", include_logs=False)
+    assert backup is not None
+
+    mgr.execute("UPDATE state SET v = 'mutated' WHERE k = 'shape'")
+    assert mgr.execute_one("SELECT v FROM state WHERE k = 'shape'")["v"] == "mutated"
+
+    assert bm.restore_backup(backup["path"], force=True) is True
+
+    # Pool was closed by the restore; this read re-opens lazily and must see
+    # the restored (pre-mutation) state.
+    assert mgr.execute_one("SELECT v FROM state WHERE k = 'shape'")["v"] == "original"
+    mgr.close()

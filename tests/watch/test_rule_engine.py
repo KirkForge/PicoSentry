@@ -186,6 +186,44 @@ class TestRuleEngine:
         h2 = RuleEngine(tmp_path2).corpus_hash
         assert h1 == h2
 
+    def test_unknown_keys_surface_as_load_errors(self, tmp_path) -> None:
+        """A typo'd rule key (e.g. wheight) is reported via load_errors, not silently dropped."""
+        rules = [
+            {
+                "id": "rule-typo",
+                "category": "injection",
+                "wheight": 0.9,  # typo: weight
+                "pattern": r"ignore\s+previous",
+                "description": "Typo'd key must not vanish silently",
+            }
+        ]
+        self._write(tmp_path / "rules.yaml", rules)
+
+        engine = RuleEngine(tmp_path)
+        assert any("wheight" in err and "Unknown key" in err for err in engine.load_errors)
+        # The rule itself still loads from its valid keys.
+        assert engine.rules_loaded == 1
+        assert engine.rules_expected == 1
+
+    def test_multiple_unknown_keys_all_listed(self, tmp_path) -> None:
+        """Every unknown key is named in one load error."""
+        rules = [
+            {
+                "id": "rule-multi",
+                "category": "injection",
+                "weight": 0.5,
+                "pattern": r"dump\s+rules",
+                "zeta": 1,
+                "alpha": 2,
+            }
+        ]
+        self._write(tmp_path / "rules.yaml", rules)
+
+        engine = RuleEngine(tmp_path)
+        assert len(engine.load_errors) == 1
+        assert "alpha" in engine.load_errors[0]
+        assert "zeta" in engine.load_errors[0]
+
     @staticmethod
     def _write(path, data) -> None:
         path.write_text(yaml.safe_dump(data), encoding="utf-8")

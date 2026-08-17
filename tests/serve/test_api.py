@@ -304,7 +304,7 @@ class TestAuthEndpoints:
     def test_login_invalid_credentials(self, client):
         resp = client.post(
             "/auth/login",
-            json={"username": "nonexistent", "password": "wrong"},
+            json={"username": "nonexistent", "password": "wrong-password"},
         )
         assert resp.status_code == 401
 

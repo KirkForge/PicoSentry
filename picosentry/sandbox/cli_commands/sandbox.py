@@ -26,9 +26,9 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument(
         "--backend",
         "-b",
-        choices=["auto", "seccomp-bpf", "seccomp-trace", "seatbelt", "subprocess"],
+        choices=["auto", "seccomp-bpf", "seccomp-trace", "seatbelt", "landlock", "subprocess"],
         default="auto",
-        help="Sandbox backend: auto (default), seccomp-bpf, seccomp-trace, seatbelt, subprocess",
+        help="Sandbox backend: auto (default), seccomp-bpf, seccomp-trace, seatbelt, landlock, subprocess",
     )
     parser.add_argument(
         "--allow-degraded",

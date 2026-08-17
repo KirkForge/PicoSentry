@@ -834,6 +834,16 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit_log(severity, created_at);
     """,
     ),
+    Migration(
+        17,
+        "add_totp_last_used_timestep",
+        """
+        ALTER TABLE users ADD COLUMN totp_last_timestep INTEGER;
+    """,
+        postgres_sql="""
+        ALTER TABLE users ADD COLUMN IF NOT EXISTS totp_last_timestep INTEGER;
+    """,
+    ),
 ]
 
 __all__ = [

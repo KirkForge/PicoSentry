@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any, TYPE_CHECKING
 
 from picosentry.watch import __version__
@@ -9,6 +10,30 @@ if TYPE_CHECKING:
     from picosentry.watch.types import PromptScanResult, ValidationResult
 
 logger = logging.getLogger("picowatch.otel")
+
+_INSECURE_ENV = "PICOWATCH_OTEL_INSECURE"
+_TRUTHY = ("1", "true", "yes")
+_FALSY = ("0", "false", "no")
+
+
+def _endpoint_insecure(endpoint: str) -> bool:
+    """Decide OTLP transport security: TLS schemes are secure, everything else plaintext.
+
+    ``PICOWATCH_OTEL_INSECURE`` overrides the scheme-derived default (prompt
+    metadata rides on these spans — defaulting to plaintext over the network
+    leaks it).
+    """
+    override = os.environ.get(_INSECURE_ENV)
+    if override is not None:
+        val = override.strip().lower()
+        if val in _TRUTHY:
+            return True
+        if val in _FALSY:
+            return False
+        logger.warning(
+            "%s=%r not recognized (expected true/false) — falling back to endpoint scheme", _INSECURE_ENV, override
+        )
+    return not endpoint.startswith(("https://", "grpcs://"))
 
 
 _tracer: Any = None
@@ -30,7 +55,7 @@ def init_tracing(service_name: str = "picowatch", endpoint: str | None = None) -
         if endpoint:
             from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
 
-            exporter = OTLPSpanExporter(endpoint=endpoint, insecure=True)
+            exporter = OTLPSpanExporter(endpoint=endpoint, insecure=_endpoint_insecure(endpoint))
             provider.add_span_processor(BatchSpanProcessor(exporter))
 
         trace.set_tracer_provider(provider)

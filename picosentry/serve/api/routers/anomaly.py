@@ -14,7 +14,9 @@ class AnomalyRuleUpdateRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     enabled: bool | None = None
-    threshold: float | None = Field(None, ge=0.0, le=1.0)
+    # Shipped rules use thresholds like 5/10/85 (raw metric values, not
+    # ratios) — no upper bound, only non-negative.
+    threshold: float | None = Field(None, ge=0.0)
 
 
 def _get_anomaly_detector():

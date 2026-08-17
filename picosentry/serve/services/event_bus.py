@@ -131,9 +131,5 @@ class EventBus:
 event_bus = EventBus()
 
 
-def emit(event_type: str, **kwargs):
-    return event_bus.publish(event_type, kwargs)
-
-
 def on(event_type: str, callback: Callable):
     return event_bus.subscribe(event_type, callback)

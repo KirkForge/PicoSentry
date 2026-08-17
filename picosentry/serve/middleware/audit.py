@@ -1,4 +1,9 @@
+import asyncio
+import atexit
 import logging
+import queue
+import threading
+import time
 from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -10,6 +15,86 @@ except ImportError:
     psycopg2 = cast("Any", None)
 
 logger = logging.getLogger("picoshogun.Audit")
+
+_AUDIT_QUEUE_SIZE = 1024
+# How long a request may wait for its audit row to reach the DB. The write
+# itself always runs on the writer thread — the event loop is never blocked;
+# this only bounds response latency when the writer is backed up.
+# ponytail: waiting keeps rows durable before the response and append failures
+# logged synchronously with the request; drop to 0 (pure fire-and-forget) once
+# audit failure handling is decoupled from request completion.
+_AUDIT_WRITE_WAIT_SECONDS = 1.0
+
+
+class _AuditItem:
+    __slots__ = ("done", "fields")
+
+    def __init__(self, fields: dict):
+        self.fields = fields
+        self.done = threading.Event()
+
+
+class _AuditWriter:
+    """Single daemon writer thread for audit rows.
+
+    append_audit_row() opens a BEGIN IMMEDIATE transaction and fsyncs; calling
+    it inline in dispatch blocked the event loop on every request. One FIFO
+    queue + one writer thread also preserves the hash chain's global append
+    order.
+    """
+
+    def __init__(self, maxsize: int = _AUDIT_QUEUE_SIZE):
+        self._queue: queue.Queue[_AuditItem] = queue.Queue(maxsize=maxsize)
+        self.dropped = 0  # monotonic drop counter; metric wiring later
+        self._thread = threading.Thread(target=self._run, name="audit-writer", daemon=True)
+        self._thread.start()
+        # Best-effort drain at shutdown. ponytail: BaseHTTPMiddleware has no
+        # lifespan hook we can reach without editing server.py; atexit runs
+        # before daemon threads are killed, so queued rows get one flush.
+        atexit.register(self.flush)
+
+    def submit(self, fields: dict) -> threading.Event | None:
+        """Enqueue one append_audit_row() call; returns None when dropped."""
+        item = _AuditItem(fields)
+        try:
+            self._queue.put(item, block=False)
+        except queue.Full:
+            self.dropped += 1
+            logger.warning("Audit queue full — dropping row (dropped so far: %d)", self.dropped)
+            return None
+        return item.done
+
+    def _run(self) -> None:
+        while True:
+            item = self._queue.get()
+            try:
+                # Imported per item so tests (and reloads) can patch the chain.
+                from picosentry.serve.services.audit_chain import append_audit_row
+
+                append_audit_row(**item.fields)
+            except Exception:
+                logger.exception("Unexpected error writing audit row")
+            finally:
+                item.done.set()
+
+    def flush(self, timeout: float = 2.0) -> None:
+        deadline = time.monotonic() + timeout
+        while not self._queue.empty() and time.monotonic() < deadline:
+            time.sleep(0.01)
+
+
+_writer: _AuditWriter | None = None
+_writer_lock = threading.Lock()
+
+
+def _get_writer() -> _AuditWriter:
+    global _writer
+    if _writer is None:
+        with _writer_lock:
+            if _writer is None:
+                _writer = _AuditWriter()
+    return _writer
+
 
 _auth_svc = None
 
@@ -90,20 +175,24 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         db = _get_db()
         if db:
-            from picosentry.serve.services.audit_chain import append_audit_row
-
-            append_audit_row(
-                action=method,
-                user_id=_user_id,
-                resource_type="api",
-                resource_id=path,
-                details=details,
-                ip_address=ip_address,
-                user_agent=user_agent,
-                severity="default",
-                org_id=None,
-                database=db,
+            done = _get_writer().submit(
+                {
+                    "action": method,
+                    "user_id": _user_id,
+                    "resource_type": "api",
+                    "resource_id": path,
+                    "details": details,
+                    "ip_address": ip_address,
+                    "user_agent": user_agent,
+                    "severity": "default",
+                    "org_id": None,
+                    "database": db,
+                }
             )
+            if done is not None:
+                # Off the event loop; bounded so a slow writer adds at most
+                # _AUDIT_WRITE_WAIT_SECONDS to a response.
+                await asyncio.to_thread(done.wait, _AUDIT_WRITE_WAIT_SECONDS)
 
         logger.info("API %s %s - %s (%.3fs) user=%s", method, path, status_code, duration, _user_id)
 

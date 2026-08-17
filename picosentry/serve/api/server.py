@@ -345,7 +345,7 @@ app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(
     RequestTimeoutMiddleware,
     timeout_seconds=30,
-    long_running_paths=("/run", "/api/v1/sandboxes"),
+    long_running_paths=("/run", "/api/v1/sandboxes", "/api/v1/scans"),
 )
 app.add_middleware(HTTPSEnforcementMiddleware, enabled=settings.is_production())
 app.add_middleware(DocsRestrictionMiddleware, enabled=settings.is_production())

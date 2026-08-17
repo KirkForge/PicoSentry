@@ -81,7 +81,7 @@ class _LoginRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     username: str
-    password: str = Field(..., min_length=1, max_length=72)
+    password: str = Field(..., min_length=8, max_length=72)
     totp_code: str | None = Field(None, min_length=6, max_length=6)
 
 
@@ -108,6 +108,12 @@ async def login(request: _LoginRequest, fastapi_request: Request):
 class _MFAEnrollRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
+    # Security fix: a stolen bearer token must not be enough to take over
+    # the victim's second factor.  Enrollment re-verifies the password and
+    # demands an explicit confirm before replacing an existing enrollment.
+    password: str = Field(..., min_length=1, max_length=72)
+    confirm_replace: bool = False
+
 
 class _MFAVerifyRequest(BaseModel):
     model_config = {"extra": "forbid"}
@@ -126,6 +132,13 @@ async def mfa_enroll(
     request: _MFAEnrollRequest,
     user: dict = Depends(get_current_user),
 ):
+    if not auth_service.verify_user_password(user["id"], request.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if auth_service.get_totp_secret(user["id"]) and not request.confirm_replace:
+        raise HTTPException(
+            status_code=409,
+            detail="TOTP already enrolled; pass confirm_replace=true to replace it",
+        )
     result = auth_service.enroll_totp(user["id"], user["username"])
     if not result:
         raise HTTPException(status_code=500, detail="TOTP enrollment unavailable")
@@ -145,12 +158,16 @@ async def mfa_verify(
 class _WebAuthnRegisterChallengeRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
+    password: str = Field(..., min_length=1, max_length=72)
+
 
 class _WebAuthnRegisterVerifyRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     challenge: str = Field(..., min_length=1, max_length=512)
     credential: dict = Field(...)
+    password: str = Field(..., min_length=1, max_length=72)
+    confirm_replace: bool = False
 
 
 class _WebAuthnAuthChallengeRequest(BaseModel):
@@ -163,7 +180,7 @@ class _WebAuthnAuthVerifyRequest(BaseModel):
     model_config = {"extra": "forbid"}
 
     username: str = Field(..., min_length=1, max_length=50)
-    password: str = Field(..., min_length=1, max_length=72)
+    password: str = Field(..., min_length=8, max_length=72)
     challenge: str = Field(..., min_length=1, max_length=512)
     credential: dict = Field(...)
 
@@ -173,6 +190,10 @@ async def webauthn_register_challenge(
     request: _WebAuthnRegisterChallengeRequest,
     user: dict = Depends(get_current_user),
 ):
+    # Security fix: passkey enrollment requires the account password, not
+    # just a bearer token (same takeover class as TOTP enroll).
+    if not auth_service.verify_user_password(user["id"], request.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     result = auth_service.webauthn_register_challenge(user["id"], user["username"], user.get("username", ""))
     if not result:
         raise HTTPException(status_code=500, detail="WebAuthn enrollment unavailable")
@@ -184,6 +205,13 @@ async def webauthn_register_verify(
     request: _WebAuthnRegisterVerifyRequest,
     user: dict = Depends(get_current_user),
 ):
+    if not auth_service.verify_user_password(user["id"], request.password):
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    if auth_service.webauthn_credentials_for_user(user["id"]) and not request.confirm_replace:
+        raise HTTPException(
+            status_code=409,
+            detail="Passkey already registered; pass confirm_replace=true to add or replace it",
+        )
     if not auth_service.webauthn_register_verify(user["id"], request.challenge, request.credential):
         raise HTTPException(status_code=400, detail="WebAuthn registration failed")
     return {"verified": True}
@@ -195,12 +223,16 @@ async def webauthn_auth_challenge(
     fastapi_request: Request,
 ):
     _check_auth_rate_limit(fastapi_request)
-    user = await asyncio.to_thread(auth_service.get_user_id_by_username, request.username)
-    if not user:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
-    result = auth_service.webauthn_auth_challenge(user)
+    # Security fix: no username enumeration.  Unknown usernames get a
+    # same-shaped, same-cost dummy challenge (not persisted, so the later
+    # verify fails uniformly) instead of a distinguishing 401 detail.
+    user_id = await asyncio.to_thread(auth_service.get_user_id_by_username, request.username)
+    if not user_id:
+        result = await asyncio.to_thread(auth_service.webauthn_dummy_challenge)
+    else:
+        result = auth_service.webauthn_auth_challenge(user_id)
     if not result:
-        raise HTTPException(status_code=401, detail="No passkeys registered")
+        raise HTTPException(status_code=401, detail="Invalid credentials")
     return result
 
 
@@ -234,6 +266,11 @@ async def revoke_token(
     request: _RevokeTokenRequest,
     user: dict = Depends(get_current_user),
 ):
+    # Security fix: only the caller's own presented token may be revoked.
+    # The decoded bearer payload (not the client-supplied jti) is the
+    # source of truth, so no authed user can revoke anyone else's token.
+    if not user.get("jti") or user["jti"] != request.jti:
+        raise HTTPException(status_code=403, detail="You may only revoke the token presented with this request")
     auth_service.revoke_token(request.jti, user["id"])
     return {"revoked": True}
 

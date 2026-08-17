@@ -8,12 +8,17 @@ import threading
 import time
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+from pathlib import Path
 from typing import ClassVar
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Scheduler")
+
+# The batch job's script lives at the repo root, not the scheduler's CWD —
+# resolving module-relative keeps it working under uvicorn/systemd/any cwd.
+_REPO_ROOT = Path(__file__).resolve().parents[3]
 
 _JOB_EXECUTE_ERRORS: tuple[type[BaseException], ...] = (
     OSError,
@@ -67,6 +72,7 @@ class JobScheduler:
         self.running = False
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
+        self._slow_running: set[int] = set()
         self._load_jobs()
 
     def _load_jobs(self):
@@ -189,6 +195,59 @@ class JobScheduler:
         """
         return category in self.ALLOWED_CATEGORIES
 
+    def _org_for_run(self, job_id: int, project_id: str) -> int | None:
+        """Resolve the org a scheduler-triggered run must be stamped with.
+
+        Unstamped (org=None) run events are WS-broadcast to every org; the
+        job's owning org — or the project's org_projects mapping for legacy
+        unowned jobs — closes that tenancy leak at its source.
+        """
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if job is not None and job.org_id is not None:
+                return job.org_id
+        row = db.execute_one(
+            "SELECT org_id FROM org_projects WHERE project_id = ? ORDER BY id LIMIT 1",
+            (project_id,),
+        )
+        return row["org_id"] if row else None
+
+    def _dispatch_job(self, job_id: int):
+        """Scheduler-loop entry point: keeps slow jobs off the scheduler thread.
+
+        Batch jobs run for up to an hour; executing them inline starved every
+        minute-job on the single scheduler thread (head-of-line blocking).
+        Slow jobs run on their own daemon thread — a still-running job skips
+        (with a warning) instead of stacking when its next trigger fires.
+        # ponytail: daemon threads, not a ThreadPoolExecutor — futures workers
+        # are joined at interpreter exit (3.9+), so an in-flight 3600s batch
+        # would block process shutdown; per-job guard bounds concurrency.
+        """
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if not job:
+                return
+            slow = job.command == "batch"
+            if slow and job_id in self._slow_running:
+                logger.warning("Job %s (%s) still running; skipping trigger", job_id, job.name)
+                return
+            if slow:
+                self._slow_running.add(job_id)
+
+        if not slow:
+            self._execute_job(job_id)
+            return
+
+        thread = threading.Thread(target=self._run_slow_job, args=(job_id,), daemon=True)
+        thread.start()
+
+    def _run_slow_job(self, job_id: int):
+        try:
+            self._execute_job(job_id)
+        finally:
+            with self._lock:
+                self._slow_running.discard(job_id)
+
     def _execute_job(self, job_id: int):
         with self._lock:
             job = self.jobs.get(job_id)
@@ -239,22 +298,31 @@ class JobScheduler:
                         job.last_run = now
                         job.last_status = "rejected"
                     return
-                result: subprocess.CompletedProcess = subprocess.run(
-                    ["bash", "scripts/run_category.sh", category],
-                    capture_output=True,
-                    text=True,
-                    timeout=3600,
-                    check=False,
-                )
-                status = "completed" if result.returncode == 0 else "failed"
-                _output = result.stdout + result.stderr
+                script = _REPO_ROOT / "scripts" / "run_category.sh"
+                if not script.exists():
+                    logger.error("Batch script not found at %s", script)
+                    status = "failed"
+                    _output = f"batch script missing: {script}"
+                else:
+                    result: subprocess.CompletedProcess = subprocess.run(
+                        ["bash", str(script), category],
+                        capture_output=True,
+                        text=True,
+                        timeout=3600,
+                        check=False,
+                        cwd=str(_REPO_ROOT),
+                    )
+                    status = "completed" if result.returncode == 0 else "failed"
+                    _output = result.stdout + result.stderr
 
             elif command == "run":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
 
+                project_id = str(params.get("project_id") or "")
                 run_result = _orch.run_project(
-                    str(params.get("project_id") or ""),
+                    project_id,
                     int(params.get("timeout", 300)),
+                    org_id=self._org_for_run(job_id, project_id),
                 )
                 status = "completed" if run_result.get("success") else "failed"
                 _output = str(run_result)
@@ -284,6 +352,7 @@ class JobScheduler:
                 from picosentry.serve.services.audit_cleanup import purge_audit_logs
 
                 purge_audit_logs(retention_days=settings.database.audit_retention_days)
+                auth.purge_expired_revocations()
                 status = "completed"
                 _output = f"Cleaned up {expired} expired API keys, rotated logs, purged audit entries"
 
@@ -332,7 +401,7 @@ class JobScheduler:
             job.next_run = next_run
             delay = (next_run - datetime.now()).total_seconds()
             if delay > 0:
-                self.scheduler.enter(delay, 1, self._execute_job, argument=(job_id,))
+                self.scheduler.enter(delay, 1, self._dispatch_job, argument=(job_id,))
                 db.execute_insert(
                     """
                     UPDATE scheduled_jobs SET next_run = ? WHERE id = ?

@@ -132,25 +132,26 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         db = self._get_db()
         now = time.time()
 
-        with self._lock:
-            try:
-                db.execute("DELETE FROM rate_limit_counters")
+        # Caller (_evict_if_needed) already holds self._lock; taking it
+        # again here would deadlock on the non-reentrant Lock.
+        try:
+            db.execute("DELETE FROM rate_limit_counters")
 
-                for key, timestamps in self.ip_requests.items():
-                    if timestamps and timestamps[-1] > now - self.window:
-                        db.execute_insert(
-                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                            ("ip", key, ",".join(str(t) for t in timestamps)),
-                        )
+            for key, timestamps in self.ip_requests.items():
+                if timestamps and timestamps[-1] > now - self.window:
+                    db.execute_insert(
+                        "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
+                        ("ip", key, ",".join(str(t) for t in timestamps)),
+                    )
 
-                for key, timestamps in self.org_requests.items():
-                    if timestamps and timestamps[-1] > now - self.window:
-                        db.execute_insert(
-                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                            ("org", key, ",".join(str(t) for t in timestamps)),
-                        )
-            except (OSError, ValueError) as exc:
-                logger.warning("Rate limit persistence flush failed: %s", exc)
+            for key, timestamps in self.org_requests.items():
+                if timestamps and timestamps[-1] > now - self.window:
+                    db.execute_insert(
+                        "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
+                        ("org", key, ",".join(str(t) for t in timestamps)),
+                    )
+        except (OSError, ValueError) as exc:
+            logger.warning("Rate limit persistence flush failed: %s", exc)
 
     def _evict_if_needed(self, now: float):
         if now - self._last_eviction < 60:
@@ -197,6 +198,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         """Record a request and return (rate_limited, retry_after_seconds).
 
         Uses the Redis backend when configured; otherwise the in-memory dict.
+        The Redis roundtrip deliberately runs OUTSIDE the global lock — Redis
+        is concurrency-safe server-side, and holding the lock across the
+        network call would serialize all requests on Redis latency.
         """
         if self._redis_backend is not None:
             count = self._redis_backend.record_and_count(bucket_type, bucket_key)
@@ -211,13 +215,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                 return False, 0
             # Redis failed (fail-open): fall through to in-memory for this request.
 
-        count = self._clean_and_count(buckets, bucket_key, now) + 1
-        buckets[bucket_key].append(now)
-        if count > max_requests:
-            oldest = buckets[bucket_key][0] if buckets[bucket_key] else now - self.window
-            retry_after = int(self.window - (now - oldest) + 1)
-            return True, max(retry_after, 1)
-        return False, 0
+        with self._lock:
+            self._evict_if_needed(now)
+            count = self._clean_and_count(buckets, bucket_key, now) + 1
+            buckets[bucket_key].append(now)
+            if count > max_requests:
+                oldest = buckets[bucket_key][0] if buckets[bucket_key] else now - self.window
+                retry_after = int(self.window - (now - oldest) + 1)
+                return True, max(retry_after, 1)
+            return False, 0
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path in self.exempt_paths:
@@ -226,51 +232,43 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         now = time.time()
         client_ip = _get_client_ip(request, self.trusted_proxies)
 
-        with self._lock:
-            self._evict_if_needed(now)
-
-            rate_limited = False
-            retry_after = 0
-            rate_limit_response = None
-            org_api_key = request.headers.get("X-Org-API-Key", "")
-            if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
-                rate_limited, retry_after = self._record_and_check(
-                    "org",
-                    hashlib.sha256(org_api_key.encode()).hexdigest(),
-                    self.max_requests_per_org,
-                    now,
-                    self.org_requests,
+        # No global lock here: Redis-backed checks are lock-free and the
+        # in-memory path takes the lock only for dict mutation.
+        org_api_key = request.headers.get("X-Org-API-Key", "")
+        if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
+            rate_limited, retry_after = self._record_and_check(
+                "org",
+                hashlib.sha256(org_api_key.encode()).hexdigest(),
+                self.max_requests_per_org,
+                now,
+                self.org_requests,
+            )
+            if rate_limited:
+                return JSONResponse(
+                    {
+                        "error": "Organization rate limit exceeded",
+                        "limit": self.max_requests_per_org,
+                        "window": f"{self.window}s",
+                    },
+                    status_code=429,
+                    headers={"Retry-After": str(retry_after)},
                 )
-                if rate_limited:
-                    rate_limit_response = JSONResponse(
-                        {
-                            "error": "Organization rate limit exceeded",
-                            "limit": self.max_requests_per_org,
-                            "window": f"{self.window}s",
-                        },
-                        status_code=429,
-                        headers={"Retry-After": str(retry_after)},
-                    )
 
-            if not rate_limited:
-                rate_limited, retry_after = self._record_and_check(
-                    "ip",
-                    client_ip,
-                    self.max_requests_per_ip,
-                    now,
-                    self.ip_requests,
-                )
-                if rate_limited:
-                    rate_limit_response = JSONResponse(
-                        {
-                            "error": "Rate limit exceeded",
-                            "limit": self.max_requests_per_ip,
-                            "window": f"{self.window}s",
-                        },
-                        status_code=429,
-                        headers={"Retry-After": str(retry_after)},
-                    )
-
+        rate_limited, retry_after = self._record_and_check(
+            "ip",
+            client_ip,
+            self.max_requests_per_ip,
+            now,
+            self.ip_requests,
+        )
         if rate_limited:
-            return rate_limit_response
+            return JSONResponse(
+                {
+                    "error": "Rate limit exceeded",
+                    "limit": self.max_requests_per_ip,
+                    "window": f"{self.window}s",
+                },
+                status_code=429,
+                headers={"Retry-After": str(retry_after)},
+            )
         return await call_next(request)

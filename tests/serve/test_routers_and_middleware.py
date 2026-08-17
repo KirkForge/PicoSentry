@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 
+from fastapi.testclient import TestClient
+
 ROOT = Path(__file__).parent.parent
 sys.path.insert(0, str(ROOT))
 os.environ["PICOSHOGUN_ENV"] = "test"
@@ -69,8 +71,18 @@ class TestAuthRouter:
     """Dedicated tests for /auth routes beyond the existing regression suite."""
 
     def test_login_requires_existing_user(self, client):
-        resp = client.post("/auth/login", json={"username": "nosuchuser", "password": "wrong"})
+        resp = client.post("/auth/login", json={"username": "nosuchuser", "password": "wrong-password"})
         assert resp.status_code == 401
+
+    def test_login_rejects_short_password_at_validation(self, client):
+        # min_length=8 is enforced at the model layer (docs always claimed 8).
+        resp = client.post("/auth/login", json={"username": "nosuchuser", "password": "short"})
+        assert resp.status_code == 422
+
+    def test_register_rejects_short_password(self, client):
+        tag = int(time.time() * 1000)
+        resp = client.post("/auth/register", json={"username": f"shortpw_{tag}", "password": "short"})
+        assert resp.status_code == 422
 
     def test_create_api_key_requires_auth(self, client):
         resp = client.post("/auth/api-key", json={"name": "test", "permissions": "read"})
@@ -192,3 +204,222 @@ class TestMiddleware:
         big = "x" * (11 * 1024 * 1024)
         resp = client.post("/auth/login", data=big)
         assert resp.status_code in (413, 422, 400)
+
+
+class TestMFAEnrollHardening:
+    """MFA enroll requires the account password and an explicit replace confirm."""
+
+    PASSWORD = "correct-horse-battery-staple"
+
+    @pytest.fixture
+    def enrolled_viewer(self, client):
+        tag = int(time.time() * 1000)
+        username = f"mfa_{tag}"
+        resp = client.post("/auth/register", json={"username": username, "password": self.PASSWORD})
+        assert resp.status_code == 201, resp.text
+        resp = client.post("/auth/login", json={"username": username, "password": self.PASSWORD})
+        assert resp.status_code == 200, resp.text
+        return {"username": username, "token": resp.json()["access_token"]}
+
+    def test_enroll_without_password_is_422(self, client, enrolled_viewer):
+        resp = client.post("/auth/mfa/enroll", json={}, headers=_headers(enrolled_viewer["token"]))
+        assert resp.status_code == 422
+
+    def test_enroll_with_wrong_password_is_401(self, client, enrolled_viewer):
+        resp = client.post(
+            "/auth/mfa/enroll", json={"password": "wrong-password"}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert resp.status_code == 401
+
+    def test_enroll_with_password_succeeds(self, client, enrolled_viewer):
+        resp = client.post(
+            "/auth/mfa/enroll", json={"password": self.PASSWORD}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert resp.status_code == 200, resp.text
+        assert "secret" in resp.json()
+
+    def test_reenroll_without_confirm_replace_is_409(self, client, enrolled_viewer):
+        first = client.post(
+            "/auth/mfa/enroll", json={"password": self.PASSWORD}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert first.status_code == 200
+        second = client.post(
+            "/auth/mfa/enroll", json={"password": self.PASSWORD}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert second.status_code == 409
+
+    def test_reenroll_with_confirm_replace_succeeds(self, client, enrolled_viewer):
+        first = client.post(
+            "/auth/mfa/enroll", json={"password": self.PASSWORD}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert first.status_code == 200
+        second = client.post(
+            "/auth/mfa/enroll",
+            json={"password": self.PASSWORD, "confirm_replace": True},
+            headers=_headers(enrolled_viewer["token"]),
+        )
+        assert second.status_code == 200, second.text
+        assert second.json()["secret"] != first.json()["secret"]
+
+    def test_stolen_token_cannot_enroll_without_password(self, client, enrolled_viewer):
+        # The core takeover scenario: a valid bearer token alone is not enough.
+        resp = client.post(
+            "/auth/mfa/enroll", json={"confirm_replace": True}, headers=_headers(enrolled_viewer["token"])
+        )
+        assert resp.status_code == 422
+
+
+class TestWebAuthnRegisterHardening:
+    """Passkey enrollment requires the account password (same class as TOTP enroll)."""
+
+    PASSWORD = "correct-horse-battery-staple"
+
+    @pytest.fixture
+    def viewer_with_token(self, client):
+        tag = int(time.time() * 1000)
+        username = f"wauth_{tag}"
+        resp = client.post("/auth/register", json={"username": username, "password": self.PASSWORD})
+        assert resp.status_code == 201, resp.text
+        resp = client.post("/auth/login", json={"username": username, "password": self.PASSWORD})
+        return {"username": username, "token": resp.json()["access_token"]}
+
+    def test_register_challenge_without_password_is_422(self, client, viewer_with_token):
+        resp = client.post("/auth/webauthn/register-challenge", json={}, headers=_headers(viewer_with_token["token"]))
+        assert resp.status_code == 422
+
+    def test_register_challenge_with_wrong_password_is_401(self, client, viewer_with_token):
+        resp = client.post(
+            "/auth/webauthn/register-challenge",
+            json={"password": "wrong-password"},
+            headers=_headers(viewer_with_token["token"]),
+        )
+        assert resp.status_code == 401
+
+    def test_register_verify_without_password_is_422(self, client, viewer_with_token):
+        resp = client.post(
+            "/auth/webauthn/register-verify",
+            json={"challenge": "x", "credential": {}},
+            headers=_headers(viewer_with_token["token"]),
+        )
+        assert resp.status_code == 422
+
+
+class TestWebAuthnNoEnumeration:
+    """authenticate-challenge must not distinguish known from unknown usernames."""
+
+    PASSWORD = "correct-horse-battery-staple"
+
+    def test_unknown_user_gets_same_shaped_challenge(self, client):
+        tag = int(time.time() * 1000)
+        resp = client.post("/auth/webauthn/authenticate-challenge", json={"username": f"ghost_{tag}"})
+        assert resp.status_code == 200, resp.text
+        body = resp.json()
+        assert body["challenge"]
+        assert "options" in body
+
+    def test_known_user_without_passkeys_same_shape(self, client):
+        tag = int(time.time() * 1000)
+        username = f"nopass_{tag}"
+        resp = client.post("/auth/register", json={"username": username, "password": self.PASSWORD})
+        assert resp.status_code == 201, resp.text
+        resp = client.post("/auth/webauthn/authenticate-challenge", json={"username": username})
+        assert resp.status_code == 200, resp.text
+        assert set(resp.json().keys()) == {"challenge", "options"}
+
+
+class TestTokenRevocation:
+    """Only the caller's own presented token may be revoked."""
+
+    PASSWORD = "correct-horse-battery-staple"
+
+    def _token_pair(self, client):
+        tag = int(time.time() * 1000)
+        tokens = []
+        for name in (f"revoke_a_{tag}", f"revoke_b_{tag}"):
+            resp = client.post("/auth/register", json={"username": name, "password": self.PASSWORD})
+            assert resp.status_code == 201, resp.text
+            resp = client.post("/auth/login", json={"username": name, "password": self.PASSWORD})
+            assert resp.status_code == 200, resp.text
+            tokens.append(resp.json()["access_token"])
+        return tokens
+
+    def test_revoke_own_token(self, client):
+        mine, _ = self._token_pair(client)
+        from picosentry.serve.api.server import auth_service
+
+        payload = auth_service.validate_token(mine)
+        resp = client.post("/auth/revoke", json={"jti": payload["jti"]}, headers=_headers(mine))
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["revoked"] is True
+        # The revoked token no longer authenticates.
+        probe = client.post("/auth/api-key", json={"name": "probe"}, headers=_headers(mine))
+        assert probe.status_code == 401
+
+    def test_revoke_foreign_jti_is_403(self, client):
+        mine, theirs = self._token_pair(client)
+        from picosentry.serve.api.server import auth_service
+
+        foreign_jti = auth_service.validate_token(theirs)["jti"]
+        resp = client.post("/auth/revoke", json={"jti": foreign_jti}, headers=_headers(mine))
+        assert resp.status_code == 403
+        # Victim's token still works.
+        probe = client.post("/auth/api-key", json={"name": "probe"}, headers=_headers(theirs))
+        assert probe.status_code == 201
+
+    def test_revoke_with_api_key_auth_is_403(self, client, viewer_token):
+        # API-key callers present no jti, so they cannot revoke JWTs.
+        resp = client.post("/auth/api-key", json={"name": "rk", "permissions": "read"}, headers=_headers(viewer_token))
+        assert resp.status_code == 201, resp.text
+        api_key = resp.json()["api_key"]
+        resp = client.post("/auth/revoke", json={"jti": "anything"}, headers={"X-API-Key": api_key})
+        assert resp.status_code == 403
+
+
+class TestRateLimitLockDiscipline:
+    """The Redis roundtrip must happen outside the global in-memory lock."""
+
+    def test_redis_call_not_under_global_lock(self):
+        from starlette.applications import Starlette
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route
+
+        from picosentry.serve.middleware.rate_limit import RateLimitMiddleware
+
+        async def ok(request):
+            return JSONResponse({"ok": True})
+
+        holder = {}
+
+        class _ProbeBackend:
+            def record_and_count(self, bucket_type, bucket_key):
+                mw = holder["mw"]
+                acquired = mw._lock.acquire(blocking=False)
+                assert acquired, "Redis call serialized behind the global rate-limit lock"
+                mw._lock.release()
+                return 1
+
+        star = Starlette(routes=[Route("/", ok, methods=["GET"])])
+        mw = RateLimitMiddleware(star, backend_instance=_ProbeBackend(), exempt_paths=set())
+        holder["mw"] = mw
+
+        resp = TestClient(mw).get("/")
+        assert resp.status_code == 200
+
+    def test_memory_path_still_limits(self):
+        from starlette.applications import Starlette
+        from starlette.responses import JSONResponse
+        from starlette.routing import Route
+
+        from picosentry.serve.middleware.rate_limit import RateLimitMiddleware
+
+        async def ok(request):
+            return JSONResponse({"ok": True})
+
+        star = Starlette(routes=[Route("/", ok, methods=["GET"])])
+        mw = RateLimitMiddleware(star, max_requests_per_ip=2, window=60, exempt_paths=set())
+        client = TestClient(mw)
+        assert client.get("/").status_code == 200
+        assert client.get("/").status_code == 200
+        resp = client.get("/")
+        assert resp.status_code == 429
+        assert resp.headers.get("Retry-After")

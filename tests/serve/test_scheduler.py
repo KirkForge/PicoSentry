@@ -100,9 +100,20 @@ class TestSchedulerHardening:
 class TestSchedulerExecuteExceptionNarrowing:
     """Scheduled job execution must log expected failures and propagate bugs."""
 
-    def test_execute_job_expected_oserror_is_logged(self, caplog, monkeypatch):
+    @staticmethod
+    def _with_script_present(tmp_path, monkeypatch):
+        """Point the batch runner at a repo root whose script exists, so the
+        subprocess path (and its exception handling) is actually reached."""
+        from picosentry.serve.services import scheduler as sched_mod
+
+        (tmp_path / "scripts").mkdir(exist_ok=True)
+        (tmp_path / "scripts" / "run_category.sh").write_text("#!/bin/bash\nexit 0\n")
+        monkeypatch.setattr(sched_mod, "_REPO_ROOT", tmp_path)
+
+    def test_execute_job_expected_oserror_is_logged(self, caplog, monkeypatch, tmp_path):
         import logging
 
+        self._with_script_present(tmp_path, monkeypatch)
         job_id = scheduler.add_job(
             name=f"expected_error_job_{time.time_ns()}",
             cron="* * * * *",
@@ -123,7 +134,8 @@ class TestSchedulerExecuteExceptionNarrowing:
         assert any("Job" in r.message and "failed" in r.message for r in caplog.records)
         scheduler.remove_job(job_id)
 
-    def test_execute_job_unexpected_error_propagates(self, monkeypatch):
+    def test_execute_job_unexpected_error_propagates(self, monkeypatch, tmp_path):
+        self._with_script_present(tmp_path, monkeypatch)
         job_id = scheduler.add_job(
             name=f"unexpected_error_job_{time.time_ns()}",
             cron="* * * * *",

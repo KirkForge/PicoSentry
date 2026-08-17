@@ -2,6 +2,7 @@ import hashlib
 import logging
 import os
 import secrets
+import time
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, ClassVar
@@ -252,7 +253,7 @@ class AuthService:
             totp_secret = user.get("totp_secret")
             if not mfa_verified:
                 has_webauthn = bool(self.webauthn_credentials_for_user(user["id"]))
-                if totp_secret and not (totp_code and self.verify_totp(totp_secret, totp_code)):
+                if totp_secret and not (totp_code and self._verify_totp_replay(conn, user, totp_secret, totp_code)):
                     if totp_code:
                         self._record_failed_login(conn, user, now)
                     methods = ["totp"] + (["webauthn"] if has_webauthn else [])
@@ -368,6 +369,18 @@ class AuthService:
     def is_token_revoked(self, jti: str) -> bool:
         return self._db.execute_one("SELECT 1 FROM revoked_tokens WHERE jti = ?", (jti,)) is not None
 
+    def purge_expired_revocations(self) -> int:
+        """Delete revocation rows that can no longer match a live token.
+
+        A token expires at most ``expiration_hours`` after issue, and issue
+        precedes revocation, so any row revoked before ``now - expiration_hours``
+        is safe to delete.  Keeps the revoked_tokens table from growing forever.
+        """
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=self.expiration_hours)).strftime("%Y-%m-%d %H:%M:%S")
+        with self._db.transaction() as conn:
+            cursor = conn.execute("DELETE FROM revoked_tokens WHERE revoked_at < ?", (cutoff,))
+            return max(cursor.rowcount, 0)
+
     def enroll_totp(self, user_id: int, username: str) -> dict[str, str] | None:
         """Generate and store a TOTP secret for a user. Returns secret + otpauth URI."""
         if not HAS_PYOTP:
@@ -379,16 +392,53 @@ class AuthService:
         logger.info("TOTP enrolled for user %s", user_id)
         return {"secret": secret, "otpauth_uri": uri}
 
+    def _totp_match_timestep(self, secret: str, code: str) -> int | None:
+        """Return the timestep matching ``code`` within ±1 step of drift, else None."""
+        if not HAS_PYOTP:
+            return None
+        totp = pyotp.TOTP(secret)
+        if not totp.verify(code, valid_window=1):
+            return None
+        counter = int(time.time() // totp.interval)
+        return max(fc for fc in (counter - 1, counter, counter + 1) if totp.generate_otp(fc) == code)
+
+    def _totp_replay_ok(self, user: dict[str, Any], matched: int) -> bool:
+        """A timestep at or before the last consumed one is a replay."""
+        return matched > int(user.get("totp_last_timestep") or 0)
+
     def verify_totp(self, secret: str, code: str) -> bool:
         if not HAS_PYOTP:
             return False
-        return pyotp.TOTP(secret).verify(code)
+        return self._totp_match_timestep(secret, code) is not None
+
+    def _verify_totp_replay(self, conn, user: dict[str, Any], secret: str, code: str) -> bool:
+        """Verify a TOTP code inside an open transaction, rejecting replayed timesteps."""
+        matched = self._totp_match_timestep(secret, code)
+        if matched is None or not self._totp_replay_ok(user, matched):
+            return False
+        conn.execute("UPDATE users SET totp_last_timestep = ? WHERE id = ?", (matched, user["id"]))
+        return True
 
     def verify_totp_for_user(self, user_id: int, code: str) -> bool:
+        with self._db.transaction() as conn:
+            rows = self._db.execute_on(
+                conn, "SELECT id, totp_secret, totp_last_timestep FROM users WHERE id = ?", (user_id,)
+            )
+            user = rows[0] if rows else None
+            if not user or not user.get("totp_secret"):
+                return False
+            return self._verify_totp_replay(conn, user, user["totp_secret"], code)
+
+    def get_totp_secret(self, user_id: int) -> str | None:
         user = self._db.execute_one("SELECT totp_secret FROM users WHERE id = ?", (user_id,))
-        if not user or not user.get("totp_secret"):
+        return user.get("totp_secret") if user else None
+
+    def verify_user_password(self, user_id: int, password: str) -> bool:
+        """Re-verify the account password for sensitive actions (MFA enroll/register)."""
+        user = self._db.execute_one("SELECT password_hash FROM users WHERE id = ?", (user_id,))
+        if not user:
             return False
-        return self.verify_totp(user["totp_secret"], code)
+        return self._verify_password(password, user["password_hash"])
 
     def webauthn_credentials_for_user(self, user_id: int) -> list[dict[str, Any]]:
         return self._db.execute(
@@ -461,6 +511,22 @@ class AuthService:
         )
         logger.info("WebAuthn credential registered for user %s", user_id)
         return True
+
+    def webauthn_dummy_challenge(self) -> dict[str, Any] | None:
+        """Plausible assertion options for an unknown username.
+
+        Anti-enumeration: the authenticate-challenge route answers unknown
+        usernames with the same-shaped, same-cost response as known ones.
+        The challenge is not persisted, so a later assertion verify fails
+        uniformly.
+        """
+        if not HAS_WEBAUTHN:
+            return None
+        options = webauthn.generate_authentication_options(rp_id=settings.security.webauthn_rp_id)
+        return {
+            "challenge": bytes_to_base64url(options.challenge),
+            "options": options_to_json(options),
+        }
 
     def webauthn_auth_challenge(self, user_id: int) -> dict[str, Any] | None:
         """Generate a WebAuthn assertion challenge for a user's passkeys."""

@@ -39,3 +39,23 @@ def test_long_running_path_not_capped():
     response = client.get("/slow-run")
     assert response.status_code == 200
     assert response.json() == {"ok": True}
+
+
+def test_server_exempts_scan_and_sandbox_routes_from_timeout():
+    """Real scans/sandbox runs await via to_thread and can exceed 30s; the
+    server's RequestTimeoutMiddleware must exempt their routes."""
+    from picosentry.serve.api.server import app
+    from picosentry.serve.middleware.request_timeout import RequestTimeoutMiddleware
+
+    TestClient(app).get("/health/live")  # force middleware stack build
+
+    node = app.middleware_stack
+    found = None
+    while node is not None:
+        if isinstance(node, RequestTimeoutMiddleware):
+            found = node
+            break
+        node = getattr(node, "app", None)
+    assert found is not None, "RequestTimeoutMiddleware not mounted on the serve app"
+    assert "/api/v1/scans" in found.long_running_paths
+    assert "/api/v1/sandboxes" in found.long_running_paths

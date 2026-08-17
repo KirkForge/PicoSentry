@@ -218,7 +218,9 @@ class TestForkBombBounded:
         assert result.duration_ms < 30_000, "sandbox_run must not hang on a fork flood"
         assert _proc_count_with_marker(marker) == 0
         if result.overall_verdict.value != "KILL":
-            assert result.exit_code == 2, f"unexpected verdict path: {result.overall_verdict.value} exit={result.exit_code}"
+            assert result.exit_code == 2, (
+                f"unexpected verdict path: {result.overall_verdict.value} exit={result.exit_code}"
+            )
             assert "Cannot fork" in (result.stderr or ""), "non-KILL must be the documented EAGAIN ceiling"
 
 

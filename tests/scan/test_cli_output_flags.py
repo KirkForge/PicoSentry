@@ -278,13 +278,15 @@ class TestQuietAndSummary:
         # Patch with the module-level function itself (new=), not a MagicMock:
         # the function becomes the multiprocessing.Process target and must
         # survive pickling under 3.14's default forkserver start method.
-        with patch.object(scan_module, "_scan_worker", new=_error_worker):
-            with pytest.raises(scan_module.ScanError, match="engine blew up"):
-                _run_scan(
-                    argparse.Namespace(timeout=1),
-                    project,
-                    merged_config=PicoSentryConfig(),
-                )
+        with (
+            patch.object(scan_module, "_scan_worker", new=_error_worker),
+            pytest.raises(scan_module.ScanError, match="engine blew up"),
+        ):
+            _run_scan(
+                argparse.Namespace(timeout=1),
+                project,
+                merged_config=PicoSentryConfig(),
+            )
 
     def test_summary_clean_project(self, tmp_path):
         """--summary on project with only minor findings should work."""

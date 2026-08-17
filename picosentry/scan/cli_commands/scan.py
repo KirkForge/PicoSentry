@@ -9,21 +9,50 @@ from __future__ import annotations
 import argparse
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
 
-from picosentry.scan._cli_service_worker import _scan_worker
-from picosentry.scan.cli_service import (
-    ScanError,
-    ScanOrchestrator,
-    ScanTimeout,
-    _format_quiet,
-    _format_summary,
-    _resolve_external_path,
-    _run_scan,
-    _verify_determinism,
-    _workspace_root,
-)
+if TYPE_CHECKING:
+    from picosentry.scan._cli_service_worker import _scan_worker
+    from picosentry.scan.cli_service import (
+        ScanError,
+        ScanTimeout,
+        _format_quiet,
+        _format_summary,
+        _resolve_external_path,
+        _run_scan,
+        _verify_determinism,
+        _workspace_root,
+    )
 
 NAME = "scan"
+
+_REEXPORTED = {
+    "ScanError",
+    "ScanOrchestrator",
+    "ScanTimeout",
+    "_format_quiet",
+    "_format_summary",
+    "_resolve_external_path",
+    "_run_scan",
+    "_verify_determinism",
+    "_workspace_root",
+}
+
+
+def __getattr__(name: str) -> Any:
+    # ponytail: cli_service drags the formatter→rules chain (~100ms) into every CLI
+    # startup; deferred here so non-scan invocations skip it. Re-exports stay
+    # attribute-compatible for tests/scripts. Upgrade path: none — dict lookup after
+    # first load.
+    if name in _REEXPORTED:
+        from picosentry.scan import cli_service
+
+        return getattr(cli_service, name)
+    if name == "_scan_worker":
+        from picosentry.scan import _cli_service_worker
+
+        return _cli_service_worker._scan_worker
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
 
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
@@ -186,6 +215,8 @@ def cmd(args: argparse.Namespace) -> int:
     if not target.exists():
         print(f"Error: target does not exist: {target}", file=sys.stderr)
         return 2
+
+    from picosentry.scan.cli_service import ScanOrchestrator
 
     orchestrator = ScanOrchestrator(args)
 

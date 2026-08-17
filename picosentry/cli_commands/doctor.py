@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import argparse
 
-from picosentry._core.doctor import verify
 from picosentry.cli_commands import register
 
 
@@ -15,6 +14,8 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
 
 
 def cmd(args: argparse.Namespace) -> int:
+    from picosentry._core.doctor import verify
+
     report = verify(repair=args.repair)
 
     if args.output_json:

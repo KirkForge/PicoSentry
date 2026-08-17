@@ -3,10 +3,13 @@ from __future__ import annotations
 import ipaddress
 import json
 import logging
-import urllib.error
-import urllib.request
-from http.client import HTTPResponse
+from typing import TYPE_CHECKING
 from urllib.parse import urlparse
+
+if TYPE_CHECKING:
+    import urllib.error
+    import urllib.request
+    from http.client import HTTPResponse
 
 logger = logging.getLogger("picosentry._network")
 
@@ -64,6 +67,9 @@ def safe_urlopen(
     allow_http: bool = False,
 ) -> tuple[HTTPResponse, bytes]:
 
+    import urllib.error
+    import urllib.request
+
     url_str = url.full_url if isinstance(url, urllib.request.Request) else url
 
     if not allow_http and not url_str.startswith("https://"):
@@ -105,6 +111,8 @@ def fetch_registry_intel(
     Degrades gracefully: any network/parse error returns ``(None, None)`` so
     offline scans get no intel and never crash.
     """
+    import urllib.error
+
     try:
         if ecosystem == "pypi":
             return _fetch_pypi_intel(name, timeout=timeout)
@@ -140,6 +148,8 @@ def _fetch_npm_intel(name: str, *, timeout: int) -> tuple[int | None, str | None
         created = time_field.get("created")
         if isinstance(created, str):
             first_release = created
+    import urllib.error
+
     download_count: int | None = None
     try:
         _, dl_body = safe_urlopen(f"https://api.npmjs.org/downloads/point/last-month/{name}", timeout=timeout)

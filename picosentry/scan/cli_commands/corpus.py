@@ -5,13 +5,6 @@ import json
 import sys
 from pathlib import Path
 
-from picosentry.scan.corpus_share import (
-    export_corpus_pack,
-    import_corpus_pack,
-    list_available_packs,
-    validate_corpus_pack,
-)
-
 NAME = "corpus"
 
 
@@ -82,6 +75,15 @@ def cmd(args: argparse.Namespace) -> int:
     if not args.corpus_action:
         print("Usage: picosentry corpus {export|import|validate|list}")
         return 2
+
+    # ponytail: corpus_share pulls engine+audit+crypto into package import; loaded on
+    # actual corpus invocations only.
+    from picosentry.scan.corpus_share import (
+        export_corpus_pack,
+        import_corpus_pack,
+        list_available_packs,
+        validate_corpus_pack,
+    )
 
     if args.corpus_action == "list":
         packs = list_available_packs()

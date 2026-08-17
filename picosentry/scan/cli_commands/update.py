@@ -7,24 +7,11 @@ import hashlib
 import json
 import os
 import sys
-import urllib.request
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from picosentry.scan._network import InsecureURLError, ResponseTooLargeError, safe_urlopen
-from picosentry.scan.config import load_config
-from picosentry.scan.engine import user_corpus_dir
-from picosentry.scan.rules.corpus_index import save_indexed_corpus
-from picosentry.scan.rules._typosquat_corpus import (
-    BUILTIN_CARGO_TOP_100,
-    BUILTIN_GO_TOP_100,
-    BUILTIN_MAVEN_TOP_100,
-    BUILTIN_NUGET_TOP_100,
-    BUILTIN_PYPI_TOP_100,
-    BUILTIN_RUBYGEMS_TOP_100,
-    BUILTIN_TOP_100,
-)
 
 NAME = "update"
 
@@ -38,15 +25,42 @@ _SUPPORTED_ECOSYSTEMS = [
     "nuget",
 ]
 
-_BUILTIN_FALLBACK: dict[str, list[str]] = {
-    "npm": BUILTIN_TOP_100,
-    "pypi": BUILTIN_PYPI_TOP_100,
-    "go": BUILTIN_GO_TOP_100,
-    "cargo": BUILTIN_CARGO_TOP_100,
-    "maven": BUILTIN_MAVEN_TOP_100,
-    "rubygems": BUILTIN_RUBYGEMS_TOP_100,
-    "nuget": BUILTIN_NUGET_TOP_100,
-}
+
+def __getattr__(name: str) -> Any:
+    # ponytail: keeps the historical module-level names (`_BUILTIN_FALLBACK` dict,
+    # `load_config`) importable/patchable without paying their import cost at CLI
+    # startup.
+    if name == "_BUILTIN_FALLBACK":
+        return _builtin_fallback()
+    if name == "load_config":
+        from picosentry.scan.config import load_config
+
+        return load_config
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
+
+
+def _builtin_fallback() -> dict[str, list[str]]:
+    # ponytail: module-level dict dragged the typosquat corpora (and the rules package)
+    # into every CLI startup; built on demand instead — update runs are rare and cold.
+    from picosentry.scan.rules._typosquat_corpus import (
+        BUILTIN_CARGO_TOP_100,
+        BUILTIN_GO_TOP_100,
+        BUILTIN_MAVEN_TOP_100,
+        BUILTIN_NUGET_TOP_100,
+        BUILTIN_PYPI_TOP_100,
+        BUILTIN_RUBYGEMS_TOP_100,
+        BUILTIN_TOP_100,
+    )
+
+    return {
+        "npm": BUILTIN_TOP_100,
+        "pypi": BUILTIN_PYPI_TOP_100,
+        "go": BUILTIN_GO_TOP_100,
+        "cargo": BUILTIN_CARGO_TOP_100,
+        "maven": BUILTIN_MAVEN_TOP_100,
+        "rubygems": BUILTIN_RUBYGEMS_TOP_100,
+        "nuget": BUILTIN_NUGET_TOP_100,
+    }
 
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
@@ -155,6 +169,8 @@ def _fetch_npm(top_n: int) -> tuple[list[str], str, bool]:
     npm does not expose a public "top by downloads" API, so we use the
     community-maintained npm-rank release which ranks packages by popularity.
     """
+    import urllib.request
+
     url = "https://github.com/LeoDog896/npm-rank/releases/download/latest/raw.json"
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
@@ -184,6 +200,8 @@ def _fetch_npm(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_pypi(top_n: int) -> tuple[list[str], str, bool]:
     """Fetch top PyPI packages from the public hugovk leaderboard."""
+    import urllib.request
+
     url = "https://hugovk.github.io/top-pypi-packages/top-pypi-packages-30-days.json"
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
@@ -212,6 +230,8 @@ def _fetch_pypi(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_cargo(top_n: int) -> tuple[list[str], str, bool]:
     """Fetch top Rust crates from crates.io sorted by all-time downloads."""
+    import urllib.request
+
     source_url = "https://crates.io/api/v1/crates"
     names: list[str] = []
     per_page = 100
@@ -248,6 +268,8 @@ def _fetch_cargo(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_go(top_n: int) -> tuple[list[str], str, bool]:
     """Fetch popular Go modules from the mvdan/corpus top-1000 TSV."""
+    import urllib.request
+
     url = "https://raw.githubusercontent.com/mvdan/corpus/master/top-1000.tsv"
     req = urllib.request.Request(url, headers={"User-Agent": "picosentry-corpus-fetcher"})
     try:
@@ -271,6 +293,8 @@ def _fetch_go(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_maven(top_n: int) -> tuple[list[str], str, bool]:
     """Fetch important Maven packages from Ecosyste.ms ranked by dependents."""
+    import urllib.request
+
     source_url = "https://packages.ecosyste.ms/api/v1/registries/repo1.maven.org/packages"
     names: list[str] = []
     page = 1
@@ -307,6 +331,8 @@ def _fetch_maven(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_rubygems(top_n: int) -> tuple[list[str], str, bool]:
     """Fetch important RubyGems from Ecosyste.ms ranked by dependents."""
+    import urllib.request
+
     source_url = "https://packages.ecosyste.ms/api/v1/registries/rubygems.org/packages"
     names: list[str] = []
     page = 1
@@ -347,6 +373,8 @@ def _fetch_nuget(top_n: int) -> tuple[list[str], str, bool]:
     The public search endpoint does not guarantee download ordering, so we
     fetch a large result set and sort locally by ``totalDownloads``.
     """
+    import urllib.request
+
     source_url = "https://azuresearch-usnc.nuget.org/query"
     names_with_downloads: list[tuple[str, int]] = []
     skip = 0
@@ -383,7 +411,7 @@ def _fetch_nuget(top_n: int) -> tuple[list[str], str, bool]:
 
 def _fetch_builtin(ecosystem: str, top_n: int) -> tuple[list[str], str, bool]:
     """Fall back to the built-in curated list when no live fetcher exists."""
-    builtin = _BUILTIN_FALLBACK.get(ecosystem, [])
+    builtin = _builtin_fallback().get(ecosystem, [])
     return builtin[:top_n], "builtin", True
 
 
@@ -413,6 +441,8 @@ def _fetch_ecosystem(
 
 
 def _fetch_json_list(url: str, top_n: int) -> tuple[list[str], str, bool]:
+    import urllib.request
+
     req = urllib.request.Request(url, headers={"Accept": "application/json"})
     try:
         resp, body = safe_urlopen(req, timeout=30)
@@ -454,7 +484,11 @@ def cmd(args: argparse.Namespace) -> int:
         )
         return 2
 
-    config = load_config(Path.cwd())
+    _load_config: Any = globals().get("load_config")
+    if _load_config is None:
+        from picosentry.scan.config import load_config as _load_config
+
+    config = _load_config(Path.cwd())
     if not config.updates_enabled:
         print(
             "Error: updates are disabled in project config (updates.enabled=false).",
@@ -473,6 +507,8 @@ def cmd(args: argparse.Namespace) -> int:
         output_path = Path(output_arg)
         output_dir = output_path if ecosystem_arg == "all" else output_path.parent
     else:
+        from picosentry.scan.engine import user_corpus_dir
+
         output_dir = user_corpus_dir()
         output_path = None
 
@@ -503,11 +539,13 @@ def cmd(args: argparse.Namespace) -> int:
         if merge:
             existing = _load_existing(corpus_file)
 
-        builtin = set(_BUILTIN_FALLBACK.get(ecosystem, []))
+        builtin = set(_builtin_fallback().get(ecosystem, []))
         # Always merge built-in names and drop obscure fetched short names
         # (<4 chars) that are not already in the curated built-in list.
         filtered = {n for n in names if isinstance(n, str) and n and (len(n) >= 4 or n in builtin)}
         merged = sorted(existing | filtered | builtin)
+        from picosentry.scan.rules.corpus_index import save_indexed_corpus
+
         save_indexed_corpus(corpus_file.parent, ecosystem, merged)
 
         if used_builtin:

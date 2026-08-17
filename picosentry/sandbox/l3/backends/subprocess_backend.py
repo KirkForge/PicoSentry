@@ -5,7 +5,7 @@ import os
 import re
 import subprocess
 
-from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
+from picosentry.sandbox.l3.backends._rlimits import kill_process_group, sandbox_preexec
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     Policy,
@@ -87,7 +87,7 @@ class SubprocessBackend(SandboxBackend):
                 stderr=subprocess.PIPE,
                 cwd=cwd,
                 env=run_env,
-                preexec_fn=set_resource_limits,
+                preexec_fn=sandbox_preexec,
             )
             session.resources.proc = proc
 
@@ -95,7 +95,11 @@ class SubprocessBackend(SandboxBackend):
                 stdout_bytes, stderr_bytes = proc.communicate(timeout=effective_timeout)
                 exit_code = proc.returncode
             except subprocess.TimeoutExpired:
-                proc.kill()
+                # The child is a session leader (sandbox_preexec), so killing
+                # its group reaps the pipe-holding grandchildren too — a bare
+                # proc.kill() left them alive and communicate() below hung
+                # forever on the still-open write end (WO4.0.0-011).
+                kill_process_group(proc.pid)
                 stdout_bytes, stderr_bytes = proc.communicate()
                 exit_code = -1
                 events.append(

@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean npm package: helper-npm-pkg-12",
+  "expected_clean": true
+}

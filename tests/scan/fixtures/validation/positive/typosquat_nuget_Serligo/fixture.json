@@ -1,7 +1,0 @@
-{
-  "label": "positive",
-  "description": "NuGet project depending on 'Serligo' \u2014 edit dist <=2 from 'Serilog' (fires L2-NUGET-TYPO-001).",
-  "expected_rule_ids": [
-    "L2-NUGET-TYPO-001"
-  ]
-}

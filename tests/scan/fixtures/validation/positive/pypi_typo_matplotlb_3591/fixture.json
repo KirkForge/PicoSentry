@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "PyPI typosquat: matplotlb mimicking matplotlib",
+  "expected_rule_ids": [
+    "L2-PYPI-TYPO-001"
+  ]
+}

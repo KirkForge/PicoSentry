@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Go package 80",
+  "expected_clean": true
+}

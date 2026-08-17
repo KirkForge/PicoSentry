@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Maven typosquat: gsn mimicking gson",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

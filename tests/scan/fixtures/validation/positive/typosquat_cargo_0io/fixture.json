@@ -1,7 +1,0 @@
-{
-  "label": "positive",
-  "description": "Cargo crate named '0io' \u2014 edit dist <=2 from 'mio' (top Cargo) (fires L2-CARGO-TYPO-001).",
-  "expected_rule_ids": [
-    "L2-CARGO-TYPO-001"
-  ]
-}

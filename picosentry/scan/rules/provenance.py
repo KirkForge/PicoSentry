@@ -35,7 +35,12 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
             break
 
     repo = pkg.get("repository")
-    if not repo:
+    repo_url = ""
+    if isinstance(repo, str):
+        repo_url = repo
+    elif isinstance(repo, dict):
+        repo_url = str(repo.get("url", ""))
+    if not repo_url:
         # ponytail: missing-repo only with a risk signal — bare root manifests
         # are hygiene noise (corpus FPs).
         if has_execution_risk(pkg, pkg_json):
@@ -57,7 +62,7 @@ def _check_provenance(pkg: dict, pkg_json: Path) -> list[Finding]:
                     ],
                 )
             )
-    elif isinstance(repo, str) and "github.com" not in repo.lower() and has_execution_risk(pkg, pkg_json):
+    elif "github.com" not in repo_url.lower() and has_execution_risk(pkg, pkg_json):
         findings.append(
             Finding(
                 rule_id="L2-PROV-001",

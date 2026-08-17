@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean RubyGems package 64",
+  "expected_clean": true
+}

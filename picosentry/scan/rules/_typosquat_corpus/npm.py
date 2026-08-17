@@ -10,6 +10,9 @@ BUILTIN_TOP_100: list[str] = sorted(
         "lodash",
         "axios",
         "express",
+        # async: top-100 npm downloads for years; priority membership lets the
+        # short-name guard catch 3-char typos (asy, asyc) of it.
+        "async",
         "vue",
         "angular",
         "webpack",
@@ -18,6 +21,9 @@ BUILTIN_TOP_100: list[str] = sorted(
         "mocha",
         "chalk",
         "commander",
+        # glob: top npm utility; priority membership lets the short-name guard
+        # match 3-char typos (gob, glbo) of it.
+        "glob",
         "inquirer",
         "dotenv",
         "nodemon",

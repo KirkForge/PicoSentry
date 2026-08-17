@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "RubyGems CVE CVE-2023-23913: actionview@6.1.5",
+  "expected_rule_ids": [
+    "L2-RUBYGEMS-ADV-001"
+  ]
+}

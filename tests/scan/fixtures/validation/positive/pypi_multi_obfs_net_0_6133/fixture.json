@@ -1,8 +1,0 @@
-{
-  "label": "multi_attack",
-  "description": "Multi-attack: pypi_multi_obfs_net variant 0",
-  "expected_rule_ids": [
-    "L2-PYPI-OBFS-001",
-    "L2-NETEX-001"
-  ]
-}

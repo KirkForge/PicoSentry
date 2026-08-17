@@ -18,6 +18,9 @@ BUILTIN_RUBYGEMS_TOP_100: list[str] = sorted(
         "bundler",
         "json",
         "nokogiri",
+        # oj: top-500 gem by downloads (~700M) — the fastest JSON parser;
+        # priority membership lets the short-name guard match 3-char typos.
+        "oj",
         "devise",
         "puma",
         "sinatra",

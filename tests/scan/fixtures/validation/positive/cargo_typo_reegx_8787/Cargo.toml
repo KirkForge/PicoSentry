@@ -1,0 +1,6 @@
+[package]
+name = "reegx"
+version = "1.0.0"
+
+[dependencies]
+reegx = "1.0"

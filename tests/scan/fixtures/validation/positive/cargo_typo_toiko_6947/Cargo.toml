@@ -1,0 +1,6 @@
+[package]
+name = "toiko"
+version = "1.0.0"
+
+[dependencies]
+toiko = "1.0"

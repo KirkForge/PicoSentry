@@ -49,6 +49,17 @@ def get_dep_names(pkg: dict) -> set[str]:
     return names
 
 
+def get_dep_names_with_specs(pkg: dict) -> dict[str, str]:
+    """Dependency name → raw version spec (e.g. ``{"lodash": "^4.17.15"}``)."""
+    deps: dict[str, str] = {}
+    for key in ("dependencies", "optionalDependencies"):
+        section = pkg.get(key)
+        if isinstance(section, dict):
+            for name, spec in section.items():
+                deps[name] = spec if isinstance(spec, str) else str(spec)
+    return deps
+
+
 def iter_node_modules(target: Path):
     nm = target / "node_modules"
     if not nm.is_dir():

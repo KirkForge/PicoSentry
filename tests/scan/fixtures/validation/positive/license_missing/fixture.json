@@ -1,6 +1,6 @@
 {
   "label": "positive",
-  "description": "npm package with no license field at all (fires L2-LICENSE-001).",
+  "description": "npm package with no license field at all but with install hook (fires L2-LICENSE-001).",
   "expected_rule_ids": [
     "L2-LICENSE-001"
   ]

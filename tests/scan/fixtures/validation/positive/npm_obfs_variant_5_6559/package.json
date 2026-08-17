@@ -1,0 +1,7 @@
+{
+  "name": "obfs-5-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"importlib.import_module(\"os\").system(\"id\")\""
+  }
+}

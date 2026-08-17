@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "NuGet typosquat: EntityFrameork mimicking EntityFramework",
+  "expected_rule_ids": [
+    "L2-NUGET-TYPO-001"
+  ]
+}

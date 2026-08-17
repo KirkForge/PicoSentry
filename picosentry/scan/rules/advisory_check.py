@@ -20,7 +20,7 @@ from .nuget_utils import collect_nuget_deps, detect_nuget_project
 from .pypi_lock_parser import parse_poetry_lock, parse_requirements_txt, parse_uv_lock
 from .pypi_utils import detect_pypi_project, iter_site_packages, load_pyproject_toml
 from .rubygems_utils import detect_rubygems_project, parse_gemfile, parse_gemfile_lock
-from .utils import iter_node_modules, load_package_json
+from .utils import get_dep_names_with_specs, iter_node_modules, load_package_json
 
 logger = logging.getLogger("picosentry.advisory_check")
 
@@ -97,6 +97,12 @@ def _collect_npm_packages(target: Path) -> list[tuple[str, str, str, Path]]:
             pkg_name = pkg.get("name", "root")
             pkg_version = pkg.get("version", "unknown")
             packages.append((pkg_name, pkg_version, f"{pkg_name}@{pkg_version}", root_pkg))
+            # Declared dependencies are advisory-relevant even when
+            # node_modules/ is absent (e.g. CI before install): every other
+            # ecosystem's collector reads the manifest; npm must too or
+            # vulnerable deps are silently skipped.
+            for dep_name, dep_spec in sorted(get_dep_names_with_specs(pkg).items()):
+                packages.append((dep_name, str(dep_spec), f"{dep_name}@{dep_spec}", root_pkg))
 
     for pkg_json, pkg in iter_node_modules(target):
         pkg_name = pkg.get("name", pkg_json.parent.name)

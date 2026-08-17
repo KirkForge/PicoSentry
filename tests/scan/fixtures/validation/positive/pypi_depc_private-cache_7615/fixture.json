@@ -1,0 +1,7 @@
+{
+  "label": "dep_confusion",
+  "description": "PyPI dependency confusion: private-cache",
+  "expected_rule_ids": [
+    "L2-PYPI-DEPC-001"
+  ]
+}

@@ -1,0 +1,1 @@
+corp_logging==1.0.0

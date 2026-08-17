@@ -1,0 +1,6 @@
+[package]
+name = "toki"
+version = "1.0.0"
+
+[dependencies]
+toki = "1.0"

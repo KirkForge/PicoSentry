@@ -1,0 +1,8 @@
+{
+  "label": "multi_attack",
+  "description": "Multi-attack: npm_multi_typo_obfs variant 6",
+  "expected_rule_ids": [
+    "L2-TYPO-001",
+    "L2-POST-001"
+  ]
+}

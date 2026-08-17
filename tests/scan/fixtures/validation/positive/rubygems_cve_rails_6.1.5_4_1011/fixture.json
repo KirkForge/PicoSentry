@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "RubyGems CVE CVE-2022-23633: rails@6.1.5",
-  "expected_rule_ids": [
-    "L2-CVE-001"
-  ]
-}

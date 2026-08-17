@@ -1,0 +1,8 @@
+{
+  "label": "positive",
+  "description": "PyPI package with chr-based exec construction (fires L2-PYPI-OBFS-004).",
+  "expected_rule_ids": [
+    "L2-PYPI-OBFS-004",
+    "L2-PYPI-POST-001"
+  ]
+}

@@ -1,0 +1,8 @@
+[package]
+name = "clean_task_runner"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_task_runner"
+license = "MIT"
+
+[dependencies]

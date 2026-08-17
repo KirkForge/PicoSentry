@@ -1,7 +1,0 @@
-{
-  "name": "test-pkg",
-  "version": "1.0.0",
-  "dependencies": {
-    "secure-data": "1.0.0"
-  }
-}

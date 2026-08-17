@@ -1,0 +1,7 @@
+{
+  "label": "typosquat",
+  "description": "Cargo typosquat: tokioo mimicking tokio",
+  "expected_rule_ids": [
+    "L2-CARGO-TYPO-001"
+  ]
+}

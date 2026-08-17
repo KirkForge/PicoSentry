@@ -1,0 +1,7 @@
+{
+  "name": "obfs-4-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"getattr(__builtins__, \"eval\")(\"import os\")\""
+  }
+}

@@ -1,0 +1,7 @@
+{
+  "name": "obfs-3-pkg",
+  "version": "1.0.0",
+  "scripts": {
+    "postinstall": "node -e \"eval(\"\\u0065\\u0076\\u0061\\u006c\")\""
+  }
+}

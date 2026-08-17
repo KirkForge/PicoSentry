@@ -1,0 +1,8 @@
+[package]
+name = "clean_signal_handler"
+version = "0.1.0"
+edition = "2021"
+description = "A clean Rust crate: clean_signal_handler"
+license = "MIT"
+
+[dependencies]

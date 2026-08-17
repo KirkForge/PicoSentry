@@ -1,6 +1,0 @@
-[package]
-name = "clap"
-version = "1.0.0"
-
-[dependencies]
-clap = "1.0"

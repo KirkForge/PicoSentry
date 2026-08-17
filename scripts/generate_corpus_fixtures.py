@@ -2045,10 +2045,19 @@ MANIFEST_PATTERNS = [
         "name": "missing_repo_npm",
         "files": {
             "package.json": json.dumps(
-                {"name": "no-repo", "version": "1.0.0", "description": "A package with no repository field"}, indent=2
+                {
+                    "name": "no-repo",
+                    "version": "1.0.0",
+                    "description": "A package with no repository field",
+                    # install hooks = risk signal; informational metadata rules
+                    # stay silent on bare root manifests by design.
+                    "scripts": {"install": "node setup.js"},
+                },
+                indent=2,
             ),
+            "setup.js": "console.log('setup');\n",
         },
-        "desc": "npm package without repository field (fires L2-PROV-001).",
+        "desc": "npm package without repository field but with install hook (fires L2-PROV-001).",
         "rules": ["L2-PROV-001"],
     },
     {
@@ -2075,10 +2084,17 @@ MANIFEST_PATTERNS = [
         "name": "unlicensed_npm_package",
         "files": {
             "package.json": json.dumps(
-                {"name": "unlicensed", "version": "1.0.0", "description": "No license field"}, indent=2
+                {
+                    "name": "unlicensed",
+                    "version": "1.0.0",
+                    "description": "No license field",
+                    "scripts": {"install": "node setup.js"},
+                },
+                indent=2,
             ),
+            "setup.js": "console.log('setup');\n",
         },
-        "desc": "npm package without license field (fires L2-LICENSE-001).",
+        "desc": "npm package without license field but with install hook (fires L2-LICENSE-001).",
         "rules": ["L2-LICENSE-001"],
     },
     {
@@ -2094,9 +2110,12 @@ MANIFEST_PATTERNS = [
     {
         "name": "license_missing",
         "files": {
-            "package.json": json.dumps({"name": "no-license", "version": "1.0.0"}, indent=2),
+            "package.json": json.dumps(
+                {"name": "no-license", "version": "1.0.0", "scripts": {"install": "node setup.js"}}, indent=2
+            ),
+            "setup.js": "console.log('setup');\n",
         },
-        "desc": "npm package with no license field at all (fires L2-LICENSE-001).",
+        "desc": "npm package with no license field at all but with install hook (fires L2-LICENSE-001).",
         "rules": ["L2-LICENSE-001"],
     },
     {
@@ -2106,7 +2125,7 @@ MANIFEST_PATTERNS = [
                 {"name": "engin-typo", "version": "1.0.0", "engines": {"node": ">= 0.10"}}, indent=2
             ),
         },
-        "desc": "npm package with suspiciously low engine constraint (fires L2-ENGIN-001).",
+        "desc": "npm package with pre-Node-4 engine floor (fires L2-ENGIN-001).",
         "rules": ["L2-ENGIN-001"],
     },
     {
@@ -2117,11 +2136,13 @@ MANIFEST_PATTERNS = [
                     "name": "non-github",
                     "version": "1.0.0",
                     "repository": {"type": "git", "url": "git+https://bitbucket.org/example/pkg.git"},
+                    "scripts": {"install": "node setup.js"},
                 },
                 indent=2,
             ),
+            "setup.js": "console.log('setup');\n",
         },
-        "desc": "npm package with non-GitHub repository (fires L2-PROV-001).",
+        "desc": "npm package with non-GitHub repository and install hook (fires L2-PROV-001).",
         "rules": ["L2-PROV-001"],
     },
     {

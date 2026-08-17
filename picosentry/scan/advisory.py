@@ -204,27 +204,35 @@ class AdvisoryDB:
         if not version_str:
             return None
         m = _SEMVER_RE.search(version_str)
-        if m:
-            pre = m.group(4) or ""
+        if not m:
+            # Ecosystems commonly use 1- or 2-component versions ("1.30",
+            # "9.0"). Normalize to semver by zero-padding the tail so they
+            # compare against X.Y.Z ranges instead of failing to parse
+            # (unparseable == silently not affected).
+            m2 = re.match(r"^v?(\d+)(?:\.(\d+))?$", version_str.strip())
+            if not m2:
+                return None
+            major, minor = int(m2.group(1)), int(m2.group(2) or 0)
+            return (major, minor, 0, (1,))
+        pre = m.group(4) or ""
 
-            if "+" in pre:
-                pre = pre[: pre.index("+")]
+        if "+" in pre:
+            pre = pre[: pre.index("+")]
 
-            if pre:
-                # Tag each identifier so numeric and alphanumeric identifiers are
-                # mutually comparable (semver §11: numeric < alphanumeric); a bare
-                # int|str mix would raise TypeError on tuple comparison.
-                parts: list[tuple[int, int | str]] = []
-                for ident in pre.split("."):
-                    try:
-                        parts.append((0, int(ident)))
-                    except ValueError:
-                        parts.append((1, ident))
-                pre_tuple = (0, *tuple(parts))
-            else:
-                pre_tuple = (1,)  # release sorts higher than any pre-release
-            return (int(m.group(1)), int(m.group(2)), int(m.group(3)), pre_tuple)
-        return None
+        if pre:
+            # Tag each identifier so numeric and alphanumeric identifiers are
+            # mutually comparable (semver §11: numeric < alphanumeric); a bare
+            # int|str mix would raise TypeError on tuple comparison.
+            parts: list[tuple[int, int | str]] = []
+            for ident in pre.split("."):
+                try:
+                    parts.append((0, int(ident)))
+                except ValueError:
+                    parts.append((1, ident))
+            pre_tuple = (0, *tuple(parts))
+        else:
+            pre_tuple = (1,)  # release sorts higher than any pre-release
+        return (int(m.group(1)), int(m.group(2)), int(m.group(3)), pre_tuple)
 
     @staticmethod
     def _version_in_range(v_tuple: tuple, range_str: str) -> bool:

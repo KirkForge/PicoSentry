@@ -1,0 +1,5 @@
+{
+  "label": "negative",
+  "description": "Clean Cargo package 32",
+  "expected_clean": true
+}

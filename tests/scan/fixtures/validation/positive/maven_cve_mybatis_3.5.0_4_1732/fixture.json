@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2020-26945: mybatis@3.5.0",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

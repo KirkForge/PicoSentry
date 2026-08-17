@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2021-44228: log4j-core@2.14.1",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

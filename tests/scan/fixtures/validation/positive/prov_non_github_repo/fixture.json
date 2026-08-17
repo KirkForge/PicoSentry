@@ -1,6 +1,6 @@
 {
   "label": "positive",
-  "description": "npm package with non-GitHub repository (fires L2-PROV-001).",
+  "description": "npm package with non-GitHub repository and install hook (fires L2-PROV-001).",
   "expected_rule_ids": [
     "L2-PROV-001"
   ]

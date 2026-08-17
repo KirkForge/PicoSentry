@@ -1,0 +1,6 @@
+[package]
+name = "serde_jsonn"
+version = "1.0.0"
+
+[dependencies]
+serde_jsonn = "1.0"

@@ -1,0 +1,1 @@
+corp_notifier==1.0.0

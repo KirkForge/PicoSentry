@@ -22,11 +22,11 @@ FIXTURES = Path(__file__).resolve().parent / "fixtures" / "validation" / "positi
 # (No rubygems fixture currently fires an L2-RUBYGEMS-* rule — see the
 # model-card recall gap — so that ecosystem has no emitting representative.)
 REPRESENTATIVE_FIXTURES = (
-    "cargo_typo_cla_5092",
-    "go_typo_beego_5562",
-    "maven_typo_commons_lang_1035",
-    "nuget_typo_EntityFrameork_5915",
-    "pypi_depc_company-auth_4228",
+    "cargo_typo_cla_9727",
+    "go_typo_beegoo_4258",
+    "maven_typo_commons_langg_8177",
+    "nuget_typo_EntityFrameork_4510",
+    "pypi_depc_company-auth_5462",
     "camp_trapdoor_npm",
 )
 

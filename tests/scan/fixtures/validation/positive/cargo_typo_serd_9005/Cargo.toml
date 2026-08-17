@@ -1,0 +1,6 @@
+[package]
+name = "serd"
+version = "1.0.0"
+
+[dependencies]
+serd = "1.0"

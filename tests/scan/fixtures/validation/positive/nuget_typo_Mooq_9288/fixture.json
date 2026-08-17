@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "NuGet typosquat: Mooq mimicking Moq",
-  "expected_rule_ids": [
-    "L2-TYPO-001"
-  ]
-}

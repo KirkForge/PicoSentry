@@ -1,0 +1,7 @@
+{
+  "label": "cve",
+  "description": "Maven CVE CVE-2019-17531: jackson-databind@2.9.8",
+  "expected_rule_ids": [
+    "L2-MAVEN-ADV-001"
+  ]
+}

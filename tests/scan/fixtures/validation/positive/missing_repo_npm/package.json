@@ -1,5 +1,8 @@
 {
   "name": "no-repo",
   "version": "1.0.0",
-  "description": "A package with no repository field"
+  "description": "A package with no repository field",
+  "scripts": {
+    "install": "node setup.js"
+  }
 }

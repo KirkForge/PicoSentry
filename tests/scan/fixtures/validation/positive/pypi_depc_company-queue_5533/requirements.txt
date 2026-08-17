@@ -1,1 +1,0 @@
-company-queue==1.0.0

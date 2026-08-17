@@ -1,6 +1,0 @@
-[package]
-name = "reqwset"
-version = "1.0.0"
-
-[dependencies]
-reqwset = "1.0"

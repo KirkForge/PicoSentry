@@ -1,6 +1,0 @@
-[package]
-name = "serdejson"
-version = "1.0.0"
-
-[dependencies]
-serdejson = "1.0"

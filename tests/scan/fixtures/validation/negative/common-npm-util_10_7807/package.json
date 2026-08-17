@@ -1,9 +1,0 @@
-{
-  "name": "common-npm-util-10",
-  "version": "1.0.0",
-  "description": "A clean npm package",
-  "main": "index.js",
-  "scripts": {
-    "test": "echo \"test\""
-  }
-}

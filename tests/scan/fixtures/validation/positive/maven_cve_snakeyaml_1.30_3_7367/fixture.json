@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "Maven CVE CVE-2022-25857: snakeyaml@1.30",
-  "expected_rule_ids": [
-    "L2-MAVEN-ADV-001"
-  ]
-}

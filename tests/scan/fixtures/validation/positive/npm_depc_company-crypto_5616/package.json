@@ -1,7 +1,0 @@
-{
-  "name": "test-pkg",
-  "version": "1.0.0",
-  "dependencies": {
-    "company-crypto": "1.0.0"
-  }
-}

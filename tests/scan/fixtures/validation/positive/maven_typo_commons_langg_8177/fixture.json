@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Maven typosquat: commons-langg mimicking commons-lang",
-  "expected_rule_ids": [
-    "L2-MAVEN-TYPO-001"
-  ]
-}

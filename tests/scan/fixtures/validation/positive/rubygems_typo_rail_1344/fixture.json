@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "RubyGems typosquat: rail mimicking rails",
-  "expected_rule_ids": [
-    "L2-RUBYGEMS-TYPO-001"
-  ]
-}

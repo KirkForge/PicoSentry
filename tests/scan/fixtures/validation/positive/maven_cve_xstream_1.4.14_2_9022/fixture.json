@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "Maven CVE CVE-2021-39139: xstream@1.4.14",
-  "expected_rule_ids": [
-    "L2-MAVEN-ADV-001"
-  ]
-}

@@ -1,7 +1,0 @@
-{
-  "name": "obfs-8-pkg",
-  "version": "1.0.0",
-  "scripts": {
-    "postinstall": "node -e \"os.popen(\"id\").read()\""
-  }
-}

@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Cargo typosquat: regexx mimicking regex",
-  "expected_rule_ids": [
-    "L2-CARGO-TYPO-001"
-  ]
-}

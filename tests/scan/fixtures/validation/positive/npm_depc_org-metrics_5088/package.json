@@ -1,7 +1,0 @@
-{
-  "name": "test-pkg",
-  "version": "1.0.0",
-  "dependencies": {
-    "org-metrics": "1.0.0"
-  }
-}

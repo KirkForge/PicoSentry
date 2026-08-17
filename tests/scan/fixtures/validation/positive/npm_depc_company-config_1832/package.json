@@ -1,7 +1,0 @@
-{
-  "name": "test-pkg",
-  "version": "1.0.0",
-  "dependencies": {
-    "company-config": "1.0.0"
-  }
-}

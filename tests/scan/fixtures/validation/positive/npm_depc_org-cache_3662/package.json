@@ -1,7 +1,0 @@
-{
-  "name": "test-pkg",
-  "version": "1.0.0",
-  "dependencies": {
-    "org-cache": "1.0.0"
-  }
-}

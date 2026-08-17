@@ -1,6 +1,0 @@
-[package]
-name = "tokioo"
-version = "1.0.0"
-
-[dependencies]
-tokioo = "1.0"

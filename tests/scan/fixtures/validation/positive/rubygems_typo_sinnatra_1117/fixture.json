@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "RubyGems typosquat: sinnatra mimicking sinatra",
-  "expected_rule_ids": [
-    "L2-RUBYGEMS-TYPO-001"
-  ]
-}

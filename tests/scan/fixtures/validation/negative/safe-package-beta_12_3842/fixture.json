@@ -1,5 +1,0 @@
-{
-  "label": "negative",
-  "description": "Clean PyPI package: safe-package-beta-12",
-  "expected_clean": true
-}

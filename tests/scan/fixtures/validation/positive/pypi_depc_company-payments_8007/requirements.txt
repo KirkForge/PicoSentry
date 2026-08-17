@@ -1,1 +1,0 @@
-company-payments==1.0.0

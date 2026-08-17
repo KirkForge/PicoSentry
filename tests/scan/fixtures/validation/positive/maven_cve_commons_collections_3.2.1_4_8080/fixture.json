@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "Maven CVE CVE-2015-6420: commons-collections@3.2.1",
-  "expected_rule_ids": [
-    "L2-MAVEN-ADV-001"
-  ]
-}

@@ -1,6 +1,0 @@
-[package]
-name = "cla"
-version = "1.0.0"
-
-[dependencies]
-cla = "1.0"

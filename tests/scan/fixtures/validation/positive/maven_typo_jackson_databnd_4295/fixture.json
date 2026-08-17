@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "Maven typosquat: jackson-databnd mimicking jackson-databind",
-  "expected_rule_ids": [
-    "L2-MAVEN-TYPO-001"
-  ]
-}

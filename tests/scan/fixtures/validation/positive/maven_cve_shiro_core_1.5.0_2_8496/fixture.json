@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "Maven CVE CVE-2020-1957: shiro-core@1.5.0",
-  "expected_rule_ids": [
-    "L2-MAVEN-ADV-001"
-  ]
-}

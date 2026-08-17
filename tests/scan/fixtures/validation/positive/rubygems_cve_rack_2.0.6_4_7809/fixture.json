@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "RubyGems CVE CVE-2022-30122: rack@2.0.6",
-  "expected_rule_ids": [
-    "L2-RUBYGEMS-ADV-001"
-  ]
-}

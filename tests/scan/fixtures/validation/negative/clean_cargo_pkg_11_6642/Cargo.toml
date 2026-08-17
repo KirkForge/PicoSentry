@@ -1,5 +1,0 @@
-[package]
-name = "clean-cargo-11"
-version = "1.0.0"
-
-[dependencies]

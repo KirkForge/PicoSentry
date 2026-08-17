@@ -1,6 +1,0 @@
-[package]
-name = "reqwestt"
-version = "1.0.0"
-
-[dependencies]
-reqwestt = "1.0"

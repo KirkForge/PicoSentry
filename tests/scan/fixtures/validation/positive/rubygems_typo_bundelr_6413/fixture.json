@@ -1,7 +1,0 @@
-{
-  "label": "typosquat",
-  "description": "RubyGems typosquat: bundelr mimicking bundler",
-  "expected_rule_ids": [
-    "L2-RUBYGEMS-TYPO-001"
-  ]
-}

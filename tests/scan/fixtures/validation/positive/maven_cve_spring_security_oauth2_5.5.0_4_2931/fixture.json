@@ -1,7 +1,0 @@
-{
-  "label": "cve",
-  "description": "Maven CVE CVE-2019-3778: spring-security-oauth2@5.5.0",
-  "expected_rule_ids": [
-    "L2-MAVEN-ADV-001"
-  ]
-}

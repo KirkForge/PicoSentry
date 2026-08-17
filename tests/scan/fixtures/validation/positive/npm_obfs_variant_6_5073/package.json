@@ -1,7 +1,0 @@
-{
-  "name": "obfs-6-pkg",
-  "version": "1.0.0",
-  "scripts": {
-    "postinstall": "node -e \"subprocess.Popen([\"id\"], stdout=subprocess.PIPE)\""
-  }
-}

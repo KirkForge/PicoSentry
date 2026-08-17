@@ -46,11 +46,6 @@ def _dedup_key(event: CorrelatedEvent) -> str:
     ]
 
 
-def _count_events(db_manager) -> int:
-    row = db_manager.execute_one("SELECT COUNT(*) AS c FROM correlation_events")
-    return row["c"] if row else 0
-
-
 # ON CONFLICT ... DO NOTHING is portable: dedup_key is UNIQUE (migration 9)
 # and both SQLite >= 3.24 and Postgres accept the identical clause.
 _EVENTS_INSERT_SQL = """
@@ -74,26 +69,27 @@ def _persist_events_impl(engine) -> int:
 
                 try:
                     db = _db()
-                    before = _count_events(db)
-                    db.execute_insert(
-                        _EVENTS_INSERT_SQL,
-                        (
-                            dedup_key,
-                            event.artifact_id,
-                            event.layer,
-                            event.rule_id,
-                            event.severity.value,
-                            event.confidence.value,
-                            event.target,
-                            event.title,
-                            event.detail,
-                            event.timestamp,
-                            event.run_id,
-                            event.org_id,
-                        ),
-                    )
-                    after = _count_events(db)
-                    if after > before:
+                    # dedup_key is UNIQUE (migration 9): an indexed existence
+                    # probe replaces the old COUNT(*)-before/after pair, which
+                    # full-table-scanned twice per event (O(n²) per persist run).
+                    if not db.execute_one("SELECT 1 FROM correlation_events WHERE dedup_key = ?", (dedup_key,)):
+                        db.execute_insert(
+                            _EVENTS_INSERT_SQL,
+                            (
+                                dedup_key,
+                                event.artifact_id,
+                                event.layer,
+                                event.rule_id,
+                                event.severity.value,
+                                event.confidence.value,
+                                event.target,
+                                event.title,
+                                event.detail,
+                                event.timestamp,
+                                event.run_id,
+                                event.org_id,
+                            ),
+                        )
                         count += 1
                 except _PERSIST_ERRORS as e:
                     logger.debug("Persist skip for %s/%s: %s", event.artifact_id, event.rule_id, e)

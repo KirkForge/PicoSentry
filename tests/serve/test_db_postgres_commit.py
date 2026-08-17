@@ -14,6 +14,7 @@ import threading
 import pytest
 
 from picosentry.serve.database.manager import DatabaseManager
+from picosentry.serve.database.pools import ReadWriteLock
 
 
 class _FakePGCursor:
@@ -63,7 +64,6 @@ class _FakePGPool:
 
     def __init__(self, conn):
         self._conn = conn
-        self._lock = threading.Lock()
 
     def acquire(self):
         return self._conn
@@ -71,15 +71,14 @@ class _FakePGPool:
     def close_all(self):
         pass
 
-    def lock(self):
-        return self._lock
-
 
 def _pg_manager(conn):
+    # Mirrors the DatabaseManager constructor (the manager owns a
+    # ReadWriteLock; the pool lends nothing).
     mgr = DatabaseManager.__new__(DatabaseManager)
     mgr._backend = "postgres"
     mgr._pool = _FakePGPool(conn)
-    mgr._lock = mgr._pool.lock()
+    mgr._lock = ReadWriteLock()
     mgr._tx_depth = threading.local()
     return mgr
 

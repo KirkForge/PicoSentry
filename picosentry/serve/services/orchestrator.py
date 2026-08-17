@@ -25,7 +25,7 @@ from picosentry.serve.services._orchestrator_data import (
     ProjectMeta,
     _validate_project_command,
 )
-from picosentry.serve.services._orchestrator_health import perform_health_checks
+from picosentry.serve.services._orchestrator_health import get_health_checks_cached
 from picosentry.serve.services._orchestrator_reports import (
     generate_project_report,
     generate_summary_report,
@@ -40,6 +40,17 @@ from picosentry.serve.services.plugin_manager import plugin_manager
 logger = logging.getLogger("picoshogun.Orchestrator")
 
 BASE_DIR = Path(__file__).parent.parent
+
+# project_runs.output bound: a chatty project (compiler output, scan dumps)
+# otherwise stores unbounded stdout per run. The trailing marker is the
+# truncation flag — history endpoints can show it verbatim.
+_RUN_OUTPUT_LIMIT = 100_000
+
+
+def _bounded(text: str) -> str:
+    if len(text) <= _RUN_OUTPUT_LIMIT:
+        return text
+    return text[:_RUN_OUTPUT_LIMIT] + "\n...[truncated]"
 
 
 class EnhancedOrchestrator:  # rationale: async execution engine coordinating PicoSentry, PicoDome, PicoWatch
@@ -156,13 +167,17 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             f"SELECT COUNT(*) as c FROM project_runs {running_where}",
             tuple(params_running),
         )
+        threat_score = self.intel.get_aggregate_score()
+        # /status and the metrics endpoint read the same value; recording it
+        # here makes picoshogun_threat_score exist without a second producer.
+        metrics.threat_level(threat_score)
         return {
             "projects_total": len(self.registry),
             "projects_active": (running_row or {}).get("c") or 0,
             "projects_failed": failed,
             "active_threats": (threats["count"] or 0) if threats else 0,
             "pending_alerts": (pending["count"] or 0) if pending else 0,
-            "threat_score": self.intel.get_aggregate_score(),
+            "threat_score": threat_score,
             "system_health": health,
             "uptime_seconds": time.time() - self._start_time,
             "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -306,8 +321,8 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     datetime.now(timezone.utc),
                     status,
                     result.returncode,
-                    result.stdout,
-                    result.stderr,
+                    _bounded(result.stdout),
+                    _bounded(result.stderr),
                     duration,
                     json.dumps(intel_data),
                     len(intel_data),
@@ -597,7 +612,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         return [{**dict(row), "labels": json.loads(row["labels"]) if row["labels"] else {}} for row in rows]
 
     def get_health_checks(self) -> list[dict]:
-        return perform_health_checks(self.registry)
+        return get_health_checks_cached(self.registry)
 
     def generate_summary_report(self, org_id: int | None = None) -> str:
         return generate_summary_report(self, org_id=org_id)

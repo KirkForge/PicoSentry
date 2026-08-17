@@ -1,6 +1,7 @@
 import logging
 import os
 import smtplib
+import threading
 import time
 from datetime import datetime, timezone
 
@@ -9,6 +10,44 @@ from picosentry.serve.database.manager import db
 from picosentry.serve.services._orchestrator_data import BASE_DIR, _HEALTH_PROBE_ERRORS, ProjectMeta
 
 logger = logging.getLogger("picoshogun.Orchestrator")
+
+# /health is unauthenticated, rate-limit-exempt and probed by load
+# balancers; without a cache every hit re-probed DB/disk/SMTP and wrote
+# 3-4 rows. The TTL bounds probe frequency (and therefore insert
+# frequency) regardless of request rate.
+HEALTH_CACHE_TTL_SECONDS = 15.0
+# Hard cap on persisted history; /health/history never serves more than
+# 1000 rows, so older rows are dead weight.
+_HEALTH_RETENTION_ROWS = 1000
+
+_cache_lock = threading.Lock()
+_cached_checks: list[dict] | None = None
+_cached_at: float = 0.0
+
+
+def get_health_checks_cached(registry: dict[str, ProjectMeta]) -> list[dict]:
+    """TTL-cached perform_health_checks, single-flight.
+
+    The lock is held across the probe so concurrent callers share one
+    result instead of stampeding the probes. Callers on the event loop
+    must invoke this via asyncio.to_thread — the probes block.
+    """
+    global _cached_checks, _cached_at
+    with _cache_lock:
+        if _cached_checks is not None and time.monotonic() - _cached_at < HEALTH_CACHE_TTL_SECONDS:
+            return _cached_checks
+        checks = perform_health_checks(registry)
+        _cached_at = time.monotonic()
+        _cached_checks = checks
+        return checks
+
+
+def reset_health_cache() -> None:
+    """Drop the cached probe result (tests, and after a DB restore)."""
+    global _cached_checks, _cached_at
+    with _cache_lock:
+        _cached_checks = None
+        _cached_at = 0.0
 
 
 def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
@@ -44,6 +83,12 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
         free_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
         total_gb = (stat.f_blocks * stat.f_frsize) / (1024**3)
         used_pct = (1 - stat.f_bavail / stat.f_blocks) * 100
+
+        # The disk_space_low anomaly rule reads this gauge; the health probe
+        # is its only producer.
+        from picosentry.serve.services.metrics import metrics
+
+        metrics.gauge("disk_used_pct", round(used_pct, 2))
 
         status = "healthy" if used_pct < 80 else "warning" if used_pct < 90 else "critical"
         checks.append(
@@ -86,6 +131,18 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
         """,
             (check["component"], check["status"], check["message"], check["latency_ms"]),
         )
+
+    try:
+        db.execute(
+            f"""
+            DELETE FROM health_checks WHERE id NOT IN (
+                SELECT id FROM health_checks ORDER BY created_at DESC, id DESC LIMIT {_HEALTH_RETENTION_ROWS}
+            )
+        """
+        )
+    except _HEALTH_PROBE_ERRORS:
+        # Retention trim must never fail the probe itself.
+        logger.debug("health_checks retention trim skipped", exc_info=True)
 
     start = time.time()
     try:

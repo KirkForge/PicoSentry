@@ -8,7 +8,7 @@
     "alert_channel": "all",
     "description": "Error rate > 10 in 5 minutes",
     "labels": {
-      "status": "5xx"
+      "status_class": "5xx"
     },
     "enabled": true,
     "org_id": null

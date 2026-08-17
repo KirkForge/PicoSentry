@@ -165,6 +165,42 @@ class JobScheduler:
         db.execute("UPDATE scheduled_jobs SET enabled = 0 WHERE id = ?", (job_id,))
         return True
 
+    def update_job(self, job_id: int, cron: str | None = None, params: dict | None = None) -> bool:
+        """Update a job's cron expression and/or params in place.
+
+        Recovers a job whose stored cron/params went bad (e.g. a rejected
+        category) without delete + re-create, keeping the job id stable.
+        """
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if job is None:
+                return False
+
+        if cron is not None:
+            if self._get_next_run(cron) is None:
+                raise ValueError(f"Invalid cron expression: {cron!r}")
+            db.execute("UPDATE scheduled_jobs SET cron_expression = ? WHERE id = ?", (cron, job_id))
+        if params is not None:
+            for key, value in params.items():
+                if not isinstance(value, (str, int, float, bool, type(None))):
+                    raise ValueError(f"Invalid param {key!r}: values must be strings, numbers, or booleans")
+            db.execute("UPDATE scheduled_jobs SET params = ? WHERE id = ?", (json.dumps(params), job_id))
+
+        with self._lock:
+            self._load_jobs()
+            if self.running:
+                self._schedule_job(job_id)
+        return True
+
+    def trigger_job(self, job_id: int) -> bool:
+        """Dispatch a job immediately (respects the skip-while-running guard)."""
+        with self._lock:
+            job = self.jobs.get(job_id)
+            if job is None or not job.enabled:
+                return False
+        self._dispatch_job(job_id)
+        return True
+
     def _get_next_run(self, cron_expression: str) -> datetime | None:
         if not HAS_CRONITER:
             match = re.match(r"every\s+(\d+)\s+(minute|hour|day)", cron_expression, re.IGNORECASE)
@@ -215,10 +251,11 @@ class JobScheduler:
     def _dispatch_job(self, job_id: int):
         """Scheduler-loop entry point: keeps slow jobs off the scheduler thread.
 
-        Batch jobs run for up to an hour; executing them inline starved every
-        minute-job on the single scheduler thread (head-of-line blocking).
-        Slow jobs run on their own daemon thread — a still-running job skips
-        (with a warning) instead of stacking when its next trigger fires.
+        Batch jobs run for up to an hour and health checks probe SMTP with a
+        5s timeout; executing them inline starved every minute-job on the
+        single scheduler thread (head-of-line blocking). Slow jobs run on
+        their own daemon thread — a still-running job skips (with a warning)
+        instead of stacking when its next trigger fires.
         # ponytail: daemon threads, not a ThreadPoolExecutor — futures workers
         # are joined at interpreter exit (3.9+), so an in-flight 3600s batch
         # would block process shutdown; per-job guard bounds concurrency.
@@ -227,7 +264,8 @@ class JobScheduler:
             job = self.jobs.get(job_id)
             if not job:
                 return
-            slow = job.command == "batch"
+            # Slow commands run off the scheduler thread; see _dispatch_job.
+            slow = job.command in ("batch", "health_check")
             if slow and job_id in self._slow_running:
                 logger.warning("Job %s (%s) still running; skipping trigger", job_id, job.name)
                 return
@@ -261,59 +299,39 @@ class JobScheduler:
 
         try:
             status = "failed"
+            _output: str | None = None
 
+            # Rejected jobs fall through to the shared status update +
+            # reschedule tail: a bad param must not permanently kill the job.
             if command not in self.ALLOWED_COMMANDS:
                 logger.error("Rejected unknown command: %r", command)
-                now = datetime.now()
-                db.execute_insert(
-                    """
-                    UPDATE scheduled_jobs
-                    SET last_run = ?, last_status = 'rejected'
-                    WHERE id = ?
-                """,
-                    (now, job_id),
-                )
-                with self._lock:
-                    job.last_run = now
-                    job.last_status = "rejected"
-                return
+                status = "rejected"
 
-            if command == "batch":
+            elif command == "batch":
                 import subprocess
 
                 category = str(params.get("category", "monitoring"))
 
                 if not self._validate_category(category):
                     logger.error("Rejected unknown category param: %r", category)
-                    now = datetime.now()
-                    db.execute_insert(
-                        """
-                        UPDATE scheduled_jobs
-                        SET last_run = ?, last_status = 'rejected'
-                        WHERE id = ?
-                    """,
-                        (now, job_id),
-                    )
-                    with self._lock:
-                        job.last_run = now
-                        job.last_status = "rejected"
-                    return
-                script = _REPO_ROOT / "scripts" / "run_category.sh"
-                if not script.exists():
-                    logger.error("Batch script not found at %s", script)
-                    status = "failed"
-                    _output = f"batch script missing: {script}"
+                    status = "rejected"
                 else:
-                    result: subprocess.CompletedProcess = subprocess.run(
-                        ["bash", str(script), category],
-                        capture_output=True,
-                        text=True,
-                        timeout=3600,
-                        check=False,
-                        cwd=str(_REPO_ROOT),
-                    )
-                    status = "completed" if result.returncode == 0 else "failed"
-                    _output = result.stdout + result.stderr
+                    script = _REPO_ROOT / "scripts" / "run_category.sh"
+                    if not script.exists():
+                        logger.error("Batch script not found at %s", script)
+                        status = "failed"
+                        _output = f"batch script missing: {script}"
+                    else:
+                        result: subprocess.CompletedProcess = subprocess.run(
+                            ["bash", str(script), category],
+                            capture_output=True,
+                            text=True,
+                            timeout=3600,
+                            check=False,
+                            cwd=str(_REPO_ROOT),
+                        )
+                        status = "completed" if result.returncode == 0 else "failed"
+                        _output = result.stdout + result.stderr
 
             elif command == "run":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
@@ -330,8 +348,20 @@ class JobScheduler:
             elif command == "report":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
 
-                _report = _orch.generate_summary_report()
+                report = _orch.generate_summary_report()
+                # Delivery: the alert hub fans the report out to the
+                # configured channels and its alerts-table row is the
+                # stored, queryable copy of the output.
+                _orch.alerts.send("system", "scheduled_report", "info", report, org_id=job.org_id)
                 status = "completed"
+                _output = report
+
+            elif command == "health_check":
+                from picosentry.serve.services.orchestrator import orchestrator as _orch
+
+                checks = _orch.get_health_checks()
+                status = "completed" if checks else "failed"
+                _output = f"{len(checks)} health checks recorded"
 
             elif command == "backup":
                 from picosentry.serve.services.backup import BackupManager

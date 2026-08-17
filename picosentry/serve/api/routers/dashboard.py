@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -19,20 +20,26 @@ async def dashboard_summary(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
 ):
-    status = orchestrator.get_status(org_id=org["id"])
-    health = orchestrator.get_health_checks()
-    recent_projects = orchestrator.list_projects(limit=10, org_id=org["id"])
-    recent_intel = db.execute(
-        "SELECT id, source_project, intel_type, severity, confidence, created_at "
-        "FROM intelligence WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
-        (org["id"],),
-    )
-    recent_alerts = db.execute(
-        "SELECT id, project_id, alert_type, severity, message, channel, sent, created_at "
-        "FROM alerts WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
-        (org["id"],),
-    )
-    pending_alerts = db.execute_one("SELECT COUNT(*) as c FROM alerts WHERE sent = 0 AND org_id = ?", (org["id"],))
+    def _load():
+        # Blocking DB reads and (on a cold cache) health probes run in the
+        # threadpool via to_thread — not on the event loop.
+        status = orchestrator.get_status(org_id=org["id"])
+        health = orchestrator.get_health_checks()
+        recent_projects = orchestrator.list_projects(limit=10, org_id=org["id"])
+        recent_intel = db.execute(
+            "SELECT id, source_project, intel_type, severity, confidence, created_at "
+            "FROM intelligence WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
+            (org["id"],),
+        )
+        recent_alerts = db.execute(
+            "SELECT id, project_id, alert_type, severity, message, channel, sent, created_at "
+            "FROM alerts WHERE org_id = ? ORDER BY created_at DESC LIMIT 10",
+            (org["id"],),
+        )
+        pending_alerts = db.execute_one("SELECT COUNT(*) as c FROM alerts WHERE sent = 0 AND org_id = ?", (org["id"],))
+        return status, health, recent_projects, recent_intel, recent_alerts, pending_alerts
+
+    status, health, recent_projects, recent_intel, recent_alerts, pending_alerts = await asyncio.to_thread(_load)
     health_overall = "healthy"
     if any(c["status"] == "critical" for c in health):
         health_overall = "critical"

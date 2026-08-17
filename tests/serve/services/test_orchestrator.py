@@ -162,3 +162,22 @@ class TestOrchestratorHelpers:
         update_project_stats("test-project")
         assert len(calls) == 1
         assert calls[0][4] == "test-project"
+
+
+class TestRunOutputBounding:
+    """WO-021: project_runs.output is bounded — unbounded stdout per run
+    would grow the DB without limit on chatty projects."""
+
+    def test_short_output_unchanged(self):
+        from picosentry.serve.services.orchestrator import _RUN_OUTPUT_LIMIT, _bounded
+
+        assert _bounded("short") == "short"
+        assert _bounded("x" * _RUN_OUTPUT_LIMIT) == "x" * _RUN_OUTPUT_LIMIT  # at the limit: intact
+
+    def test_long_output_truncated_with_flag(self):
+        from picosentry.serve.services.orchestrator import _RUN_OUTPUT_LIMIT, _bounded
+
+        bounded = _bounded("x" * (_RUN_OUTPUT_LIMIT + 5000))
+        assert bounded.startswith("x" * 100)
+        assert bounded.endswith("\n...[truncated]")
+        assert len(bounded) <= _RUN_OUTPUT_LIMIT + len("\n...[truncated]")

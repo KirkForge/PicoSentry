@@ -1,12 +1,12 @@
 # WO4.0.0-021 — Serve: multi-tenant product completeness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/tenant-product`)
+**Status:** PARTIAL 2026-08-17 (worktree `wo/4.0.0/serve-p1`). DONE: unsigned bundled plugin no longer auto-loads (bundled dir requires signature; `test_discord_notifier` skipped with a warning — evidence `tests/serve/test_plugin_auto_load.py`); run-output bounding (`_bounded`, 100k + `...[truncated]` flag — evidence `tests/serve/services/test_orchestrator.py::TestRunOutputBounding`). NOT DONE: tier enforcement (runs/members/projects quotas), member invite/remove/role endpoints, org-switch header, offset pagination on org endpoints, plugin capability enforcement decision.
+**Owner:** worker subagent (worktree `wo/4.0.0/serve-p1`)
 **Priority:** P2 · Effort L · Risk M
 **Scope:** `picosentry/serve/services/{orgs.py,orchestrator.py}`, `picosentry/serve/api/{routers,models}.py`, `picosentry/serve/plugins/**` (phase-1 capability enforcement)
 
-**Gate:** `bash scripts/test.sh fast` + quota tests (tier limits enforced on run/create/member-add) + plugin unsigned-default-load removed.
+**Gate:** `bash scripts/test.sh fast` + quota tests (tier limits enforced on run/create/member-add) + plugin unsigned-default-load removed. — fast GREEN; plugin part MET; quota part NOT MET
 
 ## Objective
 Make the org model a usable product surface: enforced tiers, member management, pagination, first-phase plugin capability enforcement.
@@ -18,7 +18,7 @@ Make the org model a usable product surface: enforced tiers, member management, 
 4. Plugin trust boundary is env-strip only: capabilities `network/filesystem/subprocess` declared-but-unenforced (plugin_manager.py:40-46); the UNSIGNED `test_discord_notifier` auto-loads in every deployment (plugin_manager.py:152,564) spawning a subprocess that receives alert payloads.
 
 ## Deliverables
-1. Tier enforcement (runs_per_day, members, projects; storage definition) with quota-exceeded errors.
-2. Member invite/remove/role endpoints (dead model), org-switch header, offset pagination.
-3. Plugin phase-1: drop unsigned bundled plugin from default load; capability enforcement decision (seccomp/landlock reuse from picodome) — full enforcement can be its own follow-up.
-4. Run-output bounding (truncate + flag).
+1. Tier enforcement (runs_per_day, members, projects; storage definition) with quota-exceeded errors. — NOT DONE
+2. Member invite/remove/role endpoints (dead model), org-switch header, offset pagination. — NOT DONE
+3. Plugin phase-1: drop unsigned bundled plugin from default load (DONE — bundled dir requires signature, user dirs unaffected); capability enforcement decision (seccomp/landlock reuse from picodome) — full enforcement can be its own follow-up (NOT DONE, no decision recorded yet).
+4. Run-output bounding (truncate + flag). — DONE

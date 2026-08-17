@@ -416,6 +416,98 @@ class TestSchedulerEndpoints:
         data = resp.json()
         assert "job_id" in data
 
+    def _operator_headers(self, tag: int):
+        """Operator user + org (WRITE_SCHEDULER); mirrors test_create_and_delete_job."""
+        from picosentry.serve.api.server import auth_service
+        from picosentry.serve.services.orgs import Organization
+
+        username = f"scheduler_op_{tag}"
+        user_id = auth_service.create_user(username, "testpassword123", role="operator")
+        assert user_id is not None
+        token = auth_service.authenticate(username, "testpassword123")
+        assert token
+        org = Organization.create(name=f"sched_org_{tag}", slug=f"schedorg{tag}", owner_user_id=user_id)
+        assert org
+        return auth_headers(token), org["org_id"]
+
+    def test_update_job_endpoint(self, client):
+        import time
+
+        from picosentry.serve.services.scheduler import scheduler
+
+        tag = int(time.time() * 1000)
+        headers, _org_id = self._operator_headers(tag)
+        resp = client.post(
+            "/scheduler/jobs",
+            json={
+                "name": f"upd_job_{tag}",
+                "cron": "*/10 * * * *",
+                "command": "batch",
+                "params": {"category": "monitoring"},
+            },
+            headers=headers,
+        )
+        job_id = resp.json()["job_id"]
+        try:
+            resp = client.patch(
+                f"/scheduler/jobs/{job_id}",
+                json={"cron": "0 4 * * *", "params": {"category": "audit"}},
+                headers=headers,
+            )
+            assert resp.status_code == 200
+            assert resp.json() == {"job_id": job_id, "status": "updated"}
+            assert scheduler.jobs[job_id].cron_expression == "0 4 * * *"
+            assert scheduler.jobs[job_id].params == {"category": "audit"}
+
+            # Invalid cron is a 400, not a 500.
+            resp = client.patch(f"/scheduler/jobs/{job_id}", json={"cron": "not-a-cron"}, headers=headers)
+            assert resp.status_code == 400
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_update_job_other_org_is_404(self, client):
+        import time
+
+        from picosentry.serve.services.scheduler import scheduler
+
+        tag = int(time.time() * 1000)
+        headers, _org_id = self._operator_headers(tag)
+        resp = client.post(
+            "/scheduler/jobs",
+            json={"name": f"iso_job_{tag}", "cron": "*/10 * * * *", "command": "cleanup"},
+            headers=headers,
+        )
+        job_id = resp.json()["job_id"]
+        try:
+            other_headers, _ = self._operator_headers(tag + 1)
+            resp = client.patch(f"/scheduler/jobs/{job_id}", json={"cron": "0 4 * * *"}, headers=other_headers)
+            assert resp.status_code == 404
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_trigger_job_endpoint(self, client, monkeypatch):
+        import time
+
+        from picosentry.serve.services.scheduler import scheduler
+
+        tag = int(time.time() * 1000)
+        headers, _org_id = self._operator_headers(tag)
+        resp = client.post(
+            "/scheduler/jobs",
+            json={"name": f"run_job_{tag}", "cron": "*/10 * * * *", "command": "cleanup"},
+            headers=headers,
+        )
+        job_id = resp.json()["job_id"]
+        try:
+            calls: list[int] = []
+            monkeypatch.setattr(scheduler, "_dispatch_job", lambda jid: calls.append(jid))
+            resp = client.post(f"/scheduler/jobs/{job_id}/run", headers=headers)
+            assert resp.status_code == 200
+            assert resp.json() == {"job_id": job_id, "status": "triggered"}
+            assert calls == [job_id]
+        finally:
+            scheduler.remove_job(job_id)
+
 
 class TestWebhookEndpoints:
     """Test webhook endpoints."""

@@ -8,6 +8,7 @@ from picosentry.serve.api.models import (
     SchedulerJobListResponse,
     SchedulerJobResponse,
     SchedulerJobStatusResponse,
+    SchedulerJobUpdateRequest,
 )
 from picosentry.serve.services.rbac import Permission
 from picosentry.serve.services.scheduler import scheduler
@@ -72,6 +73,45 @@ async def disable_scheduler_job(
     _assert_job_in_org(job_id, org["id"])
     scheduler.disable_job(job_id)
     return {"job_id": job_id, "status": "disabled"}
+
+
+@router.patch("/jobs/{job_id}", response_model=SchedulerJobStatusResponse, tags=["Scheduler"])
+async def update_scheduler_job(
+    job_id: int,
+    request: SchedulerJobUpdateRequest,
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.WRITE_SCHEDULER)),
+):
+    _assert_job_in_org(job_id, org["id"])
+    try:
+        updated = scheduler.update_job(
+            job_id,
+            cron=request.cron,
+            params=(
+                request.params.model_dump(exclude_none=True)
+                if hasattr(request.params, "model_dump")
+                else {k: v for k, v in request.params.dict().items() if v is not None}
+            )
+            if request.params
+            else None,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e)) from None
+    if not updated:
+        raise HTTPException(status_code=404, detail="Scheduler job not found")
+    return {"job_id": job_id, "status": "updated"}
+
+
+@router.post("/jobs/{job_id}/run", response_model=SchedulerJobStatusResponse, tags=["Scheduler"])
+async def trigger_scheduler_job(
+    job_id: int,
+    org: dict = Depends(get_current_org),
+    user: dict = Depends(require_permission(Permission.WRITE_SCHEDULER)),
+):
+    _assert_job_in_org(job_id, org["id"])
+    if not scheduler.trigger_job(job_id):
+        raise HTTPException(status_code=409, detail="Job not found or disabled")
+    return {"job_id": job_id, "status": "triggered"}
 
 
 @router.delete("/jobs/{job_id}", tags=["Scheduler"], status_code=204)

@@ -6,8 +6,9 @@ not exposed in the runtime. Users must currently register plugins by
 hand."
 
 After the fix:
-- A fresh `PluginManager()` still finds the bundled plugins
-  (test_plugin, discord_notifier).
+- A fresh `PluginManager()` still finds the bundled plugins, loading the
+  signed one (test_plugin); the unsigned bundled discord_notifier is
+  skipped (bundled plugins must be signed).
 - `PluginManager(extra_plugin_dirs=[tmp_path])` discovers a user
   plugin from a temp dir.
 - `PICOSHOGUN_PLUGIN_DIR=/path` env var is honored at construction.
@@ -83,35 +84,36 @@ def reloaded_manager():
 
 def test_default_manager_finds_bundled_plugins(reloaded_manager):
     """A fresh PluginManager() in a project that has the bundled
-    plugins directory should load test_plugin and discord_notifier."""
+    plugins directory loads the SIGNED bundled plugin only. The unsigned
+    test_discord_notifier used to auto-load everywhere with no operator
+    opt-in (WO-021); it must be skipped in the bundled dir."""
     PluginManager, pm_mod = reloaded_manager
     # Sanity: the bundled directory is the one we expect.
     assert pm_mod.DEFAULT_USER_PLUGIN_DIR.endswith("/.picosentry/plugins")
 
     pm = PluginManager()
     loaded = set(pm.plugins.keys())
-    # The exact two bundled plugins; if this test ever fails because
-    # the names changed, the verdict's "signature verify works" is
-    # out of date — update the names in tandem.
     assert "test_plugin" in loaded
-    assert "discord_notifier" in loaded
+    # Unsigned bundled plugin: skipped, not loaded.
+    assert "discord_notifier" not in loaded
     # No double-loading: each path recorded at most once.
     assert len(pm._loaded_plugin_paths) == len(loaded)
 
 
 def test_extra_plugin_dirs_loads_user_plugin_alongside_bundled(reloaded_manager, tmp_path):
     """Passing extra_plugin_dirs at construction time discovers a
-    user plugin from a temp dir, in addition to the bundled ones."""
+    user plugin from a temp dir, in addition to the bundled ones.
+    Unsigned plugins stay loadable from user dirs — the bundled-dir
+    signing requirement does not leak into operator-configured dirs."""
     PluginManager, _pm_mod = reloaded_manager
     _write_plugin(tmp_path, "user_plugin_a", "user_plugin_a_mod")
 
     pm = PluginManager(extra_plugin_dirs=[str(tmp_path)])
     loaded = set(pm.plugins.keys())
 
-    assert "user_plugin_a" in loaded
-    # Bundled plugins still load when extras are added.
+    assert "user_plugin_a" in loaded  # unsigned, but from an explicit user dir
     assert "test_plugin" in loaded
-    assert "discord_notifier" in loaded
+    assert "discord_notifier" not in loaded
     # Resolved dirs lists the user dir first, bundled last.
     resolved = pm.resolved_dirs()
     assert os.path.realpath(str(tmp_path)) in resolved

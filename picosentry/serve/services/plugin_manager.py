@@ -360,6 +360,19 @@ class PluginManager:
                         logger.error("Plugin '%s' manifest validation failed: %s", plugin_path.name, "; ".join(issues))
                         continue
 
+                    # The bundled dir ships inside the wheel: an unsigned
+                    # entry there would auto-load in every deployment with no
+                    # operator opt-in, spawning a subprocess that receives
+                    # alert payloads. Bundled plugins must be signed (the
+                    # signature itself is verified in _load_plugin); unsigned
+                    # plugins remain loadable from explicitly configured dirs.
+                    is_bundled = str(d_path) == self.bundled_plugin_dir
+                    if is_bundled and not (meta.get("signature") and meta.get("public_key")):
+                        logger.warning(
+                            "Skipping unsigned bundled plugin '%s' — bundled plugins must be signed", plugin_path.name
+                        )
+                        continue
+
                     if self._load_plugin(str(plugin_path), meta):
                         self._loaded_plugin_paths.add(real_plugin_path)
                         loaded_count += 1

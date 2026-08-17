@@ -13,6 +13,7 @@ These tests document and enforce the security contract of the serve API:
 - /scans rejects paths outside the configured workspace root.
 """
 
+import contextlib
 import uuid
 
 import pytest
@@ -442,6 +443,43 @@ class TestFuzzHarness:
 class TestAuditMiddlewareHardening:
     """Audit middleware must not swallow validation or persistence failures."""
 
+    def test_middleware_skips_revalidation_when_deps_ran(self, client, monkeypatch):
+        """WO-013: for requests the deps authenticated, attribution comes
+        from request.state — the middleware must not re-validate (that
+        doubled the revocation DB hit, on the event loop). /health/live has
+        no auth dep, so the fallback DOES run there; this test pins the
+        deps path via an authenticated endpoint."""
+        from picosentry.serve.middleware import audit as audit_mod
+
+        calls: list[str] = []
+
+        class _BoomAuth:
+            def validate_token(self, token):
+                calls.append("token")
+                raise RuntimeError("must not be called")
+
+            def validate_api_key(self, api_key):
+                calls.append("key")
+                raise RuntimeError("must not be called")
+
+        monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
+
+        with contextlib.suppress(Exception):
+            client.post(
+                "/auth/register",
+                json={"username": "audit_state_user", "password": "testpassword123"},
+            )
+        resp = client.post(
+            "/auth/login",
+            json={"username": "audit_state_user", "password": "testpassword123"},
+        )
+        token = resp.json().get("access_token", "") if resp.status_code == 200 else ""
+        assert token, "login failed; cannot exercise the deps path"
+
+        r = client.get("/status", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code in (200, 403)
+        assert calls == [], "middleware re-validated credentials the deps already validated"
+
     def test_token_validation_exception_is_logged(self, client, caplog, monkeypatch):
         import logging
 
@@ -456,6 +494,8 @@ class TestAuditMiddlewareHardening:
 
         with caplog.at_level(logging.DEBUG, logger="picoshogun.Audit"):
             monkeypatch.setattr(audit_mod, "_auth_svc", _BoomAuth())
+            # /health/live has no auth dep, so the middleware's fallback
+            # validation path runs (off-loop) and must survive the crash.
             r = client.get("/health/live", headers={"Authorization": "Bearer bad-token"})
 
         assert r.status_code == 200
@@ -479,6 +519,34 @@ class TestAuditMiddlewareHardening:
 
         assert r.status_code == 200
         assert any("API key validation failed in audit middleware" in r.message for r in caplog.records)
+
+    def test_audit_row_attributes_user_from_deps_state(self, client):
+        """An authenticated request's audit row carries the user the deps
+        resolved (user_id > 0), not the anonymous markers 0/-1."""
+        from picosentry.serve.database.manager import db
+
+        with contextlib.suppress(Exception):
+            client.post(
+                "/auth/register",
+                json={"username": "audit_attr_user", "password": "testpassword123"},
+            )
+        resp = client.post(
+            "/auth/login",
+            json={"username": "audit_attr_user", "password": "testpassword123"},
+        )
+        token = resp.json().get("access_token", "") if resp.status_code == 200 else ""
+        assert token, "login failed; cannot attribute an authenticated request"
+
+        # 403 (no org) still runs get_current_user, so state is stashed.
+        r = client.get("/status", headers={"Authorization": f"Bearer {token}"})
+        assert r.status_code in (200, 403)
+
+        row = db.execute_one(
+            "SELECT user_id FROM audit_log WHERE resource_id = ? ORDER BY id DESC LIMIT 1",
+            ("/status",),
+        )
+        assert row is not None
+        assert row["user_id"] not in (None, 0, -1)
 
     def test_db_insert_exception_is_logged_and_request_succeeds(self, client, caplog, monkeypatch):
         import logging

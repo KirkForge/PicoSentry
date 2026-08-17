@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
 from picosentry.serve.services.auth import AuthService
@@ -13,10 +13,25 @@ auth_service = AuthService()
 security = HTTPBearer(auto_error=False)
 
 
-async def get_current_user(
+def get_current_user(
+    request: Request,
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
     api_key: str | None = Header(None, alias="X-API-Key"),
 ):
+    # Sync def: FastAPI dispatches it to the threadpool, so the DB reads in
+    # validate_api_key/validate_token never block the event loop.
+    user = _validate_credentials(credentials, api_key)
+    # Shared with the audit middleware via request.state: auth already
+    # happened for this request — re-validating in the middleware doubled
+    # the revocation-check DB hits per call.
+    request.state.picoshogun_auth = user
+    return user
+
+
+def _validate_credentials(
+    credentials: HTTPAuthorizationCredentials | None,
+    api_key: str | None,
+) -> dict:
     # API-key requests authenticate through the key's stored role scope so the
     # same `require_role`/`require_permission` checks that guard JWT callers
     # also bound key callers (e.g. a read-only viewer key cannot mutate).
@@ -48,7 +63,7 @@ def require_role(required: str):
     role_levels = {"viewer": 0, "operator": 1, "admin": 2}
     min_level = role_levels.get(required, 0)
 
-    async def _check_role(user: dict = Depends(get_current_user)):
+    def _check_role(user: dict = Depends(get_current_user)):
         user_role = user.get("role", "viewer")
         if role_levels.get(user_role, 0) < min_level:
             raise HTTPException(
@@ -61,7 +76,7 @@ def require_role(required: str):
 
 
 def require_permission(permission: Permission):
-    async def _check_permission(user: dict = Depends(get_current_user)):
+    def _check_permission(user: dict = Depends(get_current_user)):
         if not has_permission(user, permission):
             role = user.get("role", "viewer")
             raise HTTPException(
@@ -73,10 +88,18 @@ def require_permission(permission: Permission):
     return _check_permission
 
 
-async def get_current_org(
+def get_current_org(
+    request: Request,
     api_key: str | None = Header(None, alias="X-Org-API-Key"),
     user: dict = Depends(get_current_user),
 ):
+    org = _resolve_current_org(api_key, user)
+    # Shared with the audit middleware (see get_current_user).
+    request.state.picoshogun_org = org
+    return org
+
+
+def _resolve_current_org(api_key: str | None, user: dict) -> dict:
     user_orgs = Organization.list_orgs_for_user(user["id"])
 
     # A user API key minted scoped to an org may only reach that org.

@@ -131,3 +131,174 @@ class TestOrgStampedRuns:
             assert scheduler.jobs[job_id].last_status == "completed"
         finally:
             scheduler.remove_job(job_id)
+
+
+def _drain_sched_queue() -> None:
+    """Cancel any pending entries the scheduler thread hasn't fired yet."""
+    for event in list(scheduler.scheduler.queue):
+        scheduler.scheduler.cancel(event)
+
+
+class TestHealthCheckJob:
+    """WO-012: the health_check command must actually run health checks."""
+
+    def test_health_check_job_completes_and_populates_table(self):
+        from picosentry.serve.database.manager import db
+
+        before = db.execute_one("SELECT COUNT(*) AS c FROM health_checks")["c"]
+        job_id = _add_job("health_check", {})
+        try:
+            scheduler._execute_job(job_id)
+            assert scheduler.jobs[job_id].last_status == "completed"
+            after = db.execute_one("SELECT COUNT(*) AS c FROM health_checks")["c"]
+            assert after > before, "health_check job did not persist probe rows"
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_health_check_runs_off_scheduler_thread(self, monkeypatch):
+        """Health probes block on SMTP for up to 5s — they must run on their
+        own thread (like batch) and skip while still running."""
+        from picosentry.serve.services import orchestrator as orch_mod
+
+        started = threading.Event()
+        release = threading.Event()
+        calls: list[int] = []
+
+        def _slow():
+            calls.append(1)
+            started.set()
+            assert release.wait(5)
+            return []
+
+        monkeypatch.setattr(orch_mod.orchestrator, "get_health_checks", _slow)
+        job_id = _add_job("health_check", {})
+        try:
+            scheduler._dispatch_job(job_id)  # daemon thread, not this one
+            assert started.wait(5)
+            scheduler._dispatch_job(job_id)  # still running -> skip
+            assert calls == [1]
+        finally:
+            release.set()
+            scheduler.remove_job(job_id)
+
+
+class TestRejectedJobsReschedule:
+    """WO-012: a rejected job must be rescheduled, not silently die."""
+
+    def test_bad_category_job_reschedules_after_rejection(self):
+        job_id = scheduler.add_job(
+            name=f"rejected_resched_{time.time_ns()}",
+            cron="0 3 * * *",
+            command="batch",
+            params={"category": "evil; script"},
+            enabled=True,
+        )
+        _drain_sched_queue()
+        scheduler.running = True
+        try:
+            scheduler._execute_job(job_id)
+            job = scheduler.jobs[job_id]
+            assert job.last_status == "rejected"
+            assert job.next_run is not None, "rejected job was not rescheduled"
+        finally:
+            scheduler.running = False
+            _drain_sched_queue()
+            scheduler.remove_job(job_id)
+
+    def test_unknown_command_job_rejected_and_reschedules(self):
+        """A job row with a command outside the allowlist (loaded from the DB,
+        not creatable via add_job) is rejected but keeps its schedule."""
+        from picosentry.serve.database.manager import db
+
+        job_id = db.execute_insert(
+            """
+            INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
+            VALUES (?, '* * * * *', 'bogus_command', '{}', 1, NULL)
+        """,
+            (f"bogus_{time.time_ns()}",),
+        )
+        scheduler._load_jobs()
+        _drain_sched_queue()
+        scheduler.running = True
+        try:
+            scheduler._execute_job(job_id)
+            job = scheduler.jobs[job_id]
+            assert job.last_status == "rejected"
+            assert job.next_run is not None
+        finally:
+            scheduler.running = False
+            _drain_sched_queue()
+            scheduler.remove_job(job_id)
+
+
+class TestReportJobDelivery:
+    """WO-012: scheduled reports must be stored/delivered, not discarded."""
+
+    def test_report_job_stores_row_via_alert_hub(self, monkeypatch):
+        from picosentry.serve.database.manager import db
+        from picosentry.serve.services import orchestrator as orch_mod
+
+        marker = f"REPORT-{time.time_ns()}"
+        monkeypatch.setattr(orch_mod.orchestrator, "generate_summary_report", lambda org_id=None: marker)
+
+        job_id = _add_job("report", {})
+        try:
+            scheduler._execute_job(job_id)
+            assert scheduler.jobs[job_id].last_status == "completed"
+            row = db.execute_one(
+                "SELECT message FROM alerts WHERE alert_type = ? ORDER BY id DESC LIMIT 1",
+                ("scheduled_report",),
+            )
+            assert row is not None, "scheduled report produced no stored output"
+            assert marker in row["message"]
+        finally:
+            scheduler.remove_job(job_id)
+            db.execute("DELETE FROM alerts WHERE alert_type = 'scheduled_report'")
+
+
+class TestUpdateAndTrigger:
+    """WO-012: update_job recovers a misconfigured job; trigger_job runs now."""
+
+    def test_update_job_changes_cron_and_params(self):
+        job_id = _add_job("batch", {"category": "monitoring"})
+        try:
+            assert scheduler.update_job(job_id, cron="0 1 * * *", params={"category": "audit"})
+            job = scheduler.jobs[job_id]
+            assert job.cron_expression == "0 1 * * *"
+            assert job.params == {"category": "audit"}
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_update_job_rejects_invalid_cron(self):
+        import pytest
+
+        job_id = _add_job("cleanup", {})
+        try:
+            with pytest.raises(ValueError, match="Invalid cron"):
+                scheduler.update_job(job_id, cron="not-a-cron")
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_update_job_unknown_id_is_false(self):
+        assert not scheduler.update_job(999999, cron="0 1 * * *")
+
+    def test_trigger_job_dispatches_now(self, monkeypatch):
+        calls: list[int] = []
+        monkeypatch.setattr(scheduler, "_dispatch_job", lambda jid: calls.append(jid))
+        job_id = _add_job("cleanup", {})
+        scheduler.enable_job(job_id)
+        try:
+            assert scheduler.trigger_job(job_id)
+            assert calls == [job_id]
+        finally:
+            scheduler.remove_job(job_id)
+
+    def test_trigger_job_disabled_is_rejected(self, monkeypatch):
+        calls: list[int] = []
+        monkeypatch.setattr(scheduler, "_dispatch_job", lambda jid: calls.append(jid))
+        job_id = _add_job("cleanup", {})  # _add_job creates disabled jobs
+        try:
+            assert not scheduler.trigger_job(job_id)
+            assert calls == []
+        finally:
+            scheduler.remove_job(job_id)

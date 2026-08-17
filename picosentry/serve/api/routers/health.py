@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from datetime import datetime, timezone
 
@@ -61,7 +62,11 @@ or <code>front/index.html</code></p>
 
 @router.get("/health", response_model=HealthReadiness, tags=["Health"])
 async def health_check():
-    health = orchestrator.get_health_checks()
+    # Probes touch the DB, statvfs and possibly SMTP (5s timeout); the TTL
+    # cache makes repeats cheap and to_thread keeps the blocking probes off
+    # the event loop — /health is unauthenticated and rate-limit-exempt, so
+    # an on-loop probe here starved every other handler.
+    health = await asyncio.to_thread(orchestrator.get_health_checks)
     overall = "healthy"
     if any(c["status"] == "critical" for c in health):
         overall = "critical"
@@ -129,19 +134,18 @@ async def get_status(
     user: dict = Depends(get_current_user),
     org: dict = Depends(get_current_org),
 ):
-    status_data = orchestrator.get_status(org_id=org["id"])
-    health = orchestrator.get_health_checks()
-    threat_score = 0.0
-    if health:
-        threat_score = sum(h.get("latency_ms", 0) for h in health) / max(len(health), 1)
-
+    # get_status runs several DB queries and (on a cold cache) health probes;
+    # to_thread keeps both off the event loop.
+    status_data = await asyncio.to_thread(orchestrator.get_status, org["id"])
     return SystemStatus(
         projects_total=status_data.get("projects_total", 0),
         projects_active=status_data.get("projects_active", 0),
         projects_failed=status_data.get("projects_failed", 0),
         active_threats=status_data.get("active_threats", 0),
         pending_alerts=status_data.get("pending_alerts", 0),
-        threat_score=threat_score,
+        # The aggregate intelligence threat score — NOT a health-latency
+        # average (that conflated "slow DB ping" with "under attack").
+        threat_score=status_data.get("threat_score", 0.0),
         system_health=status_data.get("system_health", "unknown"),
         uptime_seconds=status_data.get("uptime_seconds", 0.0),
         timestamp=datetime.now(timezone.utc),

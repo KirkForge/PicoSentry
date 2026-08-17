@@ -622,8 +622,10 @@ class ScanOrchestrator:
             )
 
         failed_fixtures = [r for r in report.fixture_results if r[1] == "FAIL"]
-        precision_ok = report.mean_precision >= 0.84
-        recall_ok = report.mean_recall >= 0.70
+        # Floors raised 2026-08-17 (WO4.0.0-008): reality is 1.00/0.91 after
+        # the FP gating + FN root-cause fixes; keep ~6pp recall headroom.
+        precision_ok = report.mean_precision >= 0.94
+        recall_ok = report.mean_recall >= 0.84
         passes = precision_ok and recall_ok
 
         if report.unknown_rule_expectations:

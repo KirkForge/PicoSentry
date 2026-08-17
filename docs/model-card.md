@@ -2,7 +2,7 @@
 
 > **These benchmarks are measured against a synthetic regression corpus, not real-world malware.** They demonstrate rule coverage and regression prevention, not production detection rates. Real-world held-out benchmarking is an ongoing validation track.
 
-*Generated 2026-07-29. Corpus: 6,495 test fixtures (3,558 positive / 2,930 negative / 7 tricky) across 7 ecosystems. See [Validation Limitations](#validation-limitations) for scope boundaries.*
+*Generated 2026-08-17 (WO4.0.0-008 detection-quality round). Corpus: 5,673 test fixtures (3,431 positive / 2,235 negative / 7 tricky) across 7 ecosystems. See [Validation Limitations](#validation-limitations) for scope boundaries.*
 
 ## Rule count
 
@@ -15,9 +15,9 @@
 
 The 4 `L2-CAMP-*` entries are campaign-specific IoC matchers validated against known attack packages, not general-purpose static rules. They are included in the per-rule table for transparency but are not counted as detection rules above.
 
-Note: the 2026-07-29 benchmark run below predates three static rules added since
-(`L2-INTEL-001`, `L2-NSCOL-001`, `L2-VCONF-001`; `RULE_INFO` grew 50 → 53).
-Those three are not yet exercised by the per-rule table.
+Note: three static rules (`L2-INTEL-001`, `L2-NSCOL-001`, `L2-VCONF-001`; `RULE_INFO`
+grew 50 → 53) have no positive fixtures in the corpus and therefore do not appear in
+the per-rule table — a fixture-authoring gap, not a rule-count discrepancy.
 
 ## Three Detection Modes
 
@@ -33,57 +33,73 @@ PicoSentry operates in three distinct modes. Benchmarks in this card cover only 
 
 | Metric | Value |
 |---|---|
-| **Test fixtures** | 6,495 |
-| **Positive fixtures** | 3,558 |
-| **Negative fixtures** | 2,930 |
+| **Test fixtures** | 5,673 (5,666 validated + 7 tricky) |
+| **Positive fixtures** | 3,431 |
+| **Negative fixtures** | 2,235 |
 | **Tricky fixtures** | 7 |
 | **L2 rules benchmarked** | 54 (50 static + 4 campaign) |
-| **Mean precision** | 84.92% |
-| **Mean recall** | 72.79% |
+| **Mean precision** | 100.00% |
+| **Mean recall** | 90.87% |
+| **Fixture failures** | 37 (all documented-ceiling, see below) |
 | **Ecosystems** | npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet |
 | **Corpus source** | Synthetically generated combinatorial variants + hand-curated real-world malware patterns |
 
-> **2026-08-17 re-baseline.** The 2026-07-29 run (94.44% / 68.89%) is not reproducible from
-> this corpus for three verified reasons: (1) the validation loader silently rejected 760
-> generated positives carrying semantic labels (`typosquat`, `dep_confusion`, `cve`, …) —
-> fixed; (2) five npm metadata rules (`L2-ENGIN/FORK/LICENSE/MAINT/PROV-001`) fire on ~1,210
-> generated "clean" package.json files that lack repo/license/engines fields; (3) 115 `cve`
-> fixtures expect `L2-CVE-001`, which does not exist as a rule. The numbers above are the
-> current, reproducible aggregate (`picosentry scan --validate`). Fixing (2) and (3) is
-> detection-tuning work tracked in state.md; until then this card reports what the code
-> actually does.
+> **2026-08-17 re-baseline #2 (corrected narrative).** The 84.92% / 72.79% numbers above
+> (and the earlier 94.44% / 68.89% claim) both mis-stated the *causes* of low quality.
+> The exploration round (WO4.0.0-008) verified the real root causes live, and this round
+> fixed them:
+>
+> 1. **Precision (6,050 FPs):** five npm metadata rules (`L2-ENGIN/FORK/LICENSE/MAINT/PROV-001`)
+>    fired informational findings on ANY sparse manifest — 1,210 generated clean fixtures
+>    × 5 rules. Fixed: informational branches now require a risk signal (install hooks
+>    present, or the manifest lives under `node_modules`).
+> 2. **L2-PYPI-DEPC-001 (75 FNs):** the config used hyphen-only prefixes; PyPI convention
+>    is underscores (`company_auth`). One config line (shared `_INTERNAL_ALL_PATTERNS`).
+> 3. **L2-DEPC-001 (152 FNs):** npm recognized only `@internal/`+`@private/` scopes and
+>    never pattern-checked unscoped names. Fixed: internal-word scopes + the shared
+>    unscoped pattern check the other six ecosystems use.
+> 4. **Typosquat FNs were NOT "edit-distance limits":** they were (a) corpus files missing
+>    the popular names fixtures target (maven/rubygems/go/nuget — 461 fixtures), (b) ~84
+>    fixtures encoding the typo as the project's own name in setup.py/gemspec with zero
+>    dependencies — structurally invisible to the collectors, regenerated dependency-based,
+>    and (c) fixtures expecting generic `L2-TYPO-001` from ecosystem scanners that emit
+>    `L2-{ECO}-TYPO-001`.
+> 5. **CVE fixtures (115 FNs) never fired for three stacked reasons:** they expected the
+>    nonexistent `L2-CVE-001`; they used remediated/DB-unknown name+version pairs; and
+>    `AdvisoryDB._parse_version` silently returned "not affected" for 1- and 2-component
+>    versions ("1.30", "9.0"). Fixed: expected ids → `L2-{ECO}-ADV-001`, advisory-aligned
+>    name/version pairs, and the parser now zero-pads short versions.
+> 6. **`L2-NPM-OBFS/POST-001` never existed** (32 FNs): npm has no JS obfuscation rules —
+>    the detectable signal for a payload in an install hook is `L2-POST-001`.
+>
+> The loader now also warns (counted, visible in `--validate` output) when a fixture
+> expects a rule id that does not exist — items 5/6 would have been caught at authoring
+> time. The numbers in this card are the current, reproducible aggregate.
 
 ## Recall by category
 
-Low-recall rules are not uniformly distributed. This table summarizes the root causes:
+Mean recall is 90.87%; the 37 failing fixtures concentrate in documented ceilings:
 
-| Category | Rules | Recall range | Root cause |
+| Category | Rules | Approx. FN | Root cause (verified) |
 |---|---|---|---|
-| Advisory (`*-ADV-001`) | 7 | 12–67% | OSV advisory database unavailable in offline validation; requires `--advisory-db` or network access |
-| Dependency confusion (`*-DEPC-001`) | 3 | 0–33% | Requires private-registry configuration markers that synthetic fixtures lack |
-| Typosquat (Go, Maven) | 2 | 35–43% | Short module/artifact names cause edit-distance false negatives |
-| Manifest optional deps | 1 | 0% | Fixture does not trigger the specific optionalDependencies + scripts combination |
-| High-recall rules (remaining) | 43 | 75–100% | — |
+| Transitive dependency resolution | `*-ADV-001` (7 ecosystems) | ~20 | A vulnerable package reached only *through* another dependency is invisible without lockfile/transitive resolution — a genuine feature gap (see Ceiling below), not a detector bug |
+| Advisory-DB coverage | `L2-MAVEN-ADV-001`, `L2-NUGET-ADV-001`, `L2-PYPI-ADV-001` | ~10 | Fixtures reference name/version pairs (or artifact-vs-project name mappings like `spring-webmvc` vs `spring-framework`) the shipped offline DB does not carry |
+| Boundary semantics | `*-ADV-001` | ~4 | "range_overlap" fixtures pin the exact *fixed* version and assert it fires; OSV semantics say it must not |
+| Pre-existing hand-fixture gaps | `L2-CRED`, `L2-BUILD`, `L2-LOCK`, `L2-NETEX`, `L2-PNPM` | ~9 | Hand-authored fixtures whose techniques trip other rules than expected (e.g. CRED-001 reads JS sources, not setup.py); pre-date this round |
+| High-recall rules (remaining) | 43+ | 0 | — |
 
-### Advisory rules (0–33% recall)
+### Known ceiling: transitive dependency resolution
 
-Advisory rules (`L2-ADV-001`, `L2-GO-ADV-001`, `L2-CARGO-ADV-001`, `L2-PYPI-ADV-001`, `L2-MAVEN-ADV-001`, `L2-RUBYGEMS-ADV-001`, `L2-NUGET-ADV-001`) show low recall because the OSV advisory database is not available in offline validation mode. These rules require `--advisory-db` or network access to the OSV API. Precision is 100% when the DB is present.
-
-### Dependency confusion (0–25% recall)
-
-`L2-DEPC-001`, `L2-PYPI-DEPC-001`, and `L2-MAVEN-DEPC-001` show 0–33% recall. The dep-confusion detector requires private-registry configuration markers that the synthetic fixtures do not include. `L2-NUGET-DEPC-001` has fixtures with internal-style package IDs and achieves 100% recall.
-
-### Go typosquat (43% recall)
-
-`L2-GO-TYPO-001` shows 43% recall. Go module names are short (e.g., `cli`, `yaml`), causing edit-distance false negatives — a short name has many valid neighbors within distance 2.
-
-### Maven typosquat (35% recall)
-
-`L2-MAVEN-TYPO-001` shows 35% recall. Maven artifact IDs have a large namespace; the edit-distance threshold produces more false negatives than the npm/PyPI counterparts.
+The advisory rules check packages *declared* in manifests (and installed
+packages). When `cve_maven_*_transitive` declares `some-lib` whose *own*
+POM would pull `log4j-core 2.14.1`, the scanner cannot see it offline —
+that requires dependency-graph resolution against a registry index.
+This is the single largest remaining FN class (~20 fixtures) and is
+deliberately documented rather than papered over.
 
 ## False positives
 
-Zero false positives across 2,930 synthetic negative fixtures. This demonstrates no overtriggering on clean package patterns in the regression corpus, but does not constitute a real-world false-positive rate guarantee.
+Zero false positives across 2,235 synthetic negative fixtures. This demonstrates no overtriggering on clean package patterns in the regression corpus, but does not constitute a real-world false-positive rate guarantee.
 
 ## 2026-07-29 Expansion
 
@@ -94,11 +110,25 @@ Zero false positives across 2,930 synthetic negative fixtures. This demonstrates
 - **Obfuscation**: +24 variants (nested eval, chained base64, hex+chr, unicode escapes, getattr bypass, importlib bypass, subprocess variants, socket/urllib exfil)
 - **Dependency confusion**: +300 internal-package patterns (internal-*, private-*, corp-*, company-*, org-*, secure-*)
 
+## 2026-08-17 Detection-quality round (WO4.0.0-008)
+
+- **FP gating**: the 5 npm metadata rules fire informational findings only with a risk
+  signal (install hooks or under node_modules) — 6,050 FPs eliminated
+- **Corpus alignment**: +130 real popular-package entries across maven/rubygems/go/nuget
+  (targets the typosquat fixtures reference were below the `picosentry update` cutoffs)
+- **Fixture honesty**: ecosystem-specific expected ids; dependency-based pypi/rubygems
+  typosquat fixtures; advisory-DB-aligned CVE fixtures; tautological/undetectable typo
+  pairs filtered from the generators (deterministic seed-42, idempotent reruns)
+- **Rule fixes found along the way**: underscore PyPI names, npm internal-word scopes +
+  unscoped pattern checks, 1-/2-component advisory version parsing, dict-form non-GitHub
+  repos, npm advisory checks on declared deps, zlib-obfuscation via plain `import zlib`
+- **Floors raised**: 0.84/0.70 → 0.94/0.84 (test + CLI gates aligned)
+
 ## Per-rule precision/recall
 
 | Rule ID | TP | FP | FN | Precision | Recall |
 |---|---|---|---|---|---|
-| L2-ADV-001 | 1 | 0 | 2 | 100.00% | 33.33% |
+| L2-ADV-001 | 2 | 0 | 1 | 100.00% | 66.67% |
 | L2-BUILD-001 | 14 | 0 | 4 | 100.00% | 77.78% |
 | L2-BUND-001 | 2 | 0 | 0 | 100.00% | 100.00% |
 | L2-CAMP-AXIOS-POISONING | 1 | 0 | 0 | 100.00% | 100.00% |
@@ -107,50 +137,50 @@ Zero false positives across 2,930 synthetic negative fixtures. This demonstrates
 | L2-CAMP-TRAPDOOR | 1 | 0 | 0 | 100.00% | 100.00% |
 | L2-CARGO-ADV-001 | 2 | 0 | 1 | 100.00% | 66.67% |
 | L2-CARGO-DEPC-001 | 3 | 0 | 0 | 100.00% | 100.00% |
-| L2-CARGO-TYPO-001 | 118 | 0 | 2 | 100.00% | 98.33% |
+| L2-CARGO-TYPO-001 | 135 | 0 | 2 | 100.00% | 98.54% |
 | L2-CRED-001 | 2 | 0 | 2 | 100.00% | 50.00% |
-| L2-DEPC-001 | 1 | 0 | 2 | 100.00% | 33.33% |
-| L2-ENGIN-001 | 1 | 0 | 1 | 100.00% | 50.00% |
+| L2-DEPC-001 | 138 | 0 | 0 | 100.00% | 100.00% |
+| L2-ENGIN-001 | 2 | 0 | 0 | 100.00% | 100.00% |
 | L2-FORK-001 | 2 | 0 | 0 | 100.00% | 100.00% |
 | L2-GO-ADV-001 | 1 | 0 | 2 | 100.00% | 33.33% |
 | L2-GO-DEPC-001 | 3 | 0 | 0 | 100.00% | 100.00% |
-| L2-GO-TYPO-001 | 52 | 0 | 68 | 100.00% | 43.33% |
+| L2-GO-TYPO-001 | 134 | 0 | 0 | 100.00% | 100.00% |
 | L2-IOC-001 | 1 | 0 | 0 | 100.00% | 100.00% |
 | L2-LICENSE-001 | 3 | 0 | 0 | 100.00% | 100.00% |
 | L2-LOCK-001 | 1 | 0 | 1 | 100.00% | 50.00% |
 | L2-MAINT-001 | 2 | 0 | 0 | 100.00% | 100.00% |
 | L2-MANI-001 | 2 | 0 | 0 | 100.00% | 100.00% |
-| L2-MANI-002 | 0 | 0 | 1 | 0.00% | 0.00% |
-| L2-MAVEN-ADV-001 | 3 | 0 | 21 | 100.00% | 12.50% |
-| L2-MAVEN-DEPC-001 | 0 | 0 | 13 | 0.00% | 0.00% |
-| L2-MAVEN-TYPO-001 | 127 | 0 | 234 | 100.00% | 35.18% |
+| L2-MANI-002 | 1 | 0 | 0 | 100.00% | 100.00% |
+| L2-MAVEN-ADV-001 | 74 | 0 | 15 | 100.00% | 83.15% |
+| L2-MAVEN-DEPC-001 | 13 | 0 | 0 | 100.00% | 100.00% |
+| L2-MAVEN-TYPO-001 | 378 | 0 | 0 | 100.00% | 100.00% |
 | L2-NETEX-001 | 3 | 0 | 2 | 100.00% | 60.00% |
 | L2-NUGET-ADV-001 | 3 | 0 | 2 | 100.00% | 60.00% |
 | L2-NUGET-DEPC-001 | 6 | 0 | 0 | 100.00% | 100.00% |
-| L2-NUGET-TYPO-001 | 167 | 0 | 40 | 100.00% | 80.68% |
-| L2-OBFS-001 | 4 | 0 | 0 | 100.00% | 100.00% |
-| L2-OBFS-002 | 3 | 0 | 1 | 100.00% | 75.00% |
-| L2-OBFS-003 | 1 | 0 | 3 | 100.00% | 25.00% |
-| L2-OBFS-004 | 3 | 0 | 1 | 100.00% | 75.00% |
+| L2-NUGET-TYPO-001 | 218 | 0 | 0 | 100.00% | 100.00% |
+| L2-OBFS-001 | 9 | 0 | 0 | 100.00% | 100.00% |
+| L2-OBFS-002 | 3 | 0 | 0 | 100.00% | 100.00% |
+| L2-OBFS-003 | 1 | 0 | 0 | 100.00% | 100.00% |
+| L2-OBFS-004 | 3 | 0 | 0 | 100.00% | 100.00% |
 | L2-PNPM-001 | 1 | 0 | 2 | 100.00% | 33.33% |
-| L2-POST-001 | 34 | 0 | 0 | 100.00% | 100.00% |
-| L2-PROV-001 | 1 | 0 | 1 | 100.00% | 50.00% |
+| L2-POST-001 | 56 | 0 | 0 | 100.00% | 100.00% |
+| L2-PROV-001 | 2 | 0 | 0 | 100.00% | 100.00% |
 | L2-PYPI-ADV-001 | 1 | 0 | 2 | 100.00% | 33.33% |
-| L2-PYPI-DEPC-001 | 0 | 0 | 3 | 0.00% | 0.00% |
-| L2-PYPI-OBFS-001 | 4 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-DEPC-001 | 148 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-001 | 23 | 0 | 0 | 100.00% | 100.00% |
 | L2-PYPI-OBFS-002 | 5 | 0 | 0 | 100.00% | 100.00% |
-| L2-PYPI-OBFS-003 | 2 | 0 | 2 | 100.00% | 50.00% |
-| L2-PYPI-OBFS-004 | 3 | 0 | 1 | 100.00% | 75.00% |
-| L2-PYPI-OBFS-005 | 1 | 0 | 2 | 100.00% | 33.33% |
-| L2-PYPI-OBFS-006 | 3 | 0 | 0 | 100.00% | 100.00% |
-| L2-PYPI-OBFS-007 | 3 | 0 | 1 | 100.00% | 75.00% |
-| L2-PYPI-POST-001 | 22 | 0 | 0 | 100.00% | 100.00% |
-| L2-PYPI-TYPO-001 | 472 | 0 | 0 | 100.00% | 100.00% |
-| L2-RUBYGEMS-ADV-001 | 2 | 0 | 8 | 100.00% | 20.00% |
-| L2-RUBYGEMS-DEPC-001 | 1 | 0 | 3 | 100.00% | 25.00% |
-| L2-RUBYGEMS-TYPO-001 | 245 | 0 | 127 | 100.00% | 65.86% |
+| L2-PYPI-OBFS-003 | 1 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-004 | 2 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-005 | 2 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-006 | 2 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-007 | 3 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-POST-001 | 47 | 0 | 0 | 100.00% | 100.00% |
+| L2-PYPI-TYPO-001 | 499 | 0 | 0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-ADV-001 | 37 | 0 | 3 | 100.00% | 92.50% |
+| L2-RUBYGEMS-DEPC-001 | 4 | 0 | 0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-TYPO-001 | 381 | 0 | 0 | 100.00% | 100.00% |
 | L2-SIDELOAD-001 | 4 | 0 | 0 | 100.00% | 100.00% |
-| L2-TYPO-001 | 985 | 0 | 0 | 100.00% | 100.00% |
+| L2-TYPO-001 | 1089 | 0 | 0 | 100.00% | 100.00% |
 | L2-WORM-001 | 3 | 0 | 0 | 100.00% | 100.00% |
 
 ## Validation Limitations
@@ -160,7 +190,7 @@ Zero false positives across 2,930 synthetic negative fixtures. This demonstrates
 3. **Advisory rules cannot reach OSV in air-gapped validation**: L2-*-ADV-001 rules require the OSV advisory database, which is unavailable in the default offline validation mode. Low recall reflects fixture limitations, not detector capability.
 4. **Real-world corpus is now available**: The `datasets/realworld/` directory contains a curated benchmark built from public OSV data. See [Real-world validation](#real-world-validation) for details. The synthetic-corpus numbers above remain the primary regression benchmark; the real-world corpus supplements it.
 5. **No comparison against other tools**: Benchmarks measure PicoSentry against its own corpus, not against competitor scanners.
-6. **Low-recall rules are documented with root causes**: Advisory (OSV offline), dep-confusion (missing private-registry markers), and typosquat (edit-distance vs. short names) rules have known, documented limitations.
+6. **Low-recall rules are documented with verified root causes**: the residual 37 fixture failures are transitive-resolution, advisory-DB coverage, boundary-semantics, and pre-existing hand-fixture gaps (see [Recall by category](#recall-by-category)). The earlier "dep-confusion requires private-registry markers" and "typosquat is edit-distance vs. short names" explanations were wrong — those FNs were a config bug, missing corpus entries, structurally invisible fixtures, and expected-id authoring errors.
 7. **L4 behavioral rules are not in the corpus**: The per-rule table covers L2 static rules and campaign IoC matchers only. L4 sandbox detectors are validated through integration tests, not this regression corpus.
 
 ## Real-world validation

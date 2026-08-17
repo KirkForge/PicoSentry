@@ -1,12 +1,12 @@
 # PicoSentry — Detection Quality Benchmarks
 
-> **Note:** The per-rule table below reflects the v2.0.15 baseline (188 fixtures). For current benchmarks, see [docs/model-card.md](model-card.md) which is updated with each corpus expansion.
+> **Note:** The per-rule table below is mechanically re-rendered from `REPORT.json` by
+> `scripts/render_benchmarks.py` (CI-enforced). The narrative lives in
+> [docs/model-card.md](model-card.md), which is updated with each corpus change.
 
-> **Version:** 2.0.15 (2026-06-16)
+> **Baseline:** 2026-08-17 detection-quality round (WO4.0.0-008)
 >
 > **Reproducible from a fresh clone:** `picosentry scan --validate` (see [Reproduction](#reproduction) below).
-> **Updated on every minor release.** The numbers in this document are the v2.0.15 baseline;
-> the next release is expected to expand the fixture corpus (see [v2.1.0 expansion target](#v210-expansion-target)).
 >
 > **Real-world malware benchmark corpus:**
 > [`picosentry/scan/corpus/malware/`](../picosentry/scan/corpus/malware/)
@@ -22,18 +22,18 @@
 
 ## TL;DR
 
-- **Fixtures:** 188 total (150 positive, 38 negative)
+- **Fixtures:** 5,666 validated (3,431 positive / 2,235 negative) + 7 tricky
 - **Rules covered by fixtures:** 54 (50 L2 rule_ids in `RULE_INFO` + 4 L2-CAMP rule_ids
   from the IoC corpus — `L2-CAMP-SHAI-HULUD`, `L2-CAMP-NODE-IPC-COMPROMISE`,
   `L2-CAMP-TRAPDOOR`, `L2-CAMP-AXIOS-POISONING`). Every L2 rule in
   `RULE_INFO` is exercised by at least one positive fixture, and the 4 campaign
   rules each have a positive + at least one negative fixture.
 - **Aggregate TP / FP / FN:** see the per-rule table below.
-- **Mean precision / recall:** 1.00 / 1.00. The mean is over all 54 rules; rules
+- **Mean precision / recall:** 1.0000 / 0.9087. The mean is over all 54 rules; rules
   marked with `⁂` in the per-rule table have 0 negative fixtures and their precision
   value is vacuous (the denominator `TP + FP` collapses to `TP`). See the table
   footnote for the full definition.
-- **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build if mean precision < 0.84 or mean recall < 0.70** (floor recalibrated 2026-08-17, see the model-card re-baseline note).
+- **CI gate:** `pytest tests/scan/test_validation.py::test_validation_passes_at_100_percent_on_current_fixtures` — **runs on every PR, fails the build if mean precision < 0.94 or mean recall < 0.84** (raised 2026-08-17 from 0.84/0.70 after the detection-quality round; current reality is 1.00/0.91, floor keeps ~6pp recall headroom for corpus growth).
 - **Tricky-negatives corpus:** 7 fixtures in `tests/scan/fixtures/validation/_tricky/`,
   guarded by `tests/scan/test_tricky_negatives.py`. These document known detector limits
   (4 expected-fires, 3 expected-clean), including the `globals()['ex'+'ec'](...)`
@@ -41,11 +41,10 @@
 
 ## Honest limitations — read this first
 
-The headline number (**100% precision, 100% recall**) is reproducible from a single
-command and is enforced by CI. But it is a **v2.0.15 baseline expanded through the
-v2.1.0 corpus-expansion work**, not a statistically meaningful measurement.
-Specifically:
-1. **188 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
+The headline number (**100.00% precision, 90.87% mean recall**) is reproducible from a
+single command and is enforced by CI. But it is a synthetic regression corpus, not a
+statistically meaningful real-world measurement. Specifically:
+1. **5,666 fixtures is a corpus, not a benchmark.** A scanner that over-matches on common
    patterns could pass today and fail tomorrow against real-world packages. The 7 tricky
    fixtures in `_tricky/` exist specifically to document the *known* cases where a
    detector's regex is too coarse, but they don't prove the detector is precise on the
@@ -103,10 +102,10 @@ against the fixture's declared `expected_rule_ids`.
 
 The full report shape is the `ValidationReport` dataclass in
 `picosentry/scan/validation.py`. The CLI prints a fixed-width per-rule table
-and exits 0 if mean precision ≥ 0.84 and mean recall ≥ 0.70, else 1. Both
-the CLI gate and the CI floor use the same 0.84 / 0.70 thresholds
-(recalibrated 2026-08-17 — the previous 0.90/0.95 gates predate the loader
-fix that started counting the full 6488-fixture corpus).
+and exits 0 if mean precision ≥ 0.94 and mean recall ≥ 0.84, else 1. Both
+the CLI gate and the CI floor use the same 0.94 / 0.84 thresholds
+(raised 2026-08-17 in the WO4.0.0-008 detection-quality round; the interim
+0.84/0.70 floors covered the pre-fix FP/FN masses).
 
 ### The fixture contract
 
@@ -181,60 +180,61 @@ these numbers from a fresh clone.
 <!-- BEGIN: rule-table -->
 | rule_id                 | n_pos | n_neg | TP | FP | FN | precision | recall |
 |-------------------------|------:|------:|---:|---:|---:|----------:|-------:|
-| L2-ADV-001              ⁂ |    3 |    0 |  1 |  0 |  2 | 100.00% |  33.33% |
-| L2-BUILD-001            ⁂ |   18 |    0 | 14 |  0 |  4 | 100.00% |  77.78% |
-| L2-BUND-001             ⁂ |    2 |    0 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-ADV-001              |    3 |   50 |  2 |  0 |  1 | 100.00% |  66.67% |
+| L2-BUILD-001            |   18 |   60 | 14 |  0 |  4 | 100.00% |  77.78% |
+| L2-BUND-001             |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-AXIOS-POISONING ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-NODE-IPC-COMPROMISE ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-SHAI-HULUD      ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
 | L2-CAMP-TRAPDOOR        ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-CARGO-ADV-001        ⁂ |    3 |    0 |  2 |  0 |  1 | 100.00% |  66.67% |
-| L2-CARGO-DEPC-001       ⁂ |    3 |    0 |  3 |  0 |  0 | 100.00% | 100.00% |
-| L2-CARGO-TYPO-001       ⁂ |  120 |    0 | 118 |  0 |  2 | 100.00% |  98.33% |
-| L2-CRED-001             ⁂ |   14 |    0 |  2 |  0 | 12 | 100.00% |  14.29% |
-| L2-CVE-001              ⁂ |  115 |    0 |  0 |  0 | 115 |   0.00% |   0.00% |
-| L2-DEPC-001             ⁂ |  153 |    0 |  1 |  0 | 152 | 100.00% |   0.65% |
-| L2-ENGIN-001            ⁂ |    2 |    0 |  1 | 1210 |  1 |   0.08% |  50.00% |
-| L2-FORK-001             ⁂ |    2 |    0 |  2 | 1210 |  0 |   0.17% | 100.00% |
-| L2-GO-ADV-001           ⁂ |    3 |    0 |  1 |  0 |  2 | 100.00% |  33.33% |
-| L2-GO-DEPC-001          ⁂ |    3 |    0 |  3 |  0 |  0 | 100.00% | 100.00% |
-| L2-GO-TYPO-001          ⁂ |  120 |    0 | 61 |  0 | 59 | 100.00% |  50.83% |
-| L2-IOC-001              ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-LICENSE-001          ⁂ |    3 |    0 |  3 | 1210 |  0 |   0.25% | 100.00% |
-| L2-LOCK-001             ⁂ |    2 |    0 |  1 |  0 |  1 | 100.00% |  50.00% |
-| L2-MAINT-001            ⁂ |    2 |    0 |  2 | 1210 |  0 |   0.17% | 100.00% |
-| L2-MANI-001             ⁂ |    2 |    0 |  2 |  0 |  0 | 100.00% | 100.00% |
-| L2-MANI-002             ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-MAVEN-ADV-001        ⁂ |   24 |    0 |  7 |  0 | 17 | 100.00% |  29.17% |
+| L2-CARGO-ADV-001        |    3 |   15 |  2 |  0 |  1 | 100.00% |  66.67% |
+| L2-CARGO-DEPC-001       |    3 |   15 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-CARGO-TYPO-001       |  137 |   15 | 137 |  0 |  0 | 100.00% | 100.00% |
+| L2-CRED-001             |    4 |   50 |  2 |  0 |  2 | 100.00% |  50.00% |
+| L2-DEPC-001             |  138 |   50 | 138 |  0 |  0 | 100.00% | 100.00% |
+| L2-ENGIN-001            |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-FORK-001             |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-GO-ADV-001           |    3 |   15 |  1 |  0 |  2 | 100.00% |  33.33% |
+| L2-GO-DEPC-001          |    3 |   15 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-GO-TYPO-001          |  134 |   15 | 134 |  0 |  0 | 100.00% | 100.00% |
+| L2-IOC-001              |    1 |   50 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-LICENSE-001          |    3 |   50 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-LOCK-001             |    2 |   50 |  1 |  0 |  1 | 100.00% |  50.00% |
+| L2-MAINT-001            |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MANI-001             |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-MANI-002             |    1 |   50 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-MAVEN-ADV-001        ⁂ |   89 |    0 | 74 |  0 | 15 | 100.00% |  83.15% |
 | L2-MAVEN-DEPC-001       ⁂ |   13 |    0 | 13 |  0 |  0 | 100.00% | 100.00% |
-| L2-MAVEN-TYPO-001       ⁂ |  361 |    0 | 127 |  0 | 234 | 100.00% |  35.18% |
-| L2-NETEX-001            ⁂ |   15 |    0 |  3 |  0 | 12 | 100.00% |  20.00% |
-| L2-NPM-OBFS-001         ⁂ |   22 |    0 |  0 |  0 | 22 |   0.00% |   0.00% |
-| L2-NPM-POST-001         ⁂ |   10 |    0 |  0 |  0 | 10 |   0.00% |   0.00% |
+| L2-MAVEN-TYPO-001       ⁂ |  378 |    0 | 378 |  0 |  0 | 100.00% | 100.00% |
+| L2-NETEX-001            |    5 |   50 |  3 |  0 |  2 | 100.00% |  60.00% |
 | L2-NUGET-ADV-001        ⁂ |    5 |    0 |  3 |  0 |  2 | 100.00% |  60.00% |
 | L2-NUGET-DEPC-001       ⁂ |    6 |    0 |  6 |  0 |  0 | 100.00% | 100.00% |
-| L2-NUGET-TYPO-001       ⁂ |  207 |    0 | 167 |  0 | 40 | 100.00% |  80.68% |
-| L2-OBFS-001             ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-OBFS-002             ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-OBFS-003             ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-OBFS-004             ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-PNPM-001             ⁂ |    3 |    0 |  1 |  0 |  2 | 100.00% |  33.33% |
-| L2-POST-001             ⁂ |   22 |    0 | 22 |  0 |  0 | 100.00% | 100.00% |
-| L2-PROV-001             ⁂ |    2 |    0 |  1 | 1210 |  1 |   0.08% |  50.00% |
-| L2-PYPI-ADV-001         ⁂ |    3 |    0 |  1 |  0 |  2 | 100.00% |  33.33% |
-| L2-PYPI-DEPC-001        ⁂ |  163 |    0 | 88 |  0 | 75 | 100.00% |  53.99% |
-| L2-PYPI-OBFS-001        ⁂ |   23 |    0 | 15 |  0 |  8 | 100.00% |  65.22% |
-| L2-PYPI-OBFS-002        ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-PYPI-OBFS-007        ⁂ |    1 |    0 |  1 |  0 |  0 | 100.00% | 100.00% |
-| L2-PYPI-POST-001        ⁂ |    6 |    0 |  6 |  0 |  0 | 100.00% | 100.00% |
-| L2-PYPI-TYPO-001        ⁂ |  472 |    0 | 472 |  0 |  0 | 100.00% | 100.00% |
-| L2-RUBYGEMS-ADV-001     ⁂ |   10 |    0 |  7 |  0 |  3 | 100.00% |  70.00% |
+| L2-NUGET-TYPO-001       ⁂ |  218 |    0 | 218 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-001             |    9 |   50 |  9 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-002             |    3 |   50 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-003             |    1 |   50 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-OBFS-004             |    3 |   50 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PNPM-001             |    3 |   50 |  1 |  0 |  2 | 100.00% |  33.33% |
+| L2-POST-001             |   56 |   50 | 56 |  0 |  0 | 100.00% | 100.00% |
+| L2-PROV-001             |    2 |   50 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-ADV-001         |    3 |   30 |  1 |  0 |  2 | 100.00% |  33.33% |
+| L2-PYPI-DEPC-001        |  148 |   30 | 148 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-001        |   23 |   30 | 23 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-002        |    5 |   30 |  5 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-003        |    1 |   30 |  1 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-004        |    2 |   30 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-005        |    2 |   30 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-006        |    2 |   30 |  2 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-OBFS-007        |    3 |   30 |  3 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-POST-001        |   47 |   30 | 47 |  0 |  0 | 100.00% | 100.00% |
+| L2-PYPI-TYPO-001        |  499 |   30 | 499 |  0 |  0 | 100.00% | 100.00% |
+| L2-RUBYGEMS-ADV-001     ⁂ |   40 |    0 | 37 |  0 |  3 | 100.00% |  92.50% |
 | L2-RUBYGEMS-DEPC-001    ⁂ |    4 |    0 |  4 |  0 |  0 | 100.00% | 100.00% |
-| L2-RUBYGEMS-TYPO-001    ⁂ |  372 |    0 | 244 |  0 | 128 | 100.00% |  65.59% |
-| L2-SIDELOAD-001         ⁂ |    4 |    0 |  4 |  0 |  0 | 100.00% | 100.00% |
-| L2-TYPO-001             ⁂ | 1286 |    0 | 1109 |  0 | 177 | 100.00% |  86.24% |
-| L2-WORM-001             ⁂ |    3 |    0 |  3 |  0 |  0 | 100.00% | 100.00% |
-| **Aggregate              ** | **3618** | **   0** | **2534** | **6050** | **1084** | ** 84.92%** | ** 72.79%** |
+| L2-RUBYGEMS-TYPO-001    ⁂ |  381 |    0 | 381 |  0 |  0 | 100.00% | 100.00% |
+| L2-SIDELOAD-001         |    4 |   50 |  4 |  0 |  0 | 100.00% | 100.00% |
+| L2-TYPO-001             | 1089 |   50 | 1089 |  0 |  0 | 100.00% | 100.00% |
+| L2-WORM-001             |    3 |   50 |  3 |  0 |  0 | 100.00% | 100.00% |
+| **Aggregate              ** | **3514** | **1630** | **3477** | ** 0** | **37** | **100.00%** | ** 90.87%** |
 <!-- END: rule-table -->
 
 > **Note on `n_neg`:** The six "n_neg=1" rows are the rules exercised by the
@@ -333,15 +333,17 @@ picosentry scan --validate
 Expected output (truncated):
 
 ```
-fixtures: 45 (39 pos / 6 neg) | mean precision: 100.00% | mean recall: 100.00% | fixture failures: 0 | passes: True
+fixtures: 5666 (3431 pos / 2235 neg) | mean precision: 100.00% | mean recall: 90.87% | fixture failures: 37 | passes: True
 rule_id                    tp   fp   fn     prec   recall
 ---------------------------------------------------------
-L2-ADV-001                  1    0    0 100.00% 100.00%
-L2-BUND-001                 1    0    0 100.00% 100.00%
+L2-ADV-001                  2    0    1 100.00%  66.67%
+L2-BUND-001                 2    0    0 100.00% 100.00%
 L2-CAMP-SHAI-HULUD          1    0    0 100.00% 100.00%
-L2-CARGO-ADV-001            1    0    0 100.00% 100.00%
-L2-CARGO-DEPC-001           1    0    0 100.00% 100.00%
-... (50 rule_id rows total: 49 L2 + 1 L2-CAMP)
+L2-CARGO-ADV-001            2    0    1 100.00%  66.67%
+L2-CARGO-DEPC-001           3    0    0 100.00% 100.00%
+... (54 rule rows total; 37 fixture failures are documented-ceiling cases —
+     transitive dependency resolution, advisory-DB name/version coverage,
+     and pre-existing hand-fixture gaps; see model-card.md)
 ```
 
 To dump the report JSON (matches `tests/scan/fixtures/validation/REPORT.json`):

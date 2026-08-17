@@ -116,17 +116,16 @@ def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
     expectation is wrong, the fix is to update the expectation, not the
     floor.
 
-    Note: the corpus expanded from 188 to 6488 counted fixtures. Some rules
-    (advisory, dep-confusion) have <100% recall because they require
-    network access or specific config markers not present in generated
-    fixtures. The floor was recalibrated to 84% precision on 2026-08-17:
-    the loader fix started counting 760 previously-rejected positives and
-    five npm metadata rules fire on sparse generated "clean" manifests
-    (see docs/model-card.md re-baseline note). The floor still catches
-    regressions below current reality.
+    Floor history: 0.84/0.70 covered the 2026-08-17 pre-fix state (five npm
+    metadata rules firing on sparse clean manifests = 6,050 FPs; ~700 FNs
+    from config/corpus/expected-id authoring bugs). The WO4.0.0-008
+    detection-quality round fixed those root causes (current reality:
+    1.00 precision / 0.91 recall) and raised the floor to 0.94/0.84 —
+    ~6pp recall headroom below current reality for corpus growth, tight
+    enough that a metadata-FP regression of the old scale cannot pass.
     """
     r = run_validation()
-    if r.mean_precision < 0.84 or r.mean_recall < 0.70:
+    if r.mean_precision < 0.94 or r.mean_recall < 0.84:
         msg_lines = [f"mean_precision={r.mean_precision:.2%} mean_recall={r.mean_recall:.2%}"]
         for name, outcome, details in r.fixture_results:
             if outcome != "PASS":

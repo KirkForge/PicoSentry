@@ -23,7 +23,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="`picosentry scan`",
         status="Stable",
-        notes="Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 6495 fixtures",
+        notes="Core scanner; 7 ecosystems; deterministic, offline; 53 rules, 5673 fixtures",
     ),
     ComponentStatus(
         name="`picosentry sandbox`",
@@ -103,7 +103,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Detection benchmarks",
         status="Stable",
-        notes="6495 fixtures (3558 pos / 2930 neg), 53 rules, 84.92% prec, 72.79% recall — see docs/model-card.md",
+        notes="5673 fixtures (3431 pos / 2235 neg), 53 rules, 100.00% prec, 90.87% recall — see docs/model-card.md",
     ),
     ComponentStatus(
         name="Docker image",

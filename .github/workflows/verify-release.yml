@@ -118,5 +118,9 @@ jobs:
         run: |
           TAG="${{ steps.tag.outputs.TAG }}"
           TAG="${TAG#v}"
-          docker run --rm "docker.io/kirkforge/picodome:v${TAG}" --version
+          VERSION_LINE=$(docker run --rm "docker.io/kirkforge/picodome:v${TAG}" --version | head -1)
+          echo "--version: ${VERSION_LINE}"
+          # The published image must report exactly the released version
+          # (WO4.0.0-009 evidence #5: the run never asserted the string).
+          test "$VERSION_LINE" = "PicoSentry (unified) v${TAG}" || { echo "FAIL: --version '${VERSION_LINE}' != v${TAG}"; exit 1; }
           docker run --rm "docker.io/kirkforge/picodome:v${TAG}" health

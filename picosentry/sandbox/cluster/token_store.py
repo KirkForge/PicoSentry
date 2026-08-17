@@ -14,11 +14,17 @@ retired.
 
 from __future__ import annotations
 
+import hashlib
 import secrets
 import threading
 import time
 from dataclasses import dataclass
 from typing import Any
+
+
+def token_digest(token: str) -> str:
+    """Stable non-secret identifier for a token (gossip-safe)."""
+    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass
@@ -140,6 +146,39 @@ class ClusterTokenStore:
                     for info in self._accepted.values()
                 ],
             }
+
+    def to_gossip_snapshot(self) -> dict[str, Any]:
+        """Secret-free view for the wire (WO4.0.0-019): digests + versions.
+
+        Gossip snapshots used to ship every accepted token verbatim — any
+        holder of ONE stale-but-accepted token could fetch the primary
+        forever. Digests let peers verify shared trust without exchanging
+        secret material. Rotation propagation via gossip is intentionally
+        disabled in this format (a digest cannot be re-materialized);
+        upgrade path: HMAC-with-primary rotation announcements.
+        """
+        with self._lock:
+            return {
+                "primary": {
+                    "digest": token_digest(self._primary.token),
+                    "version": self._primary.version,
+                    "issued_at": self._primary.issued_at,
+                }
+                if self._primary
+                else None,
+                "accepted": [
+                    {
+                        "digest": token_digest(info.token),
+                        "version": info.version,
+                        "issued_at": info.issued_at,
+                    }
+                    for info in self._accepted.values()
+                ],
+            }
+
+    def accepted_digests(self) -> set[str]:
+        with self._lock:
+            return {token_digest(token) for token in self._accepted}
 
     @classmethod
     def from_snapshot(cls, snapshot: dict[str, Any]) -> ClusterTokenStore:

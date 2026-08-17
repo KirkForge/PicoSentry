@@ -128,6 +128,9 @@ class RedisScanJobStore:
         pipe = client.pipeline()
         pipe.hset(key, mapping=job)
         pipe.zadd(_JOB_LIST_KEY, {job_id: time.time()})
+        # Prune (WO4.0.0-019): _max_jobs was dead — the recent-jobs zset grew
+        # forever. Trim oldest beyond the cap; their hash keys expire via TTL.
+        pipe.zremrangebyrank(_JOB_LIST_KEY, 0, -(self._max_jobs + 1))
         pipe.execute()
 
         return {

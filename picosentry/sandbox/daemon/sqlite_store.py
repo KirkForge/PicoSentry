@@ -190,10 +190,12 @@ class SQLiteScanJobStore:
 
     def get(self, job_id: str) -> dict[str, Any] | None:
         self._ensure_schema()
+        # Query inside the lock (WO4.0.0-019): the old code released the lock
+        # after grabbing the connection but ran the cursor outside it.
         with self._lock:
             conn = self._get_conn()
-        cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
-        row = cursor.fetchone()
+            cursor = conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+            row = cursor.fetchone()
         if row is None:
             return None
         return self._row_to_dict(row)
@@ -202,17 +204,19 @@ class SQLiteScanJobStore:
         self._ensure_schema()
         with self._lock:
             conn = self._get_conn()
-        cursor = conn.execute(
-            "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
-            (limit,),
-        )
-        return [self._row_to_dict(row) for row in cursor.fetchall()]
+            cursor = conn.execute(
+                "SELECT * FROM jobs ORDER BY created_at DESC LIMIT ?",
+                (limit,),
+            )
+            rows = cursor.fetchall()
+        return [self._row_to_dict(row) for row in rows]
 
     def count(self) -> int:
         self._ensure_schema()
-        conn = self._get_conn()
-        cursor = conn.execute("SELECT COUNT(*) FROM jobs")
-        return cursor.fetchone()[0]
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute("SELECT COUNT(*) FROM jobs")
+            return cursor.fetchone()[0]
 
     def prune(self, max_jobs: int | None = None) -> int:
         self._ensure_schema()

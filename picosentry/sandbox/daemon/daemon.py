@@ -106,6 +106,7 @@ class PicoDomeDaemon:
         )
 
         self._sinks = self._init_sinks()
+        self._retention_thread: threading.Thread | None = None
 
     def _init_sinks(self) -> list:
         from picosentry.sandbox.audit.sinks import (
@@ -227,6 +228,7 @@ class PicoDomeDaemon:
         self._shutdown_event.clear()
         self._server_thread = threading.Thread(target=self._serve_loop, daemon=True, name="picodome-daemon-server")
         self._server_thread.start()
+        self._start_retention_scheduler()
 
         if background:
             return
@@ -246,6 +248,34 @@ class PicoDomeDaemon:
         except Exception:
             if not self._shutdown_event.is_set():
                 logger.exception("serve_forever loop crashed")
+
+    def _retention_interval(self) -> float:
+        """Retention cleanup cadence (WO4.0.0-019): run_cleanup was CLI-only;
+        default daily, 0 disables."""
+        try:
+            return max(0.0, float(os.environ.get("PICODOME_RETENTION_INTERVAL_SECONDS", "86400")))
+        except (ValueError, TypeError):
+            return 86400.0
+
+    def _start_retention_scheduler(self) -> None:
+        interval = self._retention_interval()
+        if interval <= 0:
+            return
+
+        def _loop() -> None:
+            while not self._shutdown_event.wait(timeout=interval):
+                try:
+                    from picosentry.sandbox.retention import get_retention_manager
+
+                    stats = get_retention_manager().run_cleanup()
+                    if stats.get("files_removed"):
+                        logger.info("Scheduled retention cleanup: %s", stats)
+                except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
+                    logger.debug("Scheduled retention cleanup failed", exc_info=True)
+
+        self._retention_thread = threading.Thread(target=_loop, daemon=True, name="picodome-retention")
+        self._retention_thread.start()
+        logger.info("Retention cleanup scheduled every %.0fs", interval)
 
     def _start_cluster_manager(self) -> None:
         """Start the cluster manager if cluster mode is configured."""
@@ -330,6 +360,10 @@ class PicoDomeDaemon:
         if PicoDomeHandler.scan_executor is self._scan_executor:
             PicoDomeHandler.scan_executor = None
             PicoDomeHandler.scan_slots = None
+
+        if self._retention_thread is not None and self._retention_thread.is_alive():
+            self._retention_thread.join(timeout=2.0)
+            self._retention_thread = None
 
         for sink in self._sinks:
             try:

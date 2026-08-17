@@ -1316,12 +1316,36 @@ class TestClusterTokenRotation:
         assert state.token_store.is_accepted("old-secret")
         assert state.token_store.is_accepted("new-secret")
 
-    def test_merge_adopts_remote_token_when_common_token_exists(self):
+    def test_gossip_snapshots_do_not_adopt_or_leak_tokens(self):
+        """WO4.0.0-019 protocol change: snapshots carry digests, not secrets,
+        so gossip cannot adopt new token material (rotation now requires
+        config distribution until HMAC announcements exist)."""
+        import json as _json
+
         local = _state_with_token("shared")
         remote = _state_with_token("shared")
         remote.token_store.rotate("new-secret")
 
-        local.merge_state(remote.get_state_snapshot())
+        snapshot = remote.get_state_snapshot()
+        raw = _json.dumps(snapshot)
+        assert "new-secret" not in raw and "shared" not in raw, "snapshot leaked secret material"
+
+        local.merge_state(snapshot)  # shared trust via digest intersection: OK
+        assert not local.token_store.is_accepted("new-secret"), "digest snapshot must not adopt tokens"
+
+    def test_merge_still_adopts_from_legacy_raw_snapshots(self):
+        """Rolling-upgrade path: peers still shipping raw token_store
+        snapshots (to_snapshot format) are adopted as before."""
+        local = _state_with_token("shared")
+        remote = _state_with_token("shared")
+        remote.token_store.rotate("new-secret")
+
+        legacy_snapshot = {
+            "nodes": [],
+            "scans": [],
+            "token_store": remote.token_store.to_snapshot(),
+        }
+        local.merge_state(legacy_snapshot)
         assert local.token_store.is_accepted("new-secret")
 
     def test_merge_rejects_remote_with_no_common_token(self):

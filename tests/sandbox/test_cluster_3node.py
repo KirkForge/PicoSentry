@@ -98,9 +98,17 @@ class TestThreeNodeCluster:
             assert m2.state.get_leader_id() == "alpha"
             assert m3.state.get_leader_id() == "alpha"
 
-            # Token is present in every snapshot
+            # WO4.0.0-019: snapshots carry token DIGESTS, never the raw
+            # token; shared trust still verifies.
+            import json as _json
+
+            from picosentry.sandbox.cluster.token_store import token_digest
+
             for m in (m1, m2, m3):
-                assert m.sync_state().get("cluster_token") == TOKEN
+                snapshot = m.sync_state()
+                raw = _json.dumps(snapshot)
+                assert TOKEN not in raw, "cluster snapshot leaked the raw token"
+                assert snapshot["token_store"]["primary"]["digest"] == token_digest(TOKEN)
         finally:
             for m in (m1, m2, m3):
                 m.stop()

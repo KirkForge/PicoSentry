@@ -165,8 +165,22 @@ class PersistentScanJobStore:
         }
         with self._lock:
             self._jobs[job_id] = job
+            # Runtime cap (WO4.0.0-019): the max-jobs bound previously applied
+            # only at load time — a long-running daemon grew without limit.
+            if len(self._jobs) > self._max_jobs:
+                self._evict_oldest_locked()
             self._append_to_disk(job)
         return job
+
+    def _evict_oldest_locked(self) -> None:
+        """Caller holds self._lock. Drops oldest jobs beyond the cap."""
+        overflow = len(self._jobs) - self._max_jobs
+        if overflow <= 0:
+            return
+        oldest = sorted(self._jobs.values(), key=lambda j: j.get("created_at", ""))[:overflow]
+        for job in oldest:
+            self._jobs.pop(job["job_id"], None)
+        logger.info("Evicted %d oldest job(s) to honor max_jobs=%d", overflow, self._max_jobs)
 
     def update(self, job_id: str, **kwargs: Any) -> dict[str, Any] | None:
         self._ensure_loaded()

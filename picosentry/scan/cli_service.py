@@ -30,6 +30,7 @@ from picosentry.scan._cli_service_formatters import (
 from picosentry.scan._cli_service_paths import _resolve_external_path, _workspace_root
 from picosentry.scan._cli_service_policy import _apply_policy
 from picosentry.scan._cli_service_worker import ScanError, ScanTimeout
+from picosentry.scan._engine_scan_helpers import _RELEVANT_EXTENSIONS, _RELEVANT_FILE_NAMES, _SKIP_DIRS
 from picosentry.scan.config import PicoSentryConfig, load_config
 from picosentry.scan.engine import (
     PolicyNotFoundError,
@@ -50,6 +51,79 @@ from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, S
 from picosentry.scan.validation import run_validation
 
 logger = logging.getLogger(__name__)
+
+# Bounded input hashing: at most this many relevant files / bytes feed the
+# cache key. Sorted paths make the truncated subset deterministic.
+_MAX_INPUT_FILES = 2048
+_MAX_INPUT_BYTES = 64 * 1024 * 1024
+
+# Config dimensions that shape the cached (post-filter) payload — see
+# _run_scan: policy deny-lists, severity overrides, ignore lists and the
+# severity threshold are all applied BEFORE the result is cached. Baseline and
+# waivers are applied on every read (post-cache) and are deliberately NOT keyed.
+_CACHE_SHAPE_FIELDS = (
+    "rules",
+    "severity_threshold",
+    "severity_overrides",
+    "ignore_packages",
+    "ignore_paths",
+    "intelligence",
+)
+
+
+def _hash_target_inputs(target: Path) -> str:
+    """Content hash over every scan-relevant input file, all ecosystems.
+
+    Covers manifests, lockfiles, install scripts (.js/.py) and setup.py for
+    npm, pnpm, yarn, PyPI, Go, Cargo, Maven, RubyGems and NuGet — not just the
+    npm-family locks. Content-based (mtime changes alone never invalidate —
+    determinism contract). Returns "" when the target has no relevant files.
+    """
+    sha = hashlib.sha256()
+    files: list[Path] = []
+    if target.is_file():
+        files = [target]
+    else:
+        for file in target.rglob("*"):
+            if not file.is_file() or file.is_symlink():
+                continue
+            if any(part in _SKIP_DIRS for part in file.parts):
+                continue
+            if file.suffix in _RELEVANT_EXTENSIONS or file.name in _RELEVANT_FILE_NAMES:
+                files.append(file)
+    if not files:
+        return ""
+    total = 0
+    for file in sorted(files, key=lambda p: p.relative_to(target).as_posix())[:_MAX_INPUT_FILES]:
+        try:
+            data = file.read_bytes()
+        except OSError:
+            continue
+        sha.update(file.relative_to(target).as_posix().encode("utf-8"))
+        sha.update(b"\0")
+        sha.update(hashlib.sha256(data).digest())
+        total += len(data)
+        if total > _MAX_INPUT_BYTES:
+            break
+    return sha.hexdigest()[:16]
+
+
+def _file_digest(path: str | None) -> str:
+    if not path:
+        return ""
+    try:
+        return hashlib.sha256(Path(path).read_bytes()).hexdigest()[:16]
+    except OSError:
+        return "missing"
+
+
+def _cache_config_digest(config: PicoSentryConfig) -> str:
+    """Digest of every config/policy dimension that shapes the cached payload."""
+    parts: dict = {name: getattr(config, name, None) for name in _CACHE_SHAPE_FIELDS}
+    # Policy paths alone are not identity — the file content is what filtered the findings.
+    parts["policy_file_digest"] = _file_digest(getattr(config, "policy_file", None))
+    parts["advisory_db_digest"] = _file_digest(getattr(config, "advisory_db", None))
+    return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
 
 
 class ScanOrchestrator:
@@ -92,7 +166,7 @@ class ScanOrchestrator:
     def _load_cache(self, target: Path, config: PicoSentryConfig) -> tuple[ScanResult | None, Any, str]:
         """Attempt to load a cached result.
 
-        Returns ``(cached_result, cache, lockfile_hash)``.  ``cache`` is the
+        Returns ``(cached_result, cache, input_hash)``.  ``cache`` is the
         cache store instance (or ``None`` if caching is disabled or failed).
         """
         if getattr(self.args, "verify_determinism", False) or getattr(self.args, "no_cache", False):
@@ -101,13 +175,8 @@ class ScanOrchestrator:
             from picosentry.scan.cache import ScanCache
 
             cache = ScanCache.from_config(config)
-            lockfile_hash = ""
-            for lockfile_name in ("package-lock.json", "pnpm-lock.yaml", "yarn.lock"):
-                lf = target / lockfile_name
-                if lf.is_file():
-                    lockfile_hash = hashlib.sha256(lf.read_bytes()).hexdigest()[:16]
-                    break
-            if not lockfile_hash:
+            input_hash = _hash_target_inputs(target)
+            if not input_hash:
                 return None, cache, ""
 
             corpus_dir = Path(config.corpus) if config.corpus else None
@@ -117,19 +186,19 @@ class ScanOrchestrator:
                 intelligence_mode=config.intelligence,
             )
             corpus_hash = temp_engine._corpus_version
-            cached_data = cache.get(lockfile_hash, corpus_hash, __version__)
+            cached_data = cache.get(input_hash, corpus_hash, __version__, _cache_config_digest(config))
             if cached_data and "scan_id" in cached_data:
                 cached_result = self._scan_result_from_cache(cached_data, target)
                 if cached_result:
-                    logger.info("Cache hit: lockfile=%s corpus=%s", lockfile_hash[:8], corpus_hash[:8])
+                    logger.info("Cache hit: input=%s corpus=%s", input_hash[:8], corpus_hash[:8])
                     try:
                         from picosentry.scan.metrics import increment
 
                         increment("cache.hits")
                     except ImportError:
                         pass
-                    return cached_result, cache, lockfile_hash
-            return None, cache, lockfile_hash
+                    return cached_result, cache, input_hash
+            return None, cache, input_hash
         except (OSError, ValueError, TypeError, KeyError) as exc:
             logger.warning("Cache read failed for %s, disabling cache: %s", target, exc)
             return None, None, ""
@@ -145,19 +214,33 @@ class ScanOrchestrator:
                 Finding(**{**f, "severity": Severity(f["severity"]), "confidence": Confidence(f["confidence"])})
                 for f in cached_data.get("findings", [])
             ]
+            from picosentry.scan.models import RuleExecution
+
+            rule_executions = [RuleExecution(**r) for r in cached_data.get("rule_status", {}).values()]
+            audit = cached_data.get("audit", {})
+            # Faithful restore — a cache hit must produce the same output shape
+            # as a fresh scan (contract: cache skips recompute, never reshapes).
             return ScanResult(
                 target=cached_data.get("target", str(target)),
                 engine_version=cached_data.get("engine_version", __version__),
                 corpus_version=cached_data.get("corpus_version", ""),
                 findings=findings,
                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
+                rule_executions=rule_executions,
+                started_at=audit.get("started_at", ""),
+                completed_at=audit.get("completed_at", ""),
+                config_digest=audit.get("config_digest", ""),
+                policy_digest=audit.get("policy_digest", ""),
+                scanner_version=audit.get("scanner_version", cached_data.get("engine_version", __version__)),
+                package_intel=cached_data.get("package_intel", {}),
+                behavioral_evidence=cached_data.get("behavioral_evidence"),
             )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             logger.warning("Cache entry for %s is corrupted, ignoring: %s", target, exc)
             return None
 
-    def _save_cache(self, cache: Any, lockfile_hash: str, result: ScanResult, config: PicoSentryConfig) -> None:
-        if not cache or not lockfile_hash:
+    def _save_cache(self, cache: Any, input_hash: str, result: ScanResult, config: PicoSentryConfig) -> None:
+        if not cache or not input_hash:
             return
         try:
             corpus_dir = Path(config.corpus) if config.corpus else None
@@ -167,8 +250,8 @@ class ScanOrchestrator:
                 intelligence_mode=config.intelligence,
             )
             corpus_hash = te._corpus_version
-            cache.put(lockfile_hash, corpus_hash, __version__, result.to_dict())
-            logger.info("Cached scan result: lockfile=%s", lockfile_hash[:8])
+            cache.put(input_hash, corpus_hash, __version__, result.to_dict(), _cache_config_digest(config))
+            logger.info("Cached scan result: input=%s", input_hash[:8])
             try:
                 from picosentry.scan.metrics import increment
 
@@ -445,7 +528,7 @@ class ScanOrchestrator:
             print(f"Error: policy error: {exc}", file=sys.stderr)
             return 2
 
-        cached_result, cache, lockfile_hash = self._load_cache(target, config)
+        cached_result, cache, input_hash = self._load_cache(target, config)
 
         try:
             result = cached_result or self._run_scan(target, merged_config=config)
@@ -458,8 +541,8 @@ class ScanOrchestrator:
                 print(e.exc_traceback, file=sys.stderr)
             return 1
 
-        if cache is not None and lockfile_hash and not cached_result:
-            self._save_cache(cache, lockfile_hash, result, config)
+        if cache is not None and input_hash and not cached_result:
+            self._save_cache(cache, input_hash, result, config)
 
         from picosentry.scan.enterprise import is_enterprise_mode
 

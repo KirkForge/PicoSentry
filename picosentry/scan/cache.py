@@ -3,6 +3,7 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import hmac
+import itertools
 import json
 import logging
 import os
@@ -103,8 +104,12 @@ class ScanCache:
     def from_config(config: Any = None) -> ScanCache:
         return cache_from_config(config)
 
-    def _cache_key(self, lockfile_hash: str, corpus_hash: str, rule_version: str) -> str:
-        raw = f"{lockfile_hash}:{corpus_hash}:{rule_version}"
+    def _cache_key(self, lockfile_hash: str, corpus_hash: str, rule_version: str, config_digest: str = "") -> str:
+        # config_digest covers everything that shapes the cached post-filter
+        # payload: rule selection, policy deny-lists, severity overrides,
+        # ignore lists, severity threshold. Without it, `scan --rules X`
+        # after a full scan would return the full cached result.
+        raw = f"{lockfile_hash}:{corpus_hash}:{rule_version}:{config_digest}"
         return hashlib.sha256(raw.encode()).hexdigest()[:32]
 
     def _cache_path(self, key: str) -> Path:
@@ -168,8 +173,8 @@ class ScanCache:
 
         return evicted
 
-    def get(self, lockfile_hash: str, corpus_hash: str, rule_version: str) -> dict | None:
-        key = self._cache_key(lockfile_hash, corpus_hash, rule_version)
+    def get(self, lockfile_hash: str, corpus_hash: str, rule_version: str, config_digest: str = "") -> dict | None:
+        key = self._cache_key(lockfile_hash, corpus_hash, rule_version, config_digest)
         path = self._cache_path(key)
 
         if not path.is_file():
@@ -213,8 +218,10 @@ class ScanCache:
 
         return cast("dict[str, Any] | None", entry.get("result"))
 
-    def put(self, lockfile_hash: str, corpus_hash: str, rule_version: str, result: dict) -> None:
-        key = self._cache_key(lockfile_hash, corpus_hash, rule_version)
+    def put(
+        self, lockfile_hash: str, corpus_hash: str, rule_version: str, result: dict, config_digest: str = ""
+    ) -> None:
+        key = self._cache_key(lockfile_hash, corpus_hash, rule_version, config_digest)
         path = self._cache_path(key)
 
         entry = {
@@ -223,11 +230,12 @@ class ScanCache:
             "lockfile_hash": lockfile_hash,
             "corpus_hash": corpus_hash,
             "rule_version": rule_version,
+            "config_digest": config_digest,
             "result": result,
         }
         entry["_hmac"] = self._hmac(json.dumps(entry, sort_keys=True))
 
-        tmp_path = path.with_suffix(".tmp")
+        tmp_path = path.with_suffix(f".tmp.{os.getpid()}.{next(_TMP_SEQ)}")
         tmp_path.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp_path.replace(path)
 
@@ -235,7 +243,9 @@ class ScanCache:
 
         self._enforce_caps()
 
-    def invalidate(self, lockfile_hash: str = "", corpus_hash: str = "", rule_version: str = "") -> int:
+    def invalidate(
+        self, lockfile_hash: str = "", corpus_hash: str = "", rule_version: str = "", config_digest: str = ""
+    ) -> int:
         count = 0
         for path in self.cache_dir.glob("*.json"):
             try:
@@ -252,8 +262,10 @@ class ScanCache:
                 match = False
             if rule_version and entry.get("rule_version") != rule_version:
                 match = False
+            if config_digest and entry.get("config_digest") != config_digest:
+                match = False
 
-            if match or (not lockfile_hash and not corpus_hash and not rule_version):
+            if match or (not lockfile_hash and not corpus_hash and not rule_version and not config_digest):
                 path.unlink(missing_ok=True)
                 count += 1
 
@@ -353,22 +365,63 @@ class ScanCache:
         }
 
 
-_cache_env_key = os.environ.get("PICOSENTRY_CACHE_HMAC_KEY", "")
-if _cache_env_key:
-    if len(_cache_env_key) < 32:
-        logger.warning("PICOSENTRY_CACHE_HMAC_KEY is set but shorter than 32 chars — ignoring")
-        _CACHE_HMAC_KEY = os.urandom(32)
-    else:
-        _CACHE_HMAC_KEY = _cache_env_key.encode("utf-8")
-else:
-    _CACHE_HMAC_KEY = os.urandom(32)
+_TMP_SEQ = itertools.count()
+
+_HMAC_KEYFILE = ".cache_hmac_key"
+
+
+def _load_or_create_hmac_key() -> bytes:
+    """Resolve the cache-HMAC key with explicit precedence and no silent invalidation.
+
+    1. ``PICOSENTRY_CACHE_HMAC_KEY`` (>=32 chars) — explicit operator choice, wins.
+    2. Persistent per-machine keyfile under the default cache dir (created on
+       first use, mode 0600) — the default, so entries validate across processes.
+    3. Per-process random key — last resort when the keyfile is unusable; warned
+       about loudly because entries written under it will not validate later.
+    """
+    env_key = os.environ.get("PICOSENTRY_CACHE_HMAC_KEY", "")
+    if env_key:
+        if len(env_key) < 32:
+            logger.warning("PICOSENTRY_CACHE_HMAC_KEY is set but shorter than 32 chars — ignoring it")
+        else:
+            return env_key.encode("utf-8")
+
+    keyfile = DEFAULT_CACHE_DIR / _HMAC_KEYFILE
+    try:
+        DEFAULT_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        try:
+            fd = os.open(keyfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        except FileExistsError:
+            # ponytail: racy first-use creation — brief read-retry instead of a lock
+            for _ in range(3):
+                data = keyfile.read_bytes()
+                if len(data) >= 32:
+                    return data
+            raise OSError(f"{keyfile} exists but has no usable key") from None
+        with os.fdopen(fd, "wb") as fh:
+            key = os.urandom(32)
+            fh.write(key)
+        return key
+    except OSError as exc:
+        logger.warning(
+            "PICOSENTRY_CACHE_HMAC_KEY not set and keyfile %s unusable (%s) — "
+            "falling back to a per-process key; cache entries will NOT persist across processes",
+            keyfile,
+            exc,
+        )
+        return os.urandom(32)
+
+
+_CACHE_HMAC_KEY = _load_or_create_hmac_key()
+if not os.environ.get("PICOSENTRY_CACHE_HMAC_KEY", ""):
+    _keyfile = DEFAULT_CACHE_DIR / _HMAC_KEYFILE
     if os.environ.get("PICOSENTRY_QUIET") == "1":
         logger.debug(
-            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
-            "Set it for persistent cache integrity.",
+            "PICOSENTRY_CACHE_HMAC_KEY not set — using the persistent per-machine keyfile at %s",
+            _keyfile,
         )
     else:
-        logger.warning(
-            "PICOSENTRY_CACHE_HMAC_KEY not set — cache entries will be invalidated on process restart. "
-            "Set it for persistent cache integrity.",
+        logger.info(
+            "PICOSENTRY_CACHE_HMAC_KEY not set — using the persistent per-machine keyfile at %s",
+            _keyfile,
         )

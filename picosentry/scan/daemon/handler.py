@@ -27,6 +27,18 @@ class HealthHandler(BaseHTTPRequestHandler):
     auth_config: AuthConfig = AuthConfig()
     rate_limiter: RateLimiter = RateLimiter()
     _engine_cache: Any = None
+    _engine_lock = threading.Lock()
+
+    @classmethod
+    def _cached_engine(cls) -> Any:
+        """One engine per daemon process — /scan must not rebuild (and re-hash
+        the corpus) per request when /ready already warmed the cache."""
+        with cls._engine_lock:
+            if cls._engine_cache is None:
+                from picosentry.scan.engine import create_default_engine
+
+                cls._engine_cache = create_default_engine()
+            return cls._engine_cache
 
     def log_message(self, _format: str, *args) -> None:
         _logger().debug("daemon: %s", _format % args)
@@ -269,9 +281,7 @@ class HealthHandler(BaseHTTPRequestHandler):
         target = str(resolved)
 
         try:
-            from picosentry.scan.engine import create_default_engine
-
-            engine = create_default_engine()
+            engine = HealthHandler._cached_engine()
             result = engine.scan(target, rules=rules)
 
             from picosentry.scan.formatters.json_fmt import format_json
@@ -287,12 +297,7 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def _handle_readiness(self, request_id: str = "", start_time: float | None = None) -> None:
         try:
-            engine = HealthHandler._engine_cache
-            if engine is None:
-                from picosentry.scan.engine import create_default_engine
-
-                engine = create_default_engine()
-                HealthHandler._engine_cache = engine
+            engine = HealthHandler._cached_engine()
             status = {
                 "status": "ready",
                 "version": engine._corpus_version,

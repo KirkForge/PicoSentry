@@ -172,10 +172,12 @@ class PatternScanner:
         if size > max_bytes:
             return []
 
-        try:
-            text = file_path.read_text(encoding="utf-8", errors="replace")
-        except OSError:
+        from .utils import read_scannable_bytes
+
+        data = read_scannable_bytes(file_path)
+        if data is None:
             return []
+        text = data.decode("utf-8", errors="replace")
 
         return self.scan_text(text, package_label, str(file_path))
 

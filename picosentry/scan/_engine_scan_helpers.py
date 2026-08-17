@@ -3,7 +3,12 @@ from __future__ import annotations
 from pathlib import Path
 
 
-_SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules/.cache"})
+# "node_modules" is skipped here on purpose: this walk only feeds the
+# files_scanned stat, vendored deps are counted by count_installed_packages,
+# and re-walking every installed package dominated scan wall time on large
+# trees (WO4.0.0-014). "node_modules/.cache" was dead — parts are matched
+# one segment at a time, a two-segment string can never hit.
+_SKIP_DIRS = frozenset({".git", "__pycache__", ".cache", ".hg", ".svn", "node_modules"})
 
 _RELEVANT_EXTENSIONS = frozenset(
     {

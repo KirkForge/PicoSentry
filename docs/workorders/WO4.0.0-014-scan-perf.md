@@ -1,8 +1,8 @@
 # WO4.0.0-014 — Scan: throughput + daemon responsiveness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/scan-perf`)
+**Status:** PARTIAL (2026-08-17, worktree `wo/4.0.0/scan-watch-p1`) — daemon responsiveness + caches landed with tests; throughput improved 1.33× CPU (measured), the ≥2× gate was NOT met: rule parallelism measured NEGATIVE under the GIL (30.8s vs 17.1s wall, interleaved A/B on a 3.9k-file tree), so rules stay sequential (documented in engine.py). Measured (interleaved, `time.process_time()`): scan 18.1→13.6s CPU, zero rule timeouts (baseline lost L2-TYPO-001 to the 5s box), engine rebuild 0.26→0.011s (corpus-version stat cache), count_relevant_files 0.55→~0.02s (node_modules skipped). Also landed: halo-banded exact trie search (corpus_index.py, brute-force-equivalence test), shared stat-keyed 64MB byte-read cache (rules/utils.py `read_scannable_bytes`), single-walk `iter_source_files` for worm/netex/cred. Findings byte-identical (content AND order) on the benchmark tree. Remaining gap to 2×: L2-TYPO-001 ≈4.5s pure-Python DP (needs a C accelerator or SymSpell-style index — new risk surface, deferred).
+**Owner:** worktree `wo/4.0.0/scan-watch-p1`
 **Priority:** P1 · Effort L · Risk H (determinism + timebox regressions)
 **Scope:** `picosentry/scan/{engine.py,campaigns/_base.py,advisory_check.py,daemon/__init__.py,daemon/handler.py}`, `tests/scan/`
 

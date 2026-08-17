@@ -26,6 +26,12 @@ DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
 
 logger = logging.getLogger("picosentry.engine")
 
+# Per-process corpus-version cache: key = corpus dir, value = (fingerprint, version).
+# The fingerprint is (relative path, mtime_ns, size) per json file — stat-only, so a
+# repeated ScanEngine() (CLI runs build it 3x, daemon per request) skips re-reading
+# and re-hashing every corpus file unless the tree actually changed.
+_CORPUS_VERSION_CACHE: dict[str, tuple[tuple[tuple[str, int, int], ...], str]] = {}
+
 
 class PolicyNotFoundError(Exception):
     """A configured policy file is missing or unreadable."""
@@ -133,14 +139,35 @@ class ScanEngine:
         return Path(__file__).parent / "corpus"
 
     def _compute_corpus_version(self) -> str:
-        h = hashlib.sha256()
-        corpus_files = sorted(self._corpus_dir.rglob("*.json"))
-        if not corpus_files:
-            return "0.1.0-empty"
-        for f in corpus_files:
+        try:
+            all_files = sorted(self._corpus_dir.rglob("*.json"))
+        except OSError:
+            all_files = []
+        corpus_files = []
+        for f in all_files:
             if f.is_symlink():
                 logger.warning("Skipping symlink in corpus: %s — symlink corpus files are a security risk", f)
-                continue  # Skip symlinks for security
+                continue
+            corpus_files.append(f)
+        if not corpus_files:
+            return "0.1.0-empty"
+
+        stats: list[tuple[str, int, int]] = []
+        for f in corpus_files:
+            try:
+                st = f.stat()
+            except OSError:
+                st = None
+            stats.append((str(f.relative_to(self._corpus_dir)), st.st_mtime_ns if st else -1, st.st_size if st else -1))
+        fingerprint: tuple[tuple[str, int, int], ...] = tuple(stats)
+        cached = _CORPUS_VERSION_CACHE.get(str(self._corpus_dir))
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1]
+
+        h = hashlib.sha256()
+        for f in corpus_files:
+            # Symlinks already excluded above — see the security note in the
+            # original implementation: symlinked corpus files are a risk.
             try:
                 h.update(f.read_bytes())
             except OSError:
@@ -148,7 +175,9 @@ class ScanEngine:
 
         # Include the corpus manifest so version changes when update metadata changes.
         self._warn_if_corpus_stale()
-        return h.hexdigest()[:12]
+        version = h.hexdigest()[:12]
+        _CORPUS_VERSION_CACHE[str(self._corpus_dir)] = (fingerprint, version)
+        return version
 
     def is_corpus_stale(self, max_age_days: int = 30) -> tuple[bool, list[str]]:
         """Return (is_stale, list of stale ecosystem names) based on corpus.json.
@@ -371,10 +400,13 @@ class ScanEngine:
                     return fn(target_path, self._corpus_dir, package_intel=package_intel)
                 return fn(target_path, package_intel=package_intel)
             param_count = len(sig.parameters)
-            if param_count >= 2:
-                return fn(target_path, self._corpus_dir)
-            return fn(target_path)
+            return fn(target_path, self._corpus_dir) if param_count >= 2 else fn(target_path)
 
+        # ponytail: rules run sequentially on purpose — measured 2026-08-17
+        # (WO4.0.0-014), fanning all rule groups out onto the pool made a
+        # 3.9k-file scan 30.8s vs 17.1s sequential: the rules are regex/CPU
+        # bound, so threads only add GIL contention. Upgrade path: process
+        # pool if rule CPU cost ever dominates and determinism can be kept.
         rule_timed_out = False
         rule_executor = ThreadPoolExecutor(
             max_workers=min(self._max_workers, len(selected_rules) or 1),

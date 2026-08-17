@@ -141,37 +141,7 @@ class CorpusIndex:
         max_distance: float,
         matches: list[tuple[str, float]],
     ) -> None:
-        query_len = len(query)
-        maxd = max_distance
-        # Initial row for empty trie prefix.
-        prev = [float(i) if i <= maxd else maxd + 1 for i in range(query_len + 1)]
-        stack: list[tuple[_TrieNode, list[float]]] = [(root, prev)]
-
-        while stack:
-            node, prev_row = stack.pop()
-            for candidate in node.names:
-                if candidate == query:
-                    continue
-                dist = prev_row[-1]
-                if dist <= maxd:
-                    matches.append((candidate, dist))
-
-            for ch, child in node.children.items():
-                cur = [0.0] * (query_len + 1)
-                cur[0] = prev_row[0] + 1
-                row_min = cur[0]
-                for j, query_ch in enumerate(query, start=1):
-                    insertions = prev_row[j] + 1
-                    deletions = cur[j - 1] + 1
-                    substitutions = prev_row[j - 1] + (0.0 if ch == query_ch else 1.0)
-                    val = min(insertions, deletions)
-                    if substitutions < val:
-                        val = substitutions
-                    cur[j] = val
-                    if val < row_min:
-                        row_min = val
-                if row_min <= maxd:
-                    stack.append((child, cur))
+        self._search_banded(root, query, max_distance, matches, use_keyboard=False)
 
     def _search_keyboard(
         self,
@@ -180,13 +150,38 @@ class CorpusIndex:
         max_distance: float,
         matches: list[tuple[str, float]],
     ) -> None:
+        self._search_banded(root, query, max_distance, matches, use_keyboard=True)
+
+    def _search_banded(
+        self,
+        root: _TrieNode,
+        query: str,
+        max_distance: float,
+        matches: list[tuple[str, float]],
+        *,
+        use_keyboard: bool,
+    ) -> None:
+        """Trie walk with halo-banded DP rows (WO4.0.0-014 perf fix).
+
+        Only cells with ``|depth - j| <= int(max_distance) + 1`` are computed;
+        everything else is the sentinel ``max_distance + 1``.  This is exact for
+        every reported match: ``value(i, j) >= |i - j|``, so any cell (and every
+        DP ancestor of a cell) with value <= max_distance lies inside the band,
+        and any path through a sentinel cell evaluates to > max_distance and can
+        never surface as a match.  Pruning decisions are therefore identical to
+        the unbanded walk.
+        """
         query_len = len(query)
         maxd = max_distance
-        prev = [float(i) if i <= maxd else maxd + 1 for i in range(query_len + 1)]
-        stack: list[tuple[_TrieNode, list[float]]] = [(root, prev)]
+        sentinel = maxd + 1
+        band = int(maxd) + 1
+
+        prev = [float(i) if i <= maxd else sentinel for i in range(query_len + 1)]
+        stack: list[tuple[_TrieNode, list[float], int]] = [(root, prev, 0)]
 
         while stack:
-            node, prev_row = stack.pop()
+            node, prev_row, depth = stack.pop()
+            i = depth + 1
             for candidate in node.names:
                 if candidate == query:
                     continue
@@ -194,28 +189,40 @@ class CorpusIndex:
                 if dist <= maxd:
                     matches.append((candidate, dist))
 
+            lo = i - band
+            if lo < 1:
+                lo = 1
+            hi = i + band
+            if hi > query_len:
+                hi = query_len
+
             for ch, child in node.children.items():
-                cur = [0.0] * (query_len + 1)
-                cur[0] = prev_row[0] + 1
-                row_min = cur[0]
-                for j, query_ch in enumerate(query, start=1):
-                    insertions = prev_row[j] + 1
-                    deletions = cur[j - 1] + 1
-                    if ch == query_ch:
-                        sub_cost = 0.0
-                    elif _is_keyboard_adjacent(ch, query_ch):
-                        sub_cost = 0.5
+                cur = [sentinel] * (query_len + 1)
+                cur[0] = i
+                # Cell 0 (all deletions) is exact and can keep a shallow branch
+                # alive even when every band cell exceeds maxd.
+                row_min = min(sentinel, i)
+                prev_j = prev_row[lo - 1]
+                for j in range(lo, hi + 1):
+                    pj = prev_row[j]
+                    val = pj + 1
+                    deletion = cur[j - 1] + 1
+                    if deletion < val:
+                        val = deletion
+                    if ch == query[j - 1]:
+                        substitution = prev_j
+                    elif use_keyboard and _is_keyboard_adjacent(ch, query[j - 1]):
+                        substitution = prev_j + 0.5
                     else:
-                        sub_cost = 1.0
-                    substitutions = prev_row[j - 1] + sub_cost
-                    val = min(insertions, deletions)
-                    if substitutions < val:
-                        val = substitutions
+                        substitution = prev_j + 1
+                    if substitution < val:
+                        val = substitution
                     cur[j] = val
                     if val < row_min:
                         row_min = val
+                    prev_j = pj
                 if row_min <= maxd:
-                    stack.append((child, cur))
+                    stack.append((child, cur, i))
 
 
 def check_typosquat_against_index(

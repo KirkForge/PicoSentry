@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from .package_intel import PackageIntel, PackageIntelligence
     from .version_diff import DiffVerdict, VersionDelta, VersionDiff, format_delta
 
-__version__ = "2.1.1"
+__version__ = "2.1.2"
 
 # ponytail: all re-exports deferred so importing picosentry.scan (paid on every
 # picosentry.scan.* submodule import and by test conftests) is just __version__;

@@ -2,6 +2,13 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-17 - Release 2.1.2
+- **Security (S1)**: sandbox env re-merge leaked ALL host secrets to sandboxed children; unauthenticated WS broadcast + webhook cross-tenant leak (S2/S3). MFA/WebAuthn takeover paths, TOTP replay, audit/ratelimit event-loop hygiene, scheduler org-stamping.
+- **WO4.0.0 P0 merges** (6 merges, 24-WO series from the five-explorer round): landlock made real on x86_64 (WO-001), gRPC daemon transport auth + availability (WO-002), postgres org/auth tenancy (WO-003), audit retention × tamper-evidence coexistence (WO-004), correlation/report/alert tenancy (WO-005), scan/OSV cache trustworthiness + HMAC keyfile (WO-006), watch guard integrity — fail-closed corpus gap, homoglyphs, decode order (WO-007), detection quality — FP gating, recall recovery, honest card **100.00/90.87** (WO-008).
+- **Honesty/perf**: benchmark corpus re-baseline (loader counts the full corpus, `doctor` 10/10, precision gates aligned), ~150 doc claims validated vs codebase, PEP 562 lazy re-exports (CLI cold start 1.15s → 0.27s), fast suite 201s → 142s.
+- **Workflow**: AGENTS.md v2 (session/CI/release contracts), single WO truth in `docs/workorders/`, CI PR/push/nightly split with test-budget guard.
+- Release mechanics: 17-file version lockstep bump; fixed "SARIF 2.1.x" doc strings back to the SARIF 2.1.0 spec version (error introduced in the 2.1.1 bump).
+
 ## 2026-08-17 - Five-explorer round: WO4.0.0 series seeded (24 workorders) + fresh state
 - docs(workorders): **WO4.0.0 series created** — 24 workorders from a five-explorer read-only round (scan / sandbox / serve / watch+firewall / core-CLI-infra), ~70 verified findings with repro evidence. Priorities: 9×P0 (landlock dead on x86_64 with the test asserting the bug; sandbox gRPC transport unauthenticated arbitrary-command; postgres org-create broken; severity purge permanently breaks the audit-chain verifier; correlation/report/alert org leaks; scan caches serve wrong results incl. version-blind OSV; watch fail-closed corpus gap + blanket Cyrillic blocking + decode-order bypass; detection quality FP/FN root causes; release mechanics — docker `--set '*.tags='` drops `:latest`, hardcoded v2.1.1 strings), 9×P1 (tenant/containment/truthfulness/concurrency/perf/CI), 6×P2 (cluster trust, multi-worker, tenant product, firewall, gateway shim, hygiene).
 - state.md restructured: head = compiled current-state picture (subsystem health + jump-in queue), history preserved below. AGENTS.md series pointer updated (active WO4.0.0, next free WO5.0.0).

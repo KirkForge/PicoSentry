@@ -452,6 +452,6 @@ If the MCP tools report a stale index or fail with `LadybugDB unavailable`
 - Roll back to the previous image: `docker run kirkforge/picodome:<previous-tag>`
 - Reinstall the previous PyPI version:
   ```bash
-  pip install 'picosentry<2.1.1'
+  pip install 'picosentry<2.1.2'
   ```
 - Verify a rollback with `picosentry health` and `python scripts/test_doctor.py`.

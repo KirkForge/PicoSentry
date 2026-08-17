@@ -31,6 +31,11 @@ from picosentry.serve.services.correlation.persistence import (
 logger = logging.getLogger("picosentry.correlation")
 
 
+def _org_key(org_id) -> str | None:
+    """Normalize caller org ids (int or str) to the engine's str org space."""
+    return str(org_id) if org_id is not None else None
+
+
 class CorrelationEngine:
     PERSIST_ENABLED: ClassVar[bool] = False
 
@@ -167,8 +172,9 @@ class CorrelationEngine:
         logger.debug("Ingested batch of %d events", allowed)
 
     def kill_chain(self, artifact_id: str, org_id: str | None = None) -> KillChainTimeline | None:
+        org_key = _org_key(org_id)
         with self._lock:
-            cache_key = (org_id, artifact_id)
+            cache_key = (org_key, artifact_id)
             if cache_key in self._chains:
                 return self._chains[cache_key]
 
@@ -178,11 +184,12 @@ class CorrelationEngine:
 
             # Only events belonging to the requesting org (or global, org-less
             # events) contribute to this tenant's chain.
-            scoped = [e for e in events if e.org_id is None or e.org_id == org_id]
+            scoped = [e for e in events if e.org_id is None or e.org_id == org_key]
             if not scoped:
                 return None
 
             timeline = self._compute_timeline(artifact_id, scoped)
+            timeline.org_id = org_key
             self._chains[cache_key] = timeline
             return timeline
 
@@ -203,18 +210,20 @@ class CorrelationEngine:
             return results
 
     def all_artifact_ids(self, org_id: str | None = None) -> list[str]:
+        org_key = _org_key(org_id)
         with self._lock:
-            if org_id is None:
+            if org_key is None:
                 return list(self._events.keys())
             return [
                 artifact_id
                 for artifact_id, events in self._events.items()
-                if any(e.org_id is None or e.org_id == org_id for e in events)
+                if any(e.org_id is None or e.org_id == org_key for e in events)
             ]
 
-    def on_run_completed(self, project_id: str, run_id: str | None = None) -> None:
-
-        critical = self.critical_chains(threshold=0.7)
+    def on_run_completed(self, project_id: str, run_id: str | None = None, org_id: str | None = None) -> None:
+        # Org-scoped: a run by one tenant must only re-escalate that tenant's
+        # chains (plus org-less global events).
+        critical = self.critical_chains(threshold=0.7, org_id=org_id)
 
         for chain in critical:
             self._notify_escalated(chain)

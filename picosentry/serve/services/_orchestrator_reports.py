@@ -17,7 +17,7 @@ class _ProjectProvider(Protocol):
 
     def get_project(self, project_id: str, org_id: int | None = None) -> dict | None: ...
 
-    def get_correlations(self, project_id: str) -> list[dict]: ...
+    def get_correlations(self, project_id: str, org_id: int | None = None) -> list[dict]: ...
 
 
 def generate_summary_report(orch: _StatusProvider, org_id: int | None = None) -> str:
@@ -55,7 +55,7 @@ def generate_project_report(
     project_id: str,
     org_id: int | None = None,
 ) -> dict[str, Any] | None:
-    project = orch.get_project(project_id)
+    project = orch.get_project(project_id, org_id=org_id)
     if not project:
         return None
 
@@ -88,5 +88,5 @@ def generate_project_report(
         "project": project,
         "recent_runs": [dict(r) for r in runs],
         "intelligence": [dict(r) for r in intel],
-        "correlations": orch.get_correlations(project_id),
+        "correlations": orch.get_correlations(project_id, org_id=org_id),
     }

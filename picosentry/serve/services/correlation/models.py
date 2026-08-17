@@ -154,6 +154,9 @@ class KillChainTimeline:
     related_targets: list[str] = field(default_factory=list)
     """Other targets in the same chain."""
 
+    org_id: str | None = None
+    """Owning tenant (None = global chain)."""
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "artifact_id": self.artifact_id,
@@ -161,6 +164,7 @@ class KillChainTimeline:
             "severity": self.severity.value,
             "confidence": self.confidence.value,
             "narrative": self.narrative,
+            "org_id": self.org_id,
             "phases": {phase: [e.to_dict() for e in events] for phase, events in sorted(self.phases.items())},
             "related_targets": self.related_targets,
             "event_count": sum(len(events) for events in self.phases.values()),

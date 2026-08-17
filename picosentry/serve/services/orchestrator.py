@@ -59,6 +59,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             lambda evt: correlation_engine.on_run_completed(
                 project_id=evt.payload.get("project_id", ""),
                 run_id=str(evt.payload.get("run_id", "")),
+                org_id=evt.payload.get("org_id"),
             ),
             persistent=True,
             subscriber_id="correlation-engine",
@@ -344,6 +345,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                     project_id,
                     run_id=str(run_id),
                     layer=layer,
+                    org_id=org_id,
                 )
                 if event is not None:
                     correlated_events.append(event)
@@ -505,15 +507,19 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         rows = db.execute(query, tuple(params))
         return [{**dict(row), "data": json.loads(row["data"]) if row["data"] else {}} for row in rows]
 
-    def get_correlations(self, project_id: str) -> list[dict]:
+    def get_correlations(self, project_id: str, org_id: int | None = None) -> list[dict]:
+        org_filter = "AND org_id = ?" if org_id is not None else ""
+        params: list[Any] = [f"%{project_id}%"]
+        if org_id is not None:
+            params.append(org_id)
         rows = db.execute(
-            """
+            f"""
             SELECT source_project, intel_type, severity, data, created_at
             FROM intelligence
-            WHERE related_projects LIKE ?
+            WHERE related_projects LIKE ? {org_filter}
             ORDER BY created_at DESC LIMIT 20
         """,
-            (f"%{project_id}%",),
+            tuple(params),
         )
 
         return [

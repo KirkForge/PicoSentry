@@ -64,7 +64,8 @@ class AlertHub:
 
         with self._lock:
             now = datetime.now(timezone.utc)
-            key = f"{project_id}:{alert_type}"
+            # Org in the key: tenant A's alert must not suppress tenant B's.
+            key = f"{org_id}:{project_id}:{alert_type}"
 
             self.recent_alerts[key] = [
                 t for t in self.recent_alerts.get(key, []) if (now - t).total_seconds() < self.cooldown_seconds * 2

@@ -120,6 +120,7 @@ async def lifespan(app: FastAPI):
 
     def _chain_escalated_alert(chain):
         try:
+            chain_org = int(chain.org_id) if chain.org_id is not None else None
             _alert_hub_global.send(
                 project_id=chain.artifact_id,
                 alert_type="chain_escalated",
@@ -134,8 +135,9 @@ async def lifespan(app: FastAPI):
                     "phases": list(chain.phases.keys()),
                     "severity": chain.severity.value,
                     "phase_count": len(chain.phases),
-                    "event_count": sum(len(e) for e in chain.phases.values()),
+                    "event_count": sum(len(e) for e in chain.phases),
                 },
+                org_id=chain_org,
             )
         except (OSError, ValueError):
             logger.exception("Chain escalation alert failed")

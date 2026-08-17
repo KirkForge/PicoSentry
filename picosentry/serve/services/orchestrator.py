@@ -545,13 +545,16 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         return [dict(row) for row in rows]
 
     def acknowledge_alert(self, alert_id: int) -> bool:
-        result = db.execute_insert(
+        row = db.execute_one("SELECT id FROM alerts WHERE id = ?", (alert_id,))
+        if row is None:
+            return False
+        db.execute_insert(
             """
             UPDATE alerts SET sent = 1 WHERE id = ?
         """,
             (alert_id,),
         )
-        return result > 0
+        return True
 
     def get_metrics(
         self,

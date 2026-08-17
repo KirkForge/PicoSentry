@@ -275,7 +275,11 @@ class LandlockBackend(SandboxBackend):
 
                 os.close(ruleset_fd)
                 try:
-                    child_env = {**os.environ, **env} if env else dict(os.environ)
+                    child_env = (
+                        dict(env)
+                        if env is not None
+                        else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
+                    )
                     os.execvpe(command[0], command, child_env)
                 except Exception:
                     os._exit(126)

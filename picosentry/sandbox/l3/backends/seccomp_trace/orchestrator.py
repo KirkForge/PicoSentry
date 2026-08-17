@@ -139,9 +139,11 @@ class SeccompTraceBackend(SandboxBackend):
             if session is not None:
                 session.resources.open_fds.extend([out_r, out_w, err_r, err_w])
 
-            child_env = os.environ.copy()
-            if env:
-                child_env.update(env)
+            child_env = (
+                dict(env)
+                if env is not None
+                else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
+            )
 
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore", DeprecationWarning)

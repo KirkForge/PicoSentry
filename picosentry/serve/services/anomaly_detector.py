@@ -307,7 +307,8 @@ class AnomalyDetector:
                     comparison TEXT,
                     severity TEXT,
                     description TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    org_id TEXT
                 )
             """)
             self.db.execute_insert(
@@ -381,15 +382,15 @@ class AnomalyDetector:
             )
             results = [
                 {
-                    "rule_id": r[0],
-                    "metric_name": r[1],
-                    "value": r[2],
-                    "threshold": r[3],
-                    "comparison": r[4],
-                    "severity": r[5],
-                    "description": r[6],
-                    "timestamp": r[7],
-                    "org_id": r[8],
+                    "rule_id": r["rule_id"],
+                    "metric_name": r["metric_name"],
+                    "value": r["value"],
+                    "threshold": r["threshold"],
+                    "comparison": r["comparison"],
+                    "severity": r["severity"],
+                    "description": r["description"],
+                    "timestamp": r["created_at"],
+                    "org_id": r["org_id"],
                 }
                 for r in rows
             ]

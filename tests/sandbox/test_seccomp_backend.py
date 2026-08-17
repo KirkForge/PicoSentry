@@ -106,15 +106,17 @@ class TestSeccompBackendForkOrdering:
             call_order.append("wait")
             return (b"hi\n", b"", 0)
 
-        # Patch os.environ.copy on the actual os.environ object so the
-        # backend's call to ``os.environ.copy()`` is intercepted. Other
-        # os.environ operations (if any) use the real mapping.
+        # Patch os.environ.items (the env source since the env-remerge fix —
+        # the passed env dict IS the child env; os.environ only feeds the
+        # PATH/HOME allowlist when no env was supplied) so the backend's env
+        # construction is intercepted. Other os.environ ops use the real
+        # mapping.
         with (
             patch(
                 "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
                 side_effect=fake_fork,
             ),
-            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch.object(os.environ, "items", side_effect=lambda: iter(fake_environ_copy().items())),
             patch(
                 "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
                 return_value=(0, 1),
@@ -179,7 +181,7 @@ class TestSeccompBackendForkOrdering:
                 "picosentry.sandbox.l3.backends.seccomp_backend.os.fork",
                 side_effect=fake_fork,
             ),
-            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch.object(os.environ, "items", side_effect=lambda: iter(fake_environ_copy().items())),
             patch(
                 "picosentry.sandbox.l3.backends.seccomp_backend.os.pipe",
                 return_value=(0, 1),

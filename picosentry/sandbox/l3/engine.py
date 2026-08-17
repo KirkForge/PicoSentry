@@ -296,10 +296,9 @@ def sandbox_run(
     if policy is None:
         policy = default_policy()
 
-    # When called directly (env=None), backends inherit the full host
-    # environment via os.environ.copy(). Strip secrets before they reach
-    # the child. When the caller passes an explicit env dict, they control
-    # the content — but we still strip known-secret patterns.
+    # env IS the child's complete environment — backends never merge it over
+    # os.environ (that would re-leak every stripped secret). Strip secret
+    # patterns before the dict reaches any backend.
     env = _strip_env(dict(os.environ)) if env is None else _strip_env(env)
 
     if backend is None:

@@ -178,7 +178,7 @@ class WebhookManager:
     def _sign_payload(self, payload: dict, secret: str) -> str:
         return self.sign_payload(payload, secret)
 
-    def dispatch(self, event: str, payload: dict) -> list[dict[str, Any]]:
+    def dispatch(self, event: str, payload: dict, org_id: int | None = None) -> list[dict[str, Any]]:
         results: list[dict[str, Any]] = []
 
         if not HAS_REQUESTS:
@@ -203,7 +203,7 @@ class WebhookManager:
                     ),
                 )
                 for name, wh in self.webhooks.items()
-                if event in wh.events
+                if event in wh.events and (org_id is None or wh.org_id is None or str(wh.org_id) == str(org_id))
             ]
 
         for name, webhook in dispatch_list:

@@ -587,7 +587,7 @@ class TestSeccompTraceBackendForkOrdering:
                 "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.fork",
                 side_effect=fake_fork,
             ),
-            patch.object(os.environ, "copy", side_effect=fake_environ_copy),
+            patch.object(os.environ, "items", side_effect=lambda: iter(fake_environ_copy().items())),
             patch(
                 "picosentry.sandbox.l3.backends.seccomp_trace_backend.os.pipe",
                 return_value=(0, 1),

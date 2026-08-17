@@ -96,6 +96,15 @@ class TestSubprocessBackend:
 class TestSeccompBackend:
     """Tests that exercise the seccomp backend (auto-detected on Linux)."""
 
+    def test_stripped_env_not_remerged_from_os_environ(self, monkeypatch):
+        """The engine-stripped env IS the child env — backends must not
+        overlay it on os.environ (which would re-leak every stripped secret)."""
+        monkeypatch.setenv("PICOSHOGUN_SECRET_KEY", "super-secret-jwt-key-for-test")
+        monkeypatch.setenv("AWS_SECRET_ACCESS_KEY", "aws-secret-for-test")
+        result = sandbox_run(["printenv", "PICOSHOGUN_SECRET_KEY"], allow_degraded=True)
+        assert "super-secret-jwt-key-for-test" not in (result.stdout + result.stderr)
+        assert result.overall_verdict == Verdict.ALLOW
+
     def test_sandbox_run_echo(self):
         """Echo should work under seccomp (safe syscalls only)."""
         result = sandbox_run(["echo", "hello_seccomp"], allow_degraded=True)

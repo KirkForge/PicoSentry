@@ -20,6 +20,11 @@ def _env(key: str, default: str = "") -> str:
     return os.environ.get(f"SHOGUN_{key}", default)
 
 
+def _env_path(key: str) -> Path | None:
+    val = _env(key).strip()
+    return Path(val) if val else None
+
+
 def _env_bool(key: str, default: str = "false") -> bool:
     return _env(key, default).lower() == "true"
 
@@ -104,8 +109,8 @@ class SecurityConfig:
     rate_limit: str = "100/minute"
     ddos_shield_enabled: bool = field(default_factory=lambda: _env_bool("DDOS_SHIELD", "true"))
     allow_registration: bool = field(default_factory=lambda: _env_bool("ALLOW_REGISTRATION", "false"))
-    ssl_cert_path: Path | None = None
-    ssl_key_path: Path | None = None
+    ssl_cert_path: Path | None = field(default_factory=lambda: _env_path("SSL_CERT_PATH"))
+    ssl_key_path: Path | None = field(default_factory=lambda: _env_path("SSL_KEY_PATH"))
     # Rate-limit backend: "memory" (default), "sqlite" (per-node persistence),
     # or "redis" (distributed, shared across serve replicas).
     rate_limit_backend: str = field(default_factory=lambda: _env("RATE_LIMIT_BACKEND", "memory"))

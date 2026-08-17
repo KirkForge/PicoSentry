@@ -58,6 +58,14 @@ def list_chains(
     }
 
 
+@router.get("/chains/summary", response_model=ChainsSummaryResponse)
+def chains_summary(
+    user: dict = Depends(require_role("viewer")),
+    org: dict = Depends(get_current_org),
+):
+    return correlation_engine.chains_summary(org_id=org["id"])
+
+
 @router.get("/chains/{artifact_id:path}", response_model=ChainNarrativeResponse)
 def get_chain(
     artifact_id: str = Path(max_length=512),
@@ -130,14 +138,6 @@ def ingest_event(
     correlation_engine.ingest(event)
 
     return {"status": "ok", "event": event.to_dict()}
-
-
-@router.get("/chains/summary", response_model=ChainsSummaryResponse)
-def chains_summary(
-    user: dict = Depends(require_role("viewer")),
-    org: dict = Depends(get_current_org),
-):
-    return correlation_engine.chains_summary(org_id=org["id"])
 
 
 @router.post("/chains/persist", response_model=ChainsPersistResponse)

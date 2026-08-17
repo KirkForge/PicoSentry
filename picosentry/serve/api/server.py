@@ -142,6 +142,10 @@ async def lifespan(app: FastAPI):
 
     def _chain_escalated_webhook(chain):
         try:
+            chain_org = next(
+                (e.org_id for events in chain.phases.values() for e in events if e.org_id is not None),
+                None,
+            )
             _webhook_manager_global.dispatch(
                 "chain.escalated",
                 {
@@ -150,6 +154,7 @@ async def lifespan(app: FastAPI):
                     "severity": chain.severity.value,
                     "chain": chain.to_dict(),
                 },
+                org_id=chain_org,
             )
         except (OSError, ValueError):
             logger.exception("Chain escalation webhook failed")

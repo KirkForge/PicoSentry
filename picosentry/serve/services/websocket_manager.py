@@ -39,7 +39,7 @@ class ConnectionManager:
 
     async def connect(self, websocket: WebSocket, channels: list[str] | None = None, org_id=None):
         await websocket.accept()
-        channels_set: set[str] = set(channels) if channels else {"*"}
+        channels_set: set[str] = set(channels) if channels is not None else {"*"}
         async with self._lock:
             self.client_orgs[websocket] = _normalize_org_id(org_id)
             self._add_sub(websocket, channels_set)

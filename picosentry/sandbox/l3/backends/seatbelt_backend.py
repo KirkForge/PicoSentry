@@ -114,9 +114,11 @@ class SeatbeltBackend(SandboxBackend):
             try:
                 sandbox_cmd = ["sandbox-exec", "-f", profile_path, "--", *command]
 
-                run_env = os.environ.copy()
-                if env:
-                    run_env.update(env)
+                run_env = (
+                    dict(env)
+                    if env is not None
+                    else {k: v for k, v in os.environ.items() if k in ("PATH", "HOME", "LANG", "TMPDIR")}
+                )
 
                 proc = subprocess.Popen(
                     sandbox_cmd,

@@ -196,49 +196,37 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - name: Run Postgres live integration test
+      # WO4.0.0-003: run the serve org/auth/backup integration flows against a
+      # real Postgres (env-pointed DB) instead of the old inline smoke script.
+      # Each test file gets a freshly created database, mirroring the
+      # per-worker isolation tests/serve/conftest.py gives the sqlite runs —
+      # no xdist, so no shared-database trampling.
+      - name: Run serve org/auth/backup flows against Postgres
         env:
           PICOSHOGUN_DATABASE_BACKEND: postgres
           PICOSHOGUN_DATABASE_URL: postgresql://picoshogun:picoshogun-test@127.0.0.1:15432/picoshogun
         run: |
-          uv run --extra serve --extra dev --with psycopg2-binary python - <<'PY'
-          from picosentry.serve.database.manager import db
-          from picosentry.serve.config.settings import settings
-
-          assert settings.database.backend == "postgres", settings.database.backend
-          print(f"connected: backend={db.backend}, dialect placeholders={db.dialect.placeholder}")
-
-          for table in ("intelligence", "alerts", "metrics", "webhooks", "scheduled_jobs", "project_runs"):
-              rows = db.execute(
-                  "SELECT COUNT(*) as n FROM information_schema.tables WHERE table_name = %s",
-                  (table,),
-              )
-              assert rows[0]["n"] == 1, f"table {table} missing"
-              print(f"  table {table}: present")
-
-          db.execute_insert(
-              "INSERT INTO alerts (severity, message, org_id) VALUES (?, ?, ?)",
-              ("info", "Postgres live test alert", 1),
-          )
-          row = db.execute_one(
-              "SELECT severity, message, org_id FROM alerts WHERE message = ? ORDER BY id DESC",
-              ("Postgres live test alert",),
-          )
-          assert row is not None
-          assert row["severity"] == "info"
-          assert row["org_id"] == 1
-          print("  CRUD round-trip: OK")
-
-          rows = db.execute(
-              "SELECT id FROM alerts WHERE severity IN (?, ?) AND message = ?",
-              ("info", "warning", "Postgres live test alert"),
-          )
-          assert len(rows) >= 1
-          print(f"  placeholder IN clause: OK ({len(rows)} row(s))")
-
-          db.execute("DELETE FROM alerts WHERE message = ?", ("Postgres live test alert",))
-          print("Postgres live integration test: PASSED")
-          PY
+          set -euo pipefail
+          FILES="tests/serve/test_org_pg_flows.py tests/serve/test_integration_auth.py tests/serve/test_integration_services.py tests/serve/services/test_backup.py"
+          for f in $FILES; do
+            db="pg_live_$(basename "$f" .py)"
+            echo "::group::pytest $f (db: $db)"
+            uv run --extra serve --extra dev --with psycopg2-binary python -c '
+          import os
+          import sys
+          import psycopg2
+          conn = psycopg2.connect(os.environ["PICOSHOGUN_DATABASE_URL"])
+          conn.autocommit = True
+          with conn.cursor() as cur:
+              cur.execute(f"DROP DATABASE IF EXISTS {sys.argv[1]}")
+              cur.execute(f"CREATE DATABASE {sys.argv[1]}")
+          conn.close()
+          ' "$db"
+            PICOSHOGUN_DATABASE_URL="${PICOSHOGUN_DATABASE_URL}/$db" \
+              uv run --extra serve --extra dev --with psycopg2-binary \
+              pytest "$f" -n0 -p no:cacheprovider -q --timeout=180
+            echo "::endgroup::"
+          done
 
   reproducible-build:
     if: github.event_name == 'push'

@@ -48,31 +48,21 @@ def _count_events(db_manager) -> int:
     return row["c"] if row else 0
 
 
-def _events_insert_sql() -> str:
-    """Return backend-specific INSERT that ignores duplicate dedup_key."""
-    db = _db()
-    ph = db.dialect.placeholder()
-    if db.backend == "postgres":
-        return f"""
-            INSERT INTO correlation_events
-            (dedup_key, artifact_id, layer, rule_id, severity,
-             confidence, target, title, detail, timestamp, run_id)
-            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-            ON CONFLICT (dedup_key) DO NOTHING
-        """
-    return f"""
-        INSERT OR IGNORE INTO correlation_events
-        (dedup_key, artifact_id, layer, rule_id, severity,
-         confidence, target, title, detail, timestamp, run_id)
-        VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-    """
+# ON CONFLICT ... DO NOTHING is portable: dedup_key is UNIQUE (migration 9)
+# and both SQLite >= 3.24 and Postgres accept the identical clause.
+_EVENTS_INSERT_SQL = """
+    INSERT INTO correlation_events
+    (dedup_key, artifact_id, layer, rule_id, severity,
+     confidence, target, title, detail, timestamp, run_id)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ON CONFLICT (dedup_key) DO NOTHING
+"""
 
 
 def _persist_events_impl(engine) -> int:
     if not engine.PERSIST_ENABLED:
         return 0
 
-    sql = _events_insert_sql()
     count = 0
     with engine._lock:
         for _artifact_id, events in list(engine._events.items()):
@@ -83,7 +73,7 @@ def _persist_events_impl(engine) -> int:
                     db = _db()
                     before = _count_events(db)
                     db.execute_insert(
-                        sql,
+                        _EVENTS_INSERT_SQL,
                         (
                             dedup_key,
                             event.artifact_id,

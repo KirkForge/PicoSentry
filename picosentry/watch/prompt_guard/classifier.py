@@ -107,7 +107,10 @@ class PromptClassifier:
 
     # Benign contextual markers that suppress weak override signals. Polite
     # prefixes like "please" are intentionally *not* here — a polite wrapper
-    # around an override attempt is still an override attempt.
+    # around an override attempt is still an override attempt. Fiction/game
+    # framing markers make roleplay requests ("pretend to be a pirate for my
+    # novel") pass; literal injection phrases are still caught by the regex
+    # layer, which the classifier blend can never lower.
     _BENIGN_MARKERS = frozenset(
         [
             "i made a typo",
@@ -126,6 +129,15 @@ class PromptClassifier:
             "not a real",
             "just curious",
             "for my understanding",
+            "for my novel",
+            "for a novel",
+            "for my story",
+            "for a story",
+            "in my story",
+            "for my book",
+            "for my kids",
+            "for my game",
+            "for a game",
         ]
     )
 

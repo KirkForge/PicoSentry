@@ -260,6 +260,9 @@ ignore = [
 # Fixture lockfiles contain long cryptographic hashes that cannot be wrapped
 # without breaking the YAML format.
 "tests/scan/test_pnpm_lock_parser.py" = ["E501"]
+# Guard-integrity tests deliberately contain Cyrillic/Greek/fullwidth
+# confusables — they ARE the test data (WO4.0.0-007 homoglyph corpus).
+"tests/watch/test_prompt_guard.py" = ["RUF001", "RUF002"]
 # Tests spawn subprocesses and explicitly assert on return codes/text output;
 # requiring an explicit `check` argument on every call is noise without value.
 "tests/**/*.py" = ["PLW1510", "ARG001", "ARG002", "ARG005", "TC001", "TC002"]

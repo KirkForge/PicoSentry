@@ -12,7 +12,7 @@ from picosentry.watch.types import Rule
 logger = logging.getLogger("picowatch.rules")
 
 # Keys Rule() actually consumes — anything else in a rule dict is a typo or drift.
-_RULE_FIELDS = frozenset({"id", "category", "weight", "pattern", "description", "normalization"})
+_RULE_FIELDS = frozenset({"id", "category", "weight", "pattern", "description"})
 
 
 class RuleEngine:
@@ -77,7 +77,6 @@ class RuleEngine:
                             weight=float(rd.get("weight", 0.5)),
                             pattern=rd["pattern"],
                             description=rd.get("description", ""),
-                            normalization=rd.get("normalization", ["unicode", "whitespace"]),
                         )
                         raw_rules.append(rule)
                     except (KeyError, ValueError, TypeError) as e:

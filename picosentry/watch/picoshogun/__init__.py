@@ -81,12 +81,21 @@ class PicoWatchPlugin:
 
     def health(self) -> dict[str, Any]:
         uptime = time.perf_counter() - self._start_time
+        # Truthful health: both guards must have loaded their full corpora.
+        # A 0-rule guard (missing/empty dir) is never healthy.
+        prompt_ok = (
+            self._prompt_guard.rules_loaded > 0 and self._prompt_guard.rules_loaded >= self._prompt_guard.rules_expected
+        )
+        output_ok = (
+            self._output_guard.rules_loaded > 0 and self._output_guard.rules_loaded >= self._output_guard.rules_expected
+        )
         return {
             "plugin": self.name,
             "version": self.version,
             "layers": self.layers,
-            "healthy": True,
+            "healthy": prompt_ok and output_ok,
             "rules_loaded": len(self._prompt_guard.rules),
+            "rules_expected": self._prompt_guard.rules_expected,
             "corpus_hash": self._prompt_guard.corpus_hash,
             "corpus_version": self._pw_config.corpus_version,
             "uptime_seconds": round(uptime, 1),

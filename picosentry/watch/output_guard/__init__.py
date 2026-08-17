@@ -35,6 +35,14 @@ class OutputGuard:
         return self._engine.rules
 
     @property
+    def rules_loaded(self) -> int:
+        return self._engine.rules_loaded
+
+    @property
+    def rules_expected(self) -> int:
+        return self._engine.rules_expected
+
+    @property
     def corpus_hash(self) -> str:
         return self._engine.corpus_hash
 
@@ -62,6 +70,19 @@ class OutputGuard:
         violations: list[str] = []
         total_score = 0.0
         redacted = output
+
+        # Fail-closed: zero rules loaded (missing/empty/corrupt corpus dir)
+        # means nothing can be validated — reject rather than pass everything.
+        if self._config.fail_closed and self._engine.rules_loaded == 0:
+            return ValidationResult(
+                valid=False,
+                score=1.0,
+                violations=["fail_closed_no_rules"],
+                corpus_hash=self.corpus_hash,
+                corpus_version=self._config.corpus_version,
+                duration_ms=0.0,
+                details={"error": "No rules loaded (corpus missing/empty/all failed); fail-closed mode is active"},
+            )
 
         effective_schema = schema
         if effective_schema is None and schema_name and schema_name in self._loaded_schemas:

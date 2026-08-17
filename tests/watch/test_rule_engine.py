@@ -40,7 +40,6 @@ class TestRuleEngine:
                 "weight": 0.5,
                 "pattern": r"password\s*:",
                 "description": "Credential leak pattern",
-                "normalization": ["unicode", "base64"],
             },
         ]
         self._write(tmp_path / "rules.yaml", rules)

@@ -24,7 +24,15 @@ class Normalizer:
     # while still avoiding trivial false positives.
     _BASE64 = re.compile(r"[A-Za-z0-9+/]{12,}={0,2}")
 
+    # URL-safe alphabet (- and _ instead of + and /) used by JWTs and friends.
+    _BASE64_URLSAFE = re.compile(r"[A-Za-z0-9_-]{12,}={0,2}")
+
     _HEX = re.compile(r"(?:0x)?[0-9a-fA-F]{20,}")
+
+    # ponytail: decode work is bounded by a per-request variant budget, not
+    # input size — a 1MB payload of 12-char b64-looking runs would otherwise
+    # produce ~80k decodes per scan. Raise if legitimate traffic needs more.
+    _MAX_DECODE_VARIANTS = 32
 
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
 
@@ -48,7 +56,7 @@ class Normalizer:
         return self.deobfuscate_markdown(result)
 
     def decode_and_rescan(self, text: str) -> list[str]:
-        decoded_texts = list(self.decode_base64(text))
+        candidates: list[str] = list(self.decode_base64(text))
 
         # ROT13 is self-inverting and commonly used to hide injection words.
         # The original keyword gate was too narrow (only five strings), so
@@ -60,22 +68,34 @@ class Normalizer:
             r"vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz\s+cezcg|"
             r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sbez\s+abj\s+ba|"
             r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
-            r"cebzcg|rkgenpg|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bss|"
+            r"cebzcg|rkgenpg|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bff|"
             r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
             re.IGNORECASE,
         )
         if rot13_pattern.search(text):
             rot13 = self.decode_rot13(text)
             if rot13 != text:
-                decoded_texts.append(rot13)
+                candidates.append(rot13)
                 # Recursively consider nested encoding layers from the decoded text.
-                decoded_texts.extend(self.decode_base64(rot13, max_depth=2))
+                candidates.extend(self.decode_base64(rot13, max_depth=2))
 
         if self._URL_ENC.search(text):
             url_decoded = self.decode_url(text)
             if url_decoded != text:
-                decoded_texts.append(url_decoded)
+                candidates.append(url_decoded)
 
+        candidates.extend(self.decode_hex(text))
+
+        # Dedupe (standard and urlsafe alphabets overlap) and bound the budget.
+        seen: set[str] = set()
+        decoded_texts: list[str] = []
+        for item in candidates:
+            if item in seen:
+                continue
+            seen.add(item)
+            decoded_texts.append(item)
+            if len(decoded_texts) >= self._MAX_DECODE_VARIANTS:
+                break
         return decoded_texts
 
     def normalize_unicode(self, text: str) -> str:
@@ -148,16 +168,47 @@ class Normalizer:
             return []
 
         decoded: list[str] = []
-        for match in self._BASE64.finditer(text):
-            try:
-                payload = base64.b64decode(match.group()).decode("utf-8", errors="ignore")
-                if len(payload) > 5:  # skip trivially short decodes
-                    decoded.append(payload)
-                    # Recursively decode nested base64 layers.
-                    decoded.extend(self.decode_base64(payload, max_depth=max_depth, _depth=_depth + 1))
-            except (ValueError, UnicodeDecodeError):
-                continue
+        # Standard and URL-safe alphabets overlap on [A-Za-z0-9]; runs without
+        # +//-_/_ match both patterns and dedupe to one entry downstream.
+        for pattern, decoder in (
+            (self._BASE64, base64.b64decode),
+            (self._BASE64_URLSAFE, base64.urlsafe_b64decode),
+        ):
+            for match in pattern.finditer(text):
+                if len(decoded) >= self._MAX_DECODE_VARIANTS:
+                    return decoded
+                try:
+                    payload = decoder(match.group()).decode("utf-8", errors="ignore")
+                    if len(payload) > 5 and self._is_mostly_printable(payload):  # skip trivial/garbage decodes
+                        decoded.append(payload)
+                        # Recursively decode nested base64 layers.
+                        decoded.extend(self.decode_base64(payload, max_depth=max_depth, _depth=_depth + 1))
+                except (ValueError, UnicodeDecodeError):
+                    continue
         return decoded
+
+    def decode_hex(self, text: str) -> list[str]:
+        """Decode long hex runs; non-printable results (hashes, IDs) are dropped."""
+        decoded: list[str] = []
+        for match in self._HEX.finditer(text):
+            if len(decoded) >= self._MAX_DECODE_VARIANTS:
+                break
+            try:
+                payload = bytes.fromhex(match.group().removeprefix("0x")).decode("utf-8", errors="ignore")
+            except ValueError:
+                continue
+            if len(payload) > 5 and self._is_mostly_printable(payload):
+                decoded.append(payload)
+        return decoded
+
+    @staticmethod
+    def _is_mostly_printable(text: str) -> bool:
+        if not text:
+            return False
+        return sum(ch.isprintable() for ch in text) / len(text) >= 0.9
+
+    def has_zero_width(self, text: str) -> bool:
+        return not self._ZERO_WIDTH.isdisjoint(text)
 
     def decode_rot13(self, text: str) -> str:
         return codecs.encode(text, "rot_13")

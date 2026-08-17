@@ -61,9 +61,11 @@ class PromptGuard:
     def check(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
         start = time.perf_counter()
 
-        # Fail-closed: if the rule corpus failed to load entirely, treat the
-        # request as blocked rather than allowing everything through.
-        if self._config.fail_closed and self._engine.rules_expected > 0 and self._engine.rules_loaded == 0:
+        # Fail-closed: a guard with zero rules is never healthy — whether the
+        # corpus dir is missing, empty, or every file failed to parse. Gate on
+        # rules_loaded alone (not rules_expected) so a missing dir cannot
+        # silently disable the guard.
+        if self._config.fail_closed and self._engine.rules_loaded == 0:
             return PromptScanResult(
                 blocked=True,
                 score=1.0,
@@ -72,7 +74,7 @@ class PromptGuard:
                 corpus_version=self.corpus_version,
                 duration_ms=0.0,
                 normalized_input=None,
-                details={"error": "All rules failed to load; fail-closed mode is active"},
+                details={"error": "No rules loaded (corpus missing/empty/all failed); fail-closed mode is active"},
             )
 
         if len(text) > self._config.max_prompt_size:
@@ -92,11 +94,23 @@ class PromptGuard:
 
             matches = self._engine.evaluate(normalized)
 
+            # Zero-width chars are stripped by normalize() before evaluation,
+            # so inj_zwnj can only ever fire on the raw text — evaluate it too,
+            # gated on actual zero-width presence so clean input pays nothing.
+            if self._normalizer.has_zero_width(text):
+                matches.extend(self._engine.evaluate(text))
+
             marker_neutral = self._normalizer.neutralize_comment_markers(text)
             if marker_neutral != text:
                 matches.extend(self._engine.evaluate(self._normalizer.normalize(marker_neutral)))
 
+            # Decode the raw text AND the NFKC-normalized variant: fullwidth-
+            # or zero-width-wrapped base64/hex only becomes decodable after
+            # normalization.
             decoded_texts = self._normalizer.decode_and_rescan(text)
+            if normalized != text:
+                decoded_texts.extend(self._normalizer.decode_and_rescan(normalized))
+                decoded_texts = list(dict.fromkeys(decoded_texts))
             for decoded in decoded_texts:
                 decoded_normalized = self._normalizer.normalize(decoded)
                 decoded_matches = self._engine.evaluate(decoded_normalized)

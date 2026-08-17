@@ -209,3 +209,25 @@ class TestPluginDeterminism:
         assert r1.score == r2.score
         assert r1.violations == r2.violations
         assert r1.valid == r2.valid
+
+
+# ─── Truthful health (WO4.0.0-007) ────────────────────────────────────
+
+
+class TestPluginTruthfulHealth:
+    """health() must report corpus reality, not a hardcoded True."""
+
+    def test_health_false_when_prompt_corpus_missing(self, tmp_path, monkeypatch) -> None:
+        from picosentry.watch.picoshogun import PicoWatchPlugin
+
+        plugin = PicoWatchPlugin(config={"rules_dir": str(tmp_path / "rules")})
+        h = plugin.health()
+        assert h["healthy"] is False
+        assert h["rules_loaded"] == 0
+
+    def test_health_true_with_default_corpora(self) -> None:
+        from picosentry.watch.picoshogun import PicoWatchPlugin
+
+        h = PicoWatchPlugin().health()
+        assert h["healthy"] is True
+        assert h["rules_loaded"] == h["rules_expected"] > 0

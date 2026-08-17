@@ -223,7 +223,6 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
                     "weight": r.weight,
                     "pattern": r.pattern,
                     "description": r.description,
-                    "normalization": r.normalization,
                 }
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 
@@ -418,7 +417,6 @@ def create_admin_app(
                     "weight": r.weight,
                     "pattern": r.pattern,
                     "description": r.description,
-                    "normalization": r.normalization,
                 }
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
 

@@ -4,9 +4,36 @@
 
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
 
-## WO4.0.0 — Fourth series (NEXT; not started)
+## WO4.0.0 — Fourth series (OPEN — seeded by the 2026-08-17 five-explorer round)
 
-Create files as `WO4.0.0-NNN-slug.md` with Series/Status/Owner/Scope/Gate/Objective headers. Branch worktrees as `wo/4.0.0/<slug>` off `origin/dev`.
+Priorities: P0 = security/correctness, do first. Each WO names its verified evidence. Worktrees: `wo/4.0.0/<slug>` off `origin/dev`.
+
+| ID | Title | Pri | Effort |
+|----|-------|-----|--------|
+| [WO4.0.0-001](WO4.0.0-001-landlock-backend-truth.md) | Landlock backend: make it actually work (syscall numbers wrong on x86_64 — dead everywhere) | P0 | L |
+| [WO4.0.0-002](WO4.0.0-002-daemon-transport-security.md) | Sandbox daemon: gRPC auth bypass + single-thread blackout + signals + traversal write | P0 | M |
+| [WO4.0.0-003](WO4.0.0-003-serve-pg-tenancy.md) | Serve: postgres org-create/association broken | P0 | S-M |
+| [WO4.0.0-004](WO4.0.0-004-serve-audit-lifecycle.md) | Serve: retention permanently breaks the audit-chain verifier | P0 | M |
+| [WO4.0.0-005](WO4.0.0-005-serve-correlation-tenancy.md) | Serve: correlation/report/alert org=None leaks | P0 | M |
+| [WO4.0.0-006](WO4.0.0-006-scan-cache-correctness.md) | Scan: cache serves wrong results; OSV version-blind | P0 | M |
+| [WO4.0.0-007](WO4.0.0-007-watch-guard-integrity.md) | Watch: fail-closed corpus gap, Cyrillic blanket-block, decode-order bypass | P0 | M |
+| [WO4.0.0-008](WO4.0.0-008-scan-detection-quality.md) | Scan: recall recovery + metadata FP gating + honest card | P0 | L |
+| [WO4.0.0-009](WO4.0.0-009-release-mechanics.md) | Release mechanics (next release ships correct tags/versions) | P0 | M |
+| [WO4.0.0-010](WO4.0.0-010-sandbox-tenant-secrets.md) | Sandbox: tenant store unwired; exfil secrets returned to caller; env allowlist ADR | P1 | M |
+| [WO4.0.0-011](WO4.0.0-011-sandbox-containment.md) | Sandbox: killpg on timeout, RLIMIT_CPU/NPROC, subprocess-backend hang | P1 | M |
+| [WO4.0.0-012](WO4.0.0-012-serve-truthfulness.md) | Serve: scheduler/health/anomaly/status truthfulness | P1 | S-M |
+| [WO4.0.0-013](WO4.0.0-013-serve-concurrency.md) | Serve: event-loop hygiene + global DB mutex + /health cost | P1 | M-L |
+| [WO4.0.0-014](WO4.0.0-014-scan-perf.md) | Scan: parallel rules, shared walks, daemon responsiveness | P1 | L |
+| [WO4.0.0-015](WO4.0.0-015-scan-sbom-monorepo.md) | Scan: SBOM maven artifactId + CycloneDX versions + nested manifests | P1 | S-M |
+| [WO4.0.0-016](WO4.0.0-016-watch-perf-metrics.md) | Watch: 14–22s/MB scan cost + invalid /metrics exposition | P1 | M-L |
+| [WO4.0.0-017](WO4.0.0-017-ci-tiers-versions.md) | CI: path-filter hole, kind/pg matrices, py3.14, nightly dedupe | P1 | M |
+| [WO4.0.0-018](WO4.0.0-018-l4-evidence-fp.md) | Sandbox: L4 evidence blind on enforced backends + FP catalog | P1 | M |
+| [WO4.0.0-019](WO4.0.0-019-cluster-trust-healing.md) | Sandbox: cluster gossip ships secrets; partitions never heal | P2 | M |
+| [WO4.0.0-020](WO4.0.0-020-serve-multi-worker.md) | Serve: multi-worker/horizontal readiness | P2 | L |
+| [WO4.0.0-021](WO4.0.0-021-serve-tenant-product.md) | Serve: tier enforcement, member mgmt, plugin capability phase-1 | P2 | L |
+| [WO4.0.0-022](WO4.0.0-022-firewall-productization.md) | Firewall: version-scoped verdicts, tarball decision, surface doc | P2 | M-L |
+| [WO4.0.0-023](WO4.0.0-023-watch-gateway-shim.md) | Watch: API-compat gateway shim (prototype) | P2 | L |
+| [WO4.0.0-024](WO4.0.0-024-cli-doctor-deploy-hygiene.md) | CLI/doctor/deploy hygiene riders | P2 | S-M |
 
 ## WO3.0.0 — Third series (shipped; statuses verified against code 2026-08)
 

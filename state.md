@@ -1,6 +1,48 @@
 # State — KirkForge-PicoSeries-picosentry (PicoSentry)
 
-*Tracked. Updated at session close. What changed, what's pending, what's blocked.*
+*Tracked. Updated at session close. Head section = current state; below = session history.*
+
+# ═══ CURRENT STATE (2026-08-17, five-explorer round) ═══
+
+**Head `dev` is ~15 commits ahead of `main` (v2.1.1) — release trigger reached; do WO4.0.0-009 (release-mechanics) BEFORE cutting it.** All gates green at last close (ruff/format/mypy clean; `test.sh fast` 4806 passed, 0 failed, ~152s; doctor 10/10; scan --validate exit 0 at the honest 84.92/72.79 baseline).
+
+## Subsystem health (compiled from 5 read-only explorers, ~70 verified findings → 24 WOs)
+
+**Scan** — solid core (determinism, timebox, path safety, input caps all verified clean), but: caches can serve wrong results (key ignores rules/filters/non-lockfile inputs; OSV cache version-blind — WO4.0.0-006); detection quality has verified root causes for both FP and FN masses (5 npm metadata rules × 1210 FPs; PYPI-DEPC underscore config bug; missing rubygems corpus; ~93 structurally-unfireable fixtures — WO4.0.0-008); rules execute sequentially despite the pool, campaigns re-walk the tree (WO4.0.0-014); SBOM maven silently zero-findings + root-manifest-only ecosystem detection (WO4.0.0-015).
+
+**Sandbox (PicoDome)** — the explorer found the two CRITICALs of the round: landlock is dead on x86_64 (wrong syscall numbers, test asserts the bug — WO4.0.0-001) and the gRPC transport is an unauthenticated arbitrary-command endpoint (WO4.0.0-002, incl. single-thread daemon blackout, SIGTERM deadlock, SIGHUP TLS double-wrap, policy-name traversal write). Tenant store implemented but unwired; exfiltrated secrets returned to callers; env=None path is denylist-not-allowlist (WO4.0.0-010). Timeout kills don't killpg; no RLIMIT_CPU/NPROC (WO4.0.0-011). L4 evidence pipeline blind on enforced backends + benign-FP catalog (WO4.0.0-018). Cluster gossip ships tokens, partitions never heal (WO4.0.0-019, P2). Audit chain, admission webhook, rlimits, env-complete-contract — verified clean.
+
+**Serve** — org creation/association BROKEN on postgres (raw `?` placeholders inside transaction() — WO4.0.0-003); the severity purge permanently breaks the audit-chain verifier it shipped with (WO4.0.0-004); correlation/report/alert surfaces still org=None (WO4.0.0-005). Scheduler health_check job always "fails"; anomaly rules 1/2/4 can never fire (zero-caller metrics); /status threat_score = avg health latency (WO4.0.0-012). Global DB mutex + on-loop /health SMTP probe (WO4.0.0-013). Multi-worker unsupported (WO4.0.0-020, P2); tiers display-only, no member mgmt (WO4.0.0-021, P2). Verified clean: WS org isolation, audit chain anchoring, webhook SSRF stack, rate-limit locks, auth flows, backup envelope, plugin manager hardening.
+
+**Watch + firewall** — three guard-integrity holes (fail-closed bypass on missing corpus; EVERY Cyrillic prompt blocked by the homoglyph rule; decode-order bypass + no hex decode — WO4.0.0-007); 14–22s/MB scan cost freezes the loop; /metrics emits invalid exposition (duplicate families — WO4.0.0-016); output guard rejects ordinary technical output (verdict tiers — WO4.0.0-012-adjacent, folded into 007/016 follow-through); firewall blocks minimal-but-benign packages by default and streams tarballs unscanned (WO4.0.0-022, P2). Rule load-order determinism, verdict aggregation, proxy header hygiene, ReDoS corpus — verified clean.
+
+**Core/CLI/CI/release** — next release would ship wrong docker tags (`--set '*.tags='` drops :latest) and stale hardcoded version strings (WO4.0.0-009, P0-blocking-release); CI path-filter hole (scripts/Dockerfile/deploy changes skip tests — WO4.0.0-017); CLI wrappers hand-duplicate inner argparse (WO4.0.0-024). Env-var docs, version guards, exit codes, deps currency — verified clean.
+
+## The queue (jump-in order)
+
+1. **P0 security cluster**: WO4.0.0-001 (landlock) · 002 (daemon/gRPC) — both CRITICAL-adjacent.
+2. **P0 correctness cluster**: 003 (pg tenancy) · 004 (audit lifecycle) · 005 (correlation tenancy) · 006 (scan caches) · 007 (watch guards).
+3. **P0 quality + release**: 008 (detection quality — the big FN/FP round) · 009 (release mechanics — do before cutting v2.2.0).
+4. **P1**: 010–018 per README priority. **P2**: 019–024.
+Suggested batch shape: P0 cluster as 3 parallel subagent worktrees (sandbox / serve / scan+watch), orchestrator merges; 009 solo before release.
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-08-17 (f): Five-explorer round → WO4.0.0 series — COMPLETE
+
+### Method
+5 read-only explorers on disjoint areas (SA-M scan, SA-N sandbox, SA-O serve, SA-P watch+firewall, SA-Q core/CLI/infra), marathon pace, forward-looking (hunt WORK not just bugs). ~70 verified findings, ~35 proposals triaged into 24 WOs (P0×9, P1×9, P2×6). All findings verified live by the explorers (repros or airtight file:line chains).
+
+### Notable
+- Two CRITICALs: landlock syscall table wrong on x86_64 (backend dead; test asserts the bug — session (d)'s landlock work was mocked+env-gated and never executed real landlock here); gRPC transport unauthenticated.
+- Three "landed-but-broken" pairs from same-day features tested separately: purge×verify, pg×org flows, fail-closed×missing-corpus.
+- Model-card root-cause narrative partly wrong — corrected narrative is WO4.0.0-008's deliverable.
+
+### Pending / next
+The WO4.0.0 series IS the queue (table above). Release blocked on WO4.0.0-009.
+
+### Blocked
+- None.
 
 ## Session 2026-08-17 (e): Workflow consolidation (owner-directed) — COMPLETE
 

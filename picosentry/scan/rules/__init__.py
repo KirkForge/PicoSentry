@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+import re
+
 from .advisory_check import detect_all_advisory_vulnerabilities
 from .bundled_shadow import detect_bundled_shadows
 from .credential_read import detect_credential_reading
@@ -24,6 +28,7 @@ from .version_confusion import detect_version_confusion
 from .worm_propagation import detect_worm_propagation
 
 __all__ = [
+    "DISPATCHED_RULE_IDS",
     "RULE_COUNT",
     "RULE_ID_ALIASES",
     "RULE_INFO",
@@ -464,6 +469,23 @@ RULE_ID_ALIASES: dict[str, list[str]] = {
         "L2-PYPI-OBFS-007",  # base64 decode followed by exec/eval
     ],
 }
+
+
+# Cross-ecosystem dispatch: a single detector registered under the generic id
+# (L2-TYPO-001, L2-DEPC-001, L2-ADV-001) fans out per ecosystem and emits
+# ecosystem-specific rule ids at scan time (e.g. a Cargo project scanned by
+# detect_all_typosquat emits L2-CARGO-TYPO-001). Derived from RULE_INFO keys
+# via the L2-{ECO}-{KIND}-001 convention — the same convention the engine
+# uses for per-ecosystem rule selection.
+_DISPATCHED_RULE_PATTERN = re.compile(r"^L2-(?:GO|CARGO|PYPI|MAVEN|RUBYGEMS|NUGET)-(TYPO|DEPC|ADV)-001$")
+
+_dispatched: dict[str, list[str]] = {}
+for _rule_id in RULE_INFO:
+    _m = _DISPATCHED_RULE_PATTERN.match(_rule_id)
+    if _m:
+        _dispatched.setdefault(f"L2-{_m.group(1)}-001", []).append(_rule_id)
+
+DISPATCHED_RULE_IDS: dict[str, tuple[str, ...]] = {k: tuple(sorted(v)) for k, v in _dispatched.items()}
 
 
 def all_rule_ids() -> set[str]:

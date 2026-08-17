@@ -114,9 +114,8 @@ class TestRuleAliasesConsistency:
 class TestDetectorImplementations:
     def test_detectors_registered(self):
         result = _check_detector_implementations()
-        assert result.status in ("pass", "fail")
-        if result.status == "pass":
-            assert "detector implementations" in result.detail
+        assert result.status == "pass", result.detail
+        assert "detector implementations" in result.detail
 
 
 class TestFixtureCount:

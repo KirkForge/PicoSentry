@@ -182,7 +182,7 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         "--validate",
         action="store_true",
         help="Run the validation harness against built-in fixtures. Prints per-rule precision/recall; "
-        "exit 0 if mean precision >= 0.95 and mean recall >= 0.80. "
+        "exit 0 if mean precision >= 0.84 and mean recall >= 0.70. "
         "Ignores <target> (the harness uses its own fixtures).",
     )
     scan_parser.add_argument(

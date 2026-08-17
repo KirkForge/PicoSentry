@@ -38,10 +38,20 @@ PicoSentry operates in three distinct modes. Benchmarks in this card cover only 
 | **Negative fixtures** | 2,930 |
 | **Tricky fixtures** | 7 |
 | **L2 rules benchmarked** | 54 (50 static + 4 campaign) |
-| **Mean precision** | 94.44% |
-| **Mean recall** | 68.89% |
+| **Mean precision** | 84.92% |
+| **Mean recall** | 72.79% |
 | **Ecosystems** | npm, PyPI, Go, Cargo, Maven, RubyGems, NuGet |
 | **Corpus source** | Synthetically generated combinatorial variants + hand-curated real-world malware patterns |
+
+> **2026-08-17 re-baseline.** The 2026-07-29 run (94.44% / 68.89%) is not reproducible from
+> this corpus for three verified reasons: (1) the validation loader silently rejected 760
+> generated positives carrying semantic labels (`typosquat`, `dep_confusion`, `cve`, …) —
+> fixed; (2) five npm metadata rules (`L2-ENGIN/FORK/LICENSE/MAINT/PROV-001`) fire on ~1,210
+> generated "clean" package.json files that lack repo/license/engines fields; (3) 115 `cve`
+> fixtures expect `L2-CVE-001`, which does not exist as a rule. The numbers above are the
+> current, reproducible aggregate (`picosentry scan --validate`). Fixing (2) and (3) is
+> detection-tuning work tracked in state.md; until then this card reports what the code
+> actually does.
 
 ## Recall by category
 

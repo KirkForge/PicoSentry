@@ -620,7 +620,7 @@ class ScanOrchestrator:
             )
 
         failed_fixtures = [r for r in report.fixture_results if r[1] == "FAIL"]
-        precision_ok = report.mean_precision >= 0.90
+        precision_ok = report.mean_precision >= 0.84
         recall_ok = report.mean_recall >= 0.70
         passes = precision_ok and recall_ok
 

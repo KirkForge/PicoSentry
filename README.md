@@ -119,7 +119,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
-| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg), 53 rules, 94.44% prec, 68.89% recall — see docs/model-card.md |
+| Detection benchmarks | **Stable** | 6495 fixtures (3558 pos / 2930 neg), 53 rules, 84.92% prec, 72.79% recall — see docs/model-card.md |
 | Docker image | **Stable** | `kirkforge/picodome:v2.1.1` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.1 published |
 

@@ -99,14 +99,24 @@ def _check_rule_aliases_consistency() -> CheckResult:
 
 
 def _check_detector_implementations() -> CheckResult:
-    from picosentry.scan.rules import RULE_INFO
+    from picosentry.scan.rules import DISPATCHED_RULE_IDS, RULE_INFO
     from picosentry.scan.engine import create_default_engine
 
     engine = create_default_engine()
     registered = set(engine.list_rules())
     rule_ids = set(RULE_INFO.keys())
-    missing = rule_ids - registered
-    extra = registered - rule_ids
+    # A registered cross-ecosystem dispatcher (e.g. L2-TYPO-001) covers the
+    # ecosystem-specific rule ids it emits at scan time (L2-CARGO-TYPO-001, ...).
+    covered = set(registered)
+    for dispatcher, dispatched in DISPATCHED_RULE_IDS.items():
+        if dispatcher in registered:
+            covered.update(dispatched)
+    # L2-CAMP-* campaign detectors are a separate rule class registered on
+    # top of the core RULE_INFO set (picosentry/scan/campaigns/_base.py
+    # enforces the prefix), not part of the core rule count.
+    campaign = {r for r in registered if r.startswith("L2-CAMP-")}
+    missing = rule_ids - covered
+    extra = registered - rule_ids - campaign
     parts: list[str] = []
     if missing:
         parts.append(f"Missing detectors: {', '.join(sorted(missing))}")
@@ -114,11 +124,10 @@ def _check_detector_implementations() -> CheckResult:
         parts.append(f"Extra detectors: {', '.join(sorted(extra))}")
     if parts:
         return CheckResult("detector_implementations", "fail", "; ".join(parts))
-    return CheckResult(
-        "detector_implementations",
-        "pass",
-        f"All {len(rule_ids)} rule_ids have detector implementations",
-    )
+    detail = f"All {len(rule_ids)} rule_ids have detector implementations"
+    if campaign:
+        detail += f" (+{len(campaign)} L2-CAMP campaign detectors)"
+    return CheckResult("detector_implementations", "pass", detail)
 
 
 def _check_fixture_count() -> CheckResult:

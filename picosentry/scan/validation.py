@@ -9,6 +9,13 @@ from typing import Any
 
 logger = logging.getLogger("picosentry.validation")
 
+# Label taxonomy emitted by the corpus generators
+# (scripts/generate_corpus_fixtures.py, scripts/expand_corpus_to_6k.py).
+# Semantic labels describe the attack technique of a *positive* fixture;
+# the loader normalizes them to the "positive" expectation. Labels outside
+# the taxonomy are rejected (fixture skipped with a warning).
+POSITIVE_LABELS = frozenset({"positive", "typosquat", "obfuscation", "dep_confusion", "cve", "multi_attack"})
+
 
 @dataclass(frozen=True)
 class FindingAssertion:
@@ -220,9 +227,18 @@ def _load_fixture(path: Path) -> FixtureSpec | None:
     except (json.JSONDecodeError, OSError) as exc:
         logger.warning("Skipping malformed fixture %s: %s", path, exc)
         return None
-    label = data.get("label", "").lower()
-    if label not in {"positive", "negative"}:
-        logger.warning("Fixture %s: label must be 'positive' or 'negative'", path)
+    raw_label = str(data.get("label", "")).lower()
+    if raw_label in POSITIVE_LABELS:
+        label = "positive"
+    elif raw_label == "negative":
+        label = "negative"
+    else:
+        logger.warning(
+            "Fixture %s: label must be a known category (%s) or 'negative', got %r",
+            path,
+            "|".join(sorted(POSITIVE_LABELS)),
+            raw_label,
+        )
         return None
     try:
         expected_findings = tuple(_as_finding_assertion(e) for e in data.get("expected_findings", ()))

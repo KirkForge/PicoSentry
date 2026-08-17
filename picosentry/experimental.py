@@ -103,7 +103,7 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
     ComponentStatus(
         name="Detection benchmarks",
         status="Stable",
-        notes="6495 fixtures (3558 pos / 2930 neg), 53 rules, 94.44% prec, 68.89% recall — see docs/model-card.md",
+        notes="6495 fixtures (3558 pos / 2930 neg), 53 rules, 84.92% prec, 72.79% recall — see docs/model-card.md",
     ),
     ComponentStatus(
         name="Docker image",

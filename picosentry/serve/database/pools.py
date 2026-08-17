@@ -11,15 +11,64 @@ from picosentry.serve.config.settings import settings
 logger = logging.getLogger("picoshogun.DB.Pool")
 
 
+class ReadWriteLock:
+    """Writer-preferring readers/writer lock.
+
+    Every thread gets its own connection, so concurrent readers are safe
+    (WAL readers never block writers at the sqlite level); the previous
+    single mutex serialized reads too, stalling parallel health/dashboard
+    reads behind each other. Writers wait for readers to drain and get
+    exclusive access; readers arriving while a writer waits queue behind
+    it (no writer starvation).
+    """
+
+    def __init__(self):
+        self._cond = threading.Condition()
+        self._readers = 0
+        self._writer = False
+        self._waiting_writers = 0
+
+    @contextmanager
+    def read(self):
+        with self._cond:
+            while self._writer or self._waiting_writers:
+                self._cond.wait()
+            self._readers += 1
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._readers -= 1
+                if self._readers == 0:
+                    self._cond.notify_all()
+
+    @contextmanager
+    def write(self):
+        with self._cond:
+            self._waiting_writers += 1
+            try:
+                while self._writer or self._readers:
+                    self._cond.wait()
+            finally:
+                self._waiting_writers -= 1
+            self._writer = True
+        try:
+            yield
+        finally:
+            with self._cond:
+                self._writer = False
+                self._cond.notify_all()
+
+
 class SQLitePool:
     param_style = "qmark"  # SQLite uses ? for parameters
 
     def __init__(self, db_path: Path | None = None):
         self.db_path = db_path or settings.database.path
         self._local = threading.local()
-        self._lock = threading.Lock()
-        # ponytail: _lock doubles as the manager's outer write lock (pool.lock()),
-        # and acquire() runs inside it — the conn set needs its own lock.
+        # ponytail: acquire() runs inside the manager's statement lock —
+        # the conn set needs its own lock. Statement serialization itself
+        # lives in DatabaseManager._lock (a ReadWriteLock).
         self._conns_lock = threading.Lock()
         self._all_conns: set[sqlite3.Connection] = set()
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -82,16 +131,14 @@ class SQLitePool:
             conn.rollback()
             raise
 
-    def lock(self) -> threading.Lock:
-        return self._lock
-
     def backup(self, dest_path: Path) -> None:
-        with self._lock:
-            source = sqlite3.connect(str(self.db_path))
-            dest = sqlite3.connect(str(dest_path))
-            source.backup(dest)
-            dest.close()
-            source.close()
+        # Statement exclusion is the DatabaseManager's write lock (see
+        # DatabaseManager.backup); this runs underneath it.
+        source = sqlite3.connect(str(self.db_path))
+        dest = sqlite3.connect(str(dest_path))
+        source.backup(dest)
+        dest.close()
+        source.close()
 
 
 class PostgresPool:
@@ -100,7 +147,6 @@ class PostgresPool:
     def __init__(self, url: str | None = None):
         self._url = url or settings.database.url or "postgresql://localhost:5432/picoshogun"
         self._local = threading.local()
-        self._lock = threading.Lock()
         self._psycopg2 = None
         self._conns_lock = threading.Lock()
         self._all_conns: set[Any] = set()
@@ -159,9 +205,6 @@ class PostgresPool:
                     conn.close()
         if hasattr(self._local, "conn"):
             self._local.conn = None
-
-    def lock(self) -> threading.Lock:
-        return self._lock
 
     def backup(self, dest_path: Path) -> None:
         logger.warning("Backup is not supported for Postgres backend. Use pg_dump manually.")

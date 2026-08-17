@@ -134,22 +134,28 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # Caller (_evict_if_needed) already holds self._lock; taking it
         # again here would deadlock on the non-reentrant Lock.
+        # The DELETE + re-INSERTs run in one BEGIN IMMEDIATE transaction:
+        # as separate statements a crash (or a reader) in between saw a
+        # window with no counters at all.
         try:
-            db.execute("DELETE FROM rate_limit_counters")
+            with db.transaction(immediate=True) as conn:
+                db.execute_on(conn, "DELETE FROM rate_limit_counters")
 
-            for key, timestamps in self.ip_requests.items():
-                if timestamps and timestamps[-1] > now - self.window:
-                    db.execute_insert(
-                        "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                        ("ip", key, ",".join(str(t) for t in timestamps)),
-                    )
+                for key, timestamps in self.ip_requests.items():
+                    if timestamps and timestamps[-1] > now - self.window:
+                        db.execute_on(
+                            conn,
+                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
+                            ("ip", key, ",".join(str(t) for t in timestamps)),
+                        )
 
-            for key, timestamps in self.org_requests.items():
-                if timestamps and timestamps[-1] > now - self.window:
-                    db.execute_insert(
-                        "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                        ("org", key, ",".join(str(t) for t in timestamps)),
-                    )
+                for key, timestamps in self.org_requests.items():
+                    if timestamps and timestamps[-1] > now - self.window:
+                        db.execute_on(
+                            conn,
+                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
+                            ("org", key, ",".join(str(t) for t in timestamps)),
+                        )
         except (OSError, ValueError) as exc:
             logger.warning("Rate limit persistence flush failed: %s", exc)
 

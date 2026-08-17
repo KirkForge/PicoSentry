@@ -254,16 +254,21 @@ class BackupManager:
                 # backup while the WAL is checkpointed, drop the -wal/-shm side
                 # files (a stale -wal replayed onto the restored DB corrupts
                 # it), then swap. Pools re-open lazily — acquire() probes
-                # liveness and reconnects to the restored file.
+                # liveness and reconnects to the restored file. The write half
+                # of the manager's statement lock drains in-flight statements
+                # and blocks new ones for the swap; without it a thread could
+                # acquire a connection to the half-swapped database mid-restore.
                 from picosentry.serve.database.manager import db as live_db
 
-                live_db.close()
-                for suffix in ("-wal", "-shm"):
-                    Path(f"{self.db_path}{suffix}").unlink(missing_ok=True)
-                current_backup = f"{self.db_path}.pre_restore_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}"
-                shutil.copy2(str(self.db_path), current_backup)
+                with live_db._lock.write():
+                    live_db.close()
+                    for suffix in ("-wal", "-shm"):
+                        Path(f"{self.db_path}{suffix}").unlink(missing_ok=True)
+                    stamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
+                    current_backup = f"{self.db_path}.pre_restore_{stamp}"
+                    shutil.copy2(str(self.db_path), current_backup)
 
-                shutil.copy2(str(db_backup), str(self.db_path))
+                    shutil.copy2(str(db_backup), str(self.db_path))
                 logger.info("Database restored")
 
             logs_backup = temp_dir / "logs"

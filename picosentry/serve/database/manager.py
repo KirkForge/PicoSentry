@@ -8,7 +8,7 @@ import threading
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database._schema import (  # noqa: F401
@@ -16,7 +16,7 @@ from picosentry.serve.database._schema import (  # noqa: F401
     SQLDialect,
     Migration,
 )
-from picosentry.serve.database.pools import SQLitePool, create_pool
+from picosentry.serve.database.pools import ReadWriteLock, SQLitePool, create_pool
 
 try:
     import psycopg2
@@ -43,14 +43,27 @@ logger = logging.getLogger("picoshogun.DB")
 
 
 class DatabaseManager:
+    # Statements that only read take the RW lock's shared half; anything
+    # else (or anything unrecognized, e.g. WITH ... INSERT) takes the
+    # exclusive half — failing closed toward serialization, never toward
+    # concurrent writes.
+    _READ_PREFIXES: ClassVar[tuple[str, ...]] = ("SELECT", "PRAGMA", "EXPLAIN")
+
     def __init__(self, db_path: Path | None = None, backend: str | None = None):
         self._backend = backend or settings.database.backend
         self._pool = create_pool(backend=self._backend, db_path=db_path)
-        self._lock = self._pool.lock() if isinstance(self._pool, SQLitePool) else threading.Lock()
+        # The manager owns the statement lock: reads share it, writes take
+        # it exclusively, and backup/restore hold the write half across
+        # file swaps. Per-thread connections make concurrent reads safe.
+        self._lock = ReadWriteLock()
         # Per-thread transaction() depth: execute() must not commit/rollback
         # a transaction opened by an enclosing transaction() on this thread.
         self._tx_depth = threading.local()
         self._init_migrations()
+
+    def _statement_lock(self, sql: str):
+        """Shared read lock for read-only statements, exclusive for writes."""
+        return self._lock.read() if sql.lstrip().upper().startswith(self._READ_PREFIXES) else self._lock.write()
 
     @property
     def db_path(self) -> Path:
@@ -153,7 +166,7 @@ class DatabaseManager:
             conn.rollback()
 
     def execute(self, sql: str, params: tuple = ()) -> list:
-        with self._lock:
+        with self._statement_lock(sql):
             conn = self._get_connection()
             try:
                 cursor = self._cursor(conn, sql, params)
@@ -189,7 +202,7 @@ class DatabaseManager:
         return [self._row_to_dict(r, cursor) for r in cursor.fetchall()]
 
     def execute_insert(self, sql: str, params: tuple = ()) -> int:
-        with self._lock:
+        with self._lock.write():
             conn = self._get_connection()
             cursor = self._cursor(conn, sql, params)
             conn.commit()
@@ -259,22 +272,32 @@ class DatabaseManager:
             if migration.version > current:
                 logger.info("Applying migration %s: %s", migration.version, migration.name)
                 sql = migration.sql_for(self._backend)
-                for raw_stmt in sql.split(";"):
-                    stmt = raw_stmt.strip()
-                    if stmt:
-                        try:
-                            self.execute(stmt + ";")
-                        except (OSError, ValueError, sqlite3.OperationalError) as e:
-                            err_str = str(e).lower()
-                            if "duplicate column" in err_str or "already exists" in err_str:
-                                logger.debug("Migration idempotent skip: %s", e)
-                            else:
-                                raise
-                # schema_version has a simple integer primary key; use execute()
-                # to avoid needing a generated id on either backend.
-                self.execute(
-                    "INSERT INTO schema_version (version, name) VALUES (?, ?)", (migration.version, migration.name)
-                )
+                # One transaction per migration: a crash mid-migration no
+                # longer leaves a half-applied schema, and BEGIN IMMEDIATE
+                # serializes racing workers booting against a fresh DB at
+                # the database itself. The ON CONFLICT DO NOTHING version
+                # insert means the loser of that race converges instead of
+                # dying on the schema_version primary key.
+                with self.transaction(immediate=True) as conn:
+                    for raw_stmt in sql.split(";"):
+                        stmt = raw_stmt.strip()
+                        if stmt:
+                            try:
+                                self.execute_on(conn, stmt + ";")
+                            except (OSError, ValueError, sqlite3.OperationalError) as e:
+                                err_str = str(e).lower()
+                                if "duplicate column" in err_str or "already exists" in err_str:
+                                    logger.debug("Migration idempotent skip: %s", e)
+                                else:
+                                    raise
+                    # schema_version has a simple integer primary key; use
+                    # execute_on() to avoid needing a generated id on either
+                    # backend, staying inside the migration transaction.
+                    self.execute_on(
+                        conn,
+                        "INSERT INTO schema_version (version, name) VALUES (?, ?) ON CONFLICT (version) DO NOTHING",
+                        (migration.version, migration.name),
+                    )
                 logger.info("Migration %s applied", migration.version)
 
         self._migrate_orgs_api_key_hash()
@@ -286,7 +309,10 @@ class DatabaseManager:
         backup_path = backup_dir / f"picoshogun_{timestamp}.db"
 
         if isinstance(self._pool, SQLitePool):
-            self._pool.backup(backup_path)
+            # The write half excludes in-flight statements for the
+            # sqlite3 backup() read of the live file.
+            with self._lock.write():
+                self._pool.backup(backup_path)
             logger.info("Database backed up to %s", backup_path)
         else:
             logger.warning("Backup is only supported for SQLite backend. Use pg_dump for Postgres.")

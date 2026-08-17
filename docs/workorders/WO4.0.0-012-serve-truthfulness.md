@@ -1,24 +1,16 @@
 # WO4.0.0-012 — Serve: truthfulness (scheduler, health, anomaly, status)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/serve-truth`)
+**Status:** DONE 2026-08-17 (worktree `wo/4.0.0/serve-p1`, branch commit "serve: WO-012/013 truthfulness+concurrency") — evidence: `tests/serve/test_scheduler_worker.py` (TestHealthCheckJob, TestRejectedJobsReschedule, TestReportJobDelivery, TestUpdateAndTrigger), `tests/serve/services/test_anomaly_detector.py::TestRuleSemantics`, `tests/serve/test_api.py::TestSchedulerEndpoints` (update/trigger), `tests/serve/test_health_router.py` (threat_score)
+**Owner:** worker subagent (worktree `wo/4.0.0/serve-p1`)
 **Priority:** P1 · Effort S-M · Risk L
 **Scope:** `picosentry/serve/services/{scheduler.py,anomaly_detector.py,_orchestrator_health.py}`, `picosentry/serve/api/routers/{health.py,scheduler.py}`, `tests/serve/`
 
-**Gate:** `bash scripts/test.sh fast` + new tests: health_check job succeeds and populates health_checks; rejected job reschedules; report output stored/delivered; anomaly rules 1/2/4 fire or are removed.
+**Gate:** `bash scripts/test.sh fast` + new tests: health_check job succeeds and populates health_checks; rejected job reschedules; report output stored/delivered; anomaly rules 1/2/4 fire or are removed. — ALL GREEN (4991 passed repo-wide fast profile)
 
-## Objective
-The job table, health endpoints, and anomaly rules must tell the truth.
-
-## Evidence (verified 2026-08-17)
-1. `health_check` scheduled job always "fails" — `_execute_job` has no branch for it (scheduler.py:281-357) → status="failed" written every N minutes; `health_checks` table only populated by manual /health → anomaly `health_status` rule + `/health/history` run on stale data.
-2. Rejected jobs (bad category/params) `return` before the reschedule block (scheduler.py:279,300 vs :390-392) — one bad param permanently kills the job; no update_job/run-now endpoint to recover.
-3. Scheduled `report` command binds `_report` and never stores/sends it (scheduler.py:330-334) — the cron produces nothing.
-4. Anomaly detector: `duration_seconds` never evaluated; `alert_channel` ignored; `high_error_rate` wants label `status="5xx"` but metrics record `"500"`; `api_request()` has ZERO callers so its metrics never exist — default rules 1/2/(4) can never fire.
-5. `/status` `threat_score` = average health latency (health.py:134-136) — nonsense on a flagship endpoint.
-
-## Deliverables
-1. health_check branch calling perform_health_checks (off-loop); rejected-path reschedule + skip-status persistence; `update_job` + trigger-now endpoints; report delivery (store + webhook/alert channel).
-2. Anomaly rules: implement documented semantics or remove dead rules + fix label mismatch; record `api_request` from middleware.
-3. `/status` threat_score → real composite (chain escalations + anomaly firings) or rename honestly.
+## Resolution notes
+1. `health_check` branch added to `_execute_job` (calls `orchestrator.get_health_checks`, persists probes); runs off-thread with skip-while-running (slow set now `{batch, health_check}`).
+2. Rejected paths restructured to fall through to the shared status-update + reschedule tail; added `JobScheduler.update_job`/`trigger_job` + `PATCH /scheduler/jobs/{id}` and `POST /scheduler/jobs/{id}/run`.
+3. `report` job delivers via `orchestrator.alerts.send("system", "scheduled_report", ...)` — the alerts-table row is the stored, queryable copy.
+4. Anomaly semantics implemented (choice: implement, not remove): counters evaluate as exact windowed delta over `duration_seconds` (last-in-window − last-before-window); gauges/histograms gate on sustained breach (`_breach_since`); `alert_channel` honored in `_fire_alert`; `metrics.api_request` now recorded by the audit middleware with a `status_class` label (rule label fixed `status=5xx` → `status_class=5xx`, shipped json threshold drift 0.5→10 corrected); `disk_used_pct` gauge recorded by the health probe (rule 3 live). Rules 1/2/4 verified firing end-to-end (`test_shipped_high_error_rate_rule_fires_from_live_5xx_traffic`).
+5. `/status` `threat_score` = `orchestrator.get_status` intelligence aggregate (the health-latency average deleted); `metrics.threat_level` recorded in `get_status`.

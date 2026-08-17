@@ -45,3 +45,30 @@ def test_ready_unexpected_error_returns_generic_500(monkeypatch: pytest.MonkeyPa
     resp = client.get("/health/ready")
     assert resp.status_code == 500
     assert "database unavailable" not in resp.text
+
+
+def test_status_threat_score_is_intelligence_aggregate(monkeypatch: pytest.MonkeyPatch) -> None:
+    """/status must surface the intelligence threat score, not an average of
+    health-probe latencies (WO-012: 'slow DB ping' is not 'under attack')."""
+    import asyncio
+
+    from picosentry.serve.api.routers import health as health_router
+    from picosentry.serve.services.orchestrator import orchestrator
+
+    monkeypatch.setattr(
+        orchestrator,
+        "get_status",
+        lambda org_id=None: {
+            "projects_total": 1,
+            "projects_active": 0,
+            "projects_failed": 0,
+            "active_threats": 3,
+            "pending_alerts": 0,
+            "threat_score": 42.5,
+            "system_health": "healthy",
+            "uptime_seconds": 10.0,
+        },
+    )
+
+    status = asyncio.run(health_router.get_status(user={"id": 1}, org={"id": 1}))
+    assert status.threat_score == 42.5

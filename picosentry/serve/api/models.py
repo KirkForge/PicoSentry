@@ -147,9 +147,21 @@ class SchedulerJobParams(BaseModel):
 class SchedulerJobCreateRequest(BaseModel):
     name: str = Field(..., min_length=1, max_length=200, description="Job name")
     cron: str = Field(..., min_length=1, description="Cron expression or 'every N minute/hour/day'")
-    command: str = Field(..., description="Job command: batch, run, report, backup, cleanup")
+    command: str = Field(..., description="Job command: batch, run, report, backup, cleanup, health_check")
     params: SchedulerJobParams | None = Field(default=None, description="Job parameters")
     enabled: bool = Field(default=True, description="Whether the job is active")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
+
+class SchedulerJobUpdateRequest(BaseModel):
+    cron: str | None = Field(None, min_length=1, description="New cron expression")
+    params: SchedulerJobParams | None = Field(default=None, description="Replacement job parameters")
 
     if pydantic.VERSION.startswith("1."):
 

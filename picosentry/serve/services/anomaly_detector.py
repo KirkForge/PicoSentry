@@ -6,7 +6,7 @@ import time
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, cast
+from typing import Any, ClassVar, cast
 
 from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.services.metrics import metrics
@@ -48,7 +48,7 @@ DEFAULT_RULES = [
     {
         "id": "high_error_rate",
         "metric_name": "api_requests_total",
-        "labels": {"status": "5xx"},
+        "labels": {"status_class": "5xx"},
         "threshold": 10,
         "comparison": "gt",
         "duration_seconds": 300,
@@ -119,6 +119,7 @@ class AnomalyAlert:
     description: str
     severity: str = "warning"  # warning, critical
     org_id: str | None = None
+    alert_channel: str = "all"
 
 
 class AnomalyDetector:
@@ -133,6 +134,9 @@ class AnomalyDetector:
         self._thread: threading.Thread | None = None
         self._check_interval = 60  # seconds
         self._lock = threading.RLock()
+        # rule_id -> monotonic time the current breach was first seen;
+        # feeds the sustained-breach gate in check_rules.
+        self._breach_since: dict[str, float] = {}
         self._load_rules()
 
     def _load_rules(self):
@@ -190,18 +194,61 @@ class AnomalyDetector:
         }
         return ops.get(comparison, ops["gt"])(value, threshold)
 
-    def _get_metric_value(self, rule: AnomalyRule) -> float | None:
+    def _rule_samples(self, rule: AnomalyRule) -> list:
+        """Metric samples for *rule*, label-filtered; empty when unrecorded."""
         with metrics._lock:
             metric_list = metrics.metrics.get(rule.metric_name, [])
-            if not metric_list:
-                return None
-
             if rule.labels:
-                filtered = [m for m in metric_list if all(m.labels.get(k) == v for k, v in rule.labels.items())]
-                if not filtered:
-                    return None
-                return filtered[-1].value
-            return metric_list[-1].value
+                return [m for m in metric_list if all(m.labels.get(k) == v for k, v in rule.labels.items())]
+            return list(metric_list)
+
+    def _evaluate_rule(self, rule: AnomalyRule) -> tuple[float | None, bool]:
+        """Return (value, windowed).
+
+        Counter rules with a duration consume it as the delta window: the
+        samples carry the cumulative value at their timestamp, so
+        last-inside-window minus last-before-window is exactly "events in
+        the trailing N seconds" — the semantics rule descriptions promise
+        ("…in 5 minutes"). With no pre-window sample the series began
+        inside the window, so the latest cumulative value IS the delta.
+
+        Everything else (gauges, histograms, health_status) reads the
+        latest value; duration_seconds there means sustained-breach time,
+        gated in check_rules.
+        """
+        if rule.metric_name == "health_status":
+            return self._get_health_value(), False
+
+        samples = self._rule_samples(rule)
+        if not samples:
+            return None, False
+
+        if samples[-1].metric_type == "counter" and rule.duration_seconds > 0:
+            cutoff = time.time() - rule.duration_seconds
+            last_in_window = next((m for m in reversed(samples) if m.timestamp >= cutoff), None)
+            if last_in_window is None:
+                return 0.0, True
+            last_before = next((m for m in reversed(samples) if m.timestamp < cutoff), None)
+            if last_before is None:
+                return last_in_window.value, True
+            return last_in_window.value - last_before.value, True
+
+        return samples[-1].value, False
+
+    def _clear_breach(self, rule_id: str) -> None:
+        with self._lock:
+            self._breach_since.pop(rule_id, None)
+
+    def _breach_persisted(self, rule_id: str, duration_seconds: int) -> bool:
+        """True once the condition has held for duration_seconds.
+
+        Granularity is the check cycle interval (_check_interval): a rule
+        asking for 90s of persistence with a 60s cycle fires on the second
+        consecutive breach, i.e. somewhere in (60s, 120s].
+        """
+        with self._lock:
+            first = self._breach_since.setdefault(rule_id, time.monotonic())
+        return time.monotonic() - first >= duration_seconds
 
     def _get_health_value(self) -> float:
         try:
@@ -237,28 +284,53 @@ class AnomalyDetector:
             if not rule.enabled:
                 continue
 
-            value = self._get_health_value() if rule.metric_name == "health_status" else self._get_metric_value(rule)
+            value, windowed = self._evaluate_rule(rule)
 
             if value is None:
+                self._clear_breach(rule.id)
                 continue
 
-            if self._compare(value, rule.threshold, rule.comparison):
-                severity = (
-                    "critical" if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5 else "warning"
-                )
-                alert = AnomalyAlert(
-                    rule_id=rule.id,
-                    metric_name=rule.metric_name,
-                    value=value,
-                    threshold=rule.threshold,
-                    comparison=rule.comparison,
-                    timestamp=datetime.now(timezone.utc).isoformat(),
-                    description=rule.description,
-                    severity=severity,
-                )
-                alerts.append(alert)
+            if not self._compare(value, rule.threshold, rule.comparison):
+                self._clear_breach(rule.id)
+                continue
+
+            if not windowed and rule.duration_seconds > 0:
+                if not self._breach_persisted(rule.id, rule.duration_seconds):
+                    continue
+            else:
+                self._clear_breach(rule.id)
+
+            severity = "critical" if rule.comparison in ("gt", "gte") and value > rule.threshold * 1.5 else "warning"
+            alert = AnomalyAlert(
+                rule_id=rule.id,
+                metric_name=rule.metric_name,
+                value=value,
+                threshold=rule.threshold,
+                comparison=rule.comparison,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+                description=rule.description,
+                severity=severity,
+                alert_channel=rule.alert_channel,
+            )
+            alerts.append(alert)
 
         return alerts
+
+    _CHANNEL_MAP: ClassVar[dict[str, list[str]]] = {
+        "email": ["email"],
+        "discord": ["discord"],
+        "slack": ["slack"],
+        "syslog": ["syslog"],
+    }
+
+    def _channels_for(self, alert_channel: str) -> list[str] | None:
+        """Alert-hub channels for a rule's alert_channel setting.
+
+        None means the hub's configured defaults. "all" and "webhook" both
+        map there — the hub has no standalone webhook channel; its discord/
+        slack/email deliveries *are* the configured webhook set.
+        """
+        return self._CHANNEL_MAP.get(alert_channel)
 
     def _fire_alert(self, alert: AnomalyAlert):
         if self.alert_hub:
@@ -273,7 +345,7 @@ class AnomalyDetector:
                     f"Severity: {alert.severity}\n"
                     f"Description: {alert.description}"
                 ),
-                channels=["syslog"],
+                channels=self._channels_for(alert.alert_channel),
             )
 
         try:

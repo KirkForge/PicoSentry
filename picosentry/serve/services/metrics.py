@@ -91,7 +91,16 @@ class MetricsCollector:
             self.counter("project_failures_total", 1, labels)
 
     def api_request(self, method: str, endpoint: str, status_code: int, duration: float):
-        self.counter("api_requests_total", 1, {"method": method, "endpoint": endpoint, "status": str(status_code)})
+        # status keeps the exact code; status_class ("5xx") is the label the
+        # high_error_rate anomaly rule matches — exact codes would need one
+        # rule per status code.
+        labels = {
+            "method": method,
+            "endpoint": endpoint,
+            "status": str(status_code),
+            "status_class": f"{status_code // 100}xx",
+        }
+        self.counter("api_requests_total", 1, labels)
         self.histogram("api_request_duration_seconds", duration, {"method": method, "endpoint": endpoint})
 
     def threat_level(self, score: float):

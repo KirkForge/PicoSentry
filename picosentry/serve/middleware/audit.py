@@ -122,6 +122,54 @@ def _get_auth_service():
     return _auth_svc
 
 
+def _resolve_request_identity(request: Request) -> tuple[Any, Any]:
+    """Best-effort (user_id, org_id) for requests no dep authenticated.
+
+    Covers unmatched routes (404 probe traffic — exactly the requests whose
+    attribution matters most) and auth-free routes. Runs on a threadpool
+    thread via asyncio.to_thread: validation is a DB read.
+    """
+    _user_id = None
+    _org_id = None
+
+    auth_svc = _get_auth_service()
+    if auth_svc:
+        auth_header = request.headers.get("authorization", "")
+        api_key = request.headers.get("x-api-key", "")
+
+        if auth_header.startswith("Bearer "):
+            token = auth_header[7:]
+            try:
+                payload = auth_svc.validate_token(token)
+                if payload:
+                    _user_id = payload.get("user_id")
+                    _org_id = payload.get("org_id")
+            except (ValueError, KeyError, TypeError, RuntimeError):
+                logger.debug("Token validation failed in audit middleware")
+        elif api_key:
+            try:
+                key_info = auth_svc.validate_api_key(api_key)
+                if key_info:
+                    _user_id = key_info.get("user_id")
+                    _org_id = key_info.get("org_id")
+            except (ValueError, KeyError, TypeError, RuntimeError):
+                logger.debug("API key validation failed in audit middleware")
+
+    if _org_id is None:
+        org_key = request.headers.get("x-org-api-key", "")
+        if org_key.startswith("sk_"):
+            try:
+                from picosentry.serve.services.orgs import Organization
+
+                org = Organization.get_by_api_key(org_key)
+                if org:
+                    _org_id = org["id"]
+            except Exception:
+                logger.debug("Org key resolution failed in audit middleware", exc_info=True)
+
+    return _user_id, _org_id
+
+
 def _get_db():
     try:
         from picosentry.serve.database.manager import db
@@ -141,47 +189,31 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         duration = time.time() - start_time
 
+        # In-memory counters for the anomaly detector's api_requests_total /
+        # api_request_duration_seconds rules — the only producer of those
+        # metrics; without this the high_error_rate and high_latency rules
+        # have no data to evaluate.
+        from picosentry.serve.services.metrics import metrics
+
+        metrics.api_request(request.method, str(request.url.path), response.status_code, duration)
+
         _user_id = None
         _org_id = None
 
-        auth_svc = _get_auth_service()
-        if auth_svc:
-            auth_header = request.headers.get("authorization", "")
-            api_key = request.headers.get("x-api-key", "")
-
-            if auth_header.startswith("Bearer "):
-                token = auth_header[7:]
-                try:
-                    payload = auth_svc.validate_token(token)
-                    if payload:
-                        _user_id = payload.get("user_id")
-                        _org_id = payload.get("org_id")
-                except (ValueError, KeyError, TypeError, RuntimeError):
-                    logger.debug("Token validation failed in audit middleware")
-            elif api_key:
-                try:
-                    key_info = auth_svc.validate_api_key(api_key)
-                    if key_info:
-                        _user_id = key_info.get("user_id")
-                        _org_id = key_info.get("org_id")
-                except (ValueError, KeyError, TypeError, RuntimeError):
-                    logger.debug("API key validation failed in audit middleware")
-
-        if _org_id is None:
-            org_key = request.headers.get("x-org-api-key", "")
-            if org_key.startswith("sk_"):
-                try:
-                    from picosentry.serve.services.orgs import Organization
-
-                    org = Organization.get_by_api_key(org_key)
-                    if org:
-                        _org_id = org["id"]
-                except Exception:
-                    logger.debug("Org key resolution failed in audit middleware", exc_info=True)
-
-        if _user_id is None:
-            auth_header = request.headers.get("authorization", "")
-            _user_id = 0 if auth_header.startswith("Bearer ") else -1  # 0=anon auth, -1=unauthenticated
+        # Prefer the auth result the deps already computed for this request
+        # (stashed on request.state): re-validating the token/key here meant
+        # a second revocation-check DB hit per request, on the event loop.
+        # The fallback below only runs for requests no dep authenticated.
+        auth_user = getattr(request.state, "picoshogun_auth", None)
+        auth_org = getattr(request.state, "picoshogun_org", None)
+        if auth_user is not None:
+            _user_id = auth_user.get("user_id") or auth_user.get("id")
+            _org_id = auth_org.get("id") if auth_org else auth_user.get("org_id")
+        else:
+            _user_id, _org_id = await asyncio.to_thread(_resolve_request_identity, request)
+            if _user_id is None:
+                auth_header = request.headers.get("authorization", "")
+                _user_id = 0 if auth_header.startswith("Bearer ") else -1  # 0=anon auth, -1=unauthenticated
 
         ip_address = request.client.host if request.client else None
         user_agent = request.headers.get("user-agent")

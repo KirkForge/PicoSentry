@@ -7,7 +7,7 @@ import logging
 import pytest
 
 from picosentry.serve.database.manager import DatabaseManager
-from picosentry.serve.services.anomaly_detector import AnomalyDetector
+from picosentry.serve.services.anomaly_detector import AnomalyDetector, AnomalyRule
 
 
 class TestAnomalyDetectorHardening:
@@ -164,3 +164,196 @@ class TestRuleThresholdBounds:
 
         for rule in DEFAULT_RULES:  # shipped rules use 5/10/85 — raw values, not ratios
             AnomalyRuleUpdateRequest(threshold=rule["threshold"])
+
+
+class TestRuleSemantics:
+    """WO-012: rules must mean what their descriptions say.
+
+    Counters evaluate as a windowed delta (">10 in 5 minutes"), not the
+    lifetime cumulative; gauges/histograms with a duration gate on
+    sustained breach; alert_channel routes to the configured hub channel.
+    """
+
+    @staticmethod
+    def _fresh_detector(tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "anomaly.db", backend="sqlite")
+        return AnomalyDetector(db=db)
+
+    @staticmethod
+    def _clear_metrics():
+        from picosentry.serve.services.metrics import metrics
+
+        with metrics._lock:
+            metrics.metrics.clear()
+            metrics.counters.clear()
+            metrics._counter_timestamps.clear()
+
+    def setup_method(self):
+        self._clear_metrics()
+
+    def test_counter_rule_uses_window_delta_not_cumulative(self, tmp_path):
+        import time as time_mod
+
+        from picosentry.serve.services.metrics import Metric, metrics
+
+        detector = self._fresh_detector(tmp_path)
+        rule = AnomalyRule(
+            id="err_burst",
+            metric_name="api_requests_total",
+            threshold=10,
+            comparison="gt",
+            duration_seconds=300,
+            alert_channel="all",
+            description=">10 in 5 minutes",
+            labels={"status_class": "5xx"},
+        )
+        detector.rules = [rule]
+
+        # A busy pre-window history (cumulative 100 at t-600s) must NOT
+        # count toward the window: only the 11 fresh 5xx samples do.
+        old = Metric(
+            name="api_requests_total",
+            value=100.0,
+            labels={"status_class": "5xx"},
+            timestamp=time_mod.time() - 600,
+            metric_type="counter",
+        )
+        metrics.metrics["api_requests_total"].append(old)
+        for i in range(101, 112):  # cumulative 101..111, all "now"
+            metrics.metrics["api_requests_total"].append(
+                Metric(
+                    name="api_requests_total",
+                    value=float(i),
+                    labels={"status_class": "5xx"},
+                    timestamp=time_mod.time(),
+                    metric_type="counter",
+                )
+            )
+
+        value, windowed = detector._evaluate_rule(rule)
+        assert windowed
+        assert value == 11, f"window delta should be 11, got {value}"
+        alerts = detector.check_rules()
+        assert [a.rule_id for a in alerts] == ["err_burst"]
+
+    def test_old_burst_outside_window_does_not_fire(self, tmp_path):
+        import time as time_mod
+
+        from picosentry.serve.services.metrics import Metric, metrics
+
+        detector = self._fresh_detector(tmp_path)
+        rule = AnomalyRule(
+            id="err_old",
+            metric_name="api_requests_total",
+            threshold=10,
+            comparison="gt",
+            duration_seconds=300,
+            alert_channel="all",
+            description=">10 in 5 minutes",
+            labels={"status_class": "5xx"},
+        )
+        detector.rules = [rule]
+        for i in range(1, 51):  # 50 errors — but all 10 minutes ago
+            metrics.metrics["api_requests_total"].append(
+                Metric(
+                    name="api_requests_total",
+                    value=float(i),
+                    labels={"status_class": "5xx"},
+                    timestamp=time_mod.time() - 600,
+                    metric_type="counter",
+                )
+            )
+
+        value, _ = detector._evaluate_rule(rule)
+        assert value == 0, "stale samples must not satisfy the window"
+        assert detector.check_rules() == []
+
+    def test_gauge_breach_requires_sustained_duration(self, tmp_path, monkeypatch):
+        import picosentry.serve.services.anomaly_detector as ad_mod
+        from picosentry.serve.services.metrics import metrics
+
+        detector = self._fresh_detector(tmp_path)
+        rule = AnomalyRule(
+            id="disk_hot",
+            metric_name="disk_used_pct",
+            threshold=85,
+            comparison="gt",
+            duration_seconds=60,
+            alert_channel="syslog",
+            description="sustained > 85%",
+        )
+        detector.rules = [rule]
+
+        clock = [1000.0]
+        monkeypatch.setattr(ad_mod.time, "monotonic", lambda: clock[0])
+        metrics.gauge("disk_used_pct", 90)
+
+        assert detector.check_rules() == [], "fired before the sustained duration elapsed"
+        clock[0] += 61
+        alerts = detector.check_rules()
+        assert [a.rule_id for a in alerts] == ["disk_hot"]
+
+        # Recovery clears the persistence timer: a new breach starts over.
+        metrics.gauge("disk_used_pct", 10)
+        assert detector.check_rules() == []
+        clock[0] += 61
+        metrics.gauge("disk_used_pct", 90)
+        assert detector.check_rules() == [], "breach timer was not reset by recovery"
+
+    def test_alert_channel_routes_to_hub_channels(self, tmp_path):
+        detector = self._fresh_detector(tmp_path)
+        assert detector._channels_for("all") is None  # hub defaults
+        assert detector._channels_for("webhook") is None  # hub defaults (discord/slack ARE webhooks)
+        assert detector._channels_for("email") == ["email"]
+        assert detector._channels_for("discord") == ["discord"]
+        assert detector._channels_for("slack") == ["slack"]
+        assert detector._channels_for("syslog") == ["syslog"]
+
+    def test_fire_alert_passes_rule_channel_to_hub(self, tmp_path):
+        from picosentry.serve.services.anomaly_detector import AnomalyAlert
+
+        detector = self._fresh_detector(tmp_path)
+
+        class _Hub:
+            def __init__(self):
+                self.sent: list[dict] = []
+
+            def send(self, **kwargs):
+                self.sent.append(kwargs)
+
+        hub = _Hub()
+        detector.alert_hub = hub
+        alert = AnomalyAlert(
+            rule_id="r",
+            metric_name="m",
+            value=1.0,
+            threshold=1.0,
+            comparison="gt",
+            timestamp="2026-08-17T00:00:00+00:00",
+            description="d",
+            alert_channel="email",
+        )
+        detector._fire_alert(alert)
+        assert hub.sent and hub.sent[0]["channels"] == ["email"]
+
+    def test_shipped_high_error_rate_rule_fires_from_live_5xx_traffic(self, client, monkeypatch, tmp_path):
+        """End-to-end label pipeline: 503 responses recorded by the audit
+        middleware satisfy the shipped high_error_rate rule (status_class
+        5xx) — the exact wiring that was dead before WO-012."""
+        from picosentry.serve.database.manager import db as app_db
+
+        def _failing_execute_one(*_a, **_kw):
+            raise OSError("database is down")
+
+        # /health/ready turns this into a 503; the middleware records it.
+        monkeypatch.setattr(app_db, "execute_one", _failing_execute_one)
+        for _ in range(11):
+            assert client.get("/health/ready").status_code == 503
+        monkeypatch.undo()
+
+        detector = self._fresh_detector(tmp_path)
+        rule = next(r for r in detector.rules if r.id == "high_error_rate")
+        assert rule.labels.get("status_class") == "5xx"
+        value, windowed = detector._evaluate_rule(rule)
+        assert windowed
+        assert value >= 11, f"middleware 503s not visible to the rule (value={value})"

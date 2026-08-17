@@ -180,6 +180,21 @@ def _clear_auth_rate_limit() -> None:
 
 
 @pytest.fixture(autouse=True)
+def _reset_health_cache():
+    """Drop the /health TTL cache around every test.
+
+    The cache is module-global state; without a reset, a test that
+    monkeypatches a probe (db down, smtp down) could be served the previous
+    test's cached result — or leak its own result into the next test.
+    """
+    from picosentry.serve.services import _orchestrator_health
+
+    _orchestrator_health.reset_health_cache()
+    yield
+    _orchestrator_health.reset_health_cache()
+
+
+@pytest.fixture(autouse=True)
 def _shutdown_serve_otel():
     """Shut down any OpenTelemetry provider created by serve tests.
 

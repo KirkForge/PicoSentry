@@ -170,15 +170,17 @@ class TestMiddleware:
         from picosentry.serve.api.server import app
         from picosentry.serve.middleware.request_timeout import RequestTimeoutMiddleware
 
-        # Wrap the existing app with a 1-second timeout middleware.
-        short_app = RequestTimeoutMiddleware(app, timeout_seconds=1)
+        # Wrap the existing app with a short timeout middleware. The endpoint
+        # sleeps well past the timeout; values are small so the test stays
+        # fast — only the sleep > timeout relationship is load-bearing.
+        short_app = RequestTimeoutMiddleware(app, timeout_seconds=0.5)
         short_client = TestClient(short_app)
 
         @app.get("/__slow_for_middleware_test")
         async def _slow():
             import asyncio
 
-            await asyncio.sleep(5)
+            await asyncio.sleep(2)
             return {"ok": True}
 
         resp = short_client.get("/__slow_for_middleware_test")

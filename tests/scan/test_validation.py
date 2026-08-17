@@ -9,6 +9,8 @@ backed by a test that actually runs in CI.
 
 from __future__ import annotations
 
+import functools
+
 import pytest
 
 from picosentry.scan.validation import (
@@ -20,9 +22,16 @@ from picosentry.scan.validation import (
 # ── Fixture discovery ───────────────────────────────────────────────────
 
 
+@functools.cache
+def _discover_fixtures_cached():
+    """discover_fixtures() walks the whole fixtures tree (~3.5s); the three
+    discovery tests assert on the same read-only result, so compute it once."""
+    return discover_fixtures()
+
+
 def test_discover_fixtures_finds_positive_and_negative() -> None:
     """Both positive and negative fixture buckets are discovered."""
-    fixtures = discover_fixtures()
+    fixtures = _discover_fixtures_cached()
     assert fixtures, "No validation fixtures found — did tests/scan/fixtures/validation get deleted?"
     labels = {f.label for f in fixtures}
     assert "positive" in labels
@@ -31,7 +40,7 @@ def test_discover_fixtures_finds_positive_and_negative() -> None:
 
 def test_discover_fixtures_under_repo_root() -> None:
     """The default discovery root is tests/scan/fixtures/validation."""
-    fixtures = discover_fixtures()
+    fixtures = _discover_fixtures_cached()
     for f in fixtures:
         assert f.path.is_dir(), f"{f.path} is not a directory"
         assert (f.path / "fixture.json").is_file(), f"{f.path} missing fixture.json"

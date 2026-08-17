@@ -7,6 +7,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 from picosentry._core.doctor import (
     CheckResult,
     DoctorReport,
@@ -162,8 +164,15 @@ class TestVersionConsistency:
 
 
 class TestVerify:
-    def test_verify_returns_report(self):
-        report = verify()
+    @pytest.fixture(scope="class")
+    def verify_report(self):
+        """One shared verify() for the shape assertions — verify() takes ~4s
+        walking the repo and its report is read-only here. The repair variant
+        runs its own call (it mutates pycache state)."""
+        return verify()
+
+    def test_verify_returns_report(self, verify_report):
+        report = verify_report
         assert isinstance(report, DoctorReport)
         assert len(report.checks) >= 10
         assert report.elapsed >= 0
@@ -172,8 +181,8 @@ class TestVerify:
         report = verify(repair=True)
         assert any(c.name == "clean_pycache" for c in report.checks)
 
-    def test_verify_all_checks_have_names(self):
-        report = verify()
+    def test_verify_all_checks_have_names(self, verify_report):
+        report = verify_report
         for check in report.checks:
             assert check.name
             assert check.status in ("pass", "fail", "warn")

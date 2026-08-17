@@ -18,7 +18,10 @@ Or, for pytest-style fixtures (the ``scan_fixtures_dir`` fixture)::
 
 from __future__ import annotations
 
+import functools
 import json
+import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -132,6 +135,32 @@ def scan_fixtures_dir() -> Path:
     should switch to this fixture for a single source of truth.
     """
     return FIXTURES_DIR
+
+
+# ─── Shared CLI subprocess cache ───────────────────────────────────────────
+
+
+@functools.cache
+def scan_fixture_cached(fixture_name: str, extra_args: tuple[str, ...] = ()) -> subprocess.CompletedProcess:
+    """Run ``picosentry scan <fixture> [args...]`` once per unique command
+    per pytest-xdist worker and share the CompletedProcess.
+
+    Fixtures are read-only scan inputs, yet several tests re-run the exact
+    same command (e.g. ``scan shai_hulud --exit-code`` backs three
+    action-exit-code tests); each unique run costs ~2.5s of interpreter +
+    engine startup. ponytail: tests asserting *freshness* (two independent
+    executions — determinism-across-runs, normal-output timestamps) must
+    bypass this and call subprocess.run directly.
+    """
+    fixture = FIXTURES_DIR / fixture_name
+    if not fixture.is_dir():
+        pytest.skip(f"fixture {fixture_name} not available")
+    return subprocess.run(
+        [sys.executable, "-m", "picosentry", "scan", str(fixture), *extra_args],
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
 
 
 @pytest.fixture(autouse=True)

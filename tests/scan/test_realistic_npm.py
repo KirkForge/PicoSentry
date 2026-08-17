@@ -1,13 +1,7 @@
-"""
-test_realistic_fixtures.py — Regression tests against realistic npm project fixtures.
-
-These tests validate that PicoSentry handles real-world project structures:
-- Projects with package-lock.json (npm v3 lockfile)
-- Projects with node_modules containing multiple packages
-- Projects with postinstall scripts
-- Projects with lockfile drift (deps in lockfile not in manifest)
-- Multi-severity findings across many rules
-- Deterministic output across different run orders
+"""Regression tests against the realistic npm project fixture — moved from
+test_realistic_fixtures.py (smoke sibling: test_realistic_smoke.py) so
+pytest-xdist --dist=loadfile can balance the ~68s file across workers.
+Bodies unchanged.
 """
 
 import json
@@ -17,11 +11,15 @@ import sys
 import pytest
 
 from picosentry.scan.engine import create_default_engine
-from picosentry.scan.models import ScanResult
 
-from tests.scan.conftest import FIXTURES_DIR
+from tests.scan.conftest import FIXTURES_DIR, scan_fixture_cached
 
 PICOSENTRY = [sys.executable, "-m", "picosentry"]
+
+
+def _scan(fixture_name: str, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
+    """Cached CLI run — see scan_fixture_cached in tests/scan/conftest.py."""
+    return scan_fixture_cached(fixture_name, tuple(extra_args or ()))
 
 
 class TestRealisticNpmProject:
@@ -58,7 +56,7 @@ class TestRealisticNpmProject:
 
     def test_deterministic_output_across_runs(self, fixture_path):
         """Two scans of realistic project must produce byte-identical JSON with --deterministic-output."""
-        result = subprocess.run(
+        result = subprocess.run(  # fresh run #1 — do not cache: assertion is run1 == run2
             [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
@@ -67,7 +65,7 @@ class TestRealisticNpmProject:
         assert result.returncode == 0
         data = json.loads(result.stdout)
 
-        result2 = subprocess.run(
+        result2 = subprocess.run(  # fresh run #2
             [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
             capture_output=True,
             text=True,
@@ -80,12 +78,7 @@ class TestRealisticNpmProject:
 
     def test_json_output_sorted_keys(self, fixture_path):
         """JSON output must have sorted top-level keys."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _scan("realistic_npm", ["--format", "json", "--deterministic-output"])
         assert result.returncode == 0
         data = json.loads(result.stdout)
         keys = list(data.keys())
@@ -101,48 +94,28 @@ class TestRealisticNpmProject:
 
     def test_fail_on_high_exits_nonzero(self, fixture_path):
         """--fail-on high should exit nonzero on project with HIGH findings."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--fail-on", "high"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _scan("realistic_npm", ["--fail-on", "high"])
         assert result.returncode == 1, (
             f"--fail-on high should exit 1 on project with HIGH findings, got {result.returncode}"
         )
 
     def test_fail_on_critical_exits_zero(self, fixture_path):
         """--fail-on critical should exit 0 if no CRITICAL findings."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--fail-on", "critical"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _scan("realistic_npm", ["--fail-on", "critical"])
         assert result.returncode == 0, (
             f"--fail-on critical should exit 0 (no CRITICAL findings), got {result.returncode}"
         )
 
     def test_verify_determinism_passes(self, fixture_path):
         """--verify-determinism should pass on realistic project."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--verify-determinism"],
-            capture_output=True,
-            text=True,
-            timeout=60,
-        )
+        result = _scan("realistic_npm", ["--verify-determinism"])
         assert result.returncode == 0, (
             f"--verify-determinism should pass, got exit {result.returncode}. stderr: {result.stderr}"
         )
 
     def test_no_audit_in_deterministic_output(self, fixture_path):
         """--deterministic-output must not include audit timestamps."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json", "--deterministic-output"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _scan("realistic_npm", ["--format", "json", "--deterministic-output"])
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert "audit" not in data, "Deterministic output must not include audit"
@@ -150,68 +123,9 @@ class TestRealisticNpmProject:
 
     def test_normal_output_includes_audit(self, fixture_path):
         """Normal JSON output must include audit timestamps."""
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture_path), "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
+        result = _scan("realistic_npm", ["--format", "json"])
         assert result.returncode == 0
         data = json.loads(result.stdout)
         assert "audit" in data, "Normal output must include audit section"
         assert "started_at" in data["audit"], "Audit must include started_at"
         assert "completed_at" in data["audit"], "Audit must include completed_at"
-
-
-class TestExistingFixturesSmokeTest:
-    """Quick smoke test that all existing fixtures scan without errors."""
-
-    @pytest.fixture(
-        params=[
-            "clean_project",
-            "colors_js",
-            "crossenv",
-            "event_stream",
-            "left_pad",
-            "nx_typosquat",
-            "pnpm_dangerous",
-            "pnpm_no_npmrc",
-            "shai_hulud",
-            "ua_parser_js",
-            "realistic_npm",
-        ]
-    )
-    def fixture_name(self, request):
-        return request.param
-
-    def test_fixture_scans_cleanly(self, fixture_name):
-        """Every fixture must scan without errors or crashes."""
-        fixture = FIXTURES_DIR / fixture_name
-        if not fixture.is_dir():
-            pytest.skip(f"fixture {fixture_name} not available")
-
-        engine = create_default_engine()
-        result = engine.scan(str(fixture))
-        assert isinstance(result, ScanResult)
-        assert result.engine_version, "Should have engine_version"
-        assert result.corpus_version, "Should have corpus_version"
-        assert result.scan_id, "Should have scan_id"
-
-    def test_fixture_json_output_valid(self, fixture_name):
-        """Every fixture must produce valid JSON output."""
-        fixture = FIXTURES_DIR / fixture_name
-        if not fixture.is_dir():
-            pytest.skip(f"fixture {fixture_name} not available")
-
-        result = subprocess.run(
-            [*PICOSENTRY, "scan", str(fixture), "--format", "json"],
-            capture_output=True,
-            text=True,
-            timeout=30,
-        )
-        assert result.returncode == 0
-        data = json.loads(result.stdout)
-        assert "findings" in data
-        assert "scan_id" in data
-        assert "corpus_version" in data
-        assert "engine_version" in data

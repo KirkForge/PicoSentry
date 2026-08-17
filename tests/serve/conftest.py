@@ -46,6 +46,37 @@ atexit.register(shutil.rmtree, _db_dir, ignore_errors=True)
 os.environ["PICOSHOGUN_DATABASE_JOURNAL_MODE"] = "DELETE"
 os.environ["PICOSHOGUN_DATABASE_SYNCHRONOUS"] = "OFF"
 
+_BCRYPT_ROUNDS_TEST = 4
+
+
+def _cheap_test_password_hashing() -> None:
+    """bcrypt at the production cost (12 rounds ≈ 0.8s per hash) dominates
+    every register/login in the serve suite without any test asserting hash
+    *cost* — auth-flow tests exercise real bcrypt verify/check semantics
+    either way. Dropping to 4 rounds (≈3ms) cuts ~1.6s off each user-creating
+    test. Test-env only; must run lazily (after the env vars above are set
+    and picosentry imports resolve), so it is called from the autouse
+    fixture below rather than at conftest import time.
+    """
+    from picosentry.serve.config.settings import settings
+
+    settings.security.password_hash_rounds = _BCRYPT_ROUNDS_TEST
+
+
+@pytest.fixture
+def client():
+    """Per-test client to avoid rate-limit accumulation across tests.
+
+    Moved from tests/serve/test_integration.py when that file was split into
+    test_integration_auth/features/services — the split files share it via this
+    conftest. Test modules that define their own ``client`` fixture shadow it.
+    """
+    from fastapi.testclient import TestClient
+
+    from picosentry.serve.api.server import app
+
+    return TestClient(app)
+
 
 def _find_and_clear_rate_limiter(app):
     """Walk the middleware stack to find and reset RateLimitMiddleware."""
@@ -117,6 +148,8 @@ def _reset_rate_limiter():
     from fastapi.testclient import TestClient
 
     from picosentry.serve.api.server import app
+
+    _cheap_test_password_hashing()
 
     # Force middleware stack build if not yet built
     if not app.middleware_stack:

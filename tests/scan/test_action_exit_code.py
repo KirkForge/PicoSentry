@@ -17,13 +17,23 @@ import sys
 
 import pytest
 
-from tests.scan.conftest import FIXTURES_DIR
+from tests.scan.conftest import FIXTURES_DIR, scan_fixture_cached
 
 PICOSENTRY = [sys.executable, "-m", "picosentry"]
 
 
 def _scan(fixture_name: str, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
-    """Run picosentry scan on a fixture, return CompletedProcess."""
+    """Run picosentry scan on a fixture, return CompletedProcess.
+
+    Cached per unique command (see scan_fixture_cached) — identical
+    fixture+flag combinations back multiple tests here. Determinism tests
+    that need two independent executions use _scan_fresh.
+    """
+    return scan_fixture_cached(fixture_name, tuple(extra_args or ()))
+
+
+def _scan_fresh(fixture_name: str, extra_args: list[str] | None = None) -> subprocess.CompletedProcess:
+    """Uncached variant for tests asserting freshness across executions."""
     fixture = FIXTURES_DIR / fixture_name
     if not fixture.is_dir():
         pytest.skip(f"fixture {fixture_name} not available")
@@ -226,8 +236,9 @@ class TestDeterministicOutputCLI:
         out_a = tmp_path / "det_a.json"
         out_b = tmp_path / "det_b.json"
 
-        _scan("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out_a)])
-        _scan("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out_b)])
+        # Two *fresh* executions — the cache would defeat the comparison.
+        _scan_fresh("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out_a)])
+        _scan_fresh("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out_b)])
 
         json_a = out_a.read_text()
         json_b = out_b.read_text()
@@ -243,20 +254,18 @@ class TestDeterministicOutputCLI:
         assert "audit" in data, "Normal output must include audit section"
         assert "started_at" in data.get("audit", {}), "Normal output must include started_at"
 
-    def test_deterministic_output_omits_audit(self, tmp_path):
+    def test_deterministic_output_omits_audit(self):
         """--deterministic-output must NOT include audit timestamps."""
-        out = tmp_path / "det.json"
-        _scan("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out)])
+        result = _scan("colors_js", ["--format", "json", "--deterministic-output"])
 
-        data = json.loads(out.read_text())
+        data = json.loads(result.stdout)
         assert "audit" not in data, "--deterministic-output must NOT include audit section"
 
-    def test_deterministic_output_omits_duration(self, tmp_path):
+    def test_deterministic_output_omits_duration(self):
         """--deterministic-output must NOT include duration_ms in stats."""
-        out = tmp_path / "det.json"
-        _scan("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out)])
+        result = _scan("colors_js", ["--format", "json", "--deterministic-output"])
 
-        data = json.loads(out.read_text())
+        data = json.loads(result.stdout)
         assert "duration_ms" not in data.get("stats", {}), (
             "--deterministic-output must NOT include duration_ms in stats"
         )
@@ -264,12 +273,11 @@ class TestDeterministicOutputCLI:
             "--deterministic-output must NOT include rule_timings_ms in stats"
         )
 
-    def test_deterministic_output_keys_are_sorted(self, tmp_path):
+    def test_deterministic_output_keys_are_sorted(self):
         """--deterministic-output JSON must have sorted top-level keys."""
-        out = tmp_path / "det.json"
-        _scan("colors_js", ["--format", "json", "--deterministic-output", "--output", str(out)])
+        result = _scan("colors_js", ["--format", "json", "--deterministic-output"])
 
-        data = json.loads(out.read_text())
+        data = json.loads(result.stdout)
         keys = list(data.keys())
         assert keys == sorted(keys), f"Keys must be sorted, got: {keys}"
 

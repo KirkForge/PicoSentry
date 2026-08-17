@@ -8,6 +8,7 @@ import shutil
 import subprocess
 import warnings
 
+from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     Policy,
@@ -156,6 +157,7 @@ class SeccompTraceBackend(SandboxBackend):
                 if cwd:
                     with contextlib.suppress(OSError):
                         os.chdir(cwd)
+                set_resource_limits()
                 ret = lib.seccomp_load(ctx)
                 lib.seccomp_release(ctx)
                 if ret != 0:

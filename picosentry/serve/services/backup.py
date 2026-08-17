@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import shutil
+import sqlite3
 import tarfile
 import urllib.parse
 import urllib.request
@@ -133,7 +134,18 @@ class BackupManager:
 
         try:
             db_backup = temp_dir / "database.sqlite3"
-            shutil.copy2(str(self.db_path), str(db_backup))
+            with self.db_path.open("rb") as probe:
+                is_sqlite = probe.read(16) == b"SQLite format 3\x00"
+            if is_sqlite:
+                src = sqlite3.connect(str(self.db_path))
+                dst = sqlite3.connect(str(db_backup))
+                try:
+                    src.backup(dst)
+                finally:
+                    dst.close()
+                    src.close()
+            else:
+                shutil.copy2(str(self.db_path), str(db_backup))
 
             meta = {
                 "version": __version__,

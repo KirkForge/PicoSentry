@@ -5,11 +5,12 @@ A misbehaving detector (infinite regex backtracking, blocking I/O, large
 directory walk) must not tank the whole scan. The engine wraps each rule
 function in a ThreadPoolExecutor and waits at most DEFAULT_RULE_TIMEOUT_SECONDS
 (default 2.0s) per rule; on FuturesTimeoutError it records status="timeout"
-and continues. Tests below tighten the timebox to 0.5s via scan(rule_timeout=...)
-to assert the timebox fires deterministically.
+and continues. Tests below tighten the timebox via scan(rule_timeout=...) so
+the timebox fires deterministically without multi-second sleeps: the rule
+sleeps 0.3s against a 0.05s timebox (same margin the old 2.0s/0.5s pair had).
 
 Test coverage:
-  1. A 2s sleep rule times out within 700ms (500ms + slack).
+  1. A 0.3s sleep rule times out within 1s (timebox + tear-down slack).
   2. Findings from other rules are still produced (timebox is per-rule,
      not whole-scan).
   3. The "ok" and "failed" statuses still work alongside "timeout".
@@ -33,15 +34,16 @@ from picosentry.scan.engine import (
 # ── Headline behavior: a 2s sleep rule times out ────────────────────────
 
 
-def test_slow_rule_times_out_within_2_5s(tmp_path: Path) -> None:
-    """A rule that sleeps 2s must time out well before the 2s sleep duration
-    completes. With rule_timeout=0.5s, the scan returns in <2.5s — the
-    2.0s slack covers thread pool tear-down and any other in-flight rules.
+def test_slow_rule_times_out_within_1s(tmp_path: Path) -> None:
+    """A rule that sleeps 0.3s must time out well before the sleep completes
+    under a 0.05s timebox. The slack in the elapsed bound covers thread pool
+    tear-down (executor shutdown joins the still-sleeping worker) and any
+    other in-flight rules.
     Use an empty temp directory as the target to avoid repo-size noise.
     """
 
     def slow_rule(target: Path, corpus_dir: Path) -> list:
-        time.sleep(2.0)
+        time.sleep(0.3)
         return []
 
     engine = ScanEngine()
@@ -49,10 +51,10 @@ def test_slow_rule_times_out_within_2_5s(tmp_path: Path) -> None:
     engine.register("L2-FAST-001", lambda t, c: [])
 
     t0 = time.monotonic()
-    result: ScanResult = engine.scan(tmp_path, rule_timeout=0.5)
+    result: ScanResult = engine.scan(tmp_path, rule_timeout=0.05)
     elapsed = time.monotonic() - t0
 
-    assert elapsed < 2.5, f"Scan took {elapsed:.2f}s — timebox did not fire"
+    assert elapsed < 1.0, f"Scan took {elapsed:.2f}s — timebox did not fire"
 
     slow_exec = next(e for e in result.rule_executions if e.rule_id == "L2-SLOW-001")
     assert slow_exec.status == "timeout", f"Expected L2-SLOW-001 status='timeout', got {slow_exec.status!r}"
@@ -64,7 +66,7 @@ def test_fast_rules_still_complete_after_timeout(tmp_path: Path) -> None:
     """The timebox is per-rule — other rules must still run normally."""
 
     def slow_rule(target: Path, corpus_dir: Path) -> list:
-        time.sleep(2.0)
+        time.sleep(0.3)
         return []
 
     def fast_rule(target: Path, corpus_dir: Path) -> list:
@@ -74,7 +76,7 @@ def test_fast_rules_still_complete_after_timeout(tmp_path: Path) -> None:
     engine.register("L2-SLOW-002", slow_rule)
     engine.register("L2-FAST-002", fast_rule)
 
-    result = engine.scan(tmp_path, rule_timeout=0.5)
+    result = engine.scan(tmp_path, rule_timeout=0.05)
 
     fast_exec = next(e for e in result.rule_executions if e.rule_id == "L2-FAST-002")
     assert fast_exec.status == "ok", f"Expected L2-FAST-002 status='ok', got {fast_exec.status!r}"
@@ -134,7 +136,7 @@ def test_sub_rule_aliases_all_get_timeout_status(tmp_path: Path) -> None:
     """
 
     def slow_rule(target: Path, corpus_dir: Path) -> list:
-        time.sleep(2.0)
+        time.sleep(0.3)
         return []
 
     engine = ScanEngine()
@@ -143,7 +145,7 @@ def test_sub_rule_aliases_all_get_timeout_status(tmp_path: Path) -> None:
     engine.register("L2-MULTI-B", slow_rule)
     engine.register("L2-MULTI-C", slow_rule)
 
-    result = engine.scan(tmp_path, rule_timeout=0.5)
+    result = engine.scan(tmp_path, rule_timeout=0.05)
 
     # All three must show status=timeout.
     statuses = {e.rule_id: e.status for e in result.rule_executions}

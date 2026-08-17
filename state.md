@@ -2,6 +2,34 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-17: Six-agent agentic round (5 focus areas + bug hunt) + Rust test-system port — COMPLETE
+
+### Method
+6 parallel subagents with EXCLUSIVE file ownership: SA1 scan+firewall, SA2 sandbox, SA3 watch, SA4 serve/_core/cli, SA5 test-system port (from `/home/henrik/madlab/github/desktop/gpt-test_and_ci.md` Rust/nextest analysis), SA6 read-only cross-cutting bug hunt. Orchestrator reconciled cross-agent conflicts (mock `read(n)` signatures, `.gitignore` artifact dir) and applied SA6 HIGH findings B3 (event-loop blocking) + B10 (purge cutoff format) centrally.
+
+### What landed (24 source fixes + test-system port)
+- **watch**: comment-wrap injection bypass (0.0 score → blocked), ReDoS (60–120s → linear), Prom label injection + /metrics crash, metrics thread race, bool-as-int schema, compare_digest non-ASCII.
+- **serve**: MFA lockout bypass, WebAuthn 2nd-passkey break, webhook DNS-rebind pin dead-on-restart, WAL backup corruption, cross-org job squatting + invalid cron, plaintext org-key bucket keys, blocking /scans+/sandboxes on loop (to_thread), purge cutoff format, extra=forbid ×2.
+- **sandbox**: rlimits on landlock + seccomp-trace (escaped round-1 audit), landlock timeout ignored (infinite waitpid), store repr-serialization, redis timeouts, fail-open cluster token, unbounded gossip read.
+- **scan**: cache-hit enum crash, queue.Empty tracebacks, minisign password on argv, malformed-b64 crash, daemon body cap + CRLF injection, empty authz header, fd leak, SBOM parse crash.
+- **test system**: `scripts/test.sh {fast,integration,full,nightly}` profiles; worst sleeps → clock injection (timebox ×3 2.1s→0.65s; ratelimit/cache/intel →<10ms); 9 os.environ → monkeypatch; `malicious_workload` marker registered.
+- **CI**: concurrency cancellation; PR(7)/push(5)/nightly(3) split; coverage+junit+audit off PR path; all validation steps preserved.
+
+### Gate (head `dev` post-commit)
+- ruff: All checks passed! · format: 648 files · mypy: 411 files clean
+- `pytest -m "not slow"`: **4657 passed, 18 skipped, 0 failed** (295.56s)
+- detect_changes: 46 files / 94 symbols — all map to agent-reported intentional fixes; no surprise blast radius.
+
+### Pending / next (from SA6 + agent flags — owner calls)
+- **HIGH (design-level)**: B1 WS cross-tenant event leak (`subscribe *` has no org gate — needs org stamping at publish + ACL); B4 audit purge ignores severity (no severity column; effective retention 30d for all — policy decision); serve audit chain forks under multi-worker (B9); webhook TOCTOU redirect SSRF (B2 remainder: `allow_redirects=False`).
+- **HIGH (code, unfixed)**: scan engine timebox `shutdown(wait=True)` still blocks on hung rules after "skip" (SA1 flag; ~5-line fix but CRITICAL impact — needs owner OK); OSV disk cache unbounded; fleet/tenant non-atomic state writes; advisory `_parse_version` TypeError on mixed pre-release identifiers (test asserts private tuple shape — change test to assert ordering, then land SA1's ready fix).
+- **MEDIUM/LOW backlog**: CLI unified-wrapper drops flags (sandbox analyze/pipeline, watch --verify-determinism); WS channel registry unbounded; scheduler batch job CWD-relative script path; webhook timestamp naive-local; TOTP replay window; /auth/revoke any-jti; MFA enroll without password re-verify; username enumeration on webauthn challenge; restore-under-live-pool semantics.
+- **Test debt flagged**: backup tests fake DB as text file (forces fallback path); no purge/webhook-pin-production-path/WS-org-isolation/cron-validation coverage.
+- gitnexus index stale (missing `landlock_backend.py`) — re-index when convenient.
+
+### Blocked
+- None.
+
 ## Session 2026-08-13: Production-grading + v2.1.0 RELEASE — COMPLETE (committed, pushed, published)
 
 ### Release v2.1.0 — LIVE on PyPI (verified)

@@ -92,7 +92,7 @@ async def _verify_api_key(
     elif authorization and authorization.lower().startswith("bearer "):
         provided_key = authorization[7:].strip()
 
-    if not provided_key or not secrets.compare_digest(provided_key, api_key):
+    if not provided_key or not secrets.compare_digest(provided_key.encode("utf-8"), api_key.encode("utf-8")):
         raise HTTPException(status_code=401, detail="Invalid or missing API key")
 
 

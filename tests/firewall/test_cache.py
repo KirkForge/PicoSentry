@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import time
-
 from picosentry.firewall.cache import VerdictCache
 from picosentry.firewall.scanner import FirewallVerdict
 
@@ -16,11 +14,14 @@ class TestVerdictCache:
         cache = VerdictCache(ttl_seconds=60)
         assert cache.get("npm", "express", "4.18.0") is None
 
-    def test_ttl_expiration(self):
+    def test_ttl_expiration(self, monkeypatch):
+        now = [0.0]
+        monkeypatch.setattr("picosentry.firewall.cache.time.monotonic", lambda: now[-1])
+
         cache = VerdictCache(ttl_seconds=1)
         cache.put("npm", "lodash", "4.17.21", FirewallVerdict.BLOCK)
         assert cache.get("npm", "lodash", "4.17.21") == FirewallVerdict.BLOCK
-        time.sleep(1.1)
+        now.append(2.0)
         assert cache.get("npm", "lodash", "4.17.21") is None
 
     def test_clear(self):

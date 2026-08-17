@@ -1255,8 +1255,8 @@ def _mock_urlopen(monkeypatch, body_bytes):
     """Patch urllib.request.urlopen to return ``body_bytes`` from read()."""
 
     class _Resp:
-        def read(self):
-            return body_bytes
+        def read(self, n=-1):
+            return body_bytes[:n] if n is not None and n >= 0 else body_bytes
 
         def __enter__(self):
             return self

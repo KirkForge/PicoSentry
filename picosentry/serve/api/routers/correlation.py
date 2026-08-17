@@ -20,6 +20,8 @@ router = APIRouter(tags=["Correlation"])
 
 
 class EventIngestRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     artifact_id: str = Field(..., max_length=512)
     layer: str = Field(..., pattern="^(scan|sandbox_l3|sandbox_l4|watch)$")
     rule_id: str = Field(..., max_length=128)

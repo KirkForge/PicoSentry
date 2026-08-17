@@ -18,6 +18,7 @@ import os
 import sys
 import tempfile
 from pathlib import Path
+from queue import Empty
 from typing import Any
 
 from picosentry.scan import __version__
@@ -45,7 +46,7 @@ from picosentry.scan.formatters import (
     format_table,
 )
 from picosentry.scan.guards import verify_determinism
-from picosentry.scan.models import Finding, ScanResult, ScanStats, apply_baseline, load_baseline
+from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity, apply_baseline, load_baseline
 from picosentry.scan.validation import run_validation
 
 logger = logging.getLogger(__name__)
@@ -140,11 +141,15 @@ class ScanOrchestrator:
 
         try:
             stats_data = cached_data.get("stats", {})
+            findings = [
+                Finding(**{**f, "severity": Severity(f["severity"]), "confidence": Confidence(f["confidence"])})
+                for f in cached_data.get("findings", [])
+            ]
             return ScanResult(
                 target=cached_data.get("target", str(target)),
                 engine_version=cached_data.get("engine_version", __version__),
                 corpus_version=cached_data.get("corpus_version", ""),
-                findings=[Finding(**f) for f in cached_data.get("findings", [])] if "findings" in cached_data else [],
+                findings=findings,
                 stats=ScanStats(**stats_data) if stats_data else ScanStats(),
             )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
@@ -210,7 +215,7 @@ class ScanOrchestrator:
 
             try:
                 status, data = result_queue.get(timeout=1)
-            except (OSError, ValueError, TypeError) as e:
+            except (Empty, OSError, ValueError, TypeError) as e:
                 raise ScanError("failed to retrieve scan result from worker") from e
             if status == "error":
                 if isinstance(data, dict):

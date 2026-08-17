@@ -2,6 +2,28 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-08-17 - Six-agent agentic round: 24 hardening fixes + Rust-style test-system port (CI tiers/profiles, sleep+env hygiene)
+- fix(watch/prompt-guard): comment-wrapped prompt injection (`<!-- ignore all previous instructions -->`) scored 0.0 — full bypass of all 59 rules AND the classifier; guards now also evaluate a marker-neutralized variant (wrapped payloads block at 0.90–0.95).
+- fix(watch/normalize): ReDoS on adversarial input (>60s for 1MB of `<!--`/`[[`; >120s `def `×160k) inside async endpoints — regex bridges bounded/narrowed, comment stripping now linear; verified linear scaling, detections intact.
+- fix(watch/telemetry): Prometheus label injection + `/metrics` 500 on hostile `model` values (sanitize at `_make_key`); cross-thread race on metrics render (lock + snapshot); `compare_digest` TypeError on non-ASCII API keys (compare UTF-8 bytes).
+- fix(watch/output-guard): JSON-schema `integer`/`number` accepted booleans (`isinstance(True, int)`); excluded.
+- fix(serve/auth): MFA lockout bypass — wrong TOTP code didn't count as failed login (unlimited brute force); WebAuthn multi-passkey break — assertion verify only checked the user's first credential.
+- fix(serve/webhooks): DNS-rebind IP pinning was wiped on every restart (`_load_webhooks` set `pinned_ips=None`) — SSRF mitigation never active in production; pins now re-resolved at load, unsafe webhooks skipped.
+- fix(serve/backup): `create_backup` raw-copied a live WAL-mode SQLite DB (torn/missing-recent-writes snapshots) — now uses the sqlite online backup API for real DBs.
+- fix(serve/scheduler): cross-org job-name squatting returned another org's job_id with 201; invalid cron silently accepted (job never fires) — both now rejected.
+- fix(serve/rate-limit): org API keys were persisted PLAINTEXT as bucket keys in `rate_limit_counters`/Redis — now sha256'd.
+- fix(serve/scans): `/scans` and `/sandboxes` ran the synchronous scan/sandbox on the event loop — one 3600s sandbox froze the whole worker (timeouts inert); both now `asyncio.to_thread`.
+- fix(serve/audit-cleanup): purge cutoff used `isoformat()` (`T`+offset) vs SQLite `CURRENT_TIMESTAMP` (space) — lexicographic compare deleted boundary-date rows up to 24h early; format aligned.
+- fix(serve/models): `extra="forbid"` on the last two request models (`EventIngestRequest`, `AnomalyRuleUpdateRequest`).
+- fix(sandbox/l3): landlock + seccomp-trace backends ran untrusted code with NO rlimits (escaped the round-1 rlimit audit); landlock also ignored `timeout` (`waitpid` forever) — rlimits set, WNOHANG poll + SIGKILL on deadline.
+- fix(sandbox/daemon): sqlite/redis job stores serialized dict results as Python repr (mangled JSON on GET); redis client had no socket timeouts; cluster-token check was fail-open on empty token + non-constant-time; `timeout: null` crashed the submit route; gossip snapshot read unbounded (10MiB cap now).
+- fix(scan/cli-service): cache hits crashed `AttributeError` (enums not restored from cached JSON); worker death surfaced as raw `queue.Empty` traceback (scan + workspace paths).
+- fix(scan/crypto): minisign password leaked on argv via wrong `-p` flag (also never applied) — now via `MINISIGN_PASSWORD` env; malformed b64 signature crashed verify (now fail-closed `False`).
+- fix(scan/daemon): unbounded request-body read (10MiB cap + 413); CRLF header injection via client `X-Request-Id`.
+- fix(scan/management): empty `Authorization:` header sent on unauthenticated push; advisory-signature HTTP response leaked on failed verify; malformed SBOM (JSON list / non-dict entries) crashed the parse boundary (graceful skip now).
+- test(port from Rust/nextest analysis): `scripts/test.sh` profile runner (fast/integration/full/nightly — marker/timeout/durations policy out of YAML); worst sleeps fixed via clock injection/fake-monotonic (timebox 2.14s→0.65s×3, ratelimit/cache/intelligence 1.0–2.1s→<10ms each); 9 direct `os.environ` mutations converted to `monkeypatch`; `malicious_workload` marker registered.
+- ci(workflow): concurrency cancellation added; PR/push/nightly split (7 PR jobs / 5 push jobs / 3 nightly jobs incl. coverage+junit+dependency-audit moved off the PR path); coverage no longer runs ×4 on every PR; every prior validation step preserved.
+
 ## 2026-08-13 - Production-grading round 2: audit-chain, WS fanout, timeouts, input-strictness (7 fixes)
 - fix(sandbox/audit): the tamper-evident hash-chain now verifies ACROSS rotated `.N.jsonl.gz` archives (not just the live log), and reseeds `prev_hash` from the newest archive on restart after rotation — previously a severed cross-boundary link reported `chain_intact=True` (silent loss of tamper-evidence). Archive tampering is now detected.
 - fix(serve/websocket): dashboard run-events are no longer silently dropped. The event handler now bridges foreign-thread publishers (orchestrator `to_thread` / scheduler daemon) onto the event loop via a main-loop captured at startup (`call_soon_threadsafe`) instead of dropping on `RuntimeError`.

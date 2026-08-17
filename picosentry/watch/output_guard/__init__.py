@@ -77,6 +77,9 @@ class OutputGuard:
 
         normalized = self._normalizer.normalize(output)
         matches = self._engine.evaluate(normalized)
+        marker_neutral = self._normalizer.neutralize_comment_markers(output)
+        if marker_neutral != output:
+            matches.extend(self._engine.evaluate(self._normalizer.normalize(marker_neutral)))
         if matches:
             for rule, _match in matches:
                 violations.append(rule.id)
@@ -128,8 +131,8 @@ class OutputGuard:
             (schema_type == "object" and not isinstance(data, dict))
             or (schema_type == "array" and not isinstance(data, list))
             or (schema_type == "string" and not isinstance(data, str))
-            or (schema_type == "number" and not isinstance(data, (int, float)))
-            or (schema_type == "integer" and not isinstance(data, int))
+            or (schema_type == "number" and (isinstance(data, bool) or not isinstance(data, (int, float))))
+            or (schema_type == "integer" and (isinstance(data, bool) or not isinstance(data, int)))
             or (schema_type == "boolean" and not isinstance(data, bool))
             or (schema_type == "null" and data is not None)
         ):

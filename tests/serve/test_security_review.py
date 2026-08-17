@@ -13,7 +13,6 @@ These tests document and enforce the security contract of the serve API:
 - /scans rejects paths outside the configured workspace root.
 """
 
-import os
 import uuid
 
 import pytest
@@ -26,15 +25,15 @@ from picosentry.serve.config.settings import Settings
 def _reload_settings(monkeypatch, **env_vars):
     """Set env vars and return a fresh Settings instance.
 
-    Settings reads env at import/field-default time, so we mutate os.environ
-    and construct a new Settings object rather than relying on the module
-    singleton in tests that need different configs.
+    Settings reads env at import/field-default time, so we set env vars via
+    monkeypatch and construct a new Settings object rather than relying on the
+    module singleton in tests that need different configs.
     """
     for key, value in env_vars.items():
         if value is None:
-            os.environ.pop(key, None)
+            monkeypatch.delenv(key, raising=False)
         else:
-            os.environ[key] = value
+            monkeypatch.setenv(key, value)
     return Settings()
 
 
@@ -216,7 +215,7 @@ class TestProductionDocsRestriction:
 
 class TestScansWorkspace:
     def test_scan_outside_workspace_rejected(self, client, auth_token, monkeypatch, tmp_path):
-        os.environ["PICOSHOGUN_SCANS_WORKSPACE_ROOT"] = str(tmp_path)
+        monkeypatch.setenv("PICOSHOGUN_SCANS_WORKSPACE_ROOT", str(tmp_path))
         r = client.post(
             "/api/v1/scans",
             json={"target": "/etc/passwd", "rules": []},
@@ -240,7 +239,7 @@ class TestScansWorkspace:
         target = tmp_path / "safe-project"
         target.mkdir()
         (target / "pyproject.toml").write_text("[project]\nname='demo'\n")
-        os.environ["PICOSHOGUN_SCANS_WORKSPACE_ROOT"] = str(tmp_path)
+        monkeypatch.setenv("PICOSHOGUN_SCANS_WORKSPACE_ROOT", str(tmp_path))
         r = client.post(
             "/api/v1/scans",
             json={"target": str(target), "rules": []},

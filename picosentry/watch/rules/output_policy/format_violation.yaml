@@ -10,7 +10,7 @@
 - id: out_fmt_markdown_injection
   category: format_violation
   weight: 0.6
-  pattern: "(?:\\[.*\\]\\(javascript:|\\[\\[.*\\]\\]|<iframe|<object|<embed)"
+  pattern: "(?:\\[.{0,256}\\]\\(javascript:|\\[\\[.{0,128}\\]\\]|<iframe|<object|<embed)"
   description: "Markdown injection — XSS via links or iframes"
   normalization: [unicode, whitespace]
 

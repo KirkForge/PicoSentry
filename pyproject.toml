@@ -169,6 +169,7 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "network: marks tests that require network access",
     "benchmark_realworld: marks real-world malware benchmark (deselect with '-m \"not benchmark_realworld\"')",
+    "malicious_workload: marks sandbox malicious-workload tests (need PICODOME_SANDBOX_TESTS=1; kept out of PR paths)",
 ]
 filterwarnings = [
     # Starlette/httpx deprecation is a third-party decision (Pydantic's

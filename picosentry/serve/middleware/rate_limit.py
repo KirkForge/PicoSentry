@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import threading
 import time
@@ -235,7 +236,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
                 rate_limited, retry_after = self._record_and_check(
                     "org",
-                    org_api_key,
+                    hashlib.sha256(org_api_key.encode()).hexdigest(),
                     self.max_requests_per_org,
                     now,
                     self.org_requests,

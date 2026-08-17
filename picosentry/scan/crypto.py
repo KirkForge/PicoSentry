@@ -164,8 +164,9 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
 
     try:
         cmd = ["minisign", "-S", "-s", secret_key, "-m", str(tmp_path)]
+        env = dict(os.environ)
         if password:
-            cmd.extend(["-p", password])
+            env["MINISIGN_PASSWORD"] = password
 
         result = subprocess.run(
             cmd,
@@ -173,6 +174,7 @@ def sign_content_minisign(content: bytes, secret_key: str, password: str = "") -
             text=True,
             timeout=30,
             check=False,
+            env=env,
         )
 
         if result.returncode != 0:
@@ -252,8 +254,14 @@ def verify_content_minisign(content: bytes, signature_b64: str, public_key: str)
         tf.write(content)
         content_path = tf.name
 
+    try:
+        sig_bytes = base64.b64decode(signature_b64)
+    except (ValueError, TypeError):
+        logger.warning("minisign signature is not valid base64 — treating as failed verification")
+        return False
+
     with tempfile.NamedTemporaryFile(delete=False, suffix=".minisig") as sf:
-        sf.write(base64.b64decode(signature_b64))
+        sf.write(sig_bytes)
         sig_path = sf.name
 
     try:

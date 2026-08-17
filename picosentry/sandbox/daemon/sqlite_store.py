@@ -161,6 +161,9 @@ class SQLiteScanJobStore:
                 if key == "command" and isinstance(value, list):
                     set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
                     values.append(json.dumps(value))
+                elif isinstance(value, (dict, list)):
+                    set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
+                    values.append(json.dumps(value, default=str))
                 elif value is None:
                     set_clauses.append(f"{COLUMN_SANITIZER[key]} = ?")
                     values.append("")
@@ -250,6 +253,10 @@ class SQLiteScanJobStore:
         if "command" in d and isinstance(d["command"], str):
             with contextlib.suppress(json.JSONDecodeError):
                 d["command"] = json.loads(d["command"])
+
+        if "result" in d and isinstance(d["result"], str):
+            with contextlib.suppress(json.JSONDecodeError):
+                d["result"] = json.loads(d["result"])
 
         for field in ("completed_at", "result", "error"):
             if d.get(field) == "":

@@ -8,12 +8,29 @@ on:
       - 'docs/**'
   pull_request:
     branches: [main]
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+# A new push to the same PR/ref supersedes any in-flight run — cancel it
+# instead of burning runners on obsolete commits.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 env:
   PYTHON_VERSION: '3.12'
 
+# Execution model: PR = fast feedback (lint, types, fast profile, smoke),
+# push to main/dev = post-merge breadth (version matrix, live services,
+# docker, reproducible build), nightly = exhaustive (everything + coverage
+# + audit). Test-selection policy lives in scripts/test.sh, not here.
+
 jobs:
+  # ── PR validation ──────────────────────────────────────────────────────
+
   lint:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -22,6 +39,7 @@ jobs:
       - run: uv run --extra dev ruff format --check picosentry/ tests/ scripts/
 
   type-check:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,11 +47,12 @@ jobs:
       - run: uv run --extra dev mypy picosentry/
 
   test-scan:
+    if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: uv run --extra scan --extra dev pytest tests/scan/ -v --tb=short
+      - run: bash scripts/test.sh fast tests/scan/ -v --tb=short
       - name: Regenerate REPORT.json
         continue-on-error: true
         run: uv run --extra scan picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
@@ -45,7 +64,76 @@ jobs:
       - name: Verify scan determinism
         run: uv run --extra scan picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
 
+  test-sandbox:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      # fast profile excludes malicious_workload (needs PICODOME_SANDBOX_TESTS=1, nightly-only)
+      - run: bash scripts/test.sh fast tests/sandbox/ -v --tb=short
+
+  test-fast:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: bash scripts/test.sh fast
+
+  cli-verification:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - run: uv run --extra all picosentry --version
+      - run: uv run --extra all picosentry health
+      - run: uv run --extra all picosentry scan --help
+      - run: uv run --extra all picosentry sandbox --help
+      - run: uv run --extra all picosentry watch --help
+      - run: uv run --extra all picosentry serve --help
+
+  determinism-check:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Verify shared enums are consistent
+        run: |
+          uv run python -c "
+          from picosentry._core.models import Severity, Verdict
+          from picosentry.scan.models import Severity as ScanSev
+          from picosentry.sandbox.models import Severity as SandboxSev, Verdict as SandboxVerdict
+          for s in Severity:
+              assert ScanSev(s.value).value == s.value, f'Scan Severity mismatch: {s}'
+              assert SandboxSev(s.value).value == s.value, f'Sandbox Severity mismatch: {s}'
+          print('All Severity enum values match across components')
+          assert Verdict.ALLOW.value == 'ALLOW'
+          assert SandboxVerdict.ALLOW.value == 'ALLOW'
+          print('All Verdict enum values match')
+          "
+
+  # ── post-merge (push to main/dev) ─────────────────────────────────────
+
+  test-matrix:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12', '3.13']
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: bash scripts/test.sh integration
+
   postgres-live-test:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -111,70 +199,8 @@ jobs:
           print("Postgres live integration test: PASSED")
           PY
 
-  test-sandbox:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-      - run: uv run --extra dev pytest tests/sandbox/ -v --tb=short -m "not malicious_workload"
-      - name: Run sandbox malicious workload tests
-        if: ${{ github.ref == 'refs/heads/main' }}
-        run: uv run --extra dev pytest tests/sandbox/test_malicious_workloads.py -v --tb=short
-        env:
-          PICODOME_SANDBOX_TESTS: "1"
-
-  test-matrix:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ matrix.python-version }}
-      - name: Run full test suite with coverage
-        run: uv run --extra all --extra dev pytest tests/ -m "not slow" --cov=picosentry --cov-report=xml --cov-report=term-missing
-      - name: Upload coverage
-        if: matrix.python-version == '3.12'
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
-
-  cli-verification:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-      - run: uv run --extra all picosentry --version
-      - run: uv run --extra all picosentry health
-      - run: uv run --extra all picosentry scan --help
-      - run: uv run --extra all picosentry sandbox --help
-      - run: uv run --extra all picosentry watch --help
-      - run: uv run --extra all picosentry serve --help
-
-  determinism-check:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-      - name: Verify shared enums are consistent
-        run: |
-          uv run python -c "
-          from picosentry._core.models import Severity, Verdict
-          from picosentry.scan.models import Severity as ScanSev
-          from picosentry.sandbox.models import Severity as SandboxSev, Verdict as SandboxVerdict
-          for s in Severity:
-              assert ScanSev(s.value).value == s.value, f'Scan Severity mismatch: {s}'
-              assert SandboxSev(s.value).value == s.value, f'Sandbox Severity mismatch: {s}'
-          print('All Severity enum values match across components')
-          assert Verdict.ALLOW.value == 'ALLOW'
-          assert SandboxVerdict.ALLOW.value == 'ALLOW'
-          print('All Verdict enum values match')
-          "
-
   reproducible-build:
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -196,8 +222,9 @@ jobs:
           GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
   docker-build:
+    if: github.event_name == 'push'
+    needs: [test-matrix]
     runs-on: ubuntu-latest
-    needs: [test-matrix, cli-verification]
     steps:
       - uses: actions/checkout@v7
       - name: Build Docker image
@@ -223,8 +250,9 @@ jobs:
           fi
 
   docker-build-arm64:
+    if: github.event_name == 'push'
+    needs: [test-matrix]
     runs-on: ubuntu-latest
-    needs: [test-matrix, cli-verification]
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU for arm64 emulation
@@ -240,7 +268,42 @@ jobs:
         run: |
           docker run --platform linux/arm64 --rm picosentry:test-arm64 sandbox --help > /dev/null && echo "PASS: sandbox --help on arm64" || echo "NOTE: sandbox --help may fail under QEMU emulation (seccomp arch mismatch) — this is expected; the release buildx bake builds natively"
 
+  # ── nightly (schedule / manual) ────────────────────────────────────────
+
+  nightly-tests:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      # nightly profile: no marker filter — slow/network/benchmark_realworld and
+      # malicious_workload (script sets PICODOME_SANDBOX_TESTS=1) all run here.
+      - run: bash scripts/test.sh nightly
+      - name: Upload JUnit report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: nightly-junit
+          path: .pytest-artifacts/junit.xml
+
+  nightly-coverage:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - name: Run test suite with coverage
+        run: bash scripts/test.sh full --cov=picosentry --cov-report=xml --cov-report=term-missing
+      - name: Upload coverage
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+
   dependency-audit:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

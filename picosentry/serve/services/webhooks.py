@@ -111,17 +111,24 @@ class WebhookManager:
         with self._lock:
             self.webhooks.clear()
             for row in rows:
+                url = row["url"]
+                is_safe, reason = _is_safe_webhook_url(url, dns_resolver=self.dns_resolver)
+                if not is_safe:
+                    logger.warning("Skipping webhook %s at load: %s", row["name"], reason)
+                    continue
+                resolve = self.dns_resolver or _resolve_hostname
+                pinned_ips = resolve(urlparse(url).hostname or "") or []
                 webhook = Webhook(
                     id=row["id"],
                     name=row["name"],
-                    url=row["url"],
+                    url=url,
                     secret=row["secret"],
                     events=json.loads(row["events"]),
                     active=row["active"],
                     retries=row["retries"],
                     created_at=row["created_at"],
                     org_id=row.get("org_id"),
-                    pinned_ips=None,
+                    pinned_ips=pinned_ips,
                 )
                 self.webhooks[row["name"]] = webhook
 

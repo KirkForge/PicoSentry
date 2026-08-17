@@ -76,7 +76,12 @@ class RedisScanJobStore:
             return None
 
         try:
-            self._client = _redis.from_url(self._redis_url, decode_responses=True)
+            self._client = _redis.from_url(
+                self._redis_url,
+                decode_responses=True,
+                socket_connect_timeout=2.0,
+                socket_timeout=2.0,
+            )
 
             self._client.ping()
             self._available = True
@@ -165,6 +170,8 @@ class RedisScanJobStore:
                 continue
             if k == "command" and isinstance(v, list):
                 updates[k] = json.dumps(v)
+            elif isinstance(v, (dict, list)):
+                updates[k] = json.dumps(v, default=str)
             elif v is None:
                 updates[k] = ""
             else:
@@ -200,6 +207,10 @@ class RedisScanJobStore:
         if "command" in job and isinstance(job["command"], str):
             with contextlib.suppress(json.JSONDecodeError):
                 job["command"] = json.loads(job["command"])
+
+        if "result" in job and isinstance(job["result"], str):
+            with contextlib.suppress(json.JSONDecodeError):
+                job["result"] = json.loads(job["result"])
 
         for field in ("completed_at", "result", "error"):
             if job.get(field) == "":

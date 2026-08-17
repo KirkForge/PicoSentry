@@ -253,6 +253,8 @@ class AuthService:
             if not mfa_verified:
                 has_webauthn = bool(self.webauthn_credentials_for_user(user["id"]))
                 if totp_secret and not (totp_code and self.verify_totp(totp_secret, totp_code)):
+                    if totp_code:
+                        self._record_failed_login(conn, user, now)
                     methods = ["totp"] + (["webauthn"] if has_webauthn else [])
                     logger.info("User %s requires MFA", normalized)
                     return {"status": "mfa_required", "mfa_methods": methods}
@@ -509,10 +511,11 @@ class AuthService:
             logger.warning("WebAuthn assertion verify: missing rawId")
             return False
         stored_cred = self._db.execute_one(
-            "SELECT credential_id, public_key, sign_count FROM webauthn_credentials WHERE user_id = ?",
-            (user_id,),
+            "SELECT credential_id, public_key, sign_count FROM webauthn_credentials"
+            " WHERE user_id = ? AND credential_id = ?",
+            (user_id, credential_id),
         )
-        if not stored_cred or stored_cred["credential_id"] != credential_id:
+        if not stored_cred:
             logger.warning("WebAuthn assertion verify: unknown credential for user %s", user_id)
             return False
         try:

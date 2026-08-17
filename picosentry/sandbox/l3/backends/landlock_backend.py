@@ -1,19 +1,21 @@
 from __future__ import annotations
 
+import contextlib
 import ctypes
 import datetime
 import logging
 import os
 import platform
+import signal
 import time
 from typing import TYPE_CHECKING
 
+from picosentry.sandbox.l3.backends._rlimits import set_resource_limits
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     SandboxResult,
     Verdict,
 )
-import contextlib
 
 if TYPE_CHECKING:
     from picosentry.sandbox.l3.models import Policy
@@ -266,6 +268,7 @@ class LandlockBackend(SandboxBackend):
             pid = os.fork()
             if pid == 0:
                 try:
+                    set_resource_limits()
                     _landlock_restrict_self(libc, ruleset_fd)
                 except Exception:
                     os._exit(127)
@@ -278,8 +281,20 @@ class LandlockBackend(SandboxBackend):
                     os._exit(126)
             else:
                 os.close(ruleset_fd)
-                _, status = os.waitpid(pid, 0)
-                exit_code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -os.WTERMSIG(status)
+                deadline = time.monotonic() + (timeout or 30.0)
+                exit_code: int | None = None
+                while exit_code is None:
+                    wpid, status = os.waitpid(pid, os.WNOHANG)
+                    if wpid == pid:
+                        exit_code = os.WEXITSTATUS(status) if os.WIFEXITED(status) else -os.WTERMSIG(status)
+                        break
+                    if time.monotonic() >= deadline:
+                        with contextlib.suppress(OSError):
+                            os.kill(pid, signal.SIGKILL)
+                            _, status = os.waitpid(pid, 0)
+                        exit_code = -9
+                        break
+                    time.sleep(0.05)
         except Exception:
             with contextlib.suppress(OSError):
                 os.close(ruleset_fd)

@@ -105,10 +105,14 @@ class JobScheduler:
 
         params_json = json.dumps(params or {})
 
-        existing = db.execute_one("SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+        existing = db.execute_one("SELECT id, org_id FROM scheduled_jobs WHERE name = ?", (name,))
         if existing:
+            if existing.get("org_id") != org_id:
+                raise ValueError(f"Job name already in use by another organization: {name!r}")
             job_id = existing["id"]
         else:
+            if self._get_next_run(cron) is None:
+                raise ValueError(f"Invalid cron expression: {cron!r}")
             job_id = db.execute_insert(
                 """
                 INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)

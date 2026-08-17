@@ -124,16 +124,11 @@ class TestSQLiteStoreFromEnv:
         store = SQLiteScanJobStore.from_env()
         assert store.db_path == Path.home() / ".picodome" / "jobs.db"
 
-    def test_from_env_custom_path(self, tmp_path):
-        import os
-
+    def test_from_env_custom_path(self, tmp_path, monkeypatch):
         db_path = tmp_path / "env_test.db"
-        os.environ["PICODOME_SQLITE_PATH"] = str(db_path)
-        try:
-            store = SQLiteScanJobStore.from_env()
-            assert store.db_path == db_path
-        finally:
-            del os.environ["PICODOME_SQLITE_PATH"]
+        monkeypatch.setenv("PICODOME_SQLITE_PATH", str(db_path))
+        store = SQLiteScanJobStore.from_env()
+        assert store.db_path == db_path
 
 
 class TestSQLiteStoreClose:

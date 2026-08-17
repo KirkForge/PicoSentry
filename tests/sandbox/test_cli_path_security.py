@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -87,12 +86,11 @@ class TestResolveExternalPath:
         )
         assert result == policy_file.resolve()
 
-    def test_accepts_path_via_env_workspace_root(self, tmp_path: Path) -> None:
+    def test_accepts_path_via_env_workspace_root(self, tmp_path: Path, monkeypatch) -> None:
         from picosentry.sandbox.cli_commands._common import _workspace_root
 
-        os.environ["PICODOME_WORKSPACE_ROOT"] = str(tmp_path)
+        monkeypatch.setenv("PICODOME_WORKSPACE_ROOT", str(tmp_path))
         assert _workspace_root() == tmp_path.resolve()
-        del os.environ["PICODOME_WORKSPACE_ROOT"]
 
 
 class TestSandboxCmdPathContainment:

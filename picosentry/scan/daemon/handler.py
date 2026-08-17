@@ -14,6 +14,8 @@ from picosentry.scan.auth import AuthConfig, AuthResult, RateLimiter, check_auth
 _request_counter = 0
 _request_counter_lock = threading.Lock()
 
+_MAX_SCAN_BODY_BYTES = 10 * 1024 * 1024
+
 
 def _logger():
     from picosentry.scan.daemon import logger
@@ -37,7 +39,8 @@ class HealthHandler(BaseHTTPRequestHandler):
 
     def _request_id(self) -> str:
         global _request_counter
-        rid = self.headers.get("X-Request-Id")
+        rid = self.headers.get("X-Request-Id", "")
+        rid = rid.replace("\r", "").replace("\n", "")
         if rid:
             return rid
         with _request_counter_lock:
@@ -228,6 +231,11 @@ class HealthHandler(BaseHTTPRequestHandler):
 
         try:
             content_length = int(self.headers.get("Content-Length", 0))
+            if content_length > _MAX_SCAN_BODY_BYTES:
+                self._send_json(
+                    413, {"error": "Request body too large", "request_id": request_id}, request_id, start_time
+                )
+                return
             body = self.rfile.read(content_length) if content_length > 0 else b"{}"
             data = _json.loads(body) if body else {}
         except (ValueError, UnicodeDecodeError):

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import json
-import time
 from unittest.mock import MagicMock, patch
 
 from picosentry.scan.intelligence import IntelligenceMode, OSVClient
@@ -107,11 +106,14 @@ class TestCacheHitMiss:
         assert len(result) == 1
         assert result[0]["id"] == "GHSA-xxxx-xxxx"
 
-    def test_cache_expire(self, tmp_path):
+    def test_cache_expire(self, tmp_path, monkeypatch):
+        now = [1000.0]
+        monkeypatch.setattr("picosentry.scan.intelligence.time.time", lambda: now[-1])
+
         client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=0)
         key = client._cache_key("npm", "lodash")
         client._write_cache(key, [{"id": "test"}])
-        time.sleep(1)
+        now.append(1001.0)
         assert client._read_cache(key) is None
 
     def test_cache_corrupt_json(self, tmp_path):

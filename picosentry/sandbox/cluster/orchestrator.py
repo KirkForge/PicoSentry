@@ -452,8 +452,14 @@ class ClusterManager:
             ctx.check_hostname = False
             kwargs["context"] = ctx
 
+        _MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024
+
         with urlopen(req, **kwargs) as resp:
-            snapshot = json.loads(resp.read())
+            raw = resp.read(_MAX_SNAPSHOT_BYTES + 1)
+        if len(raw) > _MAX_SNAPSHOT_BYTES:
+            logger.warning("Peer %s snapshot exceeds %d bytes, discarding", peer.node_id, _MAX_SNAPSHOT_BYTES)
+            return
+        snapshot = json.loads(raw)
 
         if not isinstance(snapshot, dict):
             logger.debug("Peer %s returned invalid snapshot", peer.node_id)

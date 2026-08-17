@@ -220,14 +220,15 @@ class TestThreeNodeCluster:
             captured["url"] = req.full_url
 
             class MockResponse:
-                def read(self):
-                    return json.dumps(
+                def read(self, n=-1):
+                    body = json.dumps(
                         {
                             "nodes": [],
                             "scans": [],
                             "cluster_token": TOKEN,
                         }
                     ).encode()
+                    return body[:n] if n is not None and n >= 0 else body
 
                 def __enter__(self):
                     return self
@@ -263,14 +264,15 @@ class TestThreeNodeCluster:
             captured["context"] = context
 
             class MockResponse:
-                def read(self):
-                    return json.dumps(
+                def read(self, n=-1):
+                    body = json.dumps(
                         {
                             "nodes": [],
                             "scans": [],
                             "cluster_token": TOKEN,
                         }
                     ).encode()
+                    return body[:n] if n is not None and n >= 0 else body
 
                 def __enter__(self):
                     return self

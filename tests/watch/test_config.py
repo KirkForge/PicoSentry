@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import os
 import tempfile
 from pathlib import Path
 
@@ -21,17 +20,13 @@ class TestConfig:
         assert config.rate_limit == 100
         assert config.rate_limit_window == 60
 
-    def test_from_env(self) -> None:
+    def test_from_env(self, monkeypatch) -> None:
         """Config loads from environment variables."""
-        os.environ["PICOWATCH_THRESHOLD_BLOCK"] = "0.8"
-        os.environ["PICOWATCH_PORT"] = "9999"
-        try:
-            config = PicoWatchConfig.from_env()
-            assert config.threshold_block == 0.8
-            assert config.port == 9999
-        finally:
-            del os.environ["PICOWATCH_THRESHOLD_BLOCK"]
-            del os.environ["PICOWATCH_PORT"]
+        monkeypatch.setenv("PICOWATCH_THRESHOLD_BLOCK", "0.8")
+        monkeypatch.setenv("PICOWATCH_PORT", "9999")
+        config = PicoWatchConfig.from_env()
+        assert config.threshold_block == 0.8
+        assert config.port == 9999
 
 
 class TestTomlConfig:
@@ -57,7 +52,7 @@ rate_limit_window = 120
         assert config.rate_limit_window == 120
         Path(f.name).unlink()
 
-    def test_env_overrides_toml(self) -> None:
+    def test_env_overrides_toml(self, monkeypatch) -> None:
         """Environment variables override TOML file values."""
         toml_content = """
 [picowatch]
@@ -68,16 +63,13 @@ port = 7777
             f.write(toml_content)
             f.flush()
 
-            os.environ["PICOWATCH_THRESHOLD_BLOCK"] = "0.5"
-            try:
-                config = PicoWatchConfig.from_env(config_path=Path(f.name))
-                # Env overrides file
-                assert config.threshold_block == 0.5
-                # File value used when no env override
-                assert config.port == 7777
-            finally:
-                del os.environ["PICOWATCH_THRESHOLD_BLOCK"]
-                Path(f.name).unlink()
+            monkeypatch.setenv("PICOWATCH_THRESHOLD_BLOCK", "0.5")
+            config = PicoWatchConfig.from_env(config_path=Path(f.name))
+            # Env overrides file
+            assert config.threshold_block == 0.5
+            # File value used when no env override
+            assert config.port == 7777
+            Path(f.name).unlink()
 
     def test_toml_with_otel_endpoint(self) -> None:
         """TOML config can set OTel endpoint."""

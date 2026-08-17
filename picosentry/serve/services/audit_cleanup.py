@@ -5,6 +5,8 @@ from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.AuditRetention")
 
+SQLITE_TS = "%Y-%m-%d %H:%M:%S"
+
 
 DEFAULT_RETENTION: dict[str, int] = {
     "critical": 365,  # 1 year for critical events
@@ -24,11 +26,11 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False, o
         if dry_run:
             row = db.execute_one(
                 f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?{org_clause}",
-                (cutoff.isoformat(), *org_params),
+                (cutoff.strftime(SQLITE_TS), *org_params),
             )
             return {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
 
-        db.execute(f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.isoformat(), *org_params))
+        db.execute(f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.strftime(SQLITE_TS), *org_params))
         row = db.execute_one("SELECT changes() as c")
         total = row["c"] if row else 0
         logger.info("Purged %d audit log entries older than %d days", total, retention_days)
@@ -40,11 +42,13 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False, o
         if dry_run:
             row = db.execute_one(
                 f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?{org_clause}",
-                (cutoff.isoformat(), *org_params),
+                (cutoff.strftime(SQLITE_TS), *org_params),
             )
             results[severity] = {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
         else:
-            db.execute(f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.isoformat(), *org_params))
+            db.execute(
+                f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.strftime(SQLITE_TS), *org_params)
+            )
             row = db.execute_one("SELECT changes() as c")
             total = row["c"] if row else 0
             results[severity] = {"deleted": total, "cutoff": cutoff.isoformat()}

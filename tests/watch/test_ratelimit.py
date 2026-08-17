@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import time
-
 from picosentry.watch.ratelimit import RateLimiter
 
 
@@ -70,33 +68,47 @@ class TestRateLimiter:
         assert limiter.max_requests == 100
         assert limiter.window_seconds == 60
 
-    def test_window_expiry(self) -> None:
+    def test_window_expiry(self, monkeypatch) -> None:
         """Timestamps outside the window are pruned and new requests allowed."""
+        timestamps = [0.0]
+
+        def fake_monotonic() -> float:
+            return timestamps[-1]
+
+        monkeypatch.setattr("picosentry.watch.ratelimit.time.monotonic", fake_monotonic)
+
         limiter = RateLimiter(max_requests=2, window_seconds=1)
         # Fill up the limit
         limiter.is_allowed("3.3.3.3")
         limiter.is_allowed("3.3.3.3")
         assert limiter.is_allowed("3.3.3.3") is False
 
-        # Wait for window to expire
-        time.sleep(1.1)
+        # Advance the clock past the window
+        timestamps.append(2.0)
         # Should be allowed again after window expires
         assert limiter.is_allowed("3.3.3.3") is True
 
-    def test_sliding_window_partial_expiry(self) -> None:
+    def test_sliding_window_partial_expiry(self, monkeypatch) -> None:
         """Old timestamps are pruned but recent ones remain."""
+        timestamps = [0.0]
+
+        def fake_monotonic() -> float:
+            return timestamps[-1]
+
+        monkeypatch.setattr("picosentry.watch.ratelimit.time.monotonic", fake_monotonic)
+
         limiter = RateLimiter(max_requests=3, window_seconds=2)
         limiter.is_allowed("4.4.4.4")
-        time.sleep(0.3)
+        timestamps.append(0.3)
         limiter.is_allowed("4.4.4.4")
-        time.sleep(0.3)
+        timestamps.append(0.6)
         limiter.is_allowed("4.4.4.4")
 
         # At the limit
         assert limiter.is_allowed("4.4.4.4") is False
 
-        # Wait for first timestamp to expire
-        time.sleep(1.5)
+        # Advance past the first timestamp's window
+        timestamps.append(2.1)
         # Old timestamps pruned, new requests allowed
         assert limiter.is_allowed("4.4.4.4") is True
 

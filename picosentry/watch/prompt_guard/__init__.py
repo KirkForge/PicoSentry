@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import time
 from pathlib import Path
 from typing import Any
@@ -91,11 +92,23 @@ class PromptGuard:
 
             matches = self._engine.evaluate(normalized)
 
+            marker_neutral = self._normalizer.neutralize_comment_markers(text)
+            if marker_neutral != text:
+                matches.extend(self._engine.evaluate(self._normalizer.normalize(marker_neutral)))
+
             decoded_texts = self._normalizer.decode_and_rescan(text)
             for decoded in decoded_texts:
                 decoded_normalized = self._normalizer.normalize(decoded)
                 decoded_matches = self._engine.evaluate(decoded_normalized)
                 matches.extend(decoded_matches)
+
+            deduped: list[tuple[Rule, re.Match[str]]] = []
+            seen_rule_ids: set[str] = set()
+            for rule, match in matches:
+                if rule.id not in seen_rule_ids:
+                    seen_rule_ids.add(rule.id)
+                    deduped.append((rule, match))
+            matches = deduped
 
             regex_score, matched_ids = self._scorer.score(matches)
 
@@ -109,6 +122,11 @@ class PromptGuard:
                     if decoded_score > classifier_score:
                         classifier_score = decoded_score
                         classifier_features = decoded_features
+                if marker_neutral != text:
+                    neutral_score, neutral_features = self._classifier.classify(marker_neutral, matched_categories)
+                    if neutral_score > classifier_score:
+                        classifier_score = neutral_score
+                        classifier_features = neutral_features
 
             final_score = self._classifier.blend(regex_score, classifier_score)
 

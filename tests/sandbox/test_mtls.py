@@ -1,7 +1,5 @@
 """Tests for mTLS module."""
 
-import os
-
 import pytest
 
 from picosentry.sandbox.mtls import MTLSConfig, create_ssl_context
@@ -20,15 +18,11 @@ class TestMTLSConfig:
         config = MTLSConfig(cert_path="/tmp/cert.pem", key_path="/tmp/key.pem")
         assert config.is_configured is True
 
-    def test_from_env(self):
-        os.environ["PICODOME_TLS_CERT"] = "/tmp/test.pem"
-        os.environ["PICODOME_TLS_KEY"] = "/tmp/test-key.pem"
-        try:
-            config = MTLSConfig.from_env()
-            assert config.cert_path == "/tmp/test.pem"
-        finally:
-            del os.environ["PICODOME_TLS_CERT"]
-            del os.environ["PICODOME_TLS_KEY"]
+    def test_from_env(self, monkeypatch):
+        monkeypatch.setenv("PICODOME_TLS_CERT", "/tmp/test.pem")
+        monkeypatch.setenv("PICODOME_TLS_KEY", "/tmp/test-key.pem")
+        config = MTLSConfig.from_env()
+        assert config.cert_path == "/tmp/test.pem"
 
     def test_to_dict(self):
         config = MTLSConfig(cert_path="c", key_path="k", ca_path="a")

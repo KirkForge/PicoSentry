@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 from pathlib import Path
@@ -93,7 +94,7 @@ async def create_scan(
         raise HTTPException(status_code=400, detail="Target path does not exist")
 
     engine = _create_engine()
-    result = engine.scan(target, rules=request.rules)
+    result = await asyncio.to_thread(engine.scan, target, rules=request.rules)
 
     return ScanResponse(
         scan_id=result.scan_id,
@@ -144,7 +145,8 @@ async def run_sandbox(
             pass
 
     try:
-        result = _sandbox_run(
+        result = await asyncio.to_thread(
+            _sandbox_run,
             request.command,
             timeout=request.timeout,
             env=env,

@@ -25,7 +25,7 @@
 - id: inj_override_new_instruction
   category: instruction_override
   weight: 0.8
-  pattern: "new\\s+(?:instruction|rule|directive)\\s*:\\s*(?!.*(?:joke|game|story))"
+  pattern: "new\\s+(?:instruction|rule|directive)\\s*:\\s*(?![\\s\\S]{0,256}(?:joke|game|story))"
   description: "New instruction injection — 'new instruction: ...'"
   normalization: [unicode, whitespace, comments]
 

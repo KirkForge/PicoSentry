@@ -12,14 +12,12 @@ class Normalizer:
     _ZWSP = "\u200b"  # zero-width space
     _ZERO_WIDTH = frozenset({_ZWNJ, _ZWJ, _ZWSP, "\ufeff", "\u200e", "\u200f"})
 
-    _HTML_COMMENT = re.compile(r"<!--.*?-->", re.DOTALL)
-
-    _C_COMMENT = re.compile(r"/\*.*?\*/", re.DOTALL)
-
     _LINE_COMMENT = re.compile(
         r"(?<![\'\"/:])//(?!/).*$",
         re.MULTILINE,
     )
+
+    _LINE_COMMENT_MARK = re.compile(r"(?<![\'\"/:])//(?!/)")
 
     # Short base64 strings can encode short injection directives (e.g. "ignore"
     # is 6 bytes / 8 base64 chars). Keep the threshold low enough to catch them
@@ -170,9 +168,34 @@ class Normalizer:
         return urllib.parse.unquote(text)
 
     def strip_comments(self, text: str) -> str:
-        result = self._HTML_COMMENT.sub("", text)
-        result = self._C_COMMENT.sub("", result)
+        result = self._strip_delimited(text, "<!--", "-->")
+        result = self._strip_delimited(result, "/*", "*/")
         return self._LINE_COMMENT.sub("", result)
+
+    @staticmethod
+    def _strip_delimited(text: str, start_mark: str, end_mark: str) -> str:
+        # ponytail: find-based loop instead of lazy regex — `re` retries the
+        # scan at every marker position (O(k*n) on marker floods); str.find
+        # consumes matched regions so total work stays linear.
+        parts: list[str] = []
+        i = 0
+        while True:
+            s = text.find(start_mark, i)
+            if s < 0:
+                parts.append(text[i:])
+                break
+            e = text.find(end_mark, s + len(start_mark))
+            if e < 0:
+                parts.append(text[i:])
+                break
+            parts.append(text[i:s])
+            i = e + len(end_mark)
+        return "".join(parts)
+
+    def neutralize_comment_markers(self, text: str) -> str:
+        result = text.replace("<!--", " ").replace("-->", " ")
+        result = result.replace("/*", " ").replace("*/", " ")
+        return self._LINE_COMMENT_MARK.sub("  ", result)
 
     def deobfuscate_markdown(self, text: str) -> str:
 

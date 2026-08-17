@@ -5,6 +5,7 @@ import multiprocessing
 import time
 from collections.abc import Sequence
 from pathlib import Path
+from queue import Empty
 from typing import Any, cast
 
 from picosentry.scan.config import PicoSentryConfig, load_config
@@ -234,7 +235,7 @@ def scan_workspace(
                     raise TimeoutError(f"scan of {rel} timed out after {timeout}s") from None
                 try:
                     _st, scan_result = _rq.get(timeout=1)
-                except (OSError, ValueError):
+                except (Empty, OSError, ValueError):
                     raise TimeoutError(f"scan of {rel} timed out after {timeout}s") from None
                 finally:
                     _rq.close()

@@ -89,6 +89,8 @@ def _detect_format(path: Path) -> str:
         data = json.loads(path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError):
         return _probe_content(path)
+    if not isinstance(data, dict):
+        return _probe_content(path)
     schema = data.get("$schema", "")
     if isinstance(schema, str) and "cyclonedx" in schema.lower():
         return "cyclonedx_json"
@@ -119,6 +121,8 @@ def _probe_content(path: Path) -> str:
     if stripped.startswith(("{", "[")):
         try:
             data = json.loads(raw)
+            if not isinstance(data, dict):
+                return "unknown"
             schema = data.get("$schema", "")
             if isinstance(schema, str) and "cyclonedx" in schema.lower():
                 return "cyclonedx_json"
@@ -148,6 +152,8 @@ def _parse_cyclonedx_json(data: dict) -> list[PackageRef]:
     components = data.get("components") or []
     refs: list[PackageRef] = []
     for comp in components:
+        if not isinstance(comp, dict):
+            continue
         name = comp.get("name", "")
         version = comp.get("version", "")
         purl = comp.get("purl", "")
@@ -189,12 +195,14 @@ def _parse_spdx_json(data: dict) -> list[PackageRef]:
     packages = data.get("packages") or []
     refs: list[PackageRef] = []
     for pkg in packages:
+        if not isinstance(pkg, dict):
+            continue
         name = pkg.get("name", "")
         version = pkg.get("versionInfo", "")
         purl = ""
         ecosystem = "unknown"
-        for ref in pkg.get("externalRefs", []):
-            if ref.get("referenceType") == "purl":
+        for ref in pkg.get("externalRefs", []) or []:
+            if isinstance(ref, dict) and ref.get("referenceType") == "purl":
                 purl = ref.get("referenceLocator", "")
                 ecosystem = _ecosystem_from_purl(purl)
                 break

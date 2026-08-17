@@ -22,6 +22,8 @@ logger = logging.getLogger("picodome.daemon")
 
 def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
     """Verify X-Cluster-Token header matches any accepted cluster token."""
+    from picosentry._core.security import constant_time_compare
+
     provided = self.headers.get("X-Cluster-Token", "")
     if not provided:
         self._send_error(403, "cluster token required")
@@ -34,12 +36,12 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
         if token_store.is_accepted(provided):
             return True
         # Legacy single-token peers send the primary token directly.
-        if provided == mgr.state.cluster_token:
+        if constant_time_compare(provided, mgr.state.cluster_token):
             return True
     else:
         # Backwards-compatible path for state objects without a token_store.
         expected = mgr.state.cluster_token
-        if not expected or provided == expected:
+        if expected and constant_time_compare(provided, expected):
             return True
 
     actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16]

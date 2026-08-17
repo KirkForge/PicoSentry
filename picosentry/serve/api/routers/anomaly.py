@@ -11,6 +11,8 @@ from picosentry.serve.services.rbac import Permission
 
 
 class AnomalyRuleUpdateRequest(BaseModel):
+    model_config = {"extra": "forbid"}
+
     enabled: bool | None = None
     threshold: float | None = Field(None, ge=0.0, le=1.0)
 

@@ -46,6 +46,7 @@ htmlcov/
 .coverage
 .coverage.*
 coverage.xml
+.pytest-artifacts/
 
 # Corpus data (large, regenerated on update)
 *.corpus.json

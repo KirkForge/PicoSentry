@@ -297,17 +297,12 @@ class TestBackendDetection:
         ):
             _detect_backend(allow_degraded=False)
 
-    def test_allow_degraded_env_var(self):
-        import os
-
+    def test_allow_degraded_env_var(self, monkeypatch):
         from picosentry.sandbox.l3.engine import _detect_backend
 
-        os.environ["PICODOME_ALLOW_DEGRADED"] = "1"
-        try:
-            backend = _detect_backend()
-            assert backend is not None
-        finally:
-            del os.environ["PICODOME_ALLOW_DEGRADED"]
+        monkeypatch.setenv("PICODOME_ALLOW_DEGRADED", "1")
+        backend = _detect_backend()
+        assert backend is not None
 
 
 class TestSandboxEngineExtra:

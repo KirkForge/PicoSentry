@@ -145,6 +145,7 @@ def fetch_advisories(
         try:
             sig_req = urllib.request.Request(sig_url, headers={"Accept": "application/json"})
             sig_resp, sig_body = safe_urlopen(sig_req, timeout=30)
+            sig_resp.close()
             sig_data = json.loads(sig_body)
             sig_bundle = SignatureBundle.from_dict(sig_data)
 
@@ -166,11 +167,7 @@ def fetch_advisories(
                 sig_bundle.signer_identity,
             )
         except (urllib.error.URLError, InsecureURLError, ResponseTooLargeError, json.JSONDecodeError) as e:
-            if "sig_resp" in locals() and sig_resp:
-                sig_resp.close()
             raise ValueError(f"Cryptographic verification requested but no signature found at {sig_url}: {e}") from e
-        else:
-            sig_resp.close()
 
     if data[:4] == b"PK\x03\x04":
         with tempfile.NamedTemporaryFile(suffix=".zip", delete=False) as tf:
@@ -202,13 +199,13 @@ def push_policy(url: str, policy_path: Path, api_key: str = "", timeout: int = 3
     logger.info("Pushing policy to %s", url)
 
     data = policy_path.read_bytes()
+    headers = {"Content-Type": "application/json"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
     req = urllib.request.Request(
         url,
         data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}" if api_key else "",
-        },
+        headers=headers,
         method="PUT",
     )
 

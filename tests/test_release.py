@@ -11,14 +11,21 @@ Every other place a version string is published must match it.
 
 from __future__ import annotations
 
+import gzip
+import importlib.util
+import io
 import re
+import tarfile
 from pathlib import Path
+from types import ModuleType
 
 import pytest
 
 import picosentry
 from picosentry import _core, sandbox, scan, watch
 from picosentry.serve.config import version as serve_version
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 
 
 def _read_pyproject_version() -> str:
@@ -81,3 +88,96 @@ def test_helm_chart_app_version_matches() -> None:
     match = re.search(r'^appVersion:\s*"([^"]+)"', text, re.MULTILINE)
     assert match, f"Helm chart is missing an appVersion field: {chart}"
     assert match.group(1) == expected, f"Helm chart appVersion = {match.group(1)!r}, expected {expected!r}"
+
+
+def test_experimental_notes_version_lockstep() -> None:
+    """The experimental honesty table must quote the current version.
+
+    ``picosentry/experimental.py`` names the Docker tag and the published
+    PyPI version in its notes; a missed bump ships a stale table (the exact
+    drift class WO4.0.0-009 was cut for).
+    """
+    src = (_REPO_ROOT / "picosentry" / "experimental.py").read_text()
+    assert f"picodome:v{picosentry.__version__}" in src, "experimental.py Docker tag is stale"
+    assert f"v{picosentry.__version__} published" in src, "experimental.py PyPI note is stale"
+
+
+def test_readme_version_lockstep() -> None:
+    """README install/pull pointers must quote the current version."""
+    text = (_REPO_ROOT / "README.md").read_text()
+    assert f"picodome:v{picosentry.__version__}" in text, "README Docker pull line is stale"
+
+
+def test_kubernetes_manifest_image_lockstep() -> None:
+    """deploy/kubernetes/deployment.yaml must pin the current image tag.
+
+    It shipped v2.0.16 while the package was at v2.1.1 — three releases
+    stale, unguarded (WO4.0.0-009 evidence #3).
+    """
+    manifest = (_REPO_ROOT / "deploy" / "kubernetes" / "deployment.yaml").read_text()
+    match = re.search(r"^\s*image:\s*(\S+)", manifest, re.MULTILINE)
+    assert match, "deployment.yaml has no image: line"
+    assert match.group(1) == f"kirkforge/picodome:v{picosentry.__version__}", (
+        f"deployment.yaml image = {match.group(1)!r}, expected 'kirkforge/picodome:v{picosentry.__version__}'"
+    )
+
+
+def _load_normalizer() -> ModuleType:
+    path = _REPO_ROOT / "scripts" / "normalize_sdist.py"
+    spec = importlib.util.spec_from_file_location("normalize_sdist", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _write_fixture_sdist(path: Path, mtime: int, uid: int, gzip_mtime: int) -> None:
+    """A stand-in sdist with the metadata setuptools fails to normalize."""
+    payload = b"Metadata-Version: 2.1\nName: picosentry\n"
+    raw = io.BytesIO()
+    with tarfile.TarFile(fileobj=raw, mode="w", format=tarfile.GNU_FORMAT) as tar:
+        directory = tarfile.TarInfo("picosentry-9.9.9/picosentry/")
+        directory.type = tarfile.DIRTYPE
+        directory.mtime, directory.uid, directory.uname = mtime, uid, "builder"
+        tar.addfile(directory)
+        info = tarfile.TarInfo("picosentry-9.9.9/PKG-INFO")
+        info.size = len(payload)
+        info.mtime, info.uid, info.uname = mtime, uid, "builder"
+        tar.addfile(info, io.BytesIO(payload))
+    with path.open("wb") as f, gzip.GzipFile(filename="", mode="wb", fileobj=f, mtime=gzip_mtime) as gz:
+        gz.write(raw.getvalue())
+
+
+def test_normalize_sdist_two_builds_hash_identically(tmp_path: Path) -> None:
+    """Two differently-stamped builds, normalized, must be byte-identical.
+
+    Stand-in for building the real sdist twice (setuptools leaves differing
+    dir-entry mtimes, uids and gzip headers) — the property release.yml and
+    the push-tier reproducible-build job rely on.
+    """
+    normalizer = _load_normalizer()
+    a, b = tmp_path / "a.tar.gz", tmp_path / "b.tar.gz"
+    _write_fixture_sdist(a, mtime=1_700_000_000, uid=1000, gzip_mtime=1_700_000_000)
+    _write_fixture_sdist(b, mtime=1_800_000_000, uid=0, gzip_mtime=1_800_000_000)
+    assert a.read_bytes() != b.read_bytes(), "fixture builds should differ pre-normalization"
+
+    norm_a, norm_b = tmp_path / "norm-a.tar.gz", tmp_path / "norm-b.tar.gz"
+    normalizer.normalize_sdist(a, norm_a, epoch=1_600_000_000)
+    normalizer.normalize_sdist(b, norm_b, epoch=1_600_000_000)
+    assert norm_a.read_bytes() == norm_b.read_bytes()
+
+
+def test_normalize_sdist_clamps_member_metadata(tmp_path: Path) -> None:
+    """Normalized members carry epoch mtimes and root ownership."""
+    normalizer = _load_normalizer()
+    src, dst = tmp_path / "a.tar.gz", tmp_path / "norm.tar.gz"
+    _write_fixture_sdist(src, mtime=1_700_000_000, uid=1000, gzip_mtime=1_700_000_000)
+    normalizer.normalize_sdist(src, dst, epoch=1_600_000_000)
+    with tarfile.open(dst) as tar:
+        members = tar.getmembers()
+        assert len(members) == 2
+        for member in members:
+            assert member.mtime == 1_600_000_000
+            assert (member.uid, member.gid, member.uname, member.gname) == (0, 0, "root", "root")
+        # file content survives the rewrite
+        assert tar.extractfile("picosentry-9.9.9/PKG-INFO").read().startswith(b"Metadata-Version")

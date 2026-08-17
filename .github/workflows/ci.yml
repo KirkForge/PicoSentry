@@ -50,7 +50,12 @@ jobs:
         run: |
           files=$(git diff --name-only "$BASE_SHA"...HEAD)
           echo "$files"
-          code_re='^(picosentry/|tests/|pyproject\.toml$|uv\.lock$|\.github/workflows/)'
+          # `code` = anything that can change runtime, test, or build
+          # behavior. WO4.0.0-017: scripts/, Dockerfile, docker-bake.hcl,
+          # action.yml and deploy/** used to fall through this filter — a PR
+          # breaking them skipped pytest/type-check/cli/determinism entirely.
+          # tests/test_ci_paths.py pins this classification.
+          code_re='^(picosentry/|tests/|scripts/|deploy/|pyproject\.toml$|uv\.lock$|Dockerfile[^/]*$|docker-bake\.hcl$|action\.yml$|\.github/workflows/)'
           scan_re='^(picosentry/(scan|firewall|_core)/|tests/scan/|scripts/render_benchmarks\.py$|pyproject\.toml$|uv\.lock$)'
           if grep -Eq "$code_re" <<<"$files"; then echo "code=true" >>"$GITHUB_OUTPUT"; else echo "code=false" >>"$GITHUB_OUTPUT"; fi
           if grep -Eq "$scan_re" <<<"$files"; then echo "scan=true" >>"$GITHUB_OUTPUT"; else echo "scan=false" >>"$GITHUB_OUTPUT"; fi
@@ -102,12 +107,10 @@ jobs:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - name: Regenerate REPORT.json
-        continue-on-error: true
         run: uv run --extra scan picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
       - name: Render per-rule table from REPORT.json
         run: uv run python scripts/render_benchmarks.py
       - name: Verify docs/BENCHMARKS.md is in sync
-        continue-on-error: true
         run: git diff --exit-code docs/BENCHMARKS.md
       - name: Verify scan determinism
         run: uv run --extra scan picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
@@ -140,6 +143,7 @@ jobs:
           from picosentry._core.models import Severity, Verdict
           from picosentry.scan.models import Severity as ScanSev
           from picosentry.sandbox.models import Severity as SandboxSev, Verdict as SandboxVerdict
+          from picosentry.watch.types import Verdict as WatchVerdict
           for s in Severity:
               assert ScanSev(s.value).value == s.value, f'Scan Severity mismatch: {s}'
               assert SandboxSev(s.value).value == s.value, f'Sandbox Severity mismatch: {s}'
@@ -147,6 +151,12 @@ jobs:
           assert Verdict.ALLOW.value == 'ALLOW'
           assert SandboxVerdict.ALLOW.value == 'ALLOW'
           print('All Verdict enum values match')
+          # watch's Verdict is a separate PASS/WARN/BLOCK vocabulary, not a
+          # re-export of _core's — pin it so member order/values can't drift
+          # silently (WO4.0.0-017 evidence #7).
+          assert [v.name for v in WatchVerdict] == ['PASS', 'WARN', 'BLOCK'], 'watch Verdict members drifted'
+          assert [v.value for v in WatchVerdict] == ['pass', 'warn', 'block'], 'watch Verdict values drifted'
+          print('watch Verdict vocabulary pinned')
           "
 
   # ── post-merge (push to main/dev) ─────────────────────────────────────
@@ -156,7 +166,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -178,7 +188,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        postgres-version: ['15', '16']
+        postgres-version: ['15', '16', '17', '18']
     services:
       postgres:
         image: postgres:${{ matrix.postgres-version }}-alpine
@@ -222,7 +232,12 @@ jobs:
               cur.execute(f"CREATE DATABASE {sys.argv[1]}")
           conn.close()
           ' "$db"
-            PICOSHOGUN_DATABASE_URL="${PICOSHOGUN_DATABASE_URL}/$db" \
+            # Build the per-file URL from parts. Appending "/$db" to
+            # $PICOSHOGUN_DATABASE_URL would yield .../picoshogun/$db —
+            # psycopg2 takes everything after the last slash as the dbname,
+            # so it received the invalid "picoshogun/pg_live_..." and every
+            # run failed (runs 32043226257, 31746260038).
+            PICOSHOGUN_DATABASE_URL="postgresql://picoshogun:picoshogun-test@127.0.0.1:15432/$db" \
               uv run --extra serve --extra dev --with psycopg2-binary \
               pytest "$f" -n0 -p no:cacheprovider -q --timeout=180
             echo "::endgroup::"
@@ -247,6 +262,26 @@ jobs:
           echo "build2: $H2"
           test "$H1" = "$H2" || { echo "FAIL: wheel not reproducible"; exit 1; }
           echo "PASS: wheel reproducible"
+        env:
+          GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
+
+      - name: Build sdist twice, normalize, and assert identical hashes
+        run: |
+          # setuptools ignores SOURCE_DATE_EPOCH for tar container metadata,
+          # so raw sdists differ across builds; scripts/normalize_sdist.py
+          # clamps what it misses (WO4.0.0-009). release.yml ships the
+          # normalized artifact, so this job must compare the same way.
+          export SOURCE_DATE_EPOCH="$(date -d "${GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP}" +%s)"
+          uv run --with build python -m build --sdist --outdir /tmp/sdist1
+          uv run --with build python -m build --sdist --outdir /tmp/sdist2
+          python3 scripts/normalize_sdist.py /tmp/sdist1/picosentry-*.tar.gz /tmp/sdist1-norm.tar.gz "$SOURCE_DATE_EPOCH"
+          python3 scripts/normalize_sdist.py /tmp/sdist2/picosentry-*.tar.gz /tmp/sdist2-norm.tar.gz "$SOURCE_DATE_EPOCH"
+          S1=$(sha256sum /tmp/sdist1-norm.tar.gz | awk '{print $1}')
+          S2=$(sha256sum /tmp/sdist2-norm.tar.gz | awk '{print $1}')
+          echo "sdist build1 (normalized): $S1"
+          echo "sdist build2 (normalized): $S2"
+          test "$S1" = "$S2" || { echo "FAIL: sdist not reproducible after normalization"; exit 1; }
+          echo "PASS: sdist reproducible (post-normalization)"
         env:
           GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
@@ -307,34 +342,24 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
       # nightly profile: no marker filter — slow/network/benchmark_realworld and
       # malicious_workload (script sets PICODOME_SANDBOX_TESTS=1) all run here.
-      - run: bash scripts/test.sh nightly
+      # Coverage runs in the same pass (WO4.0.0-017): a separate full suite
+      # just to attach --cov doubled the nightly wall time for one XML file.
+      - run: bash scripts/test.sh nightly --cov=picosentry --cov-report=xml --cov-report=term-missing
       - name: Slow-test budget report (warn mode; enforce once baseline is known)
         if: always()
         run: python3 scripts/check-test-budget.py .pytest-artifacts/junit.xml --warn --out .pytest-artifacts/slowest-tests.md
-      - name: Upload JUnit + slow-test report
+      - name: Upload JUnit + slow-test report + coverage
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: nightly-test-report
-          path: .pytest-artifacts/
-
-  nightly-coverage:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - name: Run test suite with coverage
-        run: bash scripts/test.sh full --cov=picosentry --cov-report=xml --cov-report=term-missing
-      - name: Upload coverage
-        uses: actions/upload-artifact@v4
-        with:
-          name: coverage-report
-          path: coverage.xml
+          path: |
+            .pytest-artifacts/
+            coverage.xml
 
   dependency-audit:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

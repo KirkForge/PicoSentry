@@ -47,6 +47,19 @@ jobs:
         env:
           GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
+      - name: Normalize sdist for reproducibility
+        run: |
+          # setuptools ignores SOURCE_DATE_EPOCH for tar container metadata
+          # (dir-entry mtimes/uids, gzip header) — clamp it so two builds of
+          # the same tag hash identically. The normalized artifact is what
+          # gets checksummed, signed, and uploaded (WO4.0.0-009).
+          VER="${GITHUB_REF_NAME#v}"
+          export SOURCE_DATE_EPOCH="$(date -d "${GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP}" +%s)"
+          python scripts/normalize_sdist.py "dist/picosentry-${VER}.tar.gz" "dist/picosentry-${VER}.tar.gz.norm" "$SOURCE_DATE_EPOCH"
+          mv "dist/picosentry-${VER}.tar.gz.norm" "dist/picosentry-${VER}.tar.gz"
+        env:
+          GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
+
       - name: Generate CycloneDX SBOM
         run: |
           pip install --no-cache-dir cyclonedx-bom
@@ -105,9 +118,14 @@ jobs:
       - name: Build and push multi-arch image
         id: docker-push
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          docker buildx bake --set '*.tags=docker.io/kirkforge/picodome:v'"${TAG}" --push
-          DIGEST=$(docker buildx imagetools inspect "docker.io/kirkforge/picodome:v${TAG}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
+          TAG="v${GITHUB_REF_NAME#v}"
+          # Override the bake TAG variable instead of `--set '*.tags='`:
+          # --set REPLACES the tag list, which dropped the :latest tag the
+          # README and docs point at (WO4.0.0-009 evidence #1). With the
+          # variable override, docker-bake.hcl's full list
+          # [:v<TAG>, :latest] is pushed.
+          TAG="${TAG}" docker buildx bake --push
+          DIGEST=$(docker buildx imagetools inspect "docker.io/kirkforge/picodome:${TAG}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
           echo "digest=${DIGEST}" >> "$GITHUB_OUTPUT"
 
       - name: Attest Docker image provenance
@@ -127,6 +145,10 @@ jobs:
 
       - name: Verify image on Docker Hub
         run: |
-          TAG="${GITHUB_REF_NAME#v}"
-          docker run --rm docker.io/kirkforge/picodome:v"${TAG}" --version
-          docker run --rm docker.io/kirkforge/picodome:v"${TAG}" health
+          TAG="v${GITHUB_REF_NAME#v}"
+          VERSION_LINE=$(docker run --rm "docker.io/kirkforge/picodome:${TAG}" --version | head -1)
+          echo "--version: ${VERSION_LINE}"
+          # A missed version bump must fail the release, not pass silently
+          # (WO4.0.0-009 evidence #5).
+          test "$VERSION_LINE" = "PicoSentry (unified) ${TAG}" || { echo "FAIL: --version '${VERSION_LINE}' != tag ${TAG}"; exit 1; }
+          docker run --rm "docker.io/kirkforge/picodome:${TAG}" health

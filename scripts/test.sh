@@ -19,6 +19,9 @@ case "$profile" in
     ;;
   integration)
     marker='not slow and not network and not benchmark_realworld'
+    # WO4.0.0-017: make the push matrix broader than fast — malicious_workload
+    # tests skip unless the sandbox env is set. ~21s of extra tests per leg.
+    export PICODOME_SANDBOX_TESTS=1
     extra=(--timeout=120 --durations=25 --durations-min=0.25)
     ;;
   full)

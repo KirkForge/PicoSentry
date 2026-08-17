@@ -61,6 +61,25 @@ SKIP_DIRS = {
 }
 
 
+# Any of these marks a directory as a scannable project (WO4.0.0-015) —
+# discovery was npm-only, so python/go/cargo monorepo members were invisible.
+PROJECT_MANIFEST_NAMES = frozenset(
+    {
+        "package.json",
+        "pyproject.toml",
+        "setup.py",
+        "requirements.txt",
+        "Pipfile",
+        "go.mod",
+        "Cargo.toml",
+        "pom.xml",
+        "build.gradle",
+        "Gemfile",
+        "packages.config",
+    }
+)
+
+
 def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
     if not root.is_dir():
         return []
@@ -79,7 +98,7 @@ def discover_projects(root: Path, max_depth: int = 8) -> list[Path]:
             continue
 
         names = {p.name for p in entries}
-        if "package.json" in names:
+        if names & PROJECT_MANIFEST_NAMES:
             projects.add(current.resolve())
 
         for entry in entries:

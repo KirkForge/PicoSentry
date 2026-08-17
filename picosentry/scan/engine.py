@@ -26,6 +26,12 @@ DEFAULT_RULE_TIMEOUT_SECONDS = 5.0
 
 logger = logging.getLogger("picosentry.engine")
 
+# Per-process corpus-version cache: key = corpus dir, value = (fingerprint, version).
+# The fingerprint is (relative path, mtime_ns, size) per json file — stat-only, so a
+# repeated ScanEngine() (CLI runs build it 3x, daemon per request) skips re-reading
+# and re-hashing every corpus file unless the tree actually changed.
+_CORPUS_VERSION_CACHE: dict[str, tuple[tuple[tuple[str, int, int], ...], str]] = {}
+
 
 class PolicyNotFoundError(Exception):
     """A configured policy file is missing or unreadable."""
@@ -92,6 +98,75 @@ def user_corpus_dir() -> Path:
 
 DetectorRule = Callable[..., list[Finding]]
 
+# Ecosystem manifest markers for recursive detection (WO4.0.0-015). Before this,
+# only root-level manifests selected rule families — a monorepo with
+# packages/*/package.json and no root manifest silently dropped every npm rule.
+_ECO_MANIFEST_MARKERS: dict[str, frozenset[str]] = {
+    "npm": frozenset({"package.json"}),
+    "pypi": frozenset({"pyproject.toml", "setup.py", "requirements.txt", "Pipfile"}),
+    "go": frozenset({"go.mod"}),
+    "cargo": frozenset({"Cargo.toml"}),
+    "maven": frozenset({"pom.xml", "build.gradle"}),
+    "rubygems": frozenset({"Gemfile", "Gemfile.lock"}),
+    "nuget": frozenset({"packages.config"}),
+}
+# A directory whose mere presence marks an ecosystem (never descended into).
+_ECO_DIR_MARKERS: dict[str, frozenset[str]] = {
+    "npm": frozenset({"node_modules"}),
+    # Rule layer (pypi_utils) scans both .venv/ and venv/ site-packages —
+    # detection used to check .venv only, so a plain `venv/` project ran zero
+    # pypi rules.
+    "pypi": frozenset({".venv", "venv", ".tox"}),
+}
+_DETECT_MAX_DEPTH = 5
+
+
+def _detect_ecosystems(target: Path) -> frozenset[str]:
+    """Bounded recursive ecosystem detection reusing workspace SKIP_DIRS.
+
+    Walks the tree (skipping vendored/VCS dirs) to depth ``_DETECT_MAX_DEPTH``
+    and returns the set of ecosystem names whose manifests (or marker
+    directories) appear anywhere, not just at the root.
+    """
+    from .workspace import SKIP_DIRS
+
+    remaining = {eco: set(markers) for eco, markers in _ECO_MANIFEST_MARKERS.items()}
+    found: set[str] = set()
+    stack: list[tuple[Path, int]] = [(target, 0)]
+
+    while stack and remaining:
+        current, depth = stack.pop()
+        if depth > _DETECT_MAX_DEPTH:
+            continue
+        try:
+            with os.scandir(current) as it:
+                entries = list(it)
+        except (OSError, NotADirectoryError):
+            continue
+        names = {e.name for e in entries}
+        for eco in list(remaining):
+            markers = remaining[eco]
+            hit = bool(markers & names) or bool(_ECO_DIR_MARKERS.get(eco, frozenset()) & names)
+            if eco == "nuget" and not hit:
+                hit = any(n.endswith(".csproj") for n in names)
+            if hit:
+                found.add(eco)
+                del remaining[eco]
+        if not remaining:
+            break
+        for entry in entries:
+            if entry.is_symlink():
+                continue
+            if not entry.is_dir(follow_symlinks=False):
+                continue
+            if entry.name in SKIP_DIRS or entry.name in _ECO_DIR_MARKERS.get("npm", frozenset()) | _ECO_DIR_MARKERS.get(
+                "pypi", frozenset()
+            ):
+                continue
+            stack.append((Path(entry.path), depth + 1))
+
+    return frozenset(found)
+
 
 class ScanEngine:
     def __init__(
@@ -133,14 +208,35 @@ class ScanEngine:
         return Path(__file__).parent / "corpus"
 
     def _compute_corpus_version(self) -> str:
-        h = hashlib.sha256()
-        corpus_files = sorted(self._corpus_dir.rglob("*.json"))
-        if not corpus_files:
-            return "0.1.0-empty"
-        for f in corpus_files:
+        try:
+            all_files = sorted(self._corpus_dir.rglob("*.json"))
+        except OSError:
+            all_files = []
+        corpus_files = []
+        for f in all_files:
             if f.is_symlink():
                 logger.warning("Skipping symlink in corpus: %s — symlink corpus files are a security risk", f)
-                continue  # Skip symlinks for security
+                continue
+            corpus_files.append(f)
+        if not corpus_files:
+            return "0.1.0-empty"
+
+        stats: list[tuple[str, int, int]] = []
+        for f in corpus_files:
+            try:
+                st = f.stat()
+            except OSError:
+                st = None
+            stats.append((str(f.relative_to(self._corpus_dir)), st.st_mtime_ns if st else -1, st.st_size if st else -1))
+        fingerprint: tuple[tuple[str, int, int], ...] = tuple(stats)
+        cached = _CORPUS_VERSION_CACHE.get(str(self._corpus_dir))
+        if cached is not None and cached[0] == fingerprint:
+            return cached[1]
+
+        h = hashlib.sha256()
+        for f in corpus_files:
+            # Symlinks already excluded above — see the security note in the
+            # original implementation: symlinked corpus files are a risk.
             try:
                 h.update(f.read_bytes())
             except OSError:
@@ -148,7 +244,9 @@ class ScanEngine:
 
         # Include the corpus manifest so version changes when update metadata changes.
         self._warn_if_corpus_stale()
-        return h.hexdigest()[:12]
+        version = h.hexdigest()[:12]
+        _CORPUS_VERSION_CACHE[str(self._corpus_dir)] = (fingerprint, version)
+        return version
 
     def is_corpus_stale(self, max_age_days: int = 30) -> tuple[bool, list[str]]:
         """Return (is_stale, list of stale ecosystem names) based on corpus.json.
@@ -234,18 +332,14 @@ class ScanEngine:
 
         _effective_rule_timeout = DEFAULT_RULE_TIMEOUT_SECONDS if rule_timeout is None else float(rule_timeout)
 
-        _detected_npm = (target_path / "package.json").is_file() or (target_path / "node_modules").is_dir()
-        _detected_pypi = (
-            (target_path / "pyproject.toml").is_file()
-            or (target_path / "setup.py").is_file()
-            or (target_path / "requirements.txt").is_file()
-            or (target_path / ".venv").is_dir()
-        )
-        _detected_go = (target_path / "go.mod").is_file()
-        _detected_cargo = (target_path / "Cargo.toml").is_file()
-        _detected_maven = (target_path / "pom.xml").is_file() or (target_path / "build.gradle").is_file()
-        _detected_rubygems = (target_path / "Gemfile").is_file() or (target_path / "Gemfile.lock").is_file()
-        _detected_nuget = bool(list(target_path.glob("*.csproj"))) or (target_path / "packages.config").is_file()
+        _detected = _detect_ecosystems(target_path)
+        _detected_npm = "npm" in _detected
+        _detected_pypi = "pypi" in _detected
+        _detected_go = "go" in _detected
+        _detected_cargo = "cargo" in _detected
+        _detected_maven = "maven" in _detected
+        _detected_rubygems = "rubygems" in _detected
+        _detected_nuget = "nuget" in _detected
 
         selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
 
@@ -371,10 +465,13 @@ class ScanEngine:
                     return fn(target_path, self._corpus_dir, package_intel=package_intel)
                 return fn(target_path, package_intel=package_intel)
             param_count = len(sig.parameters)
-            if param_count >= 2:
-                return fn(target_path, self._corpus_dir)
-            return fn(target_path)
+            return fn(target_path, self._corpus_dir) if param_count >= 2 else fn(target_path)
 
+        # ponytail: rules run sequentially on purpose — measured 2026-08-17
+        # (WO4.0.0-014), fanning all rule groups out onto the pool made a
+        # 3.9k-file scan 30.8s vs 17.1s sequential: the rules are regex/CPU
+        # bound, so threads only add GIL contention. Upgrade path: process
+        # pool if rule CPU cost ever dominates and determinism can be kept.
         rule_timed_out = False
         rule_executor = ThreadPoolExecutor(
             max_workers=min(self._max_workers, len(selected_rules) or 1),

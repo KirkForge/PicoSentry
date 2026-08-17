@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import threading
+from collections import OrderedDict
 from pathlib import Path
 
 
@@ -106,3 +108,81 @@ def iter_node_modules(target: Path):
                 yield from _walk_nm(nested_nm, visited)
 
     yield from _walk_nm(nm)
+
+
+def iter_source_files(
+    pkg_dir: Path,
+    extensions: frozenset[str] | set[str],
+    *,
+    max_files: int,
+    skip_dirs: frozenset[str] | set[str],
+):
+    """Yield up to ``max_files`` source files from ONE sorted walk of ``pkg_dir``.
+
+    Replaces the former per-extension ``rglob(f"*{ext}")`` loops in the
+    file-content rules (WO4.0.0-014): those re-walked the package directory
+    once per extension, multiplying scandir/stat cost by len(extensions).
+    Sorted order keeps file selection deterministic regardless of filesystem
+    ordering.
+    """
+    count = 0
+    for src_file in sorted(pkg_dir.rglob("*")):
+        if count >= max_files:
+            return
+        if src_file.suffix not in extensions:
+            continue
+        if src_file.is_symlink():
+            continue
+        if not src_file.is_file():
+            continue
+        if any(part in skip_dirs for part in src_file.parts):
+            continue
+        yield src_file
+        count += 1
+
+
+# ponytail: per-process stat-keyed read cache shared by the file-content rules
+# (campaigns + pattern rules + credential scanner). Ceiling: 64MB FIFO, entries
+# ≤512KB. Invalidation is (mtime_ns, size) — same identity the corpus index
+# cache uses. Upgrade path: drop the cache if a scan is ever single-rule.
+_CACHEABLE_FILE_BYTES = 512_000
+_FILE_CACHE_MAX_BYTES = 64 * 1024 * 1024
+_file_cache: OrderedDict[tuple[str, int, int], bytes] = OrderedDict()
+_file_cache_bytes = 0
+_file_cache_lock = threading.Lock()
+_CACHE_MISS = object()
+
+
+def read_scannable_bytes(path: Path) -> bytes | None:
+    """Read ``path`` once per process per (mtime_ns, size) identity (WO4.0.0-014).
+
+    Returns None on read errors. Files larger than 512KB are read but not
+    cached — every content rule already skips them, so they are one-shot reads
+    at most. Callers keep their own symlink/size/skip-dir gating; the cache is
+    keyed by absolute identity, so a rewritten fixture (new mtime) is re-read.
+    """
+    try:
+        st = path.stat()
+    except OSError:
+        return None
+    cacheable = st.st_size <= _CACHEABLE_FILE_BYTES
+    key = (str(path), st.st_mtime_ns, st.st_size)
+    if cacheable:
+        with _file_cache_lock:
+            hit: object = _file_cache.get(key, _CACHE_MISS)
+            if hit is not _CACHE_MISS:
+                _file_cache.move_to_end(key)
+                return hit  # type: ignore[return-value]
+    try:
+        data = path.read_bytes()
+    except OSError:
+        return None
+    if cacheable and data:
+        global _file_cache_bytes
+        with _file_cache_lock:
+            _file_cache[key] = data
+            _file_cache_bytes += len(data)
+            while _file_cache_bytes > _FILE_CACHE_MAX_BYTES:
+                _, evicted = _file_cache.popitem(last=False)
+                _file_cache_bytes -= len(evicted)
+    return data

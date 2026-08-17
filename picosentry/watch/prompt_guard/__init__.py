@@ -17,6 +17,11 @@ logger = logging.getLogger("picowatch.guard")
 
 __all__ = ["Normalizer", "PromptClassifier", "PromptGuard", "RuleEngine", "Scorer"]
 
+# Total decoded payload bytes re-scanned per request (WO4.0.0-016). Generous
+# against legitimate small embeds; bounds normalize+evaluate over many
+# full-size base64 decodes on base64-heavy input.
+_MAX_DECODE_BYTES = 256 * 1024
+
 
 class PromptGuard:
     def __init__(
@@ -101,15 +106,24 @@ class PromptGuard:
                 matches.extend(self._engine.evaluate(text))
 
             marker_neutral = self._normalizer.neutralize_comment_markers(text)
+            marker_normalized: str | None = None
             if marker_neutral != text:
-                matches.extend(self._engine.evaluate(self._normalizer.normalize(marker_neutral)))
+                candidate = self._normalizer.normalize(marker_neutral)
+                # If neutralizing the markers changes nothing after
+                # normalization, the second evaluate/classify pass is a
+                # byte-identical rerun — skip it (WO4.0.0-016 perf).
+                if candidate != normalized:
+                    marker_normalized = candidate
+                    matches.extend(self._engine.evaluate(marker_normalized))
 
             # Decode the raw text AND the NFKC-normalized variant: fullwidth-
             # or zero-width-wrapped base64/hex only becomes decodable after
-            # normalization.
-            decoded_texts = self._normalizer.decode_and_rescan(text)
+            # normalization. The decoded-payload byte budget bounds the
+            # re-scan cost on base64-heavy documents.
+            decoded_texts = self._normalizer.decode_and_rescan(text, byte_budget=_MAX_DECODE_BYTES)
             if normalized != text:
-                decoded_texts.extend(self._normalizer.decode_and_rescan(normalized))
+                more = self._normalizer.decode_and_rescan(normalized, byte_budget=_MAX_DECODE_BYTES)
+                decoded_texts.extend(more)
                 decoded_texts = list(dict.fromkeys(decoded_texts))
             for decoded in decoded_texts:
                 decoded_normalized = self._normalizer.normalize(decoded)
@@ -136,8 +150,8 @@ class PromptGuard:
                     if decoded_score > classifier_score:
                         classifier_score = decoded_score
                         classifier_features = decoded_features
-                if marker_neutral != text:
-                    neutral_score, neutral_features = self._classifier.classify(marker_neutral, matched_categories)
+                if marker_normalized is not None:
+                    neutral_score, neutral_features = self._classifier.classify(marker_normalized, matched_categories)
                     if neutral_score > classifier_score:
                         classifier_score = neutral_score
                         classifier_features = neutral_features

@@ -1,8 +1,7 @@
 # WO4.0.0-016 — Watch: scan performance + Prometheus hygiene
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
-**Owner:** (unassigned — worktree `wo/4.0.0/watch-perf-metrics`)
+**Status:** PARTIAL (2026-08-17, worktree `wo/4.0.0/scan-watch-p1`) — metrics + freeze + hardening DONE, perf gate NOT met. Measured on fixed 200KB benign buffer (time.monotonic, this worktree): 4.88s → 1.75s (24.4 → 8.8 s/MB, 2.8×); the <1s/MB target needs normalize+classifier restructured into single fused passes (not attempted — corpus-floor risk; remaining floor is ~2× normalize (~0.45s) + decode-rescan (~0.3s) + classifier (~0.35s) + ~10 full regexes). Landed: sre-parse-derived literal prefilter (sound necessary conditions; never joins literals across `\\s+` gaps — bug class covered by test; 59 rules → 7 always-run), decoded-payload byte budget (256KB/check), `asyncio.to_thread` for check+validate (loop-freeze regression test), byte-based caps + Content-Length body limit middleware, single-source metrics (dedupe; idle zero-export; parser-validated exposition), bounded fixed-bucket histograms (O(1)/series), `picowatch_dropped_audit_records` gauge, admin-app rate limit + security headers. Corpus floors + determinism green (358 watch tests).
 **Priority:** P1 · Effort M-L · Risk M (determinism must hold — corpus hash unchanged, `--verify-determinism` green)
 **Scope:** `picosentry/watch/{prompt_guard/__init__.py,server.py}`, `picosentry/watch/telemetry/{sink.py,metrics.py}`, `tests/watch/`
 

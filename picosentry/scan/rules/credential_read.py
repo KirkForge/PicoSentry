@@ -182,10 +182,12 @@ def _scan_source_for_creds(file_path: Path, pkg_label: str) -> list[Finding]:
     if size > MAX_FILE_BYTES:
         return findings
 
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-    except OSError:
+    from .utils import read_scannable_bytes
+
+    data = read_scannable_bytes(file_path)
+    if data is None:
         return findings
+    content = data.decode("utf-8", errors="replace")
 
     for pattern in CREDENTIAL_PATTERNS:
         for match in pattern.finditer(content):
@@ -272,11 +274,9 @@ def detect_credential_reading(target: Path) -> list[Finding]:
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:
-    file_count = 0
-    for ext in JS_EXTENSIONS:
-        for src_file in pkg_dir.rglob(f"*{ext}"):
-            if file_count >= MAX_FILES_PER_PACKAGE:
-                return  # exit both loops
-            if not src_file.is_symlink():
-                findings.extend(_scan_source_for_creds(src_file, pkg_label))
-                file_count += 1
+    from .utils import iter_source_files
+
+    # SKIP_DIRS/SKIP_EXTENSIONS filtering also happens inside _scan_file; the
+    # walk-level filters keep the two rules' iteration semantics identical.
+    for src_file in iter_source_files(pkg_dir, JS_EXTENSIONS, max_files=MAX_FILES_PER_PACKAGE, skip_dirs=SKIP_DIRS):
+        findings.extend(_scan_source_for_creds(src_file, pkg_label))

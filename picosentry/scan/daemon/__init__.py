@@ -4,7 +4,7 @@ import logging
 import signal
 import ssl
 import sys
-from http.server import HTTPServer
+from http.server import ThreadingHTTPServer as HTTPServer
 from pathlib import Path
 from typing import Any
 

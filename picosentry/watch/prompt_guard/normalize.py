@@ -4,6 +4,7 @@ import base64
 import codecs
 import re
 import unicodedata
+from typing import ClassVar
 
 
 class Normalizer:
@@ -11,6 +12,7 @@ class Normalizer:
     _ZWJ = "\u200d"  # zero-width joiner
     _ZWSP = "\u200b"  # zero-width space
     _ZERO_WIDTH = frozenset({_ZWNJ, _ZWJ, _ZWSP, "\ufeff", "\u200e", "\u200f"})
+    _ZERO_WIDTH_TABLE: ClassVar[dict[int, None]] = {ord(ch): None for ch in _ZERO_WIDTH}
 
     _LINE_COMMENT = re.compile(
         r"(?<![\'\"/:])//(?!/).*$",
@@ -55,7 +57,7 @@ class Normalizer:
         result = self.strip_comments(result)
         return self.deobfuscate_markdown(result)
 
-    def decode_and_rescan(self, text: str) -> list[str]:
+    def decode_and_rescan(self, text: str, *, byte_budget: int | None = None) -> list[str]:
         candidates: list[str] = list(self.decode_base64(text))
 
         # ROT13 is self-inverting and commonly used to hide injection words.
@@ -87,6 +89,10 @@ class Normalizer:
         candidates.extend(self.decode_hex(text))
 
         # Dedupe (standard and urlsafe alphabets overlap) and bound the budget.
+        # byte_budget bounds the TOTAL decoded payload kept for re-scanning —
+        # base64-heavy documents otherwise re-run the full normalize+evaluate
+        # pipeline over many full-size decodes (WO4.0.0-016: 22s/MB case).
+        budget = byte_budget if byte_budget is not None else self._MAX_DECODE_VARIANTS * 64_000
         seen: set[str] = set()
         decoded_texts: list[str] = []
         for item in candidates:
@@ -94,7 +100,8 @@ class Normalizer:
                 continue
             seen.add(item)
             decoded_texts.append(item)
-            if len(decoded_texts) >= self._MAX_DECODE_VARIANTS:
+            budget -= len(item)
+            if budget <= 0 or len(decoded_texts) >= self._MAX_DECODE_VARIANTS:
                 break
         return decoded_texts
 
@@ -250,4 +257,6 @@ class Normalizer:
 
     def deobfuscate_markdown(self, text: str) -> str:
 
-        return "".join(ch for ch in text if ch not in self._ZERO_WIDTH)
+        # str.translate runs in C; the former per-char genexpr was a measurable
+        # fraction of every normalize pass (WO4.0.0-016).
+        return text.translate(self._ZERO_WIDTH_TABLE)

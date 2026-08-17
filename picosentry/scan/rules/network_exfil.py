@@ -352,17 +352,10 @@ def _scan_source_for_exfil(file_path: Path, pkg_label: str) -> list[Finding]:
 
 
 def _scan_package_sources(pkg_dir: Path, pkg_label: str, findings: list[Finding]) -> None:
-    file_count = 0
-    for ext in JS_EXTENSIONS:
-        for src_file in pkg_dir.rglob(f"*{ext}"):
-            if file_count >= MAX_FILES_PER_PACKAGE:
-                return
-            if src_file.is_symlink():
-                continue
-            if any(part in SKIP_DIRS for part in src_file.parts):
-                continue
-            findings.extend(_scan_source_for_exfil(src_file, pkg_label))
-            file_count += 1
+    from .utils import iter_source_files
+
+    for src_file in iter_source_files(pkg_dir, JS_EXTENSIONS, max_files=MAX_FILES_PER_PACKAGE, skip_dirs=SKIP_DIRS):
+        findings.extend(_scan_source_for_exfil(src_file, pkg_label))
 
 
 def detect_network_exfiltration(target: Path) -> list[Finding]:

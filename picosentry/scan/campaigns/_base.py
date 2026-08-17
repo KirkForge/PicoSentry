@@ -160,7 +160,12 @@ class CampaignPackage:
             try:
                 if file_path.stat().st_size > _MAX_FILE_BYTES:
                     continue
-                content = file_path.read_text(encoding="utf-8", errors="ignore")
+                from ..rules.utils import read_scannable_bytes
+
+                data = read_scannable_bytes(file_path)
+                if data is None:
+                    continue
+                content = data.decode("utf-8", errors="ignore")
             except OSError:
                 continue
             for sig in signatures:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import itertools
 import json
 import logging
 import os
@@ -26,6 +27,11 @@ _OSV_API_URL = "https://api.osv.dev/v1/query"
 # Disk-cache caps, same style as scan/cache.py. 0 entries = unlimited.
 DEFAULT_OSV_MAX_ENTRIES = 512
 DEFAULT_OSV_MAX_AGE_SECONDS = 30 * 24 * 3600  # 30 days
+# Clean packages get a short-lived negative entry so bulk scans don't re-query
+# them (10s timeout each), while newly-published advisories surface quickly.
+DEFAULT_OSV_NEGATIVE_TTL_SECONDS = 300
+
+_TMP_SEQ = itertools.count()
 
 
 class OSVClient:
@@ -51,10 +57,16 @@ class OSVClient:
         self._offline = os.environ.get("PICOSENTRY_OFFLINE", "").strip() in ("1", "true", "yes")
         self._max_entries = int(os.environ.get("PICOSENTRY_OSV_MAX_ENTRIES", str(DEFAULT_OSV_MAX_ENTRIES)))
         self._max_age_seconds = int(os.environ.get("PICOSENTRY_OSV_MAX_AGE_SECONDS", str(DEFAULT_OSV_MAX_AGE_SECONDS)))
+        self._negative_ttl = int(
+            os.environ.get("PICOSENTRY_OSV_NEGATIVE_TTL_SECONDS", str(DEFAULT_OSV_NEGATIVE_TTL_SECONDS))
+        )
         self._swept = False  # one age/count sweep per client on first load
 
-    def _cache_key(self, ecosystem: str, package_name: str) -> str:
-        return hashlib.sha256(f"{ecosystem}:{package_name}".encode()).hexdigest()
+    def _cache_key(self, ecosystem: str, package_name: str, version: str | None = None) -> str:
+        # The OSV query is version-filtered, so the version must be part of the
+        # key — otherwise an upgraded dep keeps receiving the old version's
+        # advisories until the TTL expires.
+        return hashlib.sha256(f"{ecosystem}:{package_name}:{version or ''}".encode()).hexdigest()
 
     def _cache_path(self, key: str) -> Path:
         return self._cache_dir / f"{key}.json"
@@ -98,21 +110,27 @@ class OSVClient:
             path.unlink(missing_ok=True)
             return None
         cached_at = data.get("cached_at", 0)
-        if time.time() - cached_at > self._cache_ttl:
+        ttl = self._cache_ttl
+        if data.get("negative"):
+            ttl = min(ttl, self._negative_ttl)
+        if time.time() - cached_at > ttl:
             path.unlink(missing_ok=True)
             return None
         return data.get("advisories")
 
-    def _write_cache(self, key: str, advisories: list[dict]) -> None:
+    def _write_cache(self, key: str, advisories: list[dict], negative: bool = False) -> None:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         path = self._cache_path(key)
-        entry = {"cached_at": time.time(), "advisories": advisories}
-        tmp = path.with_suffix(".tmp")
+        entry: dict = {"cached_at": time.time(), "advisories": advisories}
+        if negative:
+            entry["negative"] = True
+        tmp = path.with_suffix(f".tmp.{os.getpid()}.{next(_TMP_SEQ)}")
         tmp.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp.replace(path)
         self._enforce_caps()
 
-    def _fetch(self, payload: dict) -> list[Advisory]:
+    def _fetch(self, payload: dict) -> list[Advisory] | None:
+        """Query OSV. Returns None on transport/API failure (never cacheable as empty)."""
         if self._offline:
             return []
         body = json.dumps(payload).encode("utf-8")
@@ -123,7 +141,7 @@ class OSVClient:
             data = json.loads(body.decode("utf-8"))
         except (URLError, OSError, TimeoutError, json.JSONDecodeError, ResponseTooLargeError) as exc:
             logger.warning("OSV API request failed: %s", exc)
-            return []
+            return None
         results = []
         for vuln in data.get("vulns", []):
             adv = Advisory.from_osv(vuln)
@@ -132,7 +150,7 @@ class OSVClient:
         return results
 
     def query(self, ecosystem: str, package_name: str, version: str | None = None) -> list[Advisory]:
-        key = self._cache_key(ecosystem, package_name)
+        key = self._cache_key(ecosystem, package_name, version)
         cached = self._read_cache(key)
         if cached is not None:
             results = []
@@ -147,18 +165,19 @@ class OSVClient:
             payload["version"] = version
 
         advisories = self._fetch(payload)
+        if advisories is None:
+            # Transport failure must not be negative-cached: an unreachable API
+            # is not evidence the package is clean.
+            return []
 
-        raw = []
-        for adv in advisories:
-            raw.append(adv.to_dict())
-        if raw:
-            self._write_cache(key, raw)
+        raw = [adv.to_dict() for adv in advisories]
+        self._write_cache(key, raw, negative=not raw)
 
         return advisories
 
     def query_by_commit(self, commit: str) -> list[Advisory]:
         payload = {"commit": commit}
-        return self._fetch(payload)
+        return self._fetch(payload) or []
 
     def bulk_query(self, packages: list[tuple[str, str]]) -> dict[tuple[str, str], list[Advisory]]:
         results: dict[tuple[str, str], list[Advisory]] = {}
@@ -169,6 +188,8 @@ class OSVClient:
     def refresh_cache(self, ecosystem: str) -> int:
         payload = {"package": {"ecosystem": ecosystem}}
         advisories = self._fetch(payload)
+        if advisories is None:
+            return 0
         count = 0
         by_package: dict[str, list[Advisory]] = {}
         for adv in advisories:

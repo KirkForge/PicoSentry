@@ -197,18 +197,29 @@ class TestForkBombBounded:
 
         marker = "picodome-forkbomb-77aa"
         monkeypatch.setenv("PICODOME_PROCESS_LIMIT", "512")
+        # The marker comment must sit AFTER `done` — inside the loop body a
+        # `#` comment would swallow `& done` (comment runs to end of line),
+        # turning the fork flood into an instant sh syntax error (exit 2).
         result = sandbox_run(
-            ["sh", "-c", f"while :; do sleep 5 # {marker} & done"],
+            ["sh", "-c", f"while :; do sleep 5 & done # {marker}"],
             default_policy(),
             timeout=3.0,
             backend=SubprocessBackend(),
         )
         # The flood is bounded (forks fail under RLIMIT_NPROC once the
         # headroom is spent) and the timeout group-kill removes whatever
-        # did spawn.
-        assert result.overall_verdict.value == "KILL"
+        # did spawn. Two legitimate outcomes, per the shared-UID ceiling
+        # documented in _rlimits.py: on a dedicated-UID host the flood runs
+        # until the bound and the timeout kills it (KILL); on a shared-UID
+        # host the kernel-wide uid count already exceeds the namespace-
+        # computed bound, so the child's FIRST fork gets EAGAIN and dash
+        # exits 2 with "Cannot fork" (ALLOW, nothing spawned). Both must
+        # complete quickly and leave no survivors.
         assert result.duration_ms < 30_000, "sandbox_run must not hang on a fork flood"
         assert _proc_count_with_marker(marker) == 0
+        if result.overall_verdict.value != "KILL":
+            assert result.exit_code == 2, f"unexpected verdict path: {result.overall_verdict.value} exit={result.exit_code}"
+            assert "Cannot fork" in (result.stderr or ""), "non-KILL must be the documented EAGAIN ceiling"
 
 
 class TestHelperNoopWithoutResource:

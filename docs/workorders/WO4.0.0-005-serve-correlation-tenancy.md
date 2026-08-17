@@ -1,7 +1,7 @@
 # WO4.0.0-005 — Serve: correlation tenancy stamping
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — build_event_from_intel takes/stamps org_id (correlation/helpers.py:48-90), migration 19 correlation_events.org_id + index (database/_schema.py:872-887), org-stamped persistence + org in dedup key (correlation/persistence.py:43-131), org-scoped get_project/get_correlations in reports (_orchestrator_reports.py:58,91), org in alert cooldown key (alert_hub.py:68); tests/serve/test_correlation_tenancy.py)
 **Owner:** (unassigned — worktree `wo/4.0.0/corr-tenancy`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/_orchestrator_intel_helpers.py` (build_event_from_intel), `orchestrator.py`, `_orchestrator_reports.py`, `correlation/engine.py`, `alert_hub.py`, `picosentry/serve/database/_schema.py` (correlation tables org column), `tests/serve/`

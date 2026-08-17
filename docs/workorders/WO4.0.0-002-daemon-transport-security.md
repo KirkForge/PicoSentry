@@ -1,7 +1,7 @@
 # WO4.0.0-002 — Sandbox daemon: transport security + availability
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — TokenAuth+RBAC interceptor + plaintext-bind refusal (grpc_transport/auth.py:77-102, server.py:74-88), servicer validate_command/timeout-clamp/cwd-confine/signature-verified policy (_servicer.py:29-62), ThreadingHTTPServer + scan worker pool (daemon/daemon.py:20,88), SIGTERM/SIGINT via helper thread + SIGHUP raw-socket rebind (daemon.py:355-397), policy-name traversal check in save (policy_versioned/store.py:80), queued webhook sink with drop counter (webhook_sink.py:29-56))
 **Owner:** (unassigned — worktree `wo/4.0.0/daemon-transport`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/sandbox/grpc_transport/**`, `picosentry/sandbox/daemon/{daemon.py,handler.py,handler_routes_post.py,handler_mixins.py,webhook_sink.py}`, `tests/sandbox/`

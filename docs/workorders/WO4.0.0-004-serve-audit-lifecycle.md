@@ -1,7 +1,7 @@
 # WO4.0.0-004 — Serve: audit lifecycle (retention × tamper-evidence)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — gap-tolerant verify + chained audit.purge markers (audit_chain.py:102-110,158-162; audit_cleanup.py:37-61,152-155), org_id stamped on rows at write (audit_chain.py:60,79,92), AuditMiddleware outermost so 429/413/DDoS-blocked requests are audited (api/server.py:354-358), drop counters wired into /metrics gauges + verify endpoint (middleware/audit.py:67, correlation/engine.py:97, routers/admin.py:84-85); ADR-006 addendum)
 **Owner:** (unassigned — worktree `wo/4.0.0/audit-lifecycle`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/{audit_cleanup.py,audit_chain.py}`, `picosentry/serve/middleware/audit.py`, `picosentry/serve/services/{correlation/engine.py,metrics.py}`, `docs/adr/ADR-006` addendum, `tests/serve/`

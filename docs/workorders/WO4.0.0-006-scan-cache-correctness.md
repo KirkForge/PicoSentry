@@ -1,7 +1,7 @@
 # WO4.0.0-006 — Scan: cache correctness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — cache key += config digest (cache.py:107-113) + bounded all-ecosystem input hashing (cli_service.py:55-75,178-189), OSV key += version + negative TTL (intelligence.py:30-32,60-67), pid-unique tmp names (cache.py:238, intelligence.py:127), HMAC keyfile precedence env→per-machine→per-process (cache.py:370-415) with mismatch/missing treated as miss (cache.py:196-203); 39 cache tests pass)
 **Owner:** (unassigned — worktree `wo/4.0.0/scan-cache`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/scan/{cache.py,cli_service.py,intelligence.py}`, `tests/scan/{test_cache_governance.py,test_intelligence.py}`

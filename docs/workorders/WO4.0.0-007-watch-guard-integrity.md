@@ -1,7 +1,7 @@
 # WO4.0.0-007 — Watch: guard integrity (fail-closed, homoglyphs, decode order)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — fail-closed on rules_loaded==0 in both guards (prompt_guard/__init__.py:64-78, output_guard/__init__.py:74-80), truthful health (watch/health.py:16), decode of NFKC-normalized variant + hex/urlsafe-b64 with budget (prompt_guard/__init__.py:107-117), word-context homoglyph rule (encoding_attack.yaml:25), corpus floor harness with adversarial/benign fixtures (tests/watch/test_corpus_floor.py + tests/watch/fixtures/); 358 watch tests pass)
 **Owner:** (unassigned — worktree `wo/4.0.0/guard-integrity`)
 **Priority:** P0 · Effort M · Risk L
 **Scope:** `picosentry/watch/prompt_guard/{__init__.py,normalize.py}`, `picosentry/watch/rules/prompt_injection/encoding_attack.yaml`, `picosentry/watch/output_guard/__init__.py`, `picosentry/watch/{__init__.py,health.py}`, `docs/adr/ADR-009`, `tests/watch/` (+ new multilingual/encoding fixture corpus)

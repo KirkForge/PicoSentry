@@ -1,7 +1,7 @@
 # WO4.0.0-008 — Scan: detection quality (recall recovery + FP gating + honest card)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** DONE (verified 2026-08-17, shipped in v2.1.2 — npm metadata FPs gated on install-scripts/installed-deps (rules/engine.py:47-73), PYPI underscore prefixes (_dep_confusion_config.py:207-211) + npm internal scope words (dep_confusion.py:219-226), rubygems corpus shipped + fixtures regenerated (93360edb), completeness honesty on timeout (models.py:234-237), unknown-rule-expectation warning (cli_service.py:714-720), dead-code swept (1c724a53), card re-baselined 100.00/90.87 (docs/model-card.md:41-42))
 **Owner:** (unassigned — worktree `wo/4.0.0/detection-quality`)
 **Priority:** P0 · Effort L · Risk M
 **Scope:** `picosentry/scan/rules/{_dep_confusion_config.py,dep_confusion.py,engine.py,fork_drift.py,license.py,maintainer_change.py,provenance.py}`, `picosentry/scan/corpus/`, `picosentry/scan/models.py` (completeness rider), `scripts/{expand_corpus_to_6k.py,generate_corpus_fixtures.py}`, `tests/scan/fixtures/**/fixture.json`, `docs/model-card.md`

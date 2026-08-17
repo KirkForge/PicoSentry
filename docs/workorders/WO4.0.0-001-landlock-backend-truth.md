@@ -1,7 +1,7 @@
 # WO4.0.0-001 — Landlock backend: make it actually work
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** PARTIAL (verified 2026-08-17 — landed & wired: syscall table 444/445/446 (landlock_backend.py:95-101, tests derive from kernel headers), ABI-scoped bits + honest min-versions (:86-90), no_new_privs (:84,207-209), policy translation + NET deny on ABI≥4 (:239-254), workspace mkdtemp for cwd=None (:440), /proc only /proc/self child-side, ADR-002 addendum; 62 tests pass / missing: real-execution landlock CI job (deliverable 6 — no landlock job in .github/workflows/ci.yml; round-trips only env-gated, verified live on kernel 7.0 per ADR-002:110-113) and seccomp+landlock composition (deliverable 5, optional — documented ceiling ADR-002:108-109))
 **Owner:** (unassigned — worktree `wo/4.0.0/landlock-truth` off `origin/dev`)
 **Priority:** P0 · Effort L · Risk M
 **Scope:** `picosentry/sandbox/l3/backends/landlock_backend.py`, `tests/sandbox/test_landlock_backend.py`, `docs/adr/ADR-002` addendum

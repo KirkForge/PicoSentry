@@ -820,6 +820,20 @@ MIGRATIONS: list[Migration] = [
         CREATE INDEX IF NOT EXISTS idx_webauthn_challenges_user ON webauthn_challenges(user_id, created_at);
     """,
     ),
+    Migration(
+        16,
+        "add_audit_severity",
+        """
+        ALTER TABLE audit_log ADD COLUMN severity TEXT NOT NULL DEFAULT 'default';
+
+        CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit_log(severity, created_at);
+    """,
+        postgres_sql="""
+        ALTER TABLE audit_log ADD COLUMN IF NOT EXISTS severity TEXT NOT NULL DEFAULT 'default';
+
+        CREATE INDEX IF NOT EXISTS idx_audit_severity ON audit_log(severity, created_at);
+    """,
+    ),
 ]
 
 __all__ = [

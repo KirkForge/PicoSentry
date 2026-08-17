@@ -526,6 +526,24 @@ class TestAdvisoryDBCheck(unittest.TestCase):
         self.assertEqual(results[0].severity, "CRITICAL")
         self.assertEqual(results[0].summary, "Prototype pollution")
 
+    def test_check_mixed_prerelease_identifiers_no_typeerror(self):
+        """Regression: mixed numeric/alphanumeric pre-release identifiers used to
+        raise TypeError inside _version_affected (int vs str tuple comparison).
+        Both crash directions must yield a verdict, not an exception."""
+        # alpha lower bound vs numeric installed version (old: int vs str)
+        adv_alpha = _make_advisory(id="A-ALPHA-BOUND", affected_ranges=[("1.0.0-alpha", "2.0.0", False)])
+        # numeric lower bound vs alpha installed version (old: str vs int)
+        adv_numeric = _make_advisory(id="A-NUMERIC-BOUND", affected_ranges=[("1.0.0-2", "2.0.0", False)])
+        db = self._db_with(adv_alpha, adv_numeric)
+
+        ids = {r.id for r in db.check("lodash", "1.0.0-2")}
+        self.assertNotIn("A-ALPHA-BOUND", ids)  # 2 < alpha
+        self.assertIn("A-NUMERIC-BOUND", ids)  # 2 >= 2
+
+        ids = {r.id for r in db.check("lodash", "1.0.0-beta")}
+        self.assertIn("A-ALPHA-BOUND", ids)  # beta > alpha
+        self.assertIn("A-NUMERIC-BOUND", ids)  # beta > 2
+
 
 # ══════════════════════════════════════════════════════════════════════════
 # AdvisoryDB — _parse_version
@@ -546,7 +564,22 @@ class TestParseVersion(unittest.TestCase):
         self.assertIsNone(AdvisoryDB._parse_version("not-a-version"))
 
     def test_embedded(self):
-        self.assertEqual(AdvisoryDB._parse_version("1.2.3-beta.1"), (1, 2, 3, (0, "beta", 1)))
+        v = AdvisoryDB._parse_version("1.2.3-beta.1")
+        self.assertEqual(v[:3], (1, 2, 3))
+        # Ordering relations, not the private tuple representation.
+        self.assertLess(v, AdvisoryDB._parse_version("1.2.3"))  # pre-release < release
+        self.assertLess(
+            AdvisoryDB._parse_version("1.0.0-2"),
+            AdvisoryDB._parse_version("1.0.0-alpha"),
+        )  # numeric identifier < alphanumeric (semver §11)
+        self.assertLess(
+            AdvisoryDB._parse_version("1.0.0-beta.2"),
+            AdvisoryDB._parse_version("1.0.0-beta.11"),
+        )  # numeric identifiers compare numerically
+        self.assertLess(
+            AdvisoryDB._parse_version("1.2.0"),
+            AdvisoryDB._parse_version("1.10.0"),
+        )  # numeric core compares numerically
 
     def test_large_numbers(self):
         self.assertEqual(AdvisoryDB._parse_version("10.20.30"), (10, 20, 30, (1,)))

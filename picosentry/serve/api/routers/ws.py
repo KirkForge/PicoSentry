@@ -5,11 +5,22 @@ import os
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from picosentry.serve.api.deps import auth_service
+from picosentry.serve.services.orgs import Organization
 from picosentry.serve.services.websocket_manager import ws_manager
 
 logger = logging.getLogger("picoshogun.ws")
 
+
 router = APIRouter()
+
+
+def _resolve_org_id(user: dict) -> int | None:
+    """First org the user belongs to — same resolution get_current_org uses."""
+    try:
+        user_orgs = Organization.list_orgs_for_user(user["id"])
+    except (KeyError, OSError, ValueError, RuntimeError, TypeError):
+        return None
+    return user_orgs[0]["id"] if user_orgs else None
 
 
 @router.websocket("/ws")
@@ -53,7 +64,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
 
     # Empty channel set on connect — clients MUST opt in via subscribe
     # after authenticating.  See docstring above.
-    await ws_manager.connect(websocket, channels=[])
+    await ws_manager.connect(websocket, channels=[], org_id=_resolve_org_id(user) if user else None)
     authenticated = user is not None
 
     if authenticated and user is not None:
@@ -84,6 +95,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
                 user = auth_service.validate_token(auth_token)
                 if user:
                     authenticated = True
+                    await ws_manager.set_org(websocket, _resolve_org_id(user))
                     await websocket.send_text(
                         json.dumps(
                             {
@@ -111,7 +123,18 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
 
             elif action == "subscribe" and authenticated:
                 channels = msg.get("channels") or ["*"]
-                await ws_manager.subscribe(websocket, channels)
+                try:
+                    await ws_manager.subscribe(websocket, channels)
+                except ValueError as exc:
+                    await websocket.send_text(
+                        json.dumps(
+                            {
+                                "type": "error",
+                                "message": str(exc),
+                            }
+                        )
+                    )
+                    continue
                 await websocket.send_text(
                     json.dumps(
                         {

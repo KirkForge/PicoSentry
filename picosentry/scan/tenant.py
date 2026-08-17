@@ -117,7 +117,9 @@ class TenantManager:
             "tenants": {tid: t.to_dict() for tid, t in self._tenants.items()},
             "version": TENANT_VERSION,
         }
-        tenants_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        tmp_path = tenants_file.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        tmp_path.replace(tenants_file)  # atomic — a crash mid-write cannot corrupt the JSON
 
     def create_tenant(
         self,

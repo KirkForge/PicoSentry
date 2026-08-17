@@ -26,7 +26,7 @@ async def test_foreign_thread_event_reaches_broadcast(monkeypatch):
     done = asyncio.Event()
     seen: list[tuple[str, dict]] = []
 
-    async def fake_broadcast(event_type: str, payload: dict):
+    async def fake_broadcast(event_type: str, payload: dict, org_id=None):
         seen.append((event_type, payload))
         done.set()
 
@@ -44,7 +44,7 @@ async def test_foreign_thread_event_reaches_broadcast(monkeypatch):
 def test_event_dropped_before_loop_captured(monkeypatch):
     seen: list[str] = []
 
-    async def fake_broadcast(event_type: str, payload: dict):
+    async def fake_broadcast(event_type: str, payload: dict, org_id=None):
         seen.append(event_type)
 
     monkeypatch.setattr(ws_manager, "broadcast", fake_broadcast)

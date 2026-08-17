@@ -211,12 +211,15 @@ class AdvisoryDB:
                 pre = pre[: pre.index("+")]
 
             if pre:
-                parts: list[int | str] = []
+                # Tag each identifier so numeric and alphanumeric identifiers are
+                # mutually comparable (semver §11: numeric < alphanumeric); a bare
+                # int|str mix would raise TypeError on tuple comparison.
+                parts: list[tuple[int, int | str]] = []
                 for ident in pre.split("."):
                     try:
-                        parts.append(int(ident))
+                        parts.append((0, int(ident)))
                     except ValueError:
-                        parts.append(ident)
+                        parts.append((1, ident))
                 pre_tuple = (0, *tuple(parts))
             else:
                 pre_tuple = (1,)  # release sorts higher than any pre-release

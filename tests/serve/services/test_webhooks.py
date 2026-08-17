@@ -152,3 +152,46 @@ class TestWebhookDispatch:
         assert results[0]["status"] == 0
         assert "rebind" in results[0]["error"].lower()
         assert posted["count"] == 0
+
+    def test_dispatch_forbids_redirects(self, monkeypatch):
+        """A 3xx must be treated as failure and requests must be told not to
+        follow it — a redirect target was never SSRF-checked or DNS-pinned (B2r)."""
+        from datetime import datetime, timezone
+
+        import requests
+
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        manager.webhooks = {}
+        manager.webhooks["redirect-hook"] = Webhook(
+            id=3,
+            name="redirect-hook",
+            url="https://example.com/hook",
+            secret="secret",
+            events=["alert"],
+            active=True,
+            retries=0,
+            created_at=datetime.now(timezone.utc),
+            org_id=1,
+            pinned_ips=["1.1.1.1"],
+        )
+
+        captured_kwargs: dict = {}
+
+        def _redirect_post(*args, **kwargs):
+            captured_kwargs.update(kwargs)
+            response = requests.Response()
+            response.status_code = 302
+            response.headers["Location"] = "http://127.0.0.1/evil"
+            return response
+
+        monkeypatch.setattr(requests, "post", _redirect_post)
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(["1.1.1.1"]),
+        )
+
+        results = manager.dispatch("alert", {"msg": "test"})
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert results[0]["status"] == 302
+        assert captured_kwargs.get("allow_redirects") is False

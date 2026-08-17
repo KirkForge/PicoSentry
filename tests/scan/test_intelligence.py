@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import time
 from unittest.mock import MagicMock, patch
 
 from picosentry.scan.intelligence import IntelligenceMode, OSVClient
@@ -123,6 +125,45 @@ class TestCacheHitMiss:
         path = client._cache_path(key)
         path.write_text("not json{{", encoding="utf-8")
         assert client._read_cache(key) is None
+
+
+class TestOSVCacheCaps:
+    """OSV disk-cache sweep: entry count cap (oldest by mtime evicted) and age cap."""
+
+    def test_max_entries_evicts_oldest(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PICOSENTRY_OSV_MAX_ENTRIES", "3")
+        client = OSVClient(cache_dir=tmp_path)
+        base = time.time() - 10  # now-relative, ordered mtimes -> deterministic eviction
+        for i in range(5):
+            key = client._cache_key("npm", f"pkg-{i}")
+            client._write_cache(key, [{"id": f"t{i}"}])
+            os.utime(client._cache_path(key), (base + i, base + i))
+
+        remaining = {p.name for p in tmp_path.glob("*.json")}
+        assert len(remaining) == 3
+        assert client._cache_path(client._cache_key("npm", "pkg-0")).name not in remaining
+        assert client._cache_path(client._cache_key("npm", "pkg-1")).name not in remaining
+        assert client._cache_path(client._cache_key("npm", "pkg-4")).name in remaining
+
+    def test_aged_entry_swept_on_load(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PICOSENTRY_OSV_MAX_AGE_SECONDS", "3600")
+        client = OSVClient(cache_dir=tmp_path)
+        key = client._cache_key("npm", "lodash")
+        client._write_cache(key, [{"id": "t"}])
+        old = time.time() - 7200
+        os.utime(client._cache_path(key), (old, old))
+
+        assert client._read_cache(key) is None  # first load sweeps the aged entry
+        assert not client._cache_path(key).exists()
+
+    def test_zero_entries_unlimited(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PICOSENTRY_OSV_MAX_ENTRIES", "0")
+        monkeypatch.setenv("PICOSENTRY_OSV_MAX_AGE_SECONDS", "0")
+        client = OSVClient(cache_dir=tmp_path)
+        for i in range(4):
+            client._write_cache(client._cache_key("npm", f"pkg-{i}"), [{"id": f"t{i}"}])
+
+        assert len(list(tmp_path.glob("*.json"))) == 4
 
 
 class TestOSVClientQuery:

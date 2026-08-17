@@ -244,6 +244,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             {"project_id": project_id, "run_id": run_id, "status": "running"},
             source="orchestrator",
             priority="normal",
+            org_id=str(org_id) if org_id is not None else None,
         )
 
         start_time = time.time()
@@ -321,6 +322,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 },
                 source="orchestrator",
                 priority="high" if status == "failed" else "normal",
+                org_id=str(org_id) if org_id is not None else None,
             )
 
             for intel in intel_data:
@@ -415,6 +417,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 {"project_id": project_id, "run_id": run_id, "reason": "timeout", "duration": round(duration, 2)},
                 source="orchestrator",
                 priority="critical",
+                org_id=str(org_id) if org_id is not None else None,
             )
 
             if org_id is not None:
@@ -457,6 +460,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 {"project_id": project_id, "run_id": run_id, "reason": "exception", "error": sanitized},
                 source="orchestrator",
                 priority="critical",
+                org_id=str(org_id) if org_id is not None else None,
             )
 
             if org_id is not None:

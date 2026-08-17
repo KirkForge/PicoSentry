@@ -189,12 +189,13 @@ class ScanCache:
             return None
 
         stored_hmac = entry.pop("_hmac", None)
-        if stored_hmac:
-            recomputed = self._hmac(json.dumps(entry, sort_keys=True))
-            if not constant_time_compare(stored_hmac, recomputed):
-                logger.warning("Cache integrity check failed for %s — evicting", key[:8])
-                path.unlink(missing_ok=True)
-                return None
+        # A missing _hmac is treated like a mismatching one: the entry was not
+        # written by a trusted cache path (or was tampered with) — cache miss.
+        recomputed = self._hmac(json.dumps(entry, sort_keys=True))
+        if not stored_hmac or not constant_time_compare(stored_hmac, recomputed):
+            logger.warning("Cache integrity check failed for %s — evicting", key[:8])
+            path.unlink(missing_ok=True)
+            return None
 
         cached_at = entry.get("cached_at", 0)
         if time.time() - cached_at > self.ttl:

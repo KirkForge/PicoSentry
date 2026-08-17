@@ -41,13 +41,14 @@ def purge_audit_logs(retention_days: int | None = None, dry_run: bool = False, o
         cutoff = datetime.now(timezone.utc) - timedelta(days=days)
         if dry_run:
             row = db.execute_one(
-                f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ?{org_clause}",
-                (cutoff.strftime(SQLITE_TS), *org_params),
+                f"SELECT COUNT(*) as c FROM audit_log WHERE created_at < ? AND severity = ?{org_clause}",
+                (cutoff.strftime(SQLITE_TS), severity, *org_params),
             )
             results[severity] = {"would_delete": row["c"] if row else 0, "cutoff": cutoff.isoformat()}
         else:
             db.execute(
-                f"DELETE FROM audit_log WHERE created_at < ?{org_clause}", (cutoff.strftime(SQLITE_TS), *org_params)
+                f"DELETE FROM audit_log WHERE created_at < ? AND severity = ?{org_clause}",
+                (cutoff.strftime(SQLITE_TS), severity, *org_params),
             )
             row = db.execute_one("SELECT changes() as c")
             total = row["c"] if row else 0

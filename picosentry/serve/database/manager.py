@@ -84,11 +84,14 @@ class DatabaseManager:
         return self._pool.acquire()
 
     @contextmanager
-    def transaction(self):
+    def transaction(self, immediate: bool = False):
         conn = self._get_connection()
         try:
             if isinstance(self._pool, SQLitePool):
-                conn.execute("BEGIN")
+                # BEGIN IMMEDIATE takes the write lock up front, so concurrent
+                # writers serialize at the DB instead of racing between a read
+                # and their INSERT (audit hash chain depends on this).
+                conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             # Postgres connections have autocommit=False, so transactions
             # are implicit — no explicit BEGIN needed.
             yield conn
@@ -134,6 +137,17 @@ class DatabaseManager:
     def execute_one(self, sql: str, params: tuple = ()) -> dict | None:
         results = self.execute(sql, params)
         return results[0] if results else None
+
+    def execute_on(self, conn, sql: str, params: tuple = ()) -> list:
+        """Execute SQL on an explicit connection (inside transaction()).
+
+        Handles backend cursor differences like execute(), but on a caller-
+        supplied connection so read+write pairs stay in one transaction.
+        """
+        cursor = self._cursor(conn, sql, params)
+        if cursor.description is None:
+            return []
+        return [self._row_to_dict(r, cursor) for r in cursor.fetchall()]
 
     def execute_insert(self, sql: str, params: tuple = ()) -> int:
         with self._lock:

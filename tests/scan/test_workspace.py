@@ -173,6 +173,25 @@ class TestDiscoverPnpmWorkspace(unittest.TestCase):
             # Falls back to generic discovery
             self.assertGreaterEqual(len(result), 1)
 
+    def test_parent_escape_pattern_ignored(self):
+        """A hostile pnpm-workspace.yaml pattern ('../outside') must not match
+        directories outside the workspace root."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "ws"
+            root.mkdir()
+            outside = Path(tmp) / "outside-pkg"
+            outside.mkdir()
+            (outside / "package.json").write_text('{"name": "outside"}')
+            inside = root / "packages" / "lib"
+            inside.mkdir(parents=True)
+            (inside / "package.json").write_text('{"name": "lib"}')
+            (root / "pnpm-workspace.yaml").write_text("packages:\n  - 'packages/*'\n  - '../outside-pkg'\n")
+
+            result = discover_pnpm_workspace(root)
+
+            self.assertIn(inside.resolve(), result)
+            self.assertNotIn(outside.resolve(), result)
+
     def test_unexpected_parse_error_propagates(self):
         """A truly unexpected exception should not be swallowed by the broad fallback."""
         with tempfile.TemporaryDirectory() as tmp:

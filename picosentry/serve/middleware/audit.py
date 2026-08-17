@@ -1,8 +1,4 @@
-import hashlib
-import json
 import logging
-import sqlite3
-import threading
 from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -15,46 +11,7 @@ except ImportError:
 
 logger = logging.getLogger("picoshogun.Audit")
 
-_AUDIT_DB_ERRORS: tuple[type[BaseException], ...] = (
-    OSError,
-    RuntimeError,
-    ValueError,
-    TypeError,
-    sqlite3.Error,
-)
-if psycopg2 is not None:
-    _AUDIT_DB_ERRORS = (*_AUDIT_DB_ERRORS, psycopg2.Error)
-
-
 _auth_svc = None
-_audit_lock = threading.Lock()
-
-
-class _AuditChain:
-    __slots__ = ("prev_hash",)
-
-    def __init__(self) -> None:
-        self.prev_hash: str = ""
-
-
-_audit_chain = _AuditChain()
-
-
-def _seed_chain(db) -> None:
-    """Resume the hash chain from the last committed row_hash.
-
-    The chain is in-memory only; without this the first row written after a
-    process restart would link to prev_hash="" even though the last committed
-    row has a non-empty row_hash, breaking tamper-evidence across restarts.
-    """
-    if _audit_chain.prev_hash:
-        return
-    try:
-        row = db.execute_one("SELECT row_hash FROM audit_log ORDER BY id DESC LIMIT 1")
-    except _AUDIT_DB_ERRORS:
-        return
-    if row and row.get("row_hash"):
-        _audit_chain.prev_hash = row["row_hash"]
 
 
 def _get_auth_service():
@@ -133,43 +90,20 @@ class AuditMiddleware(BaseHTTPMiddleware):
 
         db = _get_db()
         if db:
-            try:
-                details_json = json.dumps(details, sort_keys=True)
-                with _audit_lock:
-                    _seed_chain(db)
-                    parts = [
-                        _audit_chain.prev_hash,
-                        method,
-                        str(_user_id),
-                        path,
-                        details_json,
-                        ip_address or "",
-                    ]
-                    canonical = "|".join(parts)
-                    row_hash = hashlib.sha256(canonical.encode()).hexdigest()
-                    db.execute_insert(
-                        """
-                        INSERT INTO audit_log (action, user_id, resource_type,
-                            resource_id, details, ip_address, user_agent,
-                            prev_hash, row_hash, org_id)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            method,
-                            _user_id if _user_id is not None else -1,
-                            "api",
-                            path,
-                            details_json,
-                            ip_address,
-                            user_agent,
-                            _audit_chain.prev_hash,
-                            row_hash,
-                            None,
-                        ),
-                    )
-                    _audit_chain.prev_hash = row_hash
-            except _AUDIT_DB_ERRORS:
-                logger.exception("Audit DB insert failed")
+            from picosentry.serve.services.audit_chain import append_audit_row
+
+            append_audit_row(
+                action=method,
+                user_id=_user_id,
+                resource_type="api",
+                resource_id=path,
+                details=details,
+                ip_address=ip_address,
+                user_agent=user_agent,
+                severity="default",
+                org_id=None,
+                database=db,
+            )
 
         logger.info("API %s %s - %s (%.3fs) user=%s", method, path, status_code, duration, _user_id)
 

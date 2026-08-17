@@ -249,7 +249,18 @@ class WebhookManager:
                         "User-Agent": "PicoShogun-Webhook/2.0",
                     },
                     timeout=10,
+                    # A 3xx would make requests re-resolve and follow to a
+                    # host that was never SSRF-checked — the redirect bypasses
+                    # the DNS pin.  Treat any redirect as a delivery failure.
+                    allow_redirects=False,
                 )
+
+                if 300 <= response.status_code < 400:
+                    logger.warning(
+                        "Webhook %s returned a redirect (%s) — treating as failure (redirects bypass the DNS pin)",
+                        name,
+                        response.status_code,
+                    )
 
                 results.append(
                     {"webhook": name, "status": response.status_code, "success": 200 <= response.status_code < 300}

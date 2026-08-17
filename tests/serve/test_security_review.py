@@ -463,12 +463,14 @@ class TestAuditMiddlewareHardening:
         def _boom(*args, **kwargs):
             raise sqlite3.OperationalError("disk I/O error")
 
-        with caplog.at_level(logging.ERROR, logger="picoshogun.Audit"):
-            monkeypatch.setattr(db, "execute_insert", _boom)
+        # The write path goes through execute_on() inside the DB transaction
+        # (B9 moved the chain from module-global memory into the DB write).
+        with caplog.at_level(logging.ERROR, logger="picoshogun.AuditChain"):
+            monkeypatch.setattr(db, "execute_on", _boom)
             r = client.get("/health/live")
 
         assert r.status_code == 200
-        assert any("Audit DB insert failed" in r.message for r in caplog.records)
+        assert any("Audit chain append failed" in r.message for r in caplog.records)
 
 
 class TestHealthHardening:

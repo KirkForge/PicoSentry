@@ -256,6 +256,11 @@ class CorrelationEngine:
                 chain.chain_score,
             )
 
+            chain_org = next(
+                (e.org_id for events in chain.phases.values() for e in events if e.org_id is not None),
+                None,
+            )
+
             event_bus.publish(
                 "project.run.auto_analyze",
                 {
@@ -266,6 +271,7 @@ class CorrelationEngine:
                     "run_id": run_id,
                     "chain_score": chain.chain_score,
                 },
+                org_id=chain_org,
             )
 
     def on_chain_escalated(self, callback: Callable[[KillChainTimeline], None]) -> None:

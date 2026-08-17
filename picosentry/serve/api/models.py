@@ -436,6 +436,13 @@ class AuditPurgeResponse(BaseModel):
     retention_days: int | None = None
 
 
+class AuditVerifyResponse(BaseModel):
+    valid: bool
+    rows_checked: int
+    violation: str | None = None
+    row_id: int | None = None
+
+
 class EventHistoryItem(BaseModel):
     id: int
     type: str

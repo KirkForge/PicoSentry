@@ -7,6 +7,7 @@ from picosentry.serve.api.deps import get_current_org, require_role
 from picosentry.serve.api.models import (
     AuditPurgeResponse,
     AuditStatsResponse,
+    AuditVerifyResponse,
     BackupListResponse,
     BackupResponse,
     EventHistoryItem,
@@ -14,6 +15,7 @@ from picosentry.serve.api.models import (
     LogRotateResponse,
     LogStatsResponse,
 )
+from picosentry.serve.services.audit_chain import verify_audit_chain
 from picosentry.serve.services.audit_cleanup import get_audit_stats, purge_audit_logs
 from picosentry.serve.services.backup import BackupManager
 from picosentry.serve.services.event_bus import event_bus
@@ -66,6 +68,15 @@ async def get_logs(
 @router.get("/audit/stats", tags=["Audit"], response_model=AuditStatsResponse)
 async def audit_stats(user: dict = Depends(require_role("admin")), org: dict = Depends(get_current_org)):
     return get_audit_stats(org_id=org["id"])
+
+
+@router.get("/audit/verify", tags=["Audit"], response_model=AuditVerifyResponse)
+async def audit_verify(
+    limit: int | None = Query(None, ge=1),
+    user: dict = Depends(require_role("admin")),
+    org: dict = Depends(get_current_org),
+):
+    return verify_audit_chain(org_id=org["id"], limit=limit)
 
 
 @router.post("/audit/purge", tags=["Audit"], response_model=AuditPurgeResponse)

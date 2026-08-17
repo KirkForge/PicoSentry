@@ -21,13 +21,39 @@ concurrency:
 env:
   PYTHON_VERSION: '3.12'
 
-# Execution model: PR = fast feedback (lint, types, fast profile, smoke),
-# push to main/dev = post-merge breadth (version matrix, live services,
-# docker, reproducible build), nightly = exhaustive (everything + coverage
-# + audit). Test-selection policy lives in scripts/test.sh, not here.
+# Execution model: PR = fast feedback (lint always; pytest/budget/artifact
+# checks only when code changed), push to main/dev = post-merge breadth
+# (version matrix, live services, docker, reproducible build), nightly =
+# exhaustive (everything + coverage + audit). Test-selection policy lives in
+# scripts/test.sh, not here.
 
 jobs:
   # ── PR validation ──────────────────────────────────────────────────────
+
+  # Path-aware fast path (#85): one cheap job classifies the PR diff so every
+  # pytest job can skip on docs/workflow-only changes. `code` = anything that
+  # can change runtime or test behavior; `scan` = anything that can change
+  # scan output artifacts (REPORT.json / docs/BENCHMARKS.md).
+  changes:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    outputs:
+      code: ${{ steps.filter.outputs.code }}
+      scan: ${{ steps.filter.outputs.scan }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - id: filter
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          files=$(git diff --name-only "$BASE_SHA"...HEAD)
+          echo "$files"
+          code_re='^(picosentry/|tests/|pyproject\.toml$|uv\.lock$|\.github/workflows/)'
+          scan_re='^(picosentry/(scan|firewall|_core)/|tests/scan/|scripts/render_benchmarks\.py$|pyproject\.toml$|uv\.lock$)'
+          if grep -Eq "$code_re" <<<"$files"; then echo "code=true" >>"$GITHUB_OUTPUT"; else echo "code=false" >>"$GITHUB_OUTPUT"; fi
+          if grep -Eq "$scan_re" <<<"$files"; then echo "scan=true" >>"$GITHUB_OUTPUT"; else echo "scan=false" >>"$GITHUB_OUTPUT"; fi
 
   lint:
     if: github.event_name == 'pull_request'
@@ -39,20 +65,42 @@ jobs:
       - run: uv run --extra dev ruff format --check picosentry/ tests/ scripts/
 
   type-check:
-    if: github.event_name == 'pull_request'
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
       - run: uv run --extra dev mypy picosentry/
 
-  test-scan:
-    if: github.event_name == 'pull_request'
+  # The ONE PR pytest job. tests/scan and tests/sandbox are subsets of this
+  # run (testpaths=tests), so dedicated scan/sandbox pytest jobs were removed
+  # as duplicate validation — their unique non-pytest steps live in
+  # scan-artifacts below.
+  test-fast:
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: bash scripts/test.sh fast tests/scan/ -v --tb=short
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - run: bash scripts/test.sh fast --junit
+      - name: Slow-test budget report (warn mode on PR)
+        if: always()
+        run: python3 scripts/check-test-budget.py .pytest-artifacts/junit-fast.xml --warn
+
+  # Scan artifact consistency (moved out of the old test-scan job; the pytest
+  # part was a duplicate of test-fast). Only runs when scan-relevant paths
+  # changed — a watch/serve-only PR cannot drift REPORT.json.
+  scan-artifacts:
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.scan == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
       - name: Regenerate REPORT.json
         continue-on-error: true
         run: uv run --extra scan picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
@@ -64,40 +112,24 @@ jobs:
       - name: Verify scan determinism
         run: uv run --extra scan picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
 
-  test-sandbox:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-      # fast profile excludes malicious_workload (needs PICODOME_SANDBOX_TESTS=1, nightly-only)
-      - run: bash scripts/test.sh fast tests/sandbox/ -v --tb=short
-
-  test-fast:
-    if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-      - run: bash scripts/test.sh fast
-
   cli-verification:
-    if: github.event_name == 'pull_request'
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: uv run --extra all picosentry --version
-      - run: uv run --extra all picosentry health
-      - run: uv run --extra all picosentry scan --help
-      - run: uv run --extra all picosentry sandbox --help
-      - run: uv run --extra all picosentry watch --help
-      - run: uv run --extra all picosentry serve --help
+      - run: |
+          uv run --extra all picosentry --version
+          uv run --extra all picosentry health
+          uv run --extra all picosentry scan --help
+          uv run --extra all picosentry sandbox --help
+          uv run --extra all picosentry watch --help
+          uv run --extra all picosentry serve --help
 
   determinism-check:
-    if: github.event_name == 'pull_request'
+    needs: [changes]
+    if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -130,7 +162,16 @@ jobs:
       - uses: astral-sh/setup-uv@v6
         with:
           python-version: ${{ matrix.python-version }}
-      - run: bash scripts/test.sh integration
+      - run: bash scripts/test.sh integration --junit
+      - name: Slow-test budget check (enforced on push)
+        if: always()
+        run: python3 scripts/check-test-budget.py .pytest-artifacts/junit-integration.xml --total-budget 1200 --out .pytest-artifacts/slowest-tests.md
+      - name: Upload JUnit + slow-test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report-py${{ matrix.python-version }}
+          path: .pytest-artifacts/
 
   postgres-live-test:
     if: github.event_name == 'push'
@@ -221,9 +262,12 @@ jobs:
         env:
           GITHUB_EVENT_HEAD_COMMIT_TIMESTAMP: ${{ github.event.head_commit.timestamp }}
 
+  # Docker jobs do not `needs: test-matrix`: image correctness and the Python
+  # compatibility matrix are independent validations that ran serially before
+  # — the matrix still runs (and still gates the push run), this just takes
+  # the slow QEMU arm64 build off the matrix's critical path (#84).
   docker-build:
     if: github.event_name == 'push'
-    needs: [test-matrix]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -251,7 +295,6 @@ jobs:
 
   docker-build-arm64:
     if: github.event_name == 'push'
-    needs: [test-matrix]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -279,12 +322,15 @@ jobs:
       # nightly profile: no marker filter — slow/network/benchmark_realworld and
       # malicious_workload (script sets PICODOME_SANDBOX_TESTS=1) all run here.
       - run: bash scripts/test.sh nightly
-      - name: Upload JUnit report
+      - name: Slow-test budget report (warn mode; enforce once baseline is known)
+        if: always()
+        run: python3 scripts/check-test-budget.py .pytest-artifacts/junit.xml --warn --out .pytest-artifacts/slowest-tests.md
+      - name: Upload JUnit + slow-test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: nightly-junit
-          path: .pytest-artifacts/junit.xml
+          name: nightly-test-report
+          path: .pytest-artifacts/
 
   nightly-coverage:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'

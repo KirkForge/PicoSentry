@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Named test profiles — marker/timeout policy lives here, not inline in CI YAML.
-# Usage: scripts/test.sh <profile> [extra pytest args...]; --list prints profiles.
+# Usage: scripts/test.sh <profile> [--junit] [extra pytest args...]; --list prints profiles.
+# --junit writes .pytest-artifacts/junit-<profile>.xml (nightly always writes
+# .pytest-artifacts/junit.xml) for scripts/check-test-budget.py.
 set -eo pipefail
 
 profile="${1:-fast}"
@@ -36,5 +38,16 @@ case "$profile" in
 esac
 
 args=()
+junit=0
+for a in "$@"; do
+  case "$a" in
+    --junit) junit=1 ;;
+    *) args+=("$a") ;;
+  esac
+done
+if [ "$junit" = 1 ] && [ "$profile" != nightly ]; then
+  extra+=(--junitxml=".pytest-artifacts/junit-${profile}.xml")
+  mkdir -p .pytest-artifacts
+fi
 [ -n "$marker" ] && args+=(-m "$marker")
-exec uv run --extra all --extra dev pytest "${args[@]}" "${extra[@]}" "$@"
+exec uv run --extra all --extra dev pytest "${args[@]}" "${extra[@]}"

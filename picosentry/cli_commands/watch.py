@@ -15,6 +15,8 @@ from picosentry.cli_commands._maturity import emit_maturity_warning
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     watch_parser = subparsers.add_parser("watch", help="LLM prompt injection detection and output validation")
+    watch_parser.add_argument("--verify-determinism", action="store_true", help="Run twice and compare results")
+    watch_parser.add_argument("--picoshogun-plugin", action="store_true", help="Run as PicoShogun plugin (ADR-005)")
     watch_sub = watch_parser.add_subparsers(dest="watch_command")
 
     scan_prompt_p = watch_sub.add_parser("scan-prompt", help="Scan a prompt for injection attempts")
@@ -44,6 +46,10 @@ def cmd(args: argparse.Namespace) -> int:
     )
 
     watch_argv: list[str] = []
+    if getattr(args, "verify_determinism", False):
+        watch_argv.append("--verify-determinism")
+    if getattr(args, "picoshogun_plugin", False):
+        watch_argv.append("--picoshogun-plugin")
     watch_command = getattr(args, "watch_command", None)
     if watch_command:
         watch_argv.append(watch_command)
@@ -56,10 +62,11 @@ def cmd(args: argparse.Namespace) -> int:
             watch_argv.extend(["--schema", args.schema, "--output", args.output])
         elif watch_command == "serve":
             watch_argv.extend(["--host", args.host, "--port", str(args.port)])
-    else:
+    elif not watch_argv:
         watch_argv.append("--help")
 
-    return watch_main(watch_argv or None)
+    watch_main(watch_argv)
+    return 0
 
 
 register("watch", add_arguments, cmd)

@@ -117,18 +117,17 @@ def discover_pnpm_workspace(root: Path) -> list[Path]:
         return discover_projects(root)
 
     projects: set[Path] = set()
+    resolved_root = root.resolve()
     for pattern in packages:
-        matches = list(root.glob(pattern))
-        for match in matches:
+        for match in root.glob(pattern):
             if match.is_symlink():
                 continue  # Skip symlinks to avoid traversal outside root
+            # Hostile patterns ('../..') must not pull directories outside the root.
+            if not match.resolve().is_relative_to(resolved_root):
+                logger.warning("Skipping workspace match outside root: %s", match)
+                continue
             if match.is_dir() and (match / "package.json").exists():
                 projects.add(match.resolve())
-
-            elif match.is_dir():
-                pkg_json = match / "package.json"
-                if pkg_json.exists():
-                    projects.add(match.resolve())
 
     return sorted(projects) if projects else discover_projects(root)
 

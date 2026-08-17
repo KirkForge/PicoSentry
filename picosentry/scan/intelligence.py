@@ -23,6 +23,10 @@ class IntelligenceMode(Enum):
 
 _OSV_API_URL = "https://api.osv.dev/v1/query"
 
+# Disk-cache caps, same style as scan/cache.py. 0 entries = unlimited.
+DEFAULT_OSV_MAX_ENTRIES = 512
+DEFAULT_OSV_MAX_AGE_SECONDS = 30 * 24 * 3600  # 30 days
+
 
 class OSVClient:
     def __init__(
@@ -45,6 +49,9 @@ class OSVClient:
         self._cache_ttl = int(ttl_hours * 3600)
         self._timeout = timeout
         self._offline = os.environ.get("PICOSENTRY_OFFLINE", "").strip() in ("1", "true", "yes")
+        self._max_entries = int(os.environ.get("PICOSENTRY_OSV_MAX_ENTRIES", str(DEFAULT_OSV_MAX_ENTRIES)))
+        self._max_age_seconds = int(os.environ.get("PICOSENTRY_OSV_MAX_AGE_SECONDS", str(DEFAULT_OSV_MAX_AGE_SECONDS)))
+        self._swept = False  # one age/count sweep per client on first load
 
     def _cache_key(self, ecosystem: str, package_name: str) -> str:
         return hashlib.sha256(f"{ecosystem}:{package_name}".encode()).hexdigest()
@@ -52,7 +59,36 @@ class OSVClient:
     def _cache_path(self, key: str) -> Path:
         return self._cache_dir / f"{key}.json"
 
+    def _enforce_caps(self) -> int:
+        """Evict cache files past the entry cap (oldest by mtime first) or the age cap."""
+        entries: list[tuple[float, Path]] = []
+        for path in self._cache_dir.glob("*.json"):
+            try:
+                entries.append((path.stat().st_mtime, path))
+            except OSError:
+                continue
+
+        now = time.time()
+        evicted = 0
+        entries.sort(key=lambda e: e[0], reverse=True)  # newest first
+        for idx, (mtime, path) in enumerate(entries):
+            too_many = self._max_entries > 0 and idx >= self._max_entries
+            too_old = self._max_age_seconds > 0 and now - mtime > self._max_age_seconds
+            if not (too_many or too_old):
+                continue
+            try:
+                path.unlink(missing_ok=True)
+                evicted += 1
+            except OSError:
+                pass
+        if evicted:
+            logger.info("Evicted %d OSV cache entries to enforce caps", evicted)
+        return evicted
+
     def _read_cache(self, key: str) -> list[dict] | None:
+        if not self._swept:  # ponytail: one sweep per client, not per package — bulk_query stays O(n)
+            self._swept = True
+            self._enforce_caps()
         path = self._cache_path(key)
         if not path.is_file():
             return None
@@ -74,6 +110,7 @@ class OSVClient:
         tmp = path.with_suffix(".tmp")
         tmp.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp.replace(path)
+        self._enforce_caps()
 
     def _fetch(self, payload: dict) -> list[Advisory]:
         if self._offline:

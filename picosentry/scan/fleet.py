@@ -192,7 +192,9 @@ class FleetManager:
             "statuses": {sn: s.to_dict() for sn, s in self._statuses.items()},
             "previous_policies": self._previous_policies,
         }
-        state_file.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        tmp_path = state_file.with_suffix(".tmp")
+        tmp_path.write_text(json.dumps(data, indent=2, sort_keys=True), encoding="utf-8")
+        tmp_path.replace(state_file)  # atomic — a crash mid-write cannot corrupt the JSON
 
     def register_target(self, target: FleetTarget) -> None:
         self._targets[target.id] = target

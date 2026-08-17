@@ -181,6 +181,7 @@ async def lifespan(app: FastAPI):
                 },
                 source="correlation_engine",
                 priority="high",
+                org_id=event.org_id,
             )
 
     event_bus.subscribe(

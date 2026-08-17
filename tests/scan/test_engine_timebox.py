@@ -10,7 +10,9 @@ the timebox fires deterministically without multi-second sleeps: the rule
 sleeps 0.3s against a 0.05s timebox (same margin the old 2.0s/0.5s pair had).
 
 Test coverage:
-  1. A 0.3s sleep rule times out within 1s (timebox + tear-down slack).
+  1. A 0.3s sleep rule times out well under the 0.3s sleep (0.2s bound) —
+     the executor must NOT join the abandoned worker on shutdown, otherwise
+     the scan blocks for the remaining sleep.
   2. Findings from other rules are still produced (timebox is per-rule,
      not whole-scan).
   3. The "ok" and "failed" statuses still work alongside "timeout".
@@ -34,11 +36,11 @@ from picosentry.scan.engine import (
 # ── Headline behavior: a 2s sleep rule times out ────────────────────────
 
 
-def test_slow_rule_times_out_within_1s(tmp_path: Path) -> None:
+def test_slow_rule_times_out_without_joining_worker(tmp_path: Path) -> None:
     """A rule that sleeps 0.3s must time out well before the sleep completes
-    under a 0.05s timebox. The slack in the elapsed bound covers thread pool
-    tear-down (executor shutdown joins the still-sleeping worker) and any
-    other in-flight rules.
+    under a 0.05s timebox. The elapsed bound (0.2s) is deliberately BELOW the
+    0.3s rule sleep: a regression that makes the executor join the abandoned
+    worker on shutdown would push elapsed to ~0.35s and fail this test.
     Use an empty temp directory as the target to avoid repo-size noise.
     """
 
@@ -54,7 +56,7 @@ def test_slow_rule_times_out_within_1s(tmp_path: Path) -> None:
     result: ScanResult = engine.scan(tmp_path, rule_timeout=0.05)
     elapsed = time.monotonic() - t0
 
-    assert elapsed < 1.0, f"Scan took {elapsed:.2f}s — timebox did not fire"
+    assert elapsed < 0.2, f"Scan took {elapsed:.2f}s — timebox did not fire or executor joined the hung worker"
 
     slow_exec = next(e for e in result.rule_executions if e.rule_id == "L2-SLOW-001")
     assert slow_exec.status == "timeout", f"Expected L2-SLOW-001 status='timeout', got {slow_exec.status!r}"

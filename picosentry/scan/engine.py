@@ -377,10 +377,12 @@ class ScanEngine:
                 return fn(target_path, self._corpus_dir)
             return fn(target_path)
 
-        with ThreadPoolExecutor(
+        rule_timed_out = False
+        rule_executor = ThreadPoolExecutor(
             max_workers=min(self._max_workers, len(selected_rules) or 1),
             thread_name_prefix="picosentry-rule",
-        ) as rule_executor:
+        )
+        try:
             for fn_id in sorted(fn_to_rule_ids, key=lambda fid: fn_to_rule_ids[fid][0]):
                 rule_fn = selected_rules[fn_to_rule_ids[fn_id][0]]
                 rule_ids_for_fn = fn_to_rule_ids[fn_id]
@@ -391,6 +393,7 @@ class ScanEngine:
                     try:
                         findings = future.result(timeout=_effective_rule_timeout)
                     except FuturesTimeoutError:
+                        rule_timed_out = True
                         elapsed = int(now_ms() - rule_start)
                         logger.warning(
                             "Rule %s exceeded %ss timebox — skipping",
@@ -439,6 +442,11 @@ class ScanEngine:
                         )
                 except BaseException:
                     raise
+        finally:
+            # ponytail: on timeout we abandon the hung worker thread — the interpreter's
+            # exit may block until that thread finishes; upgrade path: per-rule process
+            # isolation if unbounded rule hangs become common.
+            rule_executor.shutdown(wait=not rule_timed_out, cancel_futures=rule_timed_out)
 
         if rules is not None:
             selected_set = set(selected_rules.keys())

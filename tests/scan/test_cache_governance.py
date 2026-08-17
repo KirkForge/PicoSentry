@@ -102,6 +102,46 @@ class TestCacheWipe(unittest.TestCase):
         self.assertEqual(stats["entries"], 0)
 
 
+class TestCacheIntegrity(unittest.TestCase):
+    """Entries missing or violating the _hmac integrity tag must be cache misses."""
+
+    def setUp(self):
+        self.tmpdir = tempfile.mkdtemp()
+        self.cache = ScanCache(cache_dir=Path(self.tmpdir), ttl=999999)
+        audit_path = Path(self.tmpdir) / "audit_test.jsonl"
+        configure_audit_sink(path=audit_path, retention_days=0)
+
+    def tearDown(self):
+        reset_audit_sink()
+
+    def _entry_path(self):
+        return self.cache._cache_path(self.cache._cache_key("lock", "corpus", "v1"))
+
+    def test_missing_hmac_is_cache_miss(self):
+        self.cache.put("lock", "corpus", "v1", {"findings": []})
+        path = self._entry_path()
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        del entry["_hmac"]
+        path.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
+
+        self.assertIsNone(self.cache.get("lock", "corpus", "v1"))
+        self.assertFalse(path.exists())  # evicted, like any corrupt entry
+
+    def test_tampered_hmac_is_cache_miss(self):
+        self.cache.put("lock", "corpus", "v1", {"findings": []})
+        path = self._entry_path()
+        entry = json.loads(path.read_text(encoding="utf-8"))
+        entry["result"] = {"findings": ["forged"]}
+        path.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
+
+        self.assertIsNone(self.cache.get("lock", "corpus", "v1"))
+        self.assertFalse(path.exists())
+
+    def test_intact_hmac_is_cache_hit(self):
+        self.cache.put("lock", "corpus", "v1", {"findings": []})
+        self.assertEqual(self.cache.get("lock", "corpus", "v1"), {"findings": []})
+
+
 class TestCacheCaps(unittest.TestCase):
     """Tests for cache size and entry caps."""
 

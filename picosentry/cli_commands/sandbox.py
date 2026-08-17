@@ -7,6 +7,7 @@ it with the unified CLI and forwards arguments.
 from __future__ import annotations
 
 import argparse
+import sys
 
 from picosentry.cli_commands import register
 from picosentry.cli_commands._common import forward_flag
@@ -48,24 +49,81 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     sandbox_parser.add_argument("--input", type=str, default=None, help=argparse.SUPPRESS)
 
 
+_FLAG_SPECS: tuple[tuple[str, bool, object], ...] = (
+    ("--format", False, "table"),
+    ("--deterministic-output", True, False),
+    ("--exit-code", True, False),
+    ("--fail-on", False, None),
+    ("--quiet", True, False),
+    ("--summary", True, False),
+    ("--backend", False, "auto"),
+    ("--allow-degraded", True, False),
+    ("--allow-runtime", False, None),
+    ("--verify-determinism", True, False),
+    ("--policy", False, None),
+    ("--timeout", False, None),
+    ("--input", False, None),
+)
+
+_SUBCOMMAND_FLAGS: dict[str, frozenset[str]] = {
+    "analyze": frozenset(
+        {
+            "--input",
+            "--format",
+            "--deterministic-output",
+            "--exit-code",
+            "--fail-on",
+            "--quiet",
+            "--summary",
+        }
+    ),
+    "pipeline": frozenset(
+        {
+            "--format",
+            "--deterministic-output",
+            "--exit-code",
+            "--fail-on",
+            "--quiet",
+            "--summary",
+            "--policy",
+            "--timeout",
+            "--backend",
+            "--allow-degraded",
+            "--allow-runtime",
+        }
+    ),
+    "rules": frozenset(),
+    "init": frozenset(),
+}
+
+
 def _handle_sandbox_subcommand(args: argparse.Namespace) -> int:
     from picosentry.sandbox.cli import main as sandbox_main
 
     sub_cmd = args.sandbox_cmd[0]
     rest = args.sandbox_cmd[1:]
+    allowed = _SUBCOMMAND_FLAGS.get(sub_cmd)
+    if allowed is None:
+        raise RuntimeError(f"Unexpected sandbox subcommand: {sub_cmd}")
 
+    flag_argv: list[str] = []
+    for flag, boolean, default in _FLAG_SPECS:
+        if flag in allowed:
+            forward_flag(flag_argv, args, flag, boolean=boolean, default=default)
+            continue
+        dest = flag.lstrip("-").replace("-", "_")
+        if getattr(args, dest, None) != default:
+            print(f"Error: {flag} is not supported by 'sandbox {sub_cmd}'", file=sys.stderr)
+            return 2
+
+    argv: list[str] = [sub_cmd, *flag_argv]
     if sub_cmd == "analyze":
-        input_path = getattr(args, "input", None) or (rest[0] if rest else None)
-        if input_path:
-            return sandbox_main(["analyze", "--input", input_path])
-        return sandbox_main(["analyze"])
-    if sub_cmd == "pipeline":
-        return sandbox_main(["pipeline", *rest])
-    if sub_cmd == "rules":
-        return sandbox_main(["rules"])
-    if sub_cmd == "init":
-        return sandbox_main(["init"])
-    raise RuntimeError(f"Unexpected sandbox subcommand: {sub_cmd}")
+        if not getattr(args, "input", None) and rest:
+            argv.extend(["--input", rest[0]])
+    elif rest:
+        argv.extend(["--", *rest])
+
+    return sandbox_main(argv)
 
 
 def cmd(args: argparse.Namespace) -> int:

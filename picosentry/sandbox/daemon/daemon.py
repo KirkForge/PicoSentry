@@ -3,8 +3,10 @@ from __future__ import annotations
 import logging
 import os
 import signal
+import socket
 import threading
-from http.server import HTTPServer
+from concurrent.futures import ThreadPoolExecutor
+from http.server import ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +17,12 @@ from picosentry.sandbox.ratelimit import RateLimitConfig, TokenBucketLimiter
 logger = logging.getLogger("picodome.daemon")
 
 
-class _PicoDomeHTTPServer(HTTPServer):
-    """Reusable socket address so the daemon can restart quickly in tests and production."""
+class _PicoDomeHTTPServer(ThreadingHTTPServer):
+    """Threaded so one slow scan never blocks /health, /metrics or gossip.
+
+    Reusable socket address so the daemon can restart quickly in tests and
+    production.
+    """
 
     allow_reuse_address = True
     timeout = 30
@@ -39,10 +45,13 @@ class PicoDomeDaemon:
             if metrics_port is not None
             else (int(os.environ["PICODOME_METRICS_PORT"]) if "PICODOME_METRICS_PORT" in os.environ else None)
         )
-        self._server: HTTPServer | None = None
-        self._metrics_server: HTTPServer | None = None
+        self._server: ThreadingHTTPServer | None = None
+        self._metrics_server: ThreadingHTTPServer | None = None
         self._server_thread: threading.Thread | None = None
         self._metrics_thread: threading.Thread | None = None
+        self._raw_socket: socket.socket | None = None  # unencrypted listener; TLS sockets are dups of it
+        self._shutdown_event = threading.Event()
+        self._reload_lock = threading.Lock()
         self._job_store_dir = job_store_dir or os.environ.get("PICODOME_JOB_STORE_DIR")
         self._store_backend = store_backend or os.environ.get("PICODOME_STORE_BACKEND", "jsonl")
         self._cluster_config = cluster_config or {}
@@ -63,6 +72,22 @@ class PicoDomeDaemon:
             store_dir = Path(self._job_store_dir) if self._job_store_dir else None
             PicoDomeHandler.job_store = PersistentScanJobStore(store_dir=store_dir)
             logger.info("Using JSONL job store backend")
+
+        # Rebuild auth from the CURRENT environment. PicoDomeHandler's import-time
+        # TokenAuth predates any PICODOME_API_TOKENS set after import (e.g.
+        # create_app(tokens=…)), which silently no-opped (WO4.0.0-002).
+        from picosentry.sandbox.auth import RBAC, TokenAuth
+
+        PicoDomeHandler.rbac = RBAC()
+        PicoDomeHandler.auth = TokenAuth(rbac=PicoDomeHandler.rbac)
+
+        # Scan worker pool: bounded concurrent scans with queued→running→completed
+        # job states instead of blocking a server thread per scan.
+        scan_workers = max(1, int(os.environ.get("PICODOME_SCAN_WORKERS", "4")))
+        scan_queue = max(0, int(os.environ.get("PICODOME_SCAN_QUEUE", "32")))
+        self._scan_executor = ThreadPoolExecutor(max_workers=scan_workers, thread_name_prefix="picodome-scan")
+        PicoDomeHandler.scan_executor = self._scan_executor
+        PicoDomeHandler.scan_slots = threading.Semaphore(scan_workers + scan_queue)
 
         global_rps = float(os.environ.get("PICODOME_GLOBAL_RPS", "25.0"))
         rate_per_second = float(os.environ.get("PICODOME_RATE_PER_SECOND", "2.0"))
@@ -108,11 +133,17 @@ class PicoDomeDaemon:
                     if not url:
                         logger.warning("WebhookSink: PICODOME_WEBHOOK_URL not set, skipping")
                         continue
+                    # Bounded queue + drop counter so the webhook's synchronous
+                    # retries can never stall the request thread (WO4.0.0-002).
+                    from picosentry.sandbox.daemon.webhook_sink import QueuedWebhookSink
+
                     sinks.append(
-                        WebhookSink(
-                            config=config,
-                            url=url,
-                            auth_token=token,
+                        QueuedWebhookSink(
+                            WebhookSink(
+                                config=config,
+                                url=url,
+                                auth_token=token,
+                            )
                         )
                     )
                 elif sink_type == "syslog":
@@ -139,10 +170,13 @@ class PicoDomeDaemon:
         self._start_cluster_manager()
 
         server = _PicoDomeHTTPServer((self._host, self._port), PicoDomeHandler)
+        self._raw_socket = server.socket  # pristine listener; serving socket is a dup
         ssl_ctx = create_ssl_context()
         if ssl_ctx:
-            server.socket = ssl_ctx.wrap_socket(server.socket, server_side=True)
+            server.socket = ssl_ctx.wrap_socket(self._raw_socket.dup(), server_side=True)
             logger.info("mTLS: TLS enabled on %s:%d", self._host, self._port)
+        else:
+            server.socket = self._raw_socket.dup()
         self._server = server
 
         try:
@@ -181,16 +215,30 @@ class PicoDomeDaemon:
             )
             self._metrics_thread.start()
 
+        # serve_forever always runs on its own thread so signal handlers never
+        # call shutdown() from the serve_forever thread (deadlock, WO4.0.0-002).
+        self._shutdown_event.clear()
+        self._server_thread = threading.Thread(target=self._serve_loop, daemon=True, name="picodome-daemon-server")
+        self._server_thread.start()
+
         if background:
-            self._server_thread = threading.Thread(
-                target=server.serve_forever, daemon=True, name="picodome-daemon-server"
-            )
-            self._server_thread.start()
-        else:
-            try:
-                server.serve_forever()
-            except KeyboardInterrupt:
-                self.stop()
+            return
+
+        # Foreground: park the main thread until a signal-driven stop().
+        try:
+            self._shutdown_event.wait()
+        except KeyboardInterrupt:
+            self.stop()
+
+    def _serve_loop(self) -> None:
+        server = self._server
+        if server is None:
+            return
+        try:
+            server.serve_forever(poll_interval=0.5)
+        except Exception:
+            if not self._shutdown_event.is_set():
+                logger.exception("serve_forever loop crashed")
 
     def _start_cluster_manager(self) -> None:
         """Start the cluster manager if cluster mode is configured."""
@@ -239,6 +287,8 @@ class PicoDomeDaemon:
         )
 
     def stop(self) -> None:
+        self._shutdown_event.set()
+
         if self._server:
             self._server.shutdown()
             self._server.server_close()
@@ -246,6 +296,12 @@ class PicoDomeDaemon:
                 self._server_thread.join(timeout=5.0)
             self._server = None
             self._server_thread = None
+        if self._raw_socket is not None:
+            try:
+                self._raw_socket.close()
+            except OSError:
+                logger.debug("raw socket already closed", exc_info=True)
+            self._raw_socket = None
 
         if self._metrics_server:
             self._metrics_server.shutdown()
@@ -261,6 +317,12 @@ class PicoDomeDaemon:
             except Exception as exc:
                 logger.warning("Failed to stop cluster manager: %s", exc)
             self._cluster_manager = None
+
+        # Cancel queued scans; running ones finish in their worker threads.
+        self._scan_executor.shutdown(wait=False, cancel_futures=True)
+        if PicoDomeHandler.scan_executor is self._scan_executor:
+            PicoDomeHandler.scan_executor = None
+            PicoDomeHandler.scan_slots = None
 
         for sink in self._sinks:
             try:
@@ -285,7 +347,10 @@ class PicoDomeDaemon:
         def _handle_shutdown(signum: int, _frame: Any) -> None:
             sig_name = signal.Signals(signum).name
             logger.info("Received %s, shutting down gracefully...", sig_name)
-            self.stop()
+            # Signal handlers run on the main thread, which may be inside
+            # serve_forever's loop; server.shutdown() from that thread
+            # deadlocks. Do the stop on a helper thread.
+            threading.Thread(target=self.stop, daemon=True, name=f"picodome-signal-{sig_name}").start()
 
         signal.signal(signal.SIGTERM, _handle_shutdown)
         signal.signal(signal.SIGINT, _handle_shutdown)
@@ -294,17 +359,42 @@ class PicoDomeDaemon:
 
             def _handle_hup(_signum: int, _frame: Any) -> None:
                 logger.info("Received SIGHUP — reloading configuration")
-                try:
-                    from picosentry.sandbox.mtls import reload_ssl_context
-
-                    ctx = reload_ssl_context()
-                    if ctx and self._server:
-                        self._server.socket = ctx.wrap_socket(self._server.socket, server_side=True)
-                        logger.info("SIGHUP: TLS context reloaded")
-                except Exception as exc:
-                    logger.warning("SIGHUP reload failed: %s", exc)
+                threading.Thread(target=self._reload_tls, daemon=True, name="picodome-sighup").start()
 
             signal.signal(signal.SIGHUP, _handle_hup)
+
+    def _reload_tls(self) -> None:
+        """SIGHUP: rebind the serving socket from the pristine RAW listener.
+
+        The old code wrapped the already-SSL serving socket again (TLS-in-TLS,
+        dead listener). Here the raw listener is dup'ed and wrapped fresh; the
+        accept loop is stopped and restarted around the swap.
+        """
+        from picosentry.sandbox.mtls import reload_ssl_context
+
+        with self._reload_lock:
+            server = self._server
+            raw = self._raw_socket
+            if server is None or raw is None:
+                logger.warning("SIGHUP: daemon not running, nothing to reload")
+                return
+            try:
+                ctx = reload_ssl_context()
+            except Exception as exc:
+                logger.warning("SIGHUP reload failed: %s", exc)
+                return
+
+            try:
+                server.shutdown()  # we are on a helper thread — safe
+                old_sock = server.socket
+                server.socket = ctx.wrap_socket(raw.dup(), server_side=True) if ctx else raw.dup()
+                old_sock.close()
+            except OSError as exc:
+                logger.warning("SIGHUP socket rebind failed: %s", exc)
+                return
+
+            threading.Thread(target=self._serve_loop, daemon=True, name="picodome-daemon-server").start()
+            logger.info("SIGHUP: TLS context reloaded and listener rebound")
 
 
 __all__ = ["PicoDomeDaemon"]

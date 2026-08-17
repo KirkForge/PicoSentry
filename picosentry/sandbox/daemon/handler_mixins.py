@@ -7,6 +7,7 @@ import uuid
 from typing import TYPE_CHECKING, Any, ClassVar
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
+from picosentry.sandbox.daemon import constants
 from picosentry.sandbox.daemon.constants import (
     CORS_ALLOW_HEADERS,
     CORS_ALLOW_METHODS,
@@ -110,98 +111,13 @@ class PicoDomeResponseMixin:
 
 
 class PicoDomeAuthMixin:
-    ALLOWED_COMMANDS: ClassVar[set[str]] = {
-        "echo",
-        "printf",
-        "cat",
-        "head",
-        "tail",
-        "sort",
-        "wc",
-        "grep",
-        "jq",
-        "yq",
-        "npm",
-        "npx",
-        "yarn",
-        "pnpm",
-        "pip",
-        "pip3",
-        "cargo",
-        "go",
-        "mvn",
-        "gradle",
-        "make",
-        "cmake",
-        "dotnet",
-        "gem",
-        "bundle",
-        "php",
-        "composer",
-    }
-
-    DENIED_COMMANDS: ClassVar[set[str]] = {
-        "rm",
-        "rmdir",
-        "mkfs",
-        "dd",
-        "format",
-        "shutdown",
-        "reboot",
-        "halt",
-        "poweroff",
-        "passwd",
-        "useradd",
-        "userdel",
-        "usermod",
-        "groupadd",
-        "groupdel",
-        "iptables",
-        "ip6tables",
-        "nft",
-        "systemctl",
-        "service",
-        "mount",
-        "umount",
-        "crontab",
-        "ssh",
-        "telnet",
-        "nc",
-        "ncat",
-        "curl",
-        "wget",
-        "bash",
-        "sh",
-        "zsh",
-        "fish",
-        "python",
-        "python3",
-        "perl",
-        "ruby",
-        "node",
-        "sudo",
-        "su",
-        "doas",
-        "chmod",
-        "chown",
-        "chgrp",
-        "chattr",
-    }
+    # Command policy lives in daemon.constants so the HTTP handler and the
+    # gRPC servicer enforce the identical rule set.
+    ALLOWED_COMMANDS: ClassVar[set[str]] = set(constants.ALLOWED_COMMANDS)
+    DENIED_COMMANDS: ClassVar[set[str]] = set(constants.DENIED_COMMANDS)
 
     def _validate_command(self: PicoDomeHandler, command: list[str]) -> str | None:
-        if not command:
-            return "Empty command"
-        base = command[0]
-        from pathlib import Path as _Path
-
-        base_name = _Path(base).name
-
-        if _ENTERPRISE_MODE:
-            if base_name not in self.ALLOWED_COMMANDS:
-                return f"Command '{base_name}' is not in enterprise allowlist"
-        elif base_name in self.DENIED_COMMANDS:
-            return f"Command '{base_name}' is denied by server policy"
-        return None
+        return constants.validate_command(command)
 
     def _get_token(self: PicoDomeHandler) -> str | None:
         auth_header = self.headers.get("Authorization", "")

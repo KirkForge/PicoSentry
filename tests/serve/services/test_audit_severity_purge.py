@@ -33,7 +33,9 @@ def _insert(mgr: DatabaseManager, *, severity: str, age_days: int, org_id: int |
 
 
 def _counts_by_severity(mgr: DatabaseManager) -> dict[str, int]:
-    rows = mgr.execute("SELECT severity, COUNT(*) as c FROM audit_log GROUP BY severity")
+    # Purges append a chained `audit.purge` gap-marker row (WO4.0.0-004) —
+    # these assertions are about retained DATA rows, so markers are excluded.
+    rows = mgr.execute("SELECT severity, COUNT(*) as c FROM audit_log WHERE action != 'audit.purge' GROUP BY severity")
     return {r["severity"]: r["c"] for r in rows}
 
 
@@ -81,7 +83,8 @@ def test_org_scoped_purge_leaves_other_org(purge_db):
 
     purge_audit_logs(org_id=1)
 
-    rows = purge_db.execute("SELECT org_id FROM audit_log")
+    # Data rows only; the purge's own gap-marker row (org 1) is excluded.
+    rows = purge_db.execute("SELECT org_id FROM audit_log WHERE action != 'audit.purge'")
     assert [r["org_id"] for r in rows] == [2]
 
 

@@ -66,3 +66,60 @@ chain from the persisted head.
   crashing the request path.
 - The `org_id` column is written as `NULL` for every audit row; org attribution
   is not yet part of the chain input.
+
+## Addendum (2026-08, WO4.0.0-004): retention × tamper-evidence
+
+### Context
+
+Retention purges (`audit_cleanup.purge_audit_logs`, severity-tiered and
+bulk) delete rows from the middle of the chain, but the verifier compared
+each row's `prev_hash` to its nearest *surviving* predecessor — the first
+scheduled purge made `GET /admin/audit/verify` report "fork or deleted link"
+forever. The two features shipped the same day and were only tested
+separately.
+
+### Decision: gap-tolerant verify with purge-time gap markers
+
+We reject tail-contiguous purge (only deleting suffix runs): a critical row
+that is one day past its cutoff would pin every earlier row of every
+severity forever, because anything before it must survive to keep the chain
+linked — the documented retention policy becomes unenforceable exactly for
+the severities that matter most. Instead, **purges record what they
+deleted, and the verifier accepts those recorded gaps**:
+
+- `purge_audit_logs` selects the exact ids it will delete, deletes them
+  inside one write transaction, and appends a chained `audit.purge` row
+  (severity=`critical`, so the marker outlives every retention class it can
+  describe) whose `details` carry the deleted ids as contiguous runs,
+  e.g. `{"deleted": 12, "gaps": [[41, 44], [97, 104]]}`.
+- `verify_audit_chain` builds the purged-id set from all `audit.purge` rows
+  and treats a `prev_hash` mismatch as an authorized gap iff every id
+  between the two surviving rows is in that set (for the head of the table:
+  iff the entire id prefix below the row is). Each row's own `row_hash`
+  recomputation is unchanged, so field tampering of any surviving row is
+  still detected.
+- Forging a gap marker requires inserting a chained row, which requires
+  rebuilding the chain tail — the same barrier as any full-rewrite attack
+  already documented below (internal consistency, not authenticity).
+
+Residual ceiling (ponytail: accepted): the gap markers are themselves
+retained 365d (critical tier). A marker purged at end-of-life while younger
+surviving rows still link across its gap would surface as an unexplained
+break; if that horizon is ever hit in practice, compact markers during
+purge instead of deleting them.
+
+### Consequences (2026-08)
+
+- Purge → verify interaction is now a tested pair, not two features.
+- Blocked requests (429 rate-limit, 413 size-limit, DDoS shield, 504
+  timeout) are audited: `AuditMiddleware` is now registered outermost, and
+  the request id from `RequestIDMiddleware` is copied into the row's
+  `details`, so attack evidence in the tamper-evident log correlates with
+  the structured log lines.
+- Audit rows carry `org_id` at write time (API key scope, `X-Org-API-Key`,
+  or the JWT `org_id` claim stamped at login — best-effort attribution;
+  enforcement in `deps.get_current_org` always re-resolves membership).
+- Audit-writer queue drops and correlation-engine backpressure drops are
+  exported as instance-wide gauges (`picoshogun_dropped_audit_records`,
+  `picoshogun_dropped_correlation_events`) and surfaced on the verify
+  endpoint, so silent evidence loss is observable.

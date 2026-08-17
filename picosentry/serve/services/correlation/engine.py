@@ -50,6 +50,8 @@ class CorrelationEngine:
         self._minute_bucket_start: float = 0.0
         self._minute_event_count = 0
 
+        self.dropped_events = 0  # monotonic backpressure drop counter (WO4.0.0-004)
+
         self._escalation_callbacks: list[Callable[[KillChainTimeline], None]] = []
 
     @classmethod
@@ -81,6 +83,14 @@ class CorrelationEngine:
         self._minute_event_count += allowed
         return allowed
 
+    def _record_drops(self, count: int) -> None:
+        if count <= 0:
+            return
+        self.dropped_events += count
+        from picosentry.serve.services.metrics import metrics
+
+        metrics.set_global_gauge("dropped_correlation_events", self.dropped_events)
+
     def ingest(self, event: CorrelatedEvent) -> None:
         with self._lock:
             if self._allowed_by_backpressure(1) == 0:
@@ -89,6 +99,7 @@ class CorrelationEngine:
                     event.artifact_id,
                     event.rule_id,
                 )
+                self._record_drops(1)
                 return
 
             events = self._events[event.artifact_id]
@@ -125,6 +136,7 @@ class CorrelationEngine:
                     "Correlation ingestion dropped batch of %d events (rate limit)",
                     len(events),
                 )
+                self._record_drops(len(events))
                 return
 
             dropped = len(events) - allowed
@@ -146,6 +158,7 @@ class CorrelationEngine:
                     self._chains.pop((evicted_org, k), None)
 
         if dropped:
+            self._record_drops(dropped)
             logger.warning(
                 "Correlation ingestion dropped %d/%d events (rate limit)",
                 dropped,

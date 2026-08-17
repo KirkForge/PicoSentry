@@ -260,7 +260,15 @@ class AuthService:
 
             self._db.execute_on(conn, "UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
 
-        token = self._generate_token(user["id"], user["username"], user["role"])
+        org_id = None
+        try:
+            from picosentry.serve.services.orgs import Organization
+
+            user_orgs = Organization.list_orgs_for_user(user["id"])
+            org_id = user_orgs[0]["id"] if user_orgs else None
+        except Exception:
+            logger.debug("Org resolution at login failed", exc_info=True)
+        token = self._generate_token(user["id"], user["username"], user["role"], org_id=org_id)
 
         logger.info("User %s authenticated", user["username"])
         return {"status": "ok", "token": token, "user_id": user["id"], "role": user["role"]}
@@ -281,7 +289,7 @@ class AuthService:
         else:
             self._db.execute_on(conn, "UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"]))
 
-    def _generate_token(self, user_id: int, username: str, role: str) -> str:
+    def _generate_token(self, user_id: int, username: str, role: str, org_id: int | None = None) -> str:
         if not HAS_JWT:
             raise RuntimeError("PyJWT is required for token generation. Install with: pip install PyJWT")
 
@@ -293,6 +301,10 @@ class AuthService:
             "exp": datetime.now(timezone.utc) + timedelta(hours=self.expiration_hours),
             "iat": datetime.now(timezone.utc),
         }
+        if org_id is not None:
+            # Best-effort org stamp for audit middleware; enforcement paths
+            # (deps.get_current_org) always re-resolve membership.
+            payload["org_id"] = org_id
 
         if self._signing_key is not None:
             headers = {"kid": self._signing_kid}
@@ -324,6 +336,7 @@ class AuthService:
             "username": payload["username"],
             "role": payload["role"],
             "jti": jti,
+            "org_id": payload.get("org_id"),
         }
 
     def _decode_token(self, token: str) -> dict[str, Any] | None:

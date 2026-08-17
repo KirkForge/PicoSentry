@@ -315,7 +315,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 api_v1 = APIRouter(prefix=settings.api.api_prefix)
 
 
-app.add_middleware(AuditMiddleware)
 app.add_middleware(
     RateLimitMiddleware,
     max_requests_per_ip=100,
@@ -350,6 +349,11 @@ app.add_middleware(
 app.add_middleware(HTTPSEnforcementMiddleware, enabled=settings.is_production())
 app.add_middleware(DocsRestrictionMiddleware, enabled=settings.is_production())
 app.add_middleware(CORSHardeningMiddleware, block_wildcard_in_production=settings.is_production())
+# WO4.0.0-004: Audit added LAST = OUTERMOST, so rate-limited (429),
+# oversized (413) and DDoS-blocked requests — which short-circuit in the
+# middlewares below — still reach the tamper-evident audit log. RequestID
+# sits inside audit, so blocked rows still carry the correlation id.
+app.add_middleware(AuditMiddleware)
 
 
 app.include_router(health.router)

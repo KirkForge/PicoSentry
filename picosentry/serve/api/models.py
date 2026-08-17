@@ -441,6 +441,8 @@ class AuditVerifyResponse(BaseModel):
     rows_checked: int
     violation: str | None = None
     row_id: int | None = None
+    dropped_audit_records: int = 0
+    dropped_correlation_events: int = 0
 
 
 class EventHistoryItem(BaseModel):
@@ -688,5 +690,6 @@ class ChainsSummaryResponse(BaseModel):
 
 class MetricsResponse(BaseModel):
     uptime_seconds: float
+    global_gauges: dict[str, float] = {}
     metrics: dict[str, Any]
     counters: dict[str, float]

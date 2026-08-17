@@ -9,6 +9,8 @@ from typing import Any, cast
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 
+from picosentry.serve.middleware.request_id import _request_id_var
+
 try:
     import psycopg2
 except ImportError:
@@ -60,6 +62,9 @@ class _AuditWriter:
             self._queue.put(item, block=False)
         except queue.Full:
             self.dropped += 1
+            from picosentry.serve.services.metrics import metrics
+
+            metrics.set_global_gauge("dropped_audit_records", self.dropped)
             logger.warning("Audit queue full — dropping row (dropped so far: %d)", self.dropped)
             return None
         return item.done
@@ -94,6 +99,12 @@ def _get_writer() -> _AuditWriter:
             if _writer is None:
                 _writer = _AuditWriter()
     return _writer
+
+
+def writer_dropped_count() -> int:
+    """Audit rows dropped by a full writer queue (0 before the writer exists)."""
+    w = _writer
+    return w.dropped if w is not None else 0
 
 
 _auth_svc = None
@@ -131,6 +142,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
         duration = time.time() - start_time
 
         _user_id = None
+        _org_id = None
 
         auth_svc = _get_auth_service()
         if auth_svc:
@@ -143,6 +155,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     payload = auth_svc.validate_token(token)
                     if payload:
                         _user_id = payload.get("user_id")
+                        _org_id = payload.get("org_id")
                 except (ValueError, KeyError, TypeError, RuntimeError):
                     logger.debug("Token validation failed in audit middleware")
             elif api_key:
@@ -150,8 +163,21 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     key_info = auth_svc.validate_api_key(api_key)
                     if key_info:
                         _user_id = key_info.get("user_id")
+                        _org_id = key_info.get("org_id")
                 except (ValueError, KeyError, TypeError, RuntimeError):
                     logger.debug("API key validation failed in audit middleware")
+
+        if _org_id is None:
+            org_key = request.headers.get("x-org-api-key", "")
+            if org_key.startswith("sk_"):
+                try:
+                    from picosentry.serve.services.orgs import Organization
+
+                    org = Organization.get_by_api_key(org_key)
+                    if org:
+                        _org_id = org["id"]
+                except Exception:
+                    logger.debug("Org key resolution failed in audit middleware", exc_info=True)
 
         if _user_id is None:
             auth_header = request.headers.get("authorization", "")
@@ -171,6 +197,11 @@ class AuditMiddleware(BaseHTTPMiddleware):
             "query": query,
             "status_code": status_code,
             "duration_ms": round(duration * 1000, 2),
+            # Correlates the audit row with the structured log lines. The id
+            # comes from the response header (set by the inner RequestID
+            # middleware): contextvars set inside BaseHTTPMiddleware.call_next
+            # do not propagate back to this outer task.
+            "request_id": response.headers.get("x-request-id") or _request_id_var.get() or None,
         }
 
         db = _get_db()
@@ -185,7 +216,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                     "ip_address": ip_address,
                     "user_agent": user_agent,
                     "severity": "default",
-                    "org_id": None,
+                    "org_id": _org_id,
                     "database": db,
                 }
             )

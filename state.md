@@ -2,6 +2,39 @@
 
 *Tracked. Updated at session close. What changed, what's pending, what's blocked.*
 
+## Session 2026-08-17 (b): Owner calls executed + CI dedup + test-speed — COMPLETE
+
+### Method
+Wave 1: 4 parallel agents (SA-A serve owner-calls, SA-B scan owner-calls, SA-C CLI flags, SA-D CI playbook) on exclusive trees; Wave 2 sequential: SA-E measurement-first speed pass on merged tree. Committed `6daa6864` (wave 1) + `6a0cad95` (wave 2) on `dev`.
+
+### Owner calls — all resolved (my recommendations, executed)
+- **B1 WS tenancy**: org stamped at ALL 7 publish sites (incl. both `project.run.failed`); socket org recorded at auth; org-gated fanout; system events (org=None) reach all. +B8 channel cap/validation/pruning. New test file test_ws_org_isolation.py.
+- **B9 audit chain**: DB-anchored (BEGIN IMMEDIATE / pg advisory xact lock) — no multi-worker fork; `verify_audit_chain()` + admin endpoint /admin/audit/verify; fork+ tamper tests.
+- **B4 purge severity**: severity column (guarded migration), policy-aware purge (critical survives 200d, low 31d), per-severity dry-run counts.
+- **B2r**: webhooks allow_redirects=False; UTC WS timestamps.
+- **Engine timebox**: shutdown(wait=False, cancel_futures) on timeout; regression bound 0.2s (buggy path ≈0.35s — would be caught).
+- **Semver**: tag-encoded identifiers; test asserts ordering; mixed-type regression test.
+- Also: OSV cache caps, atomic fleet/tenant writes, workspace glob-escape filter, cache _hmac absence, CLI flag forwarding (sandbox analyze/pipeline + watch), exit-code contract.
+
+### CI (SA-D) + test speed (SA-E)
+- PR: 3 overlapping pytest jobs → 1 (`test-fast`); artifact steps preserved in `scan-artifacts`; `changes` job gates code-dependent jobs (docs PRs skip pytest); docker off matrix critical path; junit + budget checker (warn PR / enforce push `--total-budget 1200`); `scripts/test-changed.sh` local selection.
+- Speed: **fast 201.2s → 142.15s (-29%)**, summed 916→642s, counts identical. Levers: loadfile long-pole splits (test_integration 151s→57/48/45), bcrypt rounds 12→4 in serve test env (orchestrator-approved: no test asserts hash cost; documented in tests/serve/conftest.py), per-worker cached scan-fixture runs, 504-test 5.1→2.1s, cached doctor/discovery.
+- Collection 29.9s (~15% of wall): distributed fastapi/grpc imports across ~200 modules — needs picosentry/** lazy-import work, deferred.
+
+### Gate (head `dev` @ 6a0cad95)
+- ruff: All checks passed! · format: 659 files · mypy: 412 files clean
+- `bash scripts/test.sh fast`: **4688 passed, 18 skipped, 0 failed** 139.98s (re-run with --junit: 144.19s, budget PASS, 0 breaches)
+
+### Pending / next
+- Collections 29.9s → lazy imports in picosentry/** (deferred, needs owner OK to touch import graph).
+- Remaining MEDIUM/LOW backlog (auth mediums: TOTP replay, /auth/revoke any-jti, MFA enroll re-verify, username enum; restore-under-live-pool; scheduler batch script path; watch sink sqlite-per-record) — see prior session list.
+- Budget enforcement on push (`--total-budget 1200`) may need tuning after first real runs.
+- gitnexus index stale (landlock_backend.py, OSVClient missing) — re-index when convenient.
+- `dev` is 3 commits ahead of `main` — ff when ready.
+
+### Blocked
+- None.
+
 ## Session 2026-08-17: Six-agent agentic round (5 focus areas + bug hunt) + Rust test-system port — COMPLETE
 
 ### Method

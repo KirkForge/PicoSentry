@@ -3,13 +3,20 @@
 Covers: blocked-prompt 400 with verdict explanations (rule id + match span),
 clean passthrough with prompt+output metadata, per-tenant rule-category
 profiles via gateway API key, upstream auth substitution, streaming pass-
-through honestly reported as output-unscanned.
+through honestly reported as output-unscanned and buffered.
+
+WO5.0.0-023 hardening: guard calls off the event loop, body-size cap, tenant
+key auth (unknown keys 401 instead of silent default profile), byte-based
+prompt cap.
 """
 
 from __future__ import annotations
 
+import asyncio
+import time
 
 import httpx
+import pytest
 from fastapi.testclient import TestClient
 
 from picosentry.watch.config import PicoWatchConfig
@@ -24,9 +31,9 @@ def _upstream(handler) -> httpx.AsyncClient:
     return httpx.AsyncClient(transport=httpx.MockTransport(handler))
 
 
-def _app(client: httpx.AsyncClient, tenants=None, **kw) -> TestClient:
+def _app(client: httpx.AsyncClient, tenants=None, config=None, **kw) -> TestClient:
     app = create_gateway_app(
-        PicoWatchConfig(),
+        config or PicoWatchConfig(),
         upstream_base_url="https://upstream.test",
         upstream_api_key="upstream-secret",
         tenants=tenants,
@@ -115,15 +122,15 @@ class TestTenantProfiles:
                 json={"messages": [{"role": "user", "content": role_prompt}]},
                 headers={"X-API-Key": "key-no-role"},
             )
-            default = client.post(
+            unknown = client.post(
                 "/v1/chat/completions",
                 json={"messages": [{"role": "user", "content": role_prompt}]},
                 headers={"X-API-Key": "unknown-key"},
             )
         assert blocked.status_code == 200, "profile without role_manipulation must not block"
         assert blocked.json()["picowatch"]["profile"] == "no-role"
-        assert default.status_code == 400, "default profile must still block"
-        assert default.json()["picowatch"]["profile"] == "default"
+        # WO5.0.0-023: unknown keys are rejected, not silently defaulted.
+        assert unknown.status_code == 401
 
 
 class TestStreamingPassThrough:
@@ -144,6 +151,7 @@ class TestStreamingPassThrough:
         assert resp.headers["content-type"].startswith("text/event-stream")
         # The ceiling is documented in the response, not hidden.
         assert resp.headers["X-Picowatch-Output-Scanned"] == "false"
+        assert resp.headers["X-Picowatch-Streaming"] == "buffered"
         assert b"[DONE]" in resp.content
 
 
@@ -270,3 +278,97 @@ class TestOutputTruthfulnessWO013:
         meta = resp.json()["picowatch"]
         assert meta["output_valid"] is False
         assert meta["output_violations"]
+
+
+class TestGatewayHardeningWO023:
+    """WO5.0.0-023: loop hygiene, body cap, auth, byte-based prompt cap."""
+
+    def test_oversized_body_rejected_413_before_buffering(self) -> None:
+        app = create_gateway_app(
+            PicoWatchConfig(),
+            upstream_base_url="https://upstream.test",
+            upstream_api_key="upstream-secret",
+            http_client=_upstream(async_error_handler),
+        )
+        with TestClient(app) as client:
+            resp = client.post(
+                "/v1/chat/completions",
+                content=b'{"messages": []} ' + b"x" * (33 * 1024 * 1024),
+                headers={"Content-Type": "application/json"},
+            )
+        assert resp.status_code == 413
+        assert resp.json()["error"] == "Request body too large"
+
+    def test_missing_or_unknown_api_key_rejected_when_tenants_configured(self) -> None:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+        tenants = {"key-1": TenantProfile(name="t1")}
+        with _app(_upstream(handler), tenants=tenants) as client:
+            no_key = client.post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": BENIGN}]},
+            )
+            bad_key = client.post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": BENIGN}]},
+                headers={"X-API-Key": "wrong-key"},
+            )
+            good_key = client.post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": BENIGN}]},
+                headers={"X-API-Key": "key-1"},
+            )
+        assert no_key.status_code == 401
+        assert bad_key.status_code == 401
+        assert good_key.status_code == 200
+
+    def test_astral_plane_prompt_hits_byte_cap_at_byte_budget(self) -> None:
+        # 30k astral chars = 120KB UTF-8 but 30k len() — a char-based cap
+        # lets 4x the byte budget through.
+        config = PicoWatchConfig()
+        config.max_prompt_size = 64 * 1024
+        with _app(_upstream(async_error_handler), config=config) as client:
+            resp = client.post(
+                "/v1/chat/completions",
+                json={"messages": [{"role": "user", "content": "😀" * 30_000}]},
+            )
+        assert resp.status_code == 400
+        assert resp.json()["picowatch"]["rules_matched"] == ["input_oversized"]
+
+
+@pytest.mark.asyncio
+async def test_large_prompt_does_not_starve_concurrent_request() -> None:
+    """200KB prompt through the gateway must not freeze the loop — a
+    concurrent small request completes while the CPU-bound scan runs
+    (guard calls are in asyncio.to_thread; WO5.0.0-023)."""
+    prose = (
+        "Please summarize the quarterly report and highlight risks. "
+        "The deployment notes are below. // check config\n"
+        "/* section header */ Values: alpha=1, beta=2, gamma=3.\n"
+    )
+    big = (prose * (200_000 // len(prose) + 1))[:200_000]
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, json={"choices": [{"message": {"content": "ok"}}]})
+
+    app = create_gateway_app(
+        PicoWatchConfig(),
+        upstream_base_url="https://upstream.test",
+        upstream_api_key="upstream-secret",
+        http_client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+    transport = httpx.ASGITransport(app=app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test") as client:
+        scan_task = asyncio.create_task(
+            client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": big}]})
+        )
+        await asyncio.sleep(0.05)
+        t0 = time.monotonic()
+        small = await client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": BENIGN}]})
+        small_rtt = time.monotonic() - t0
+        scan = await scan_task
+
+    assert scan.status_code == 200
+    assert small.status_code == 200
+    assert small_rtt < 1.0, f"concurrent request took {small_rtt:.2f}s while a 200KB scan was in flight — loop froze"

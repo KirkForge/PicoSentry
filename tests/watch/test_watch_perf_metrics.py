@@ -238,6 +238,16 @@ class TestByteCaps:
             resp = client.post("/v1/scan/prompt", json=payload)
             assert resp.status_code == 413
 
+    def test_guard_level_cap_counts_bytes_not_chars(self) -> None:
+        # WO5.0.0-023: PromptGuard.check itself must be byte-based — callers
+        # that bypass the server pre-check (e.g. the gateway) get the same budget.
+        from picosentry.watch.prompt_guard import PromptGuard
+
+        guard = PromptGuard(config=_make_config(api_key=None, max_prompt_size=64 * 1024))
+        result = guard.check("😀" * 30_000)
+        assert result.blocked is True
+        assert result.rules_matched == ["input_oversized"]
+
     def test_body_size_limit_rejects_before_parse(self) -> None:
         config = _make_config(api_key=None, max_prompt_size=1024)
         app = create_app(config)

@@ -19,10 +19,14 @@ OpenAI-compatible provider and runs the PicoWatch guards on both directions:
 Streaming ceiling (documented, not solved): ``stream: true`` requests forward
 the FULL prompt scan (the prompt is complete up front) but the SSE response
 chunks are passed through UNSCANNED — the output guard is whole-text and
-cannot score a token stream. ``scan_stream_chunk`` is the hook a buffered
-streaming scanner would plug into; until then the metadata honestly reports
-``output_scanned: false`` for streams. Do not wire a naive per-chunk scan:
-injection phrases split across chunk boundaries would evade it.
+cannot score a token stream. Delivery is also fully BUFFERED: the upstream
+response is read to completion before the first byte reaches the caller, so
+SSE chunk timing/cadence is NOT preserved (responses carry
+``X-Picowatch-Streaming: buffered``). ``scan_stream_chunk`` is the hook a
+buffered streaming scanner and true chunked passthrough would plug into;
+until then the metadata honestly reports ``output_scanned: false`` for
+streams. Do not wire a naive per-chunk scan: injection phrases split across
+chunk boundaries would evade it.
 
 Not in the prototype: retries, routing, tokens/usage rewriting, non-chat
 endpoints. Requires ``httpx`` at call time (lazy import; the shim raises a
@@ -31,7 +35,9 @@ helpful error rather than adding a hard dependency).
 
 from __future__ import annotations
 
+import asyncio
 import logging
+import secrets
 from typing import Any
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -41,6 +47,8 @@ from picosentry.watch import __version__
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.output_guard import OutputGuard
 from picosentry.watch.prompt_guard import PromptGuard
+from picosentry.watch.ratelimit import RateLimiter
+from picosentry.watch.server import _body_size_limit, _get_client_ip
 
 logger = logging.getLogger("picowatch.gateway")
 
@@ -198,6 +206,33 @@ def create_gateway_app(
         redoc_url=None,
     )
 
+    # Same hardening surface as server.create_app (WO5.0.0-023): body cap
+    # before parse, per-IP rate limit, security headers. Middleware glue is
+    # the shared server implementation/pattern, not a gateway reimplementation.
+    limiter = RateLimiter(max_requests=gateway._config.rate_limit, window_seconds=gateway._config.rate_limit_window)
+
+    @app.middleware("http")
+    async def body_size_limit_middleware(request: Request, call_next: Any) -> Any:
+        return await _body_size_limit(request, call_next)
+
+    @app.middleware("http")
+    async def security_headers_middleware(request: Request, call_next: Any) -> Any:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        return response
+
+    @app.middleware("http")
+    async def rate_limit_middleware(request: Request, call_next: Any) -> Any:
+        if not limiter.is_allowed(_get_client_ip(request)):
+            return JSONResponse(
+                status_code=429,
+                content={"detail": "Rate limit exceeded. Try again later."},
+                headers={"Retry-After": str(gateway._config.rate_limit_window)},
+            )
+        return await call_next(request)
+
     @app.post("/v1/chat/completions", response_model=None)
     async def chat_completions(
         request: Request,
@@ -211,13 +246,24 @@ def create_gateway_app(
         api_key = x_api_key
         if not api_key and authorization and authorization.lower().startswith("bearer "):
             api_key = authorization[7:].strip()
+        if gateway._tenants and (
+            not api_key
+            or not any(secrets.compare_digest(api_key.encode("utf-8"), key.encode("utf-8")) for key in gateway._tenants)
+        ):
+            # Tenant keys are the auth surface: an unknown or missing key is
+            # rejected instead of silently selecting the default profile
+            # (WO5.0.0-023). Constant-time compare per the server auth pattern.
+            raise HTTPException(status_code=401, detail="Invalid or missing API key")
         profile = gateway._profile_for_key(api_key)
         guard = gateway._guard_for(profile)
 
         prompt_text = "\n".join(
             str(m.get("content", "")) for m in body["messages"] if isinstance(m, dict) and m.get("content")
         )
-        prompt_result = guard.check(prompt_text)
+        # to_thread: the guards are CPU-bound regex engines — a direct sync
+        # call freezes the loop (and every concurrent request) for the whole
+        # scan, the exact class WO4.0.0-016 fixed in server.py.
+        prompt_result = await asyncio.to_thread(guard.check, prompt_text)
         if prompt_result.blocked:
             return JSONResponse(
                 status_code=400,
@@ -233,7 +279,7 @@ def create_gateway_app(
                         "score": prompt_result.score,
                         "verdict": prompt_result.verdict.value,
                         "rules_matched": prompt_result.rules_matched,
-                        "explanations": _explanations(guard, prompt_text),
+                        "explanations": await asyncio.to_thread(_explanations, guard, prompt_text),
                         "corpus_hash": prompt_result.corpus_hash,
                     },
                 },
@@ -245,12 +291,16 @@ def create_gateway_app(
             return forwarded
         if is_stream:
             # Streaming ceiling — see module docstring: prompt fully scanned,
-            # output chunks passed through unscanned, honestly reported.
+            # output chunks passed through unscanned AND buffered (delivered
+            # only after upstream completes), both honestly reported.
             return Response(
                 content=forwarded.body,
                 status_code=200,
                 media_type="text/event-stream",
-                headers={"X-Picowatch-Output-Scanned": "false"},
+                headers={
+                    "X-Picowatch-Output-Scanned": "false",
+                    "X-Picowatch-Streaming": "buffered",
+                },
             )
 
         import json as _json
@@ -284,7 +334,7 @@ def create_gateway_app(
                         output_parts.append(str(function["arguments"]))
         output_text = "\n".join(output_parts)
 
-        output_result = gateway._output_guard.validate(output_text)
+        output_result = await asyncio.to_thread(gateway._output_guard.validate, output_text)
         violations = output_result.violations
         if violations and gateway._block_on_output_violation:
             return JSONResponse(

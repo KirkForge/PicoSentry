@@ -15,6 +15,8 @@ import gzip
 import importlib.util
 import io
 import re
+import shutil
+import subprocess
 import tarfile
 from pathlib import Path
 from types import ModuleType
@@ -75,12 +77,18 @@ def test_pyproject_version_matches_top_level() -> None:
 
 
 def test_helm_chart_app_version_matches() -> None:
-    """The Helm chart's appVersion must equal the package version.
+    """The Helm chart's appVersion must equal the v-prefixed package version.
 
     The chart's own ``version`` (chart release) is allowed to lag — that
     field tracks chart-template revisions, not the app inside the chart.
+
+    Every release path publishes v-prefixed registry tags (release.yml bake
+    TAG override, scripts/build_docker_multiarch.sh), and the deployment
+    template defaults the image tag to appVersion — so a bare "2.1.2"
+    rendered ``kirkforge/picodome:2.1.2``, a tag the registry never has
+    (WO5.0.0-014 evidence #2).
     """
-    expected = picosentry.__version__
+    expected = f"v{picosentry.__version__}"
     chart = Path(__file__).resolve().parent.parent / "deploy" / "helm" / "picodome" / "Chart.yaml"
     if not chart.exists():
         pytest.skip(f"Helm chart not present: {chart}")
@@ -88,6 +96,38 @@ def test_helm_chart_app_version_matches() -> None:
     match = re.search(r'^appVersion:\s*"([^"]+)"', text, re.MULTILINE)
     assert match, f"Helm chart is missing an appVersion field: {chart}"
     assert match.group(1) == expected, f"Helm chart appVersion = {match.group(1)!r}, expected {expected!r}"
+
+
+def test_helm_chart_renders_v_prefixed_image_tag() -> None:
+    """A default ``helm install`` must resolve a tag the registry actually has.
+
+    Renders with ``helm template`` when the binary is available; otherwise
+    parses the chart files and mirrors the deployment template's
+    ``image.tag | default .Chart.AppVersion`` logic.
+    """
+    chart_dir = _REPO_ROOT / "deploy" / "helm" / "picodome"
+    expected = f"kirkforge/picodome:v{picosentry.__version__}"
+    helm = shutil.which("helm")
+    if helm is not None:
+        rendered = subprocess.run(
+            [helm, "template", "picodome", str(chart_dir)],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        images = re.findall(r'^\s*image:\s*"?([^\s"]+)"?', rendered, re.MULTILINE)
+        assert images, "helm template produced no image: lines"
+        for image in images:
+            assert image == expected, f"rendered image {image!r}, expected {expected!r}"
+        return
+    values = (chart_dir / "values.yaml").read_text()
+    tag = re.search(r'^\s*tag:\s*"([^"]*)"', values, re.MULTILINE)
+    assert tag and tag.group(1) == "", "values.yaml image.tag must stay empty so appVersion is the default"
+    template = (chart_dir / "templates" / "deployment.yaml").read_text()
+    assert "default .Chart.AppVersion" in template, "deployment template no longer defaults the tag to appVersion"
+    app_version = re.search(r'^appVersion:\s*"([^"]+)"', (chart_dir / "Chart.yaml").read_text(), re.MULTILINE)
+    assert app_version, "Chart.yaml is missing appVersion"
+    assert f"kirkforge/picodome:{app_version.group(1)}" == expected
 
 
 def test_experimental_notes_version_lockstep() -> None:

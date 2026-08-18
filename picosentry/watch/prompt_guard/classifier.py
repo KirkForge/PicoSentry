@@ -146,6 +146,32 @@ class PromptClassifier:
         re.IGNORECASE,
     )
 
+    # Necessary-condition cores for the structural regexes below: any match
+    # contains one of these substrings, so the (position-probing, ~20-30ms
+    # per 200KB) regex only runs when a core is present (WO5.0.0-029).
+    _SYSTEM_WORDS = frozenset(("system", "admin", "root", "developer", "debug"))
+    _IMPERATIVE_WORDS = frozenset(
+        (
+            "ignore",
+            "forget",
+            "disregard",
+            "override",
+            "bypass",
+            "disable",
+            "reveal",
+            "repeat",
+            "echo",
+            "print",
+            "show",
+            "stop",
+            "start",
+            "act",
+            "behave",
+            "pretend",
+        )
+    )
+    _BENIGN_CONTEXT_CORES = frozenset(("typo", "error", "misspoke", "correction", "ignore that"))
+
     _SYSTEM_PREFIX = re.compile(
         r"(?:^|\n)\s*(?:system|admin|root|developer|debug)\s*[:\-\]]\s*",
         re.IGNORECASE,
@@ -184,11 +210,21 @@ class PromptClassifier:
         multiturn_hits = sum(1 for token in self._MULTITURN_TOKENS if token in normalized)
         format_hits = sum(1 for token in self._FORMAT_BREAKOUT if token in normalized)
 
-        system_prefix = 1.0 if self._SYSTEM_PREFIX.search(text) else 0.0
-        imperative_start = 1.0 if self._IMPERATIVE_START.search(text) else 0.0
+        system_prefix = (
+            1.0 if any(w in normalized for w in self._SYSTEM_WORDS) and self._SYSTEM_PREFIX.search(text) else 0.0
+        )
+        imperative_start = (
+            1.0
+            if any(w in normalized for w in self._IMPERATIVE_WORDS) and self._IMPERATIVE_START.search(text)
+            else 0.0
+        )
 
         benign_marker_count = sum(1 for token in self._BENIGN_MARKERS if token in normalized)
-        benign_override_context = 1.0 if self._BENIGN_OVERRIDE_CONTEXT.search(text) else 0.0
+        benign_override_context = (
+            1.0
+            if any(c in normalized for c in self._BENIGN_CONTEXT_CORES) and self._BENIGN_OVERRIDE_CONTEXT.search(text)
+            else 0.0
+        )
         has_benign_context = benign_marker_count > 0 or benign_override_context > 0
 
         # Density features: how many suspicious tokens per word.

@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import json
 import logging
+import threading
 from collections.abc import Iterable
+from itertools import combinations
 from pathlib import Path
 
 from .typosquat_utils import _is_keyboard_adjacent, load_corpus_for_ecosystem
@@ -14,6 +16,54 @@ logger = logging.getLogger("picosentry.corpus_index")
 # and size so that updates on disk (e.g. ``picosentry update``) are picked up
 # without restarting the process.
 _index_cache: dict[tuple[str, str, tuple[str, ...], float | None, int | None], CorpusIndex] = {}
+
+# SymSpell-style delete-neighborhood acceleration (WO5.0.0-028).  For
+# unit-cost Levenshtein with max_distance <= 2, candidates are generated via
+# precomputed delete-variants instead of walking the trie: if two strings are
+# within edit distance d, some delete-d variant of the query equals some
+# delete-d variant of the corpus name, so a dictionary join over the variants
+# finds every match.  Each candidate is then verified with an exact two-row
+# Levenshtein, so results are identical to the trie walk.  Keyboard distance
+# (0.5-cost substitutions) is NOT covered by that completeness argument and
+# always uses the trie.
+_SYMSPELL_MAX_DISTANCE = 2
+# The delete index is built incrementally — one chunk of corpus names per
+# non-keyboard query — so a cold corpus never charges the whole build to a
+# single rule execution (the per-rule timebox is 5s) and small scans that
+# never finish the build keep the trie's latency.
+_DELETE_INDEX_CHUNKS = 16
+
+
+def _levenshtein_within(a: str, b: str, max_distance: int) -> int:
+    """Exact unit-cost Levenshtein, returning ``max_distance + 1`` when the
+    distance exceeds ``max_distance``."""
+    la = len(a)
+    lb = len(b)
+    if la - lb > max_distance or lb - la > max_distance:
+        return max_distance + 1
+    if la == 0:
+        return lb if lb <= max_distance else max_distance + 1
+    prev = list(range(lb + 1))
+    for i in range(1, la + 1):
+        ca = a[i - 1]
+        cur = [i]
+        append = cur.append
+        row_min = i
+        for j in range(1, lb + 1):
+            val = prev[j] + 1
+            deletion = cur[j - 1] + 1
+            if deletion < val:
+                val = deletion
+            substitution = prev[j - 1] if ca == b[j - 1] else prev[j - 1] + 1
+            if substitution < val:
+                val = substitution
+            append(val)
+            if val < row_min:
+                row_min = val
+        if row_min > max_distance:
+            return max_distance + 1
+        prev = cur
+    return prev[-1] if prev[-1] <= max_distance else max_distance + 1
 
 
 class _TrieNode:
@@ -52,6 +102,7 @@ class CorpusIndex:
         names: Iterable[str],
         *,
         priority_names: Iterable[str] | None = None,
+        delete_index_chunks: int = _DELETE_INDEX_CHUNKS,
     ) -> None:
         priority = frozenset({name for name in (priority_names or ()) if isinstance(name, str)})
         self._priority_names = priority
@@ -61,6 +112,20 @@ class CorpusIndex:
         self._tries: dict[int, _TrieNode] = {}
         for name in self._names:
             self._insert(name)
+        # Incremental SymSpell build state.  Each non-keyboard query advances
+        # the delete-index build by one chunk of corpus names and is served by
+        # the exact trie until the build completes — no single query ever pays
+        # the whole build, so the per-rule timebox cannot be blown by index
+        # construction.  ``delete_index_chunks <= 0`` builds everything at
+        # construction (used by tests to pin the accelerated path).
+        self._delete_index: dict[str, str | list[str]] = {}
+        self._delete_lock = threading.Lock()
+        self._delete_step = (
+            max(1, -(-len(self._names) // delete_index_chunks)) if delete_index_chunks > 0 else len(self._names)
+        )
+        self._delete_cursor = 0 if delete_index_chunks > 0 else None
+        if delete_index_chunks <= 0:
+            self._advance_delete_build(len(self._names))
 
     def __len__(self) -> int:
         return len(self._names)
@@ -100,22 +165,25 @@ class CorpusIndex:
 
         query_len = len(name)
         max_dist_int = int(max_distance)
-        min_len = max(0, query_len - max_dist_int)
-        max_len = query_len + max_dist_int
 
         # Short queries are restricted to the curated priority set to avoid
         # false positives against obscure short names in the expanded corpus.
         short_query = query_len < 4
 
         matches: list[tuple[str, float]] = []
-        for length in range(min_len, max_len + 1):
-            root = self._tries.get(length)
-            if root is None:
-                continue
-            if use_keyboard:
-                self._search_keyboard(root, name, max_distance, matches)
+        if use_keyboard or max_dist_int > _SYMSPELL_MAX_DISTANCE:
+            self._search_length_buckets(name, max_distance, use_keyboard, query_len, max_dist_int, matches)
+        else:
+            # Advance the incremental build; serve via the exact trie until
+            # the delete index is complete, then switch to it.
+            with self._delete_lock:
+                if self._delete_cursor is not None:
+                    self._advance_delete_build(self._delete_step)
+                complete = self._delete_cursor is None
+            if complete:
+                self._search_deletes(self._delete_index, name, max_dist_int, matches)
             else:
-                self._search_edit(root, name, max_distance, matches)
+                self._search_length_buckets(name, max_distance, False, query_len, max_dist_int, matches)
 
         if short_query:
             # Restrict short queries to the curated priority set and apply extra
@@ -133,6 +201,112 @@ class CorpusIndex:
 
         matches.sort(key=lambda m: (m[1], m[0]))
         return matches
+
+    def _search_length_buckets(
+        self,
+        query: str,
+        max_distance: float,
+        use_keyboard: bool,
+        query_len: int,
+        max_dist_int: int,
+        matches: list[tuple[str, float]],
+    ) -> None:
+        min_len = max(0, query_len - max_dist_int)
+        max_len = query_len + max_dist_int
+        for length in range(min_len, max_len + 1):
+            root = self._tries.get(length)
+            if root is None:
+                continue
+            if use_keyboard:
+                self._search_keyboard(root, query, max_distance, matches)
+            else:
+                self._search_edit(root, query, max_distance, matches)
+
+    def finish_delete_index(self) -> None:
+        """Complete the incremental delete-index build synchronously.
+
+        Used by the scan engine's prewarm step so the one-time build cost
+        lands outside the per-rule timebox instead of inside the first
+        dependency-heavy rule execution.
+        """
+        with self._delete_lock:
+            if self._delete_cursor is not None:
+                self._advance_delete_build(len(self._names))
+
+    def _advance_delete_build(self, step: int) -> None:
+        """Index the delete-2 variants of the next ``step`` corpus names.
+
+        Callers hold ``_delete_lock``.  Values are a single name (the common
+        case) or a list when several corpus names share a variant; repeated
+        letters can yield a duplicate variant, and the duplicate upsert is
+        harmless because query-side candidates are a set.
+        """
+        # ponytail: memory is O(names·len²) — ~150 MB for the 5k-name npm
+        # corpus; persist to disk in ``picosentry update`` if this ceiling bites.
+        index = self._delete_index
+        get = index.get
+        names = self._names
+        cursor = self._delete_cursor
+        end = len(names) if cursor is None else min(len(names), cursor + step)
+        for name in names[cursor:end]:
+            n = len(name)
+            if n == 0:
+                continue
+            for variant in [name] + [name[:i] + name[i + 1 :] for i in range(n)]:
+                current = get(variant)
+                if current is None:
+                    index[variant] = name
+                elif isinstance(current, str):
+                    index[variant] = [current, name]
+                else:
+                    current.append(name)
+            if n >= 2:
+                for i, j in combinations(range(n), 2):
+                    variant = name[:i] + name[i + 1 : j] + name[j + 1 :]
+                    current = get(variant)
+                    if current is None:
+                        index[variant] = name
+                    elif isinstance(current, str):
+                        index[variant] = [current, name]
+                    else:
+                        current.append(name)
+        self._delete_cursor = end if end < len(names) else None
+
+    def _search_deletes(
+        self,
+        delete_index: dict[str, str | list[str]],
+        query: str,
+        max_dist_int: int,
+        matches: list[tuple[str, float]],
+    ) -> None:
+        candidates: set[str] = set()
+        update = candidates.update
+        add = candidates.add
+        get = delete_index.get
+        n = len(query)
+        for variant in [query] + [query[:i] + query[i + 1 :] for i in range(n)]:
+            bucket = get(variant)
+            if bucket is None:
+                continue
+            if isinstance(bucket, str):
+                add(bucket)
+            else:
+                update(bucket)
+        if max_dist_int >= 2 and n >= 2:
+            for i, j in combinations(range(n), 2):
+                bucket = get(query[:i] + query[i + 1 : j] + query[j + 1 :])
+                if bucket is None:
+                    continue
+                if isinstance(bucket, str):
+                    add(bucket)
+                else:
+                    update(bucket)
+        for candidate in candidates:
+            if candidate == query:
+                continue
+            dist = _levenshtein_within(query, candidate, max_dist_int)
+            if dist <= max_dist_int:
+                matches.append((candidate, float(dist)))
 
     def _search_edit(
         self,

@@ -3,13 +3,17 @@
 Covers:
 1. Halo-banded trie search in CorpusIndex is exact vs brute-force
    Levenshtein/keyboard distance over an exhaustive small corpus.
-2. Shared stat-keyed byte-read cache: reuse on identity hit, re-read on
+2. SymSpell delete-index search (WO5.0.0-028) is exact vs the same
+   brute-force oracle, both when fully built at construction and while
+   the incremental build is still converging; the trie and delete-index
+   paths return identical results at every step.
+3. Shared stat-keyed byte-read cache: reuse on identity hit, re-read on
    mtime/size change, oversized files not cached, missing files -> None.
-3. iter_source_files: one sorted walk, suffix filter, max_files cap,
+4. iter_source_files: one sorted walk, suffix filter, max_files cap,
    symlink and skip-dir handling.
-4. Per-process corpus-version cache: stable across engine rebuilds,
+5. Per-process corpus-version cache: stable across engine rebuilds,
    recomputed when a corpus file changes.
-5. Scan daemon stays responsive while a /scan is in flight and builds its
+6. Scan daemon stays responsive while a /scan is in flight and builds its
    engine exactly once (cache reuse across /scan and /ready).
 """
 
@@ -74,6 +78,98 @@ class TestBandedTrieExactness(unittest.TestCase):
                                 and not (len(m[0]) >= 4 and not m[0].startswith(q[0]))
                             }
                         self.assertEqual(got, sorted(want))
+
+
+class TestSymSpellExactness(unittest.TestCase):
+    """The delete-index path must return exactly what brute force returns.
+
+    Same oracle and corpus shape as TestBandedTrieExactness, with the
+    delete index forced (delete_index_chunks=0) so every query is served
+    by the accelerated path (WO5.0.0-028).
+    """
+
+    def _want(self, q: str, index: CorpusIndex, maxd: float, kb: bool) -> set[tuple[str, float]]:
+        want = set()
+        for c in index.names:
+            if c == q:
+                continue
+            d = keyboard_distance(q, c) if kb else edit_distance(q, c)
+            if d <= maxd:
+                want.add((c, round(float(d), 2)))
+        if len(q) < 4:
+            want = {
+                m
+                for m in want
+                if not (len(m[0]) < 4 and m[1] > 1.0) and not (len(m[0]) >= 4 and not m[0].startswith(q[0]))
+            }
+        return want
+
+    def _got(self, q: str, index: CorpusIndex, maxd: float, kb: bool) -> set[tuple[str, float]]:
+        return {(n, round(d, 2)) for n, d in index.near_matches(q, max_distance=maxd, use_keyboard=kb) if n != q}
+
+    def test_exhaustive_small_corpus_forced_index(self) -> None:
+        alpha = "abc"
+        names = []
+        for n in range(1, 4):
+            names.extend("".join(p) for p in itertools.product(alpha, repeat=n))
+        names += ["abab", "bcbc", "cab", "abac", "abcabc", "aaaa", "", "aabbcc"]
+        index = CorpusIndex(sorted(set(names)), priority_names=set(names), delete_index_chunks=0)
+
+        queries = ["".join(p) for p in itertools.product(alpha, repeat=3)]
+        queries += ["abab", "abcabc", "cab", "cbbc"]
+
+        for q in queries:
+            for maxd in (1.0, 2.0):
+                with self.subTest(query=q, maxd=maxd):
+                    got = sorted(self._got(q, index, maxd, False))
+                    want = sorted(self._want(q, index, maxd, False))
+                    self.assertEqual(got, want)
+
+    def test_forced_index_matches_trie_path(self) -> None:
+        """Accelerated and trie paths agree on a larger randomized corpus."""
+        import random
+
+        rng = random.Random(20260818)
+        alphabet = "abcdefghijklmnopqrstuvwxyz-"
+        names = {"".join(rng.choice(alphabet) for _ in range(rng.randint(3, 12))) for _ in range(400)}
+        names = sorted(names)
+        forced = CorpusIndex(names, priority_names=names, delete_index_chunks=0)
+        trie_only = CorpusIndex(names, priority_names=names)
+
+        queries = ["".join(rng.choice(alphabet) for _ in range(rng.randint(3, 12))) for _ in range(150)]
+        for q in queries:
+            self.assertEqual(
+                forced.near_matches(q, max_distance=2.0),
+                trie_only.near_matches(q, max_distance=2.0),
+                f"paths disagree for {q!r}",
+            )
+
+    def test_incremental_build_transitions_exactly(self) -> None:
+        """While the chunked build converges, every intermediate query is
+        still exact (served by the trie) and the finished index agrees."""
+        import random
+
+        rng = random.Random(20260819)
+        alphabet = "abcde"
+        names = sorted({"".join(rng.choice(alphabet) for _ in range(rng.randint(3, 9))) for _ in range(200)})
+        incremental = CorpusIndex(names, priority_names=names, delete_index_chunks=4)
+        oracle = CorpusIndex(names, priority_names=names, delete_index_chunks=0)
+
+        queries = ["".join(rng.choice(alphabet) for _ in range(rng.randint(3, 9))) for _ in range(60)]
+        for q in queries:
+            self.assertEqual(
+                incremental.near_matches(q, max_distance=2.0),
+                oracle.near_matches(q, max_distance=2.0),
+                f"incremental path wrong for {q!r} (cursor={incremental._delete_cursor})",
+            )
+        self.assertIsNone(incremental._delete_cursor)
+
+    def test_keyboard_queries_never_use_delete_index(self) -> None:
+        index = CorpusIndex(["react", "reqct"], delete_index_chunks=0)
+        self.assertEqual(
+            index.near_matches("reavt", max_distance=1.0, use_keyboard=True),
+            [("react", 0.5), ("reqct", 1.0)],
+        )
 
 
 class TestReadScannableBytes(unittest.TestCase):

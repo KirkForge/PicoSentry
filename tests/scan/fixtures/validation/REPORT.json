@@ -17831,6 +17831,11 @@
     },
     {
       "details": [],
+      "fixture": "benign-short-name-deps",
+      "outcome": "PASS"
+    },
+    {
+      "details": [],
       "fixture": "clean-npm-helper_0_6280",
       "outcome": "PASS"
     },
@@ -28841,8 +28846,9 @@
       "true_positives": 3
     }
   ],
-  "total_fixtures": 5666,
-  "total_negative": 2235,
+  "skipped_fixtures": 0,
+  "total_fixtures": 5667,
+  "total_negative": 2236,
   "total_positive": 3431,
   "unknown_rule_expectations": []
 }

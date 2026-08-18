@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable
+from contextlib import suppress
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -61,6 +62,84 @@ class TyposquatConfig:
     file_detection_fn: Callable[[Path], str] | None = None
 
 
+_PREWARM_DEP_THRESHOLD = 8
+# Ecosystems whose index has been force-built this process.  Keyed by corpus
+# directory + ecosystem so a rebuilt engine does not re-probe cold corpora.
+_prewarmed: set[tuple[str, str]] = set()
+
+
+def _npm_dep_probe(target: Path) -> int:
+    pkg = load_package_json(target / "package.json")
+    if not pkg:
+        return 0
+    count = len(get_dep_names(pkg))
+    nm = target / "node_modules"
+    if nm.is_dir():
+        with suppress(OSError):
+            count += sum(1 for _ in nm.iterdir())
+    return count
+
+
+def _manifest_line_probe(target: Path, filenames: tuple[str, ...]) -> int:
+    count = 0
+    for filename in filenames:
+        path = target / filename
+        if not path.is_file():
+            continue
+        try:
+            count += sum(
+                1
+                for line in path.read_text(encoding="utf-8", errors="replace").splitlines()
+                if line.strip() and not line.lstrip().startswith(("#", "//", "[", "source", "group", "plugins", "var "))
+            )
+        except OSError:
+            continue
+    return count
+
+
+_PREWARM_PROBES: dict[str, Callable[[Path], int]] = {
+    "npm": _npm_dep_probe,
+    "pypi": lambda t: _manifest_line_probe(t, ("requirements.txt",)) + (1 if (t / "pyproject.toml").is_file() else 0),
+    "go": lambda t: _manifest_line_probe(t, ("go.mod",)),
+    "cargo": lambda t: _manifest_line_probe(t, ("Cargo.toml",)),
+    "maven": lambda t: _manifest_line_probe(t, ("pom.xml", "build.gradle")),
+    "nuget": lambda t: _manifest_line_probe(t, ("packages.config",)),
+    "rubygems": lambda t: _manifest_line_probe(t, ("Gemfile",)),
+}
+
+
+def prewarm_typosquat_indexes(target: Path, corpus_dir: Path) -> None:
+    """Finish building delete indexes for dep-heavy targets before rules run.
+
+    The typosquat rules build a SymSpell-style delete index incrementally (one
+    chunk of corpus names per query) so no single rule blows its timebox —
+    but a cold, dependency-heavy scan would still pay most of the build inside
+    the first such rule.  This probe runs at scan() start, outside the rule
+    timebox, and force-completes the build when the target looks dep-heavy.
+    The probe is intentionally cheap and approximate (root manifest entry
+    counts); anything it misses falls back to the in-rule incremental build,
+    which stays exact.
+    """
+    for eco, probe in _PREWARM_PROBES.items():
+        key = (str(corpus_dir), eco)
+        if key in _prewarmed:
+            continue
+        try:
+            count = probe(target)
+        except Exception:  # pragma: no cover - probes must never break a scan
+            logger.debug("typosquat prewarm probe failed for %s", eco, exc_info=True)
+            continue
+        if count < _PREWARM_DEP_THRESHOLD:
+            continue
+        builtin = _ECOSYSTEM_BUILTINS.get(eco)
+        if builtin is None:
+            continue
+        index = load_indexed_corpus(corpus_dir, eco, builtin)
+        index.finish_delete_index()
+        _prewarmed.add(key)
+        logger.debug("prewarmed %s typosquat delete index (%d probe deps)", eco, count)
+
+
 def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: TyposquatConfig) -> list[Finding]:
     findings: list[Finding] = []
 
@@ -68,7 +147,6 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
         return findings
 
     index = load_indexed_corpus(corpus_dir, config.ecosystem, config.builtin_corpus)
-
     all_deps = config.collect_deps(target) if config.collect_deps else set()
     if not all_deps:
         return findings
@@ -428,6 +506,16 @@ _RUBYGEMS_CONFIG = TyposquatConfig(
     collect_deps=_collect_rubygems_deps,
 )
 
+_ECOSYSTEM_BUILTINS: dict[str, list[str]] = {
+    "npm": BUILTIN_TOP_100,
+    "go": BUILTIN_GO_TOP_100,
+    "cargo": BUILTIN_CARGO_TOP_100,
+    "pypi": BUILTIN_PYPI_TOP_100,
+    "maven": BUILTIN_MAVEN_TOP_100,
+    "nuget": BUILTIN_NUGET_TOP_100,
+    "rubygems": BUILTIN_RUBYGEMS_TOP_100,
+}
+
 
 def _enforce_evidence(finding: Finding, dep_name: str, package_intel: dict[str, PackageIntel] | None) -> Finding:
     if package_intel is None:
@@ -489,6 +577,14 @@ def _detect_npm_typosquat(
             "knex",
             "mobx",
             "zod",
+            # WO5.0.0-028 short-name calibration: real packages whose <=3-char
+            # names sit at edit distance 1 from corpus shorts (pkg->pg,
+            # uid->uuid, num->npm). Structurally indistinguishable from real
+            # short-name typosquats (nx1->next), so legitimacy lists are the
+            # only honest separator; grown per reported FP.
+            "pkg",
+            "uid",
+            "num",
         }
     )
 

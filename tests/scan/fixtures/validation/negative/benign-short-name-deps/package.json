@@ -1,0 +1,14 @@
+{
+  "name": "short-name-consumer",
+  "version": "1.0.0",
+  "description": "Clean project depending on real short-named packages",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"test\""
+  },
+  "dependencies": {
+    "num": "^1.0.0",
+    "pkg": "^5.8.1",
+    "uid": "^2.0.2"
+  }
+}

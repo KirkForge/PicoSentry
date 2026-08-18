@@ -1,0 +1,6 @@
+{
+  "label": "negative",
+  "description": "Clean consumer of real short-named packages (pkg, uid, num) - WO5.0.0-028 short-name calibration",
+  "expected_clean": true,
+  "forbidden_rule_ids": ["L2-TYPO-001"]
+}

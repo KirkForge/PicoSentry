@@ -341,6 +341,13 @@ class ScanEngine:
         _detected_rubygems = "rubygems" in _detected
         _detected_nuget = "nuget" in _detected
 
+        if _detected:
+            # Finish the typosquat delete-index build for dep-heavy targets
+            # here, outside the per-rule timebox (WO5.0.0-028).
+            from .rules.typosquat import prewarm_typosquat_indexes
+
+            prewarm_typosquat_indexes(target_path, self._corpus_dir)
+
         explicit_rules = set(rules) if rules is not None else None
         selected_rules = (
             {k: v for k, v in self._rules.items() if k in explicit_rules}

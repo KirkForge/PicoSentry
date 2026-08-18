@@ -4,6 +4,42 @@
 
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
 
+## WO5.0.0 — Fifth series (OPEN — seeded by the 2026-08-18 five-explorer round)
+
+Priorities: P0 = security/correctness, do first. Each WO names its verified evidence (live repros or airtight file:line chains from the explorer round; top claims re-verified by the orchestrator). Worktrees: `wo/5.0.0/<slug>` off `origin/dev`.
+
+| ID | Title | Pri | Effort |
+|----|-------|-----|--------|
+| [WO5.0.0-001](WO5.0.0-001-sandbox-tenant-production.md) | Sandbox: tenant isolation dead in production (loader unwired, X-Tenant override, audit scope, NULL tenant) | P0 | M |
+| [WO5.0.0-002](WO5.0.0-002-sandbox-input-hardening.md) | Sandbox: untrusted-input hardening (NaN timeout, retention traversal, names, header charset) | P0 | M |
+| [WO5.0.0-003](WO5.0.0-003-policy-signature-fail-closed.md) | Sandbox: policy signature verification fails open without a key | P0 | S |
+| [WO5.0.0-004](WO5.0.0-004-cluster-auth-reconciliation.md) | Sandbox: cluster gossip 401-dead on auth-configured daemons | P0 | S-M |
+| [WO5.0.0-005](WO5.0.0-005-serve-killchain-tenancy.md) | Serve: kill-chain escalation reads org from the payload (cross-tenant leak) | P0 | S |
+| [WO5.0.0-006](WO5.0.0-006-serve-audit-retention-auto.md) | Serve: scheduler cleanup bypasses severity-aware audit retention | P0 | S |
+| [WO5.0.0-007](WO5.0.0-007-serve-metrics-exposition.md) | Serve: /metrics exposition invalid (duplicate samples + label injection) | P0 | M |
+| [WO5.0.0-008](WO5.0.0-008-serve-alerting-truthfulness.md) | Serve: alerting truthfulness (sent=1 on failed delivery, webhook name clobber, auto-analysis no-op) | P0 | M |
+| [WO5.0.0-009](WO5.0.0-009-scan-advisory-correctness.md) | Scan: advisory pipeline correctness (default no-op, maven keying, multi-package records) | P0 | M |
+| [WO5.0.0-010](WO5.0.0-010-scan-cache-parity.md) | Scan: cache input-hash parity with rule read-surface + `--no-cache` | P0 | M |
+| [WO5.0.0-011](WO5.0.0-011-watch-decode-completeness.md) | Watch: prompt decode completeness (layered encodings, budget dial, entities) | P0 | M |
+| [WO5.0.0-012](WO5.0.0-012-firewall-path-auth.md) | Firewall: path classification bypassed by query strings + auth crash | P0 | S-M |
+| [WO5.0.0-013](WO5.0.0-013-output-guard-truthfulness.md) | Watch: output truthfulness (unscanned choices/tool_calls, encoded exfil) | P0 | M |
+| [WO5.0.0-014](WO5.0.0-014-docker-truth.md) | Docker truth end-to-end (hub image, helm tag convention, existence gate) | P0 | M |
+| [WO5.0.0-015](WO5.0.0-015-scan-selection-honesty.md) | Scan: selection & worker honesty (dropped rules, rules=[], intelligence mode) | P1 | S-M |
+| [WO5.0.0-016](WO5.0.0-016-scan-silent-skip.md) | Scan: silent-skip accounting (SBOM unknown dead-end, error paths, validation skips) | P1 | M |
+| [WO5.0.0-017](WO5.0.0-017-sandbox-job-store.md) | Sandbox: job-store correctness (prune deletes all, orphans, redis honesty) | P1 | M |
+| [WO5.0.0-018](WO5.0.0-018-sandbox-audit-transport-hygiene.md) | Sandbox: audit & transport hygiene sweep (query recency, gRPC, dedup, state) | P1 | M |
+| [WO5.0.0-019](WO5.0.0-019-landlock-verdict-parity.md) | Sandbox: landlock verdict parity + degraded honesty | P1 | M |
+| [WO5.0.0-020](WO5.0.0-020-serve-loop-remainder.md) | Serve: event-loop hygiene remainder (ready/history/projects/redis) | P1 | M |
+| [WO5.0.0-021](WO5.0.0-021-serve-scheduler-correctness.md) | Serve: scheduler correctness (double-fire, SMTP persistence, report scope, name squat) | P1 | M |
+| [WO5.0.0-022](WO5.0.0-022-serve-org-scoping.md) | Serve: org-scoping remainder (threat score, anomaly filters, rule mutation surface) | P1 | M |
+| [WO5.0.0-023](WO5.0.0-023-gateway-hardening.md) | Watch: gateway production hardening (loop, body, auth, streaming ceiling) | P1 | M |
+| [WO5.0.0-024](WO5.0.0-024-watch-metrics-telemetry-sweep.md) | Watch: metrics/telemetry honesty sweep (family render, edge hardening) | P1 | M |
+| [WO5.0.0-025](WO5.0.0-025-ci-doctor-gate-truthfulness.md) | CI/doctor gate truthfulness (exit codes, gates that can't fail) | P1 | M |
+| [WO5.0.0-026](WO5.0.0-026-ci-path-filter-report.md) | CI: path-filter completion + REPORT.json gating + nightly cancellation | P2 | S |
+| [WO5.0.0-027](WO5.0.0-027-docs-tooling-sync.md) | Docs & tooling sync sweep (small truthfulness riders) | P2 | S |
+
+Suggested batch shape: P0 security cluster as 3 parallel subagent worktrees (sandbox 001-004 / serve 005-008 / scan+watch+firewall 009-013), 014 solo before the next release; P1 next; P2 riders last.
+
 ## WO4.0.0 — Fourth series (OPEN — seeded by the 2026-08-17 five-explorer round)
 
 Priorities: P0 = security/correctness, do first. Each WO names its verified evidence. Worktrees: `wo/4.0.0/<slug>` off `origin/dev`.

@@ -2,17 +2,54 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, v2.1.2 FULLY SHIPPED — release published, main = dev, CI green everywhere) ═══
+# ═══ CURRENT STATE (2026-08-18, WO5.0.0 SEEDED — 27 WOs open, zero code changes this session) ═══
 
-**v2.1.2 complete and shipped**: PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH release **published** (was draft) with both assets, `main` ff'd to dev = **`506942cc`**. CI on main: **success, 13/13 jobs** (run 32088064603 — first fully green main run since v2.1.1; matrix 3.10-3.14, pg-live 15/16/17/18, docker amd64+arm64, reproducible-build) + Security Scan green. Local gates at close: fast 5161 passed / ~130s, ruff/format/mypy clean, tree clean.
+**This session was a seeding round** (five read-only explorers → triage → WO5.0.0 series): 5 explorers on disjoint areas (SA-R scan, SA-S sandbox, SA-T serve, SA-U watch+firewall, SA-V core/CLI/CI), ~70 verified findings → **27 WOs (P0×14, P1×11, P2×2)** in `docs/workorders/`. Top claims re-verified by orchestrator (tenant loader callers, resolve_tenant order, payload-vs-Event.org_id, doctor --json exit, pypi regex anchor) — all confirmed. No code changed; docs-only commit.
 
-**WO4.0.0 series state (24 WOs):** DONE — 002-009, 010-013, 015, 017, 018, 022, 023 (002-008 shipped in v2.1.2, verified vs codebase in commit a591e4e4). PARTIAL — 001 (real-exec landlock CI job + seccomp composition), 014 (scan 1.33×; parallel fan-out measured worse, documented), 016 (watch 2.8×; <1s/MB needs fused pass), 019/020/021 (P2 remainders: gossip rotation pending HMAC announcements; API_WORKERS>1 unsupported; tier enforcement not built). **OPEN — 024 (cli/doctor/deploy hygiene, P2: CLI wrappers duplicate inner argparse; doctor lacks watch-corpus/extras checks) — never dispatched, the only WO no worker touched.**
+**Headline findings (the queue):**
+1. **P0 security cluster**: WO5.0.0-001 sandbox tenant isolation DEAD in production (loader unwired + X-Tenant override — CRITICAL) · 002 untrusted-input hardening (NaN timeout, retention traversal) · 003 policy signature fails open · 004 cluster gossip 401 on auth daemons.
+2. **P0 serve cluster**: 005 kill-chain escalation reads org from payload (cross-tenant, one-line fix) · 006 scheduler bypasses severity-aware retention · 007 /metrics invalid exposition + label injection · 008 alerting truthfulness (sent=1 on failed delivery, webhook name clobber, auto-analysis no-op).
+3. **P0 scan/watch/firewall cluster**: 009 advisory pipeline dead on default installs (envelope no-op) + maven keying misses real OSV · 010 cache serves stale clean for build-hook files/node_modules · 011 layered-encoding prompt bypasses + decode-budget dial · 012 firewall query-string bypass · 013 output guard misses encoded exfil + gateway attests unscanned choices.
+4. **P0 release-blocking**: 014 docker truth (v2.1.2 image claim false — Hub has no v2.1.x; helm default tag can never resolve).
+5. **P1**: 015-025 (selection honesty, silent-skip accounting, job-store, hygiene sweeps, loop remainder, scheduler double-fire, org scoping, gateway hardening, metrics/telemetry, gate truthfulness). **P2**: 026-027 (CI paths/REPORT gating, docs riders).
 
-**Red-CI debt burn-down this round (62965a37..95ef0b45)** — the pg-live job had NEVER run before the WO-017 dbname fix; four latent postgres bug layers surfaced one push at a time, all root-fixed + regression-pinned: (1) psycopg2 %-interpolation on empty params vs literal-% DDL; (2) 3.14 forkserver pickling + pathlib patch recursion; (3) DDoSShield never reset between tests — the twice-dismissed "flaky" 429s were real; (4) postgres BOOLEAN dialect (comparison-literal translation in `_prepare_sql`, bound bool params for INSERTs — orgs create was hidden by a silent except-return-None that now logs); (5) PostgresPool per-dead-thread connection leak (WeakSet fix). Process: fast tier writes junit + PR uploads it; real-exec landlock/seccomp-trace tests enabled where kernels support them.
+**Cross-cutting lesson (lessons.md session g)**: "wired in tests, dead in production" is the recurring CRITICAL class (tenant loader, advisory envelope, auto-analysis subscriber); WO4's landing wave grew its own bug crop at the seams it created.
 
-**Open follow-ups (next session):** WO-024 (never dispatched) · WO-001 remainder (landlock real-exec CI job, seccomp composition) · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side (firewall excludes it) · watch <1s/MB fused pass · 019/020/021 P2 remainder · docker image v2.1.2 to Docker Hub (bake TAG-var mechanics fixed in 009; run `TAG=v2.1.2 docker buildx bake --push` or let release.yml do it on next tag).
+**WO4.0.0 series state (24 WOs):** DONE — 002-009, 010-013, 015, 017, 018, 022, 023. PARTIAL — 001 (real-exec landlock CI job + seccomp composition), 014 (scan 1.33×; parallel fan-out measured worse, documented), 016 (watch 2.8×; <1s/MB needs fused pass), 019/020/021 (P2 remainders: gossip rotation pending HMAC announcements; API_WORKERS>1 unsupported; tier enforcement not built). OPEN — 024 (cli/doctor/deploy hygiene, P2; partially superseded by WO5.0.0-025, keep both — 024 is argparse-duplication + doctor coverage, 025 is exit-codes/gates-can't-fail).
 
-**v2.1.2 RELEASED 2026-08-17** — PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with assets. WO4.0.0-001..008 verified vs codebase (WO files updated, commit a591e4e4): 001 PARTIAL (real-execution landlock CI job + seccomp composition open), 003's pg-live CI bug FIXED by WO-017, rest DONE.
+**Open follow-ups (carried, pre-WO5):** WO-024 · WO-001 remainder · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side · watch <1s/MB fused pass · 019/020/021 P2 remainder · docker image push (now folded into WO5.0.0-014 which also fixes the false claims + helm tag convention).
+
+**v2.1.2 shipped (2026-08-18):** PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH release published, `main` = `dev` = **`506942cc`**, CI 13/13 green on main (run 32088064603). Local gates at that close: fast 5161 passed / ~130s, ruff/format/mypy clean.
+
+## The queue (jump-in order)
+
+1. **P0 security cluster**: WO5.0.0-001 (tenant) · 002 (input hardening) · 003 (signature) · 004 (cluster×auth) — sandbox worktree batch.
+2. **P0 serve cluster**: 005 (one-liner + sweep) · 006 · 007 · 008.
+3. **P0 scan+watch+firewall**: 009 · 010 · 011 · 012 · 013.
+4. **P0 release**: 014 before cutting v2.2.0 (also: `dev` release trigger check — dev will move past ~20 commits fast once P0s land).
+5. **P1**: 015-025 per README priority. **P2**: 026-027 + WO4-024.
+Suggested batch shape: 3 parallel subagent worktrees (sandbox 001-004 / serve 005-008 / scan+watch+firewall 009-013), orchestrator merges; 014 solo before release.
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-08-18 (g): Five-explorer round → WO5.0.0 series — COMPLETE
+
+### Method
+5 read-only explorers on disjoint areas (SA-R scan, SA-S sandbox, SA-T serve, SA-U watch+firewall, SA-V core/CLI/CI/infra), forward-looking (WORK not just bugs), state.md-first with known-open exclusion lists, CHECKED-AND-CLEAN required, numbering forbidden. ~70 verified findings (live repros in /tmp/opencode + airtight file:line chains) → triaged into 27 WOs (P0×14, P1×11, P2×2). Orchestrator spot-verified the top 5 claims (all confirmed). Docs-only commit; no code changes.
+
+### Notable
+- CRITICAL: tenant isolation dead in production (env loader has zero production callers; only tests wire the registry).
+- The "wired in tests, dead in production" triple: tenant loader, advisory envelope (dashboard-only), auto-analysis subscriber.
+- Interaction pairs round 2: cluster-token × API-token auth (401), severity retention × scheduler wiring, org stamping × payload-reading subscriber, gateway shim × WO-016 loop hygiene.
+- Docker claims rot despite pending-push being tracked: README/experimental/docs claim a Hub image that doesn't exist + helm tag convention mismatch makes the chart uninstallable by default.
+
+### Pending / next
+The WO5.0.0 series IS the queue (table above).
+
+### Blocked
+- None.
+
+## Session 2026-08-18 (f): v2.1.2 shipped everywhere + red-CI debt burn-down — COMPLETE (WO4 detail preserved)
 
 **WO4.0.0 009-023 round MERGED to dev (5 subagents, 5 branches, zero conflicts), gates green at close: fast 5151 passed / 111s, ruff+format+mypy clean, integration serve+sandbox+watch 2754 passed.**
 - 009 DONE: docker tag clobbering fixed (bake TAG var override), `scripts/normalize_sdist.py` committed + wired into release.yml + reproducible-build job, --version asserts, deploy yaml v2.1.2 + drift-guard tests.
@@ -34,7 +71,7 @@
 
 **Core/CLI/CI/release** — next release would ship wrong docker tags (`--set '*.tags='` drops :latest) and stale hardcoded version strings (WO4.0.0-009, P0-blocking-release); CI path-filter hole (scripts/Dockerfile/deploy changes skip tests — WO4.0.0-017); CLI wrappers hand-duplicate inner argparse (WO4.0.0-024). Env-var docs, version guards, exit codes, deps currency — verified clean.
 
-## The queue (jump-in order)
+## The queue (jump-in order — SUPERSEDED by the WO5.0.0 queue in the current-state head; kept for WO4 history)
 
 1. **P0 security cluster**: WO4.0.0-001 (landlock) · 002 (daemon/gRPC) — both CRITICAL-adjacent.
 2. **P0 correctness cluster**: 003 (pg tenancy) · 004 (audit lifecycle) · 005 (correlation tenancy) · 006 (scan caches) · 007 (watch guards).

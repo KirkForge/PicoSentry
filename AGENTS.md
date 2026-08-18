@@ -15,7 +15,7 @@
 
 ## 1. Session flow
 
-1. **Plan**: write `workplan.md` (scratch) — files to touch, root cause (not symptom), gate to run. Substantial named work gets a WO file in `docs/workorders/` (`WO<major>.<minor>.<patch>-NNN-slug.md`, headers: Series/Status/Owner/Scope/Gate/Objective). Active series: **WO5.0.0** (seeded 2026-08-18, 27 WOs — see `docs/workorders/README.md`; WO4.0.0 remainders tracked in state.md); next free series: WO6.0.0.
+1. **Plan**: write `workplan.md` (scratch) — files to touch, root cause (not symptom), gate to run. Substantial named work gets a WO file in `docs/workorders/` (`WO<major>.<minor>.<patch>-NNN-slug.md`, headers: Series/Status/Owner/Scope/Gate/Objective). Active series: **WO6.0.0** (seeded 2026-08-18 evening, 22 WOs — see `docs/workorders/README.md`; WO5.0.0 remainders tracked in state.md); next free series: WO7.0.0.
 2. **Before implementation**: re-read state.md (pending/backlog), lessons.md, this file. If the task is unclear, say so and escalate — do not guess.
 3. **Check progression**: after each file edit, verify it lints/compiles. Don't batch 10 changes then discover the 3rd was wrong.
 4. **Session close** (all required, in order): commit → `lessons.md` (what I learned / didn't work / would do differently) → `state.md` (what changed, pending, blocked) → `CHANGELOG.md` entry → verify clean tree → verify gates green → paste final gate output + head SHA. A session is NOT done until all are done.

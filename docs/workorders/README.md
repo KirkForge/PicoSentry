@@ -4,7 +4,42 @@
 
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
 
-## WO5.0.0 — Fifth series (OPEN — seeded by the 2026-08-18 five-explorer round)
+## WO6.0.0 — Sixth series (OPEN — seeded by the 2026-08-18 evening six-explorer round)
+
+Priorities: P0 = security/correctness, do first. Every WO carries verified evidence (live repros or airtight file:line chains; the top claims re-verified by the orchestrator — 5/5 confirmed). WO5-033/031's interplay produced two of the biggest finds (outbox). Worktrees: `wo/6.0.0/<slug>` off `origin/dev`.
+
+| ID | Title | Pri | Effort |
+|----|-------|-----|--------|
+| [WO6.0.0-001](WO6.0.0-001-watch-prefilter-soundness.md) | Watch: prefilter drops unconstrained alternation branches (3 shipped-rule FNs) | P0 | M |
+| [WO6.0.0-002](WO6.0.0-002-watch-gate-bypasses.md) | Watch: decode/normalize gate bypasses (textlike dilution, separator split, entity, rot13 vocab) | P0 | M-L |
+| [WO6.0.0-003](WO6.0.0-003-output-gateway-holes.md) | Watch: output FP (SYSTEM/PUBLIC English) + gateway message-shape holes | P0 | M |
+| [WO6.0.0-004](WO6.0.0-004-grpc-audit-tenancy.md) | Sandbox: gRPC QueryAudit leaks all tenants' audit events | P0 | S |
+| [WO6.0.0-005](WO6.0.0-005-seccomp-trace-parity.md) | Sandbox: seccomp-trace verdict parity break | P0 | M |
+| [WO6.0.0-006](WO6.0.0-006-advisory-normalization.md) | Scan: advisory exact-match names (Flask/PyYAML zero advisories) + CVSS flattening | P0 | S-M |
+| [WO6.0.0-007](WO6.0.0-007-policy-deny-inversion.md) | Scan: deny_packages SUPPRESSES findings for banned packages | P0 | S |
+| [WO6.0.0-008](WO6.0.0-008-cache-node-modules.md) | Scan: cache blind to node_modules source content (stale clean verdicts) | P0 | M |
+| [WO6.0.0-009](WO6.0.0-009-outbox-correctness.md) | Serve: outbox poller dies on pg + N× escalation delivery across workers | P0 | M-L |
+| [WO6.0.0-010](WO6.0.0-010-persistence-contracts.md) | Serve: persistence catches wrong exceptions (500s) + /run orphaned rows | P0 | M |
+| [WO6.0.0-011](WO6.0.0-011-events-history.md) | Serve: /events/history 500 (uuid vs int) + system-event visibility | P0 | S |
+| [WO6.0.0-012](WO6.0.0-012-org-tier-clamp.md) | Serve: org create honors client tier (viewer self-serves enterprise) | P0 | S |
+| [WO6.0.0-013](WO6.0.0-013-serve-tx-discipline.md) | Serve: login lock-order inversion (15s stalls) + immediate-default convoys | P0 | M |
+| [WO6.0.0-014](WO6.0.0-014-cluster-lifecycle.md) | Sandbox: cluster token lifecycle (grace=0 inverted, self-refreshing trust, dead EITHER-auth) | P0 | M |
+| [WO6.0.0-015](WO6.0.0-015-helm-default-install.md) | Deploy: helm default install prints --help and exits | P0 | S |
+| [WO6.0.0-016](WO6.0.0-016-decode-budget-starvation.md) | Watch: decode-budget starvation advisory-only | P1 | M |
+| [WO6.0.0-017](WO6.0.0-017-firewall-cache-scope.md) | Firewall: VerdictCache thread safety + %40 scope misclassification | P1 | S-M |
+| [WO6.0.0-018](WO6.0.0-018-sandbox-hygiene-3.md) | Sandbox: hygiene round 3 (audit archives, reserved names, health, /ready forks, riders) | P1 | M |
+| [WO6.0.0-019](WO6.0.0-019-corpus-memory-governance.md) | Scan: corpus-index memory governance + GO keyboard ceiling + riders | P1 | M |
+| [WO6.0.0-020](WO6.0.0-020-serve-multiworker-riders.md) | Serve: multi-worker riders (SIGTERM, topology, sync deps, TOCTOU, UTC) | P1 | M |
+| [WO6.0.0-021](WO6.0.0-021-core-truthfulness-3.md) | Core: truthfulness round 3 (maturity drift, scan-artifacts push tier, lockstep gaps) | P1 | M |
+| [WO6.0.0-022](WO6.0.0-022-manual-p2-rider.md) | Docs: manual P2-wave rider (X-Org-Id, members/quotas, multi-worker honesty) | P1 | S-M |
+
+Suggested batch shape for tomorrow: P0 watch cluster (001-003 + 016) one worktree; sandbox cluster (004/005/014/018) one; scan cluster (006/007/008/019) one; serve cluster (009-013 + 020) split across two (009/010 are the big ones); 015+021+022 core/docs one. Cross-WO coordination: 002×016 (decode budget), 013×020 (locks), 022 waits for 009/010 wording.
+
+## WO5.0.0 — Fifth series (CLOSED 2026-08-18 — 32 DONE / 3 honest PARTIALs, shipped v2.1.3; remainders tracked in state.md)
+
+| ID | Title | Final status |
+|----|-------|--------------|
+| WO5.0.0-001..035 | See the WO files | 32 DONE (001-013, 015-027, 033-035) · PARTIAL 014 (docker push, tooling-gated) · PARTIAL 029 (<1s/MB target; 2.8× landed) · PARTIAL 031 (multi-worker core landed, e2e isolation pending) |
 
 Priorities: P0 = security/correctness, do first. Each WO names its verified evidence (live repros or airtight file:line chains from the explorer round; top claims re-verified by the orchestrator). Worktrees: `wo/5.0.0/<slug>` off `origin/dev`.
 

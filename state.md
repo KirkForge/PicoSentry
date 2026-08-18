@@ -2,7 +2,38 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, v2.1.3 RELEASED — WO5.0.0 series complete: 32 DONE / 3 PARTIAL) ═══
+# ═══ CURRENT STATE (2026-08-18 evening, WO6.0.0 SEEDED — 22 WOs open for tomorrow, no code changes) ═══
+
+**Evening seeding round complete** (6 read-only explorers: scan / sandbox / serve / watch+firewall / core-CLI-CI / cross-cutting WO5-seam hunter): ~60 verified findings → **WO6.0.0 series, 22 WOs (P0×15, P1×7)** in `docs/workorders/`. Orchestrator spot-verified the top 5 claims (rot13 misspelling regression, EventHistoryItem int-vs-uuid, helm args-only-under-grpc, QueryAudit no-tenant-filter, advisory exact-match) — all confirmed. No code changed; docs-only.
+
+**Headline findings (tomorrow's queue):**
+1. **Watch guard bypasses** (the crown jewels): prefilter DROPS unconstrained alternation branches — 3 shipped rules have live plaintext bypasses (`"priority 1: ignore your rules"` passes clean!); `_is_textlike` printable-ratio dilution defeats decode in BOTH guards; separator collapse splits tokens (`orig.inal`); entity gate requires `;`; rot13 gate has TWO misspelled entries (WO5-029 reintroduced the exact class WO5-011 fixed) + closed-vocab synonym bypass (001/002/016).
+2. **Multi-worker post-landing bugs**: outbox poller DIES on postgres (naive TIMESTAMP vs aware cutoff — found independently by two explorers) and when it works, escalation side-effects fire N× (every worker alerts/emails/webhooks — WO5-033 made dispatch work just as WO5-031 multiplied dispatchers); rate-limit flush catches the wrong exception class → 500s on every request under contention (009/010).
+3. **Scan correctness**: advisory lookups exact-match — `Flask`/`PyYAML` get ZERO advisories while the DB holds matches (the core CVE promise); `deny_packages` policy SUPPRESSES findings for the banned package (inverted — exit code can flip 1→0); cache still blind to node_modules JS content the OBFS rules scan (stale clean verdicts — WO5-010's class, one level deeper) (006/007/008).
+4. **Sandbox**: gRPC QueryAudit leaks ALL tenants' audit events to tenant tokens (WO5-001 tenancy exists on HTTP only); seccomp-trace left out of the WO5-019 parity matrix (benign nonzero exits = KILL); cluster grace=0 INVERTED (disables retirement forever) + rotation lets stale-token holders self-refresh trust forever (004/005/014).
+5. **Serve**: /events/history 500s for any org WITH events (uuid id vs int model); org-create honors client tier (viewer self-serves enterprise = unlimited quotas); login lock-order inversion → 15s stalls under concurrent writers (011/012/013).
+6. **Deploy**: helm default install prints `--help` and exits (masked only by the pending docker push) (015).
+
+**Batch shape for tomorrow** (README has the coordination notes): watch cluster (001-003+016) / sandbox cluster (004+005+014+018) / scan cluster (006-008+019) / serve split (009+010) + (011-013+020) / core+docs (015+021+022, with 022 waiting on 009/010 wording).
+
+**Standing context**: v2.1.3 shipped (PyPI verified; main=dev green at `b0a00974`+this commit); green-before-ff rule now in AGENTS.md §1.5; WO5 remainders: docker push (tooling-gated), WO5-029 fused-pass target, WO5-031 e2e isolation + serve helm chart.
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-08-18 (k): evening six-explorer round → WO6.0.0 series — COMPLETE
+
+### Method
+6 read-only explorers (SA-AP scan, SA-AQ sandbox, SA-AR serve, SA-AS watch+firewall, SA-AT core/CI, SA-AU cross-cutting WO5-seam hunter), state.md-first with exclusion lists, CHECKED-AND-CLEAN required, numbering forbidden, kill criterion stated. ~60 verified findings (live repros in /tmp/opencode + airtight chains) → triaged into 22 WOs. Two findings independently confirmed by two explorers (outbox pg-death; escalation multiplication). Orchestrator spot-verified 5 top claims — all confirmed.
+
+### Notable
+- The WO5 landing wave grew its own bug crop AGAIN (lesson (g) repeats): WO5-029's fusion reintroduced rot13 misspellings the WO5-011 round fixed; WO5-028's prefilter work created the alternation-branch drop; WO5-031×033 interaction = N× alerts; WO5-019's parity matrix missed seccomp-trace.
+- The seam hunter earned its slot: 3 of the biggest finds (N× escalation, poller death, flush exception classes) were pure cross-feature interactions no area explorer could see.
+
+### Pending / next
+The WO6.0.0 series IS the queue (22 WOs, batch shape in README + head above).
+
+### Blocked
+- None (docker push remains tooling-gated, unchanged).
 
 **v2.1.3 published and verified on PyPI** (wheel `55cecc7b…`, sdist `e52bad87…`, digests byte-verified, reproducible two-build). **Honest CI record**: the tag push left MAIN RED — PicoSentry CI at `86b94c4b` failed (run 32185985601, 3.13 leg: 3× SARIF fixture asserting the hardcoded 2.1.2 + gateway starvation test's fixed 50ms margin under GIL contention; other legs cancelled by fail-fast). Root-caused same session: the SARIF test fixture hardcoded `engine_version="2.1.2"` (the 2.1.1 incident class — now defaults to the live `__version__`, bump-proof) and the gateway test now asserts ordering only (a sync guard makes the concurrent request strictly later — full teeth, no free-core assumption). Fixes landed on dev `5af027ca`; **dev push CI green at exactly that commit (32187246990, full push tier incl. integration)**; main ff'd to dev tip and verified green (run below in session (j)). Process failure recorded in lessons: the release commit was never run through the integration tier locally BEFORE tagging, and the orchestrator misread the run list (called Security-Scan green while PicoSentry CI was red).
 

@@ -203,6 +203,9 @@ class WebhookManager:
             return results
 
         with self._lock:
+            # "*" (the API default) subscribes to every dispatchable event —
+            # a literal `event in wh.events` match made default webhooks
+            # never fire. Explicit lists still match exactly.
             dispatch_list = [
                 Webhook(
                     id=wh.id,
@@ -217,7 +220,8 @@ class WebhookManager:
                     pinned_ips=list(wh.pinned_ips) if wh.pinned_ips else None,
                 )
                 for wh in self.webhooks.values()
-                if event in wh.events and (org_id is None or wh.org_id is None or str(wh.org_id) == str(org_id))
+                if ("*" in wh.events or event in wh.events)
+                and (org_id is None or wh.org_id is None or str(wh.org_id) == str(org_id))
             ]
 
         for webhook in dispatch_list:

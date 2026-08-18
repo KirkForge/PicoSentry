@@ -318,3 +318,68 @@ class TestWebhookNameUniqueMigration:
             "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
             " VALUES ('ops-alerts', 'https://example.com/reborn', 's', '[]', 1, 0, 1)"
         )
+
+
+class TestWebhookWildcardEvents:
+    """WO5.0.0-033: events=["*"] (the API default) must dispatch on every event.
+
+    The literal `event in wh.events` match meant default webhooks never fired."""
+
+    @staticmethod
+    def _manager_with(events):
+        from datetime import datetime, timezone
+
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        manager.webhooks = {}
+        manager.webhooks[11] = Webhook(
+            id=11,
+            name="hook",
+            url="https://example.com/hook",
+            secret="secret",
+            events=events,
+            active=True,
+            retries=0,
+            created_at=datetime.now(timezone.utc),
+            org_id=1,
+            pinned_ips=["1.1.1.1"],
+        )
+        return manager
+
+    @staticmethod
+    def _patch_post(monkeypatch, posted):
+        import requests
+
+        def _capture_post(url, **kwargs):
+            posted.append(url)
+            response = requests.Response()
+            response.status_code = 200
+            return response
+
+        monkeypatch.setattr(requests, "post", _capture_post)
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(["1.1.1.1"]),
+        )
+
+    def test_wildcard_receives_kill_chain_escalation(self, monkeypatch):
+        posted: list[str] = []
+        self._patch_post(monkeypatch, posted)
+        manager = self._manager_with(["*"])
+
+        results = manager.dispatch("chain.escalated", {"artifact_id": "x"}, org_id=1)
+
+        assert posted == ["https://example.com/hook"]
+        assert results and results[0]["success"] is True
+
+    def test_explicit_list_matches_exactly(self, monkeypatch):
+        posted: list[str] = []
+        self._patch_post(monkeypatch, posted)
+        manager = self._manager_with(["chain.escalated"])
+
+        results = manager.dispatch("project.failed", {"project_id": "x"}, org_id=1)
+        assert posted == []
+        assert results == []
+
+        results = manager.dispatch("chain.escalated", {"artifact_id": "x"}, org_id=1)
+        assert posted == ["https://example.com/hook"]
+        assert results and results[0]["success"] is True

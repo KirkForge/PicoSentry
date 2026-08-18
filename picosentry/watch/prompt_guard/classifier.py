@@ -214,9 +214,7 @@ class PromptClassifier:
             1.0 if any(w in normalized for w in self._SYSTEM_WORDS) and self._SYSTEM_PREFIX.search(text) else 0.0
         )
         imperative_start = (
-            1.0
-            if any(w in normalized for w in self._IMPERATIVE_WORDS) and self._IMPERATIVE_START.search(text)
-            else 0.0
+            1.0 if any(w in normalized for w in self._IMPERATIVE_WORDS) and self._IMPERATIVE_START.search(text) else 0.0
         )
 
         benign_marker_count = sum(1 for token in self._BENIGN_MARKERS if token in normalized)

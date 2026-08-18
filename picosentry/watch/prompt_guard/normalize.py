@@ -369,7 +369,7 @@ class Normalizer:
 
     # Non-printable ASCII (Cc + DEL): for pure-ASCII payloads this is exactly
     # the complement of str.isprintable, countable with one C-level translate.
-    _NONPRINTABLE_ASCII_DEL: ClassVar[dict[int, None]] = {c: None for c in range(0x00, 0x20)}
+    _NONPRINTABLE_ASCII_DEL: ClassVar[dict[int, None]] = dict.fromkeys(range(32))
     _NONPRINTABLE_ASCII_DEL[0x7F] = None
 
     @staticmethod

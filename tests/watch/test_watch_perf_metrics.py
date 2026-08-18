@@ -215,7 +215,7 @@ class TestPrefilterSoundness:
 
     def test_char_class_contributes_folded_alternatives(self) -> None:
         groups = _extract_required_literals(_sre_parse.parse(r"(?:[.-]\s?){10,}"))
-        assert groups == ((( "-", "."),),)
+        assert groups == ((("-", "."),),)
 
     def test_prefilter_passes_when_regex_matches_shipped_rules(self) -> None:
         from picosentry.watch.prompt_guard import PromptGuard
@@ -236,9 +236,7 @@ class TestPrefilterSoundness:
             ):
                 if compiled.search(candidate):
                     lowered = candidate.lower()
-                    assert any(
-                        all(any(alt in lowered for alt in group) for group in branch) for branch in groups
-                    ), (
+                    assert any(all(any(alt in lowered for alt in group) for group in branch) for branch in groups), (
                         f"prefilter would reject a match for {rule.id}: groups={groups}, text={candidate!r}"
                     )
 
@@ -365,9 +363,18 @@ class TestFusedPassEquivalence:
         )
         probes = [
             "plain english text without any rot13 words",
-            "vtaber", "VTABER", "naq", "flfgrz cebzcg", "flfgrz  cebzcg",
-            "flfgrz\tcebzcg", "lbh ner", "sebz abj ba", "naq gura",
-            "ghea bss", "nothing to see here and there", "qvfnoyr",
+            "vtaber",
+            "VTABER",
+            "naq",
+            "flfgrz cebzcg",
+            "flfgrz  cebzcg",
+            "flfgrz\tcebzcg",
+            "lbh ner",
+            "sebz abj ba",
+            "naq gura",
+            "ghea bss",
+            "nothing to see here and there",
+            "qvfnoyr",
         ]
         for p in probes:
             assert n._rot13_gate_hits(p) == bool(gate.search(p)), p

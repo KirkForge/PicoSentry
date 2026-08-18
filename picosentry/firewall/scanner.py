@@ -6,6 +6,7 @@ import re
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 from picosentry.firewall.cache import VerdictCache as _VerdictCache
 from picosentry.firewall.cache import VerdictCache as _CacheForPut
@@ -59,6 +60,10 @@ class FirewallVerdict:
 
 
 def classify_path(path: str) -> tuple[str, str, str] | None:
+    # Classify on the query-less path: $-anchored regexes must never see
+    # '?refresh=1' — query-decorated metadata URLs get SCANNED, and the
+    # query never pollutes the name used for scanning/cache keys.
+    path = urlsplit(path).path.rstrip("/")
     if _STATIC_EXT_RE.search(path):
         return None
     m = _PYPI_PACKAGE_RE.match(path)

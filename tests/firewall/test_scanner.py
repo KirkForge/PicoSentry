@@ -45,6 +45,34 @@ class TestClassifyPath:
         assert result[1] == "socket.io"
 
 
+class TestClassifyPathDecoration:
+    """WO5.0.0-012: query strings and trailing slashes must not dodge classification."""
+
+    def test_pypi_query_string_is_scanned(self):
+        assert classify_path("/pypi/requests/2.31.0/json?refresh=1") == ("pypi", "requests", "2.31.0")
+
+    def test_pypi_latest_query_string_is_scanned(self):
+        assert classify_path("/pypi/requests/json?refresh=1") == ("pypi", "requests", "latest")
+
+    def test_pypi_trailing_slash_with_query_is_scanned(self):
+        assert classify_path("/pypi/requests/2.31.0/json/?refresh=1") == ("pypi", "requests", "2.31.0")
+
+    def test_npm_query_string_never_pollutes_name(self):
+        assert classify_path("/lodash?meta=1") == ("npm", "lodash", "latest")
+
+    def test_npm_version_query_string(self):
+        assert classify_path("/lodash/4.17.21?meta=1") == ("npm", "lodash", "4.17.21")
+
+    def test_npm_scoped_query_string(self):
+        assert classify_path("/@types/node?meta=1") == ("npm", "@types/node", "latest")
+
+    def test_static_ext_in_query_does_not_skip_metadata_scan(self):
+        assert classify_path("/lodash?file=bundle.js") == ("npm", "lodash", "latest")
+
+    def test_static_asset_with_query_still_passthrough(self):
+        assert classify_path("/static/app.js?v=1") is None
+
+
 class TestFirewallScanner:
     def test_verdict_from_empty_findings(self):
         scanner = FirewallScanner()

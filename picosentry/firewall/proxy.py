@@ -103,7 +103,10 @@ class _ProxyHandler(BaseHTTPRequestHandler):
             return True
         presented = self.headers.get("Authorization", "")
         expected = f"Bearer {token}"
-        return hmac.compare_digest(presented, expected)
+        # UTF-8 bytes: header values arrive latin-1-decoded and non-ASCII
+        # str raises TypeError in compare_digest, killing the connection
+        # with a traceback instead of a clean 401.
+        return hmac.compare_digest(presented.encode("utf-8"), expected.encode("utf-8"))
 
     def do_GET(self) -> None:
         if not self._authorized():

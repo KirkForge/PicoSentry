@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from picosentry.watch.config import PicoWatchConfig
-from picosentry.watch.prompt_guard.normalize import Normalizer
+from picosentry.watch.prompt_guard.normalize import MAX_DECODE_BYTES, Normalizer
 from picosentry.watch.prompt_guard.rules import RuleEngine
 from picosentry.watch.types import PromptScanResult, Rule, ValidationResult
 
@@ -105,6 +105,21 @@ class OutputGuard:
             for rule, _match in matches:
                 violations.append(rule.id)
                 total_score = max(total_score, rule.weight)
+
+        # Encoded exfiltration (WO5.0.0-013): re-run the rule engine and PII
+        # detectors over bounded decode candidates (prompt-side machinery) so
+        # b64/hex-wrapped secrets cannot pass by wrapping. Hits that only
+        # appear after decoding carry a [decoded] marker.
+        decoded_texts, _exhausted = self._normalizer._decode_candidates(output, byte_budget=MAX_DECODE_BYTES)
+        for decoded in decoded_texts:
+            for rule, _match in self._engine.evaluate(self._normalizer.normalize(decoded)):
+                if rule.id not in violations:
+                    violations.append(f"{rule.id}[decoded]")
+                    total_score = max(total_score, rule.weight)
+            _, decoded_pii = self._detect_pii(decoded)
+            for v in decoded_pii:
+                if v not in violations and f"{v}[decoded]" not in violations:
+                    violations.append(f"{v}[decoded]")
 
         redacted, pii_violations = self._detect_pii(output)
         for v in pii_violations:

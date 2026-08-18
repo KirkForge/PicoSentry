@@ -45,10 +45,17 @@ def _ci_filter(name: str) -> re.Pattern[str]:
         ("action.yml", True),
         (".github/workflows/ci.yml", True),
         (".github/workflows/release.yml", True),
+        # WO5.0.0-026: build/gate-shaping files that used to classify docs-only
+        (".dockerignore", True),
+        ("ci-templates/gitlab-picosentry.yml", True),
+        (".env.example", True),
+        (".pre-commit-config.yaml", True),
+        ("docs/BENCHMARKS.md", True),
         # docs-only must keep skipping the pytest jobs
         ("README.md", False),
         ("CHANGELOG.md", False),
         ("docs/docker.md", False),
+        ("docs/BENCHMARKS-other.md", False),
         ("docs/workorders/WO4.0.0-017-ci-tiers-versions.md", False),
     ],
 )
@@ -64,6 +71,7 @@ def test_code_filter_classifies_paths(path: str, expected: bool) -> None:
         ("tests/scan/test_scanner.py", True),
         ("scripts/render_benchmarks.py", True),
         ("pyproject.toml", True),
+        ("docs/BENCHMARKS.md", True),
         # non-scan code cannot drift REPORT.json / BENCHMARKS.md
         ("picosentry/watch/types.py", False),
         ("tests/serve/test_x.py", False),

@@ -46,14 +46,19 @@ Online OSV queries (`api.osv.dev`) happen only in connected intelligence mode
 
 ## Air-Gapped Docker Deployment
 
+Pin an explicit published version tag (`latest` drifts and is not
+reproducible; check the
+[tag list](https://hub.docker.com/r/kirkforge/picodome/tags) for the
+newest release):
+
 ```bash
 # Networked machine
-docker pull docker.io/kirkforge/picodome:latest
-docker save kirkforge/picodome:latest -o picodome.tar
+docker pull docker.io/kirkforge/picodome:v2.0.18
+docker save kirkforge/picodome:v2.0.18 -o picodome.tar
 
 # Transfer via USB, copy to air-gapped host
 docker load -i picodome.tar
-docker run --rm --network none kirkforge/picodome:latest scan /project
+docker run --rm --network none kirkforge/picodome:v2.0.18 scan /project
 ```
 
 The `--network none` flag ensures zero outbound connectivity for the container.

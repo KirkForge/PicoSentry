@@ -120,7 +120,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 5673 fixtures (3431 pos / 2235 neg), 53 rules, 100.00% prec, 90.87% recall — see docs/model-card.md |
-| Docker image | **Stable** | `kirkforge/picodome:v2.1.2` on Docker Hub; multi-arch (linux/amd64 + linux/arm64); non-root user |
+| Docker image | **Stable** | multi-arch (linux/amd64 + linux/arm64), non-root; latest published: kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.2 push pending (WO5.0.0-014) |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.2 published |
 
 "Beta" = works, has regression + security tests, suitable for controlled production use. Per-component reviews in [`docs/`](docs/).
@@ -136,7 +136,7 @@ pip install picosentry[serve]          # + API server + dashboard
 pip install picosentry[all]            # everything
 ```
 
-**Docker:** `docker pull kirkforge/picodome:v2.1.2` — multi-arch, non-root.
+**Docker:** `docker pull kirkforge/picodome:v2.0.18` (latest published) — multi-arch, non-root. `kirkforge/picodome:v2.1.2` push pending (WO5.0.0-014).
 
 ---
 

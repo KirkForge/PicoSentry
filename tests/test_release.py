@@ -14,8 +14,13 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import io
+import os
 import re
+import shutil
+import subprocess
 import tarfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 from types import ModuleType
 
@@ -75,12 +80,18 @@ def test_pyproject_version_matches_top_level() -> None:
 
 
 def test_helm_chart_app_version_matches() -> None:
-    """The Helm chart's appVersion must equal the package version.
+    """The Helm chart's appVersion must equal the v-prefixed package version.
 
     The chart's own ``version`` (chart release) is allowed to lag — that
     field tracks chart-template revisions, not the app inside the chart.
+
+    Every release path publishes v-prefixed registry tags (release.yml bake
+    TAG override, scripts/build_docker_multiarch.sh), and the deployment
+    template defaults the image tag to appVersion — so a bare "2.1.2"
+    rendered ``kirkforge/picodome:2.1.2``, a tag the registry never has
+    (WO5.0.0-014 evidence #2).
     """
-    expected = picosentry.__version__
+    expected = f"v{picosentry.__version__}"
     chart = Path(__file__).resolve().parent.parent / "deploy" / "helm" / "picodome" / "Chart.yaml"
     if not chart.exists():
         pytest.skip(f"Helm chart not present: {chart}")
@@ -88,6 +99,38 @@ def test_helm_chart_app_version_matches() -> None:
     match = re.search(r'^appVersion:\s*"([^"]+)"', text, re.MULTILINE)
     assert match, f"Helm chart is missing an appVersion field: {chart}"
     assert match.group(1) == expected, f"Helm chart appVersion = {match.group(1)!r}, expected {expected!r}"
+
+
+def test_helm_chart_renders_v_prefixed_image_tag() -> None:
+    """A default ``helm install`` must resolve a tag the registry actually has.
+
+    Renders with ``helm template`` when the binary is available; otherwise
+    parses the chart files and mirrors the deployment template's
+    ``image.tag | default .Chart.AppVersion`` logic.
+    """
+    chart_dir = _REPO_ROOT / "deploy" / "helm" / "picodome"
+    expected = f"kirkforge/picodome:v{picosentry.__version__}"
+    helm = shutil.which("helm")
+    if helm is not None:
+        rendered = subprocess.run(
+            [helm, "template", "picodome", str(chart_dir)],
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout
+        images = re.findall(r'^\s*image:\s*"?([^\s"]+)"?', rendered, re.MULTILINE)
+        assert images, "helm template produced no image: lines"
+        for image in images:
+            assert image == expected, f"rendered image {image!r}, expected {expected!r}"
+        return
+    values = (chart_dir / "values.yaml").read_text()
+    tag = re.search(r'^\s*tag:\s*"([^"]*)"', values, re.MULTILINE)
+    assert tag and tag.group(1) == "", "values.yaml image.tag must stay empty so appVersion is the default"
+    template = (chart_dir / "templates" / "deployment.yaml").read_text()
+    assert "default .Chart.AppVersion" in template, "deployment template no longer defaults the tag to appVersion"
+    app_version = re.search(r'^appVersion:\s*"([^"]+)"', (chart_dir / "Chart.yaml").read_text(), re.MULTILINE)
+    assert app_version, "Chart.yaml is missing appVersion"
+    assert f"kirkforge/picodome:{app_version.group(1)}" == expected
 
 
 def test_experimental_notes_version_lockstep() -> None:
@@ -120,6 +163,39 @@ def test_kubernetes_manifest_image_lockstep() -> None:
     assert match.group(1) == f"kirkforge/picodome:v{picosentry.__version__}", (
         f"deployment.yaml image = {match.group(1)!r}, expected 'kirkforge/picodome:v{picosentry.__version__}'"
     )
+
+
+@pytest.mark.network
+def test_docker_hub_carries_current_version_tag() -> None:
+    """The Docker Hub registry must carry the current version's image tag.
+
+    The docs claimed ``kirkforge/picodome:v2.1.2`` existed while the Hub's
+    newest tag was v2.0.18 — nothing verified registry existence
+    (WO5.0.0-014 evidence #1). release.yml now hard-fails on a missing tag
+    post-push; this is the local/CI counterpart.
+
+    Opt-in via ``PICOSENTRY_CHECK_REGISTRY=1``: the check needs network and
+    a completed push. The v2.1.2 git tag predates the image push, so
+    "released" cannot imply "pushed" — enforcement is deliberate, not
+    automatic. Fails on an authoritative 404; skips when the Hub cannot be
+    reached (an unreachable registry proves nothing either way).
+    """
+    if os.environ.get("PICOSENTRY_CHECK_REGISTRY") != "1":
+        pytest.skip("set PICOSENTRY_CHECK_REGISTRY=1 to verify the Docker Hub tag")
+    tag = f"v{picosentry.__version__}"
+    url = f"https://hub.docker.com/v2/repositories/kirkforge/picodome/tags/{tag}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            assert response.status == 200
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            pytest.fail(
+                f"kirkforge/picodome:{tag} is not on Docker Hub — push it "
+                f"(scripts/build_docker_multiarch.sh --push) or correct the pending-push claims"
+            )
+        pytest.skip(f"Docker Hub returned HTTP {exc.code} for {tag} — cannot verify")
+    except OSError as exc:
+        pytest.skip(f"cannot reach Docker Hub: {exc}")
 
 
 def _load_normalizer() -> ModuleType:

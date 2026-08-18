@@ -24,9 +24,6 @@ docker buildx bake
 
 # Build and push
 docker buildx bake --push
-
-# CI tag without clobbering :latest
-./scripts/build_docker_multiarch.sh --ci --push
 ```
 
 ### Using the helper script

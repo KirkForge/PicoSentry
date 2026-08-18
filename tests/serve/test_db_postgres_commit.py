@@ -246,3 +246,98 @@ class TestBooleanLiteralTranslation:
         mgr.execute("SELECT * FROM t WHERE active = 10 OR active != 1")
         stmt = cursor.executed_sql[-1]
         assert "active = 10" in stmt and "active != TRUE" in stmt
+
+
+class TestPostgresPoolThreadDeathReleasesConnections:
+    """Regression (pg-live CI: 'FATAL: sorry, too many clients already'):
+
+    PostgresPool tracked connections in a strong set closed only by
+    close_all() — every thread that touched the pool (TestClient portals,
+    to_thread executors, scheduler threads) leaked one live connection
+    until postgres hit max_connections. Weak tracking + psycopg2 __del__
+    closes a dead thread's connection at collection."""
+
+    def test_dead_thread_connection_is_collected_and_closed(self, monkeypatch):
+        import gc
+        import threading
+
+        from picosentry.serve.database.pools import PostgresPool
+
+        closed: list[int] = []
+
+        class _FakeConn:
+            def __init__(self):
+                self.closed = False
+                self.autocommit = True
+
+            def cursor(self):
+                class _C:
+                    def execute(inner_self, sql, params=None):  # noqa: N805
+                        pass
+
+                return _C()
+
+            def close(self):
+                self.closed = True
+                closed.append(1)
+
+            def __del__(self):
+                if not self.closed:
+                    self.close()
+
+        class _FakePsycopg2:
+            Error = Exception
+
+            @staticmethod
+            def connect(url, connect_timeout=0):
+                _ = url, connect_timeout
+                return _FakeConn()
+
+        pool = PostgresPool(url="postgresql://fake")
+        pool._psycopg2 = _FakePsycopg2()  # type: ignore[assignment]
+
+        def _worker():
+            conn = pool.acquire()
+            assert conn is not None
+
+        t = threading.Thread(target=_worker)
+        t.start()
+        t.join()
+        gc.collect()
+
+        assert len(pool._all_conns) == 0, "dead thread's connection must leave the WeakSet"
+        assert closed, "connection must be closed on collection"
+
+    def test_live_thread_connection_stays_tracked(self, monkeypatch):
+        from picosentry.serve.database.pools import PostgresPool
+
+        class _FakeConn:
+            def __init__(self):
+                self.closed = False
+                self.autocommit = True
+
+            def cursor(self):
+                class _C:
+                    def execute(inner_self, sql, params=None):  # noqa: N805
+                        pass
+
+                return _C()
+
+            def close(self):
+                self.closed = True
+
+        class _FakePsycopg2:
+            Error = Exception
+
+            @staticmethod
+            def connect(url, connect_timeout=0):
+                _ = url, connect_timeout
+                return _FakeConn()
+
+        pool = PostgresPool(url="postgresql://fake")
+        pool._psycopg2 = _FakePsycopg2()  # type: ignore[assignment]
+        conn = pool.acquire()
+        assert conn is not None
+        assert len(pool._all_conns) == 1
+        pool.close_all()
+        assert conn.closed

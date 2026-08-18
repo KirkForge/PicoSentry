@@ -2,6 +2,7 @@ import contextlib
 import logging
 import sqlite3
 import threading
+import weakref
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any
@@ -149,7 +150,13 @@ class PostgresPool:
         self._local = threading.local()
         self._psycopg2 = None
         self._conns_lock = threading.Lock()
-        self._all_conns: set[Any] = set()
+        # Weak tracking: a strong set leaks one live connection per dead
+        # thread forever (TestClient portals, asyncio to_thread executors,
+        # scheduler/audit threads) until postgres hits max_connections
+        # ("FATAL: sorry, too many clients already"). Weak refs let a dead
+        # thread's connection be collected — psycopg2's __del__ closes the
+        # socket. close_all() still closes everything it can reach.
+        self._all_conns: weakref.WeakSet = weakref.WeakSet()
 
     def _discard(self, conn: Any) -> None:
         with contextlib.suppress(Exception):
@@ -198,11 +205,13 @@ class PostgresPool:
 
     def close_all(self) -> None:
         with self._conns_lock:
-            conns = self._all_conns
-            self._all_conns = set()
-            for conn in conns:
-                with contextlib.suppress(Exception):
-                    conn.close()
+            # Copy: WeakSet entries can vanish during iteration as their
+            # threads die.
+            conns = list(self._all_conns)
+            self._all_conns.clear()
+        for conn in conns:
+            with contextlib.suppress(Exception):
+                conn.close()
         if hasattr(self._local, "conn"):
             self._local.conn = None
 

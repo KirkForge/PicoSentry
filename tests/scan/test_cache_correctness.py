@@ -185,6 +185,109 @@ class TestInputHashing:
         assert _hash_target_inputs(tmp_path) == h1
 
 
+class TestRuleReadSurfaceParity:
+    """WO5.0.0-010 — every file type the rules read must change the cache key.
+
+    The hashed set is derived from the rules' declared read-surface
+    (BUILD_HOOK_READ_* in dangerous_build_hooks, node_modules package.json
+    manifests) — this property test fails if either side drifts.
+    """
+
+    def test_every_build_hook_read_surface_file_invalidates(self, tmp_path):
+        from picosentry.scan.rules.dangerous_build_hooks import BUILD_HOOK_READ_NAMES, BUILD_HOOK_READ_SUFFIXES
+
+        for marker in sorted(BUILD_HOOK_READ_SUFFIXES | BUILD_HOOK_READ_NAMES):
+            base = _hash_target_inputs(tmp_path)
+            name = f"prefix-{marker}" if not marker.startswith(".") else f"x{marker}"
+            (tmp_path / name).write_text("content-change", encoding="utf-8")
+            assert _hash_target_inputs(tmp_path) != base, f"{marker} (as {name}) did not change the input hash"
+            (tmp_path / name).unlink()
+
+    def test_cli_service_hash_imports_the_shared_surface(self):
+        from picosentry.scan import cli_service
+        from picosentry.scan.rules.dangerous_build_hooks import BUILD_HOOK_READ_NAMES, BUILD_HOOK_READ_SUFFIXES
+
+        assert set(cli_service._BUILD_HOOK_MARKERS) == {
+            m.lower() for m in BUILD_HOOK_READ_SUFFIXES | BUILD_HOOK_READ_NAMES
+        }
+
+    def test_node_modules_package_json_invalidates(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"name": "x", "version": "1.0.0"}', encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        for rel in (
+            "node_modules/evil-pkg/package.json",
+            "node_modules/@scope/evil/package.json",
+            "node_modules/a/node_modules/b/package.json",
+        ):
+            p = tmp_path / rel
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text('{"name": "evil", "version": "1.0.0"}', encoding="utf-8")
+            assert _hash_target_inputs(tmp_path) != base, f"{rel} did not change the input hash"
+            base = _hash_target_inputs(tmp_path)
+
+    def test_node_modules_non_manifest_files_still_skipped(self, tmp_path):
+        (tmp_path / "package.json").write_text('{"name": "x", "version": "1.0.0"}', encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        payload = tmp_path / "node_modules" / "evil-pkg" / "lib"
+        payload.mkdir(parents=True)
+        (payload / "exploit.js").write_text("require('child_process').exec('curl evil')", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) == base
+
+
+class TestTruncationMarker:
+    """WO5.0.0-010 — boundary-crossing edits past the file/byte caps invalidate."""
+
+    def test_file_added_past_count_cap_invalidates(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("picosentry.scan.cli_service._MAX_INPUT_FILES", 2)
+        for name in ("a.js", "b.js"):
+            (tmp_path / name).write_text("x", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        (tmp_path / "c.js").write_text("x", encoding="utf-8")  # past the 2-file cut
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_file_removed_past_count_cap_invalidates(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("picosentry.scan.cli_service._MAX_INPUT_FILES", 2)
+        for name in ("a.js", "b.js", "c.js"):
+            (tmp_path / name).write_text("x", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        (tmp_path / "c.js").unlink()
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_file_added_past_byte_cap_invalidates(self, tmp_path, monkeypatch):
+        monkeypatch.setattr("picosentry.scan.cli_service._MAX_INPUT_BYTES", 8)
+        (tmp_path / "a.js").write_text("0123456789", encoding="utf-8")  # exceeds cap alone
+        base = _hash_target_inputs(tmp_path)
+        (tmp_path / "b.js").write_text("01", encoding="utf-8")  # never read (byte break)
+        assert _hash_target_inputs(tmp_path) != base
+
+
+class TestNoCacheFlag:
+    """WO5.0.0-010 — --no-cache disables cache reads AND writes."""
+
+    def test_flag_parses_on_scan_subcommand(self):
+        import argparse
+
+        from picosentry.scan.cli_commands.scan import add_arguments
+
+        parser = argparse.ArgumentParser()
+        add_arguments(parser.add_subparsers())
+        args = parser.parse_args(["scan", ".", "--no-cache"])
+        assert args.no_cache is True
+        assert parser.parse_args(["scan", "."]).no_cache is False
+
+    def test_no_cache_disables_load_and_save(self, tmp_path):
+        (tmp_path / "proj").mkdir()
+        (tmp_path / "proj" / "package.json").write_text('{"name": "x"}', encoding="utf-8")
+        cfg = PicoSentryConfig()
+        cfg.cache_dir = str(tmp_path / "cache")
+
+        orch = ScanOrchestrator(argparse.Namespace(no_cache=True, verify_determinism=False))
+        cached, cache, input_hash = orch._load_cache(tmp_path / "proj", cfg)
+        assert cached is None and cache is None and input_hash == ""
+        orch._save_cache(cache, input_hash, ScanResult(target="x"), cfg)
+        assert not (tmp_path / "cache").exists() or not list((tmp_path / "cache").rglob("*.json"))
+
+
 class TestOSVVersionIsolation:
     """Deliverable 3a: the queried version must be part of the OSV cache key."""
 

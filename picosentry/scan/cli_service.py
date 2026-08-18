@@ -48,6 +48,7 @@ from picosentry.scan.formatters import (
 )
 from picosentry.scan.guards import verify_determinism
 from picosentry.scan.models import Confidence, Finding, ScanResult, ScanStats, Severity, apply_baseline, load_baseline
+from picosentry.scan.rules.dangerous_build_hooks import BUILD_HOOK_READ_NAMES, BUILD_HOOK_READ_SUFFIXES
 from picosentry.scan.validation import run_validation
 
 logger = logging.getLogger(__name__)
@@ -70,15 +71,42 @@ _CACHE_SHAPE_FIELDS = (
     "intelligence",
 )
 
+# The L2-BUILD-001 read-surface (WO5.0.0-010), declared once in the rule and
+# imported here so the cache key can never drift from what the rule reads.
+# Lowercased — hashed with a case-insensitive match (over-inclusive is the
+# safe direction for a cache key).
+_BUILD_HOOK_MARKERS = tuple(sorted(m.lower() for m in BUILD_HOOK_READ_SUFFIXES | BUILD_HOOK_READ_NAMES))
+
 
 def _hash_target_inputs(target: Path) -> str:
     """Content hash over every scan-relevant input file, all ecosystems.
 
     Covers manifests, lockfiles, install scripts (.js/.py) and setup.py for
     npm, pnpm, yarn, PyPI, Go, Cargo, Maven, RubyGems and NuGet — not just the
-    npm-family locks. Content-based (mtime changes alone never invalidate —
-    determinism contract). Returns "" when the target has no relevant files.
+    npm-family locks — plus the L2-BUILD-001 read-surface (build.rs, Rakefile,
+    extconf.rb, .rs/.ps1/.nuspec/… via the shared BUILD_HOOK_READ_* constants)
+    and node_modules package.json manifests (what the campaign rules read).
+    Content-based (mtime changes alone never invalidate — determinism
+    contract). Returns "" when the target has no relevant files.
     """
+
+    def _is_scan_input(file: Path) -> bool:
+        try:
+            rel_parts = file.relative_to(target).parts
+        except ValueError:
+            return False
+        if "node_modules" in rel_parts:
+            # Campaigns/advisory reads descend into installed package
+            # manifests, which the _SKIP_DIRS walk would otherwise exclude.
+            return file.name == "package.json"
+        if any(part in _SKIP_DIRS for part in rel_parts):
+            return False
+        return (
+            file.suffix in _RELEVANT_EXTENSIONS
+            or file.name in _RELEVANT_FILE_NAMES
+            or file.name.lower().endswith(_BUILD_HOOK_MARKERS)
+        )
+
     sha = hashlib.sha256()
     files: list[Path] = []
     if target.is_file():
@@ -87,13 +115,12 @@ def _hash_target_inputs(target: Path) -> str:
         for file in target.rglob("*"):
             if not file.is_file() or file.is_symlink():
                 continue
-            if any(part in _SKIP_DIRS for part in file.parts):
-                continue
-            if file.suffix in _RELEVANT_EXTENSIONS or file.name in _RELEVANT_FILE_NAMES:
+            if _is_scan_input(file):
                 files.append(file)
     if not files:
         return ""
     total = 0
+    truncated = len(files) > _MAX_INPUT_FILES
     for file in sorted(files, key=lambda p: p.relative_to(target).as_posix())[:_MAX_INPUT_FILES]:
         try:
             data = file.read_bytes()
@@ -104,7 +131,14 @@ def _hash_target_inputs(target: Path) -> str:
         sha.update(hashlib.sha256(data).digest())
         total += len(data)
         if total > _MAX_INPUT_BYTES:
+            truncated = True
             break
+    if truncated:
+        # ceiling: folding count+bytes catches add/remove past the file-count
+        # cut and size changes inside the hashed prefix past the byte cut, but
+        # an in-place same-size edit past either cut stays invisible to the
+        # key. Upgrade path: full-tree manifest hash when truncation fires.
+        sha.update(f"truncated:{len(files)}:{total}".encode())
     return sha.hexdigest()[:16]
 
 

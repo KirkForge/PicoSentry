@@ -196,6 +196,11 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
         help="Run in offline mode (no network). Also enabled by PICOSENTRY_OFFLINE=1.",
     )
     scan_parser.add_argument(
+        "--no-cache",
+        action="store_true",
+        help="Bypass the scan cache entirely (neither read nor write cached results).",
+    )
+    scan_parser.add_argument(
         "--intelligence",
         choices=["offline", "connected"],
         default="offline",

@@ -102,6 +102,10 @@ class SQLitePool:
             sync_level = settings.database.synchronous.upper()
             self._local.conn.execute(f"PRAGMA journal_mode={journal}")
             self._local.conn.execute(f"PRAGMA synchronous={sync_level}")
+            # Multi-worker: cross-process writers wait on the write lock up to
+            # 15s instead of raising "database is locked" past the connect
+            # timeout (boot migrations / outbox writes overlap across workers).
+            self._local.conn.execute("PRAGMA busy_timeout=15000")
             if journal == "WAL":
                 threshold = settings.database.wal_checkpoint_threshold
                 self._local.conn.execute(f"PRAGMA wal_autocheckpoint={threshold}")

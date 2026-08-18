@@ -1,7 +1,7 @@
 # WO4.0.0-017 — CI: path-filter hole, tier placement, version matrices
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** PARTIAL (2026-08-17, worktree `wo/4.0.0/release-mechanics`): D1+D2 done (incl. the live postgres dbname bug), D3 CI matrix done / classifiers flagged out of scope; path classification pinned by tests/test_ci_paths.py.
+**Status:** DONE (PARTIAL 2026-08-17 → complete 2026-08-18: the 3.14 classifier landed with the matrix extension; path-classification pins extended by WO5.0.0-026 incl. the residual holes it left). D1+D2 done (incl. the live postgres dbname bug), D3 CI matrix done, path classification pinned by tests/test_ci_paths.py
 **Owner:** (unassigned — worktree `wo/4.0.0/ci-tiers`)
 **Priority:** P1 · Effort M · Risk M (workflow edits; keep concurrency cancellation)
 **Scope:** `.github/workflows/{ci.yml,admission-kind.yml}`, `scripts/test.sh`

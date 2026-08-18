@@ -1,7 +1,7 @@
 # WO4.0.0-009 — Release mechanics (next release ships correct)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** PARTIAL (2026-08-17, worktree `wo/4.0.0/release-mechanics`): D1+D3 done, sdist normalizer shipped (`scripts/normalize_sdist.py`, wired into release.yml + push-tier CI, unit-tested); D2/D4 partially blocked by file scope (see Notes below).
+**Status:** DONE (PARTIAL 2026-08-17 → complete 2026-08-18: D2/D4 — docker tag clobbering, tag-convention lockstep, deploy drift guards, registry-existence gate — landed as WO5.0.0-014; the only remainder, the v2.1.2 image PUSH itself, is tracked as the WO5.0.0-014 PARTIAL, tooling-blocked). D1+D3 done 2026-08-17: sdist normalizer shipped (`scripts/normalize_sdist.py`, wired into release.yml + push-tier CI, unit-tested)
 **Owner:** (unassigned — worktree `wo/4.0.0/release-mechanics`)
 **Priority:** P0 (release imminent: dev ≈15 commits ahead) · Effort M · Risk L (keep release.yml diff minimal — verifiable at next tag)
 

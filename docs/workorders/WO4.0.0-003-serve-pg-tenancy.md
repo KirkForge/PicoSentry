@@ -1,7 +1,7 @@
 # WO4.0.0-003 — Serve: Postgres tenancy correctness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** PARTIAL (verified 2026-08-17 — landed & wired: Organization.create via execute_on (orgs.py:29-43), portable ON CONFLICT DO NOTHING upsert + migration 18 (orgs.py:131-141), auth/correlation raw-`?` sites converted, no INSERT OR IGNORE left in picosentry/serve/, local org-flow tests pass (7) / missing: a green pg-live CI job — ci.yml:227 appends `/$db` to a DSN already carrying `/picoshogun`, so psycopg2 (pools.py:143) parses dbname `picoshogun/pg_live_*` → job cannot pass; tracked as open CI debt in state.md)
+**Status:** DONE (PARTIAL 2026-08-17 → complete 2026-08-18: the missing green pg-live CI job arrived with the WO4-017 dbname fix and the pg-live burn-down — postgres 15/16/17/18 legs green in every push since, incl. runs 32137930302/32139357333). Landed & wired: Organization.create via execute_on (orgs.py:29-43), portable ON CONFLICT DO NOTHING upsert + migration 18 (orgs.py:131-141), auth/correlation raw-`?` sites converted, no INSERT OR IGNORE left in picosentry/serve/, org-flow tests (7)
 **Owner:** (unassigned — worktree `wo/4.0.0/pg-tenancy`)
 **Priority:** P0 · Effort S-M · Risk L
 **Scope:** `picosentry/serve/services/orgs.py`, `picosentry/serve/database/manager.py`, `.github/workflows/ci.yml` (postgres job), `scripts/live_test_postgres.sh`, `tests/serve/`

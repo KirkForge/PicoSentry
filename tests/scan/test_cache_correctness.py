@@ -14,6 +14,8 @@ import os
 import threading
 from unittest.mock import MagicMock, patch
 
+from typing import ClassVar
+
 from picosentry.scan.cache import ScanCache
 from picosentry.scan.cli_service import ScanOrchestrator, _cache_config_digest, _hash_target_inputs
 from picosentry.scan.config import PicoSentryConfig
@@ -474,3 +476,92 @@ class TestHmacKeyfilePersistence:
         finally:
             monkeypatch.undo()
             importlib.reload(cache_mod)
+
+
+class TestOSVCacheRoundTrip:
+    """WO5.0.0-034 — the disk cache must return what it stored.
+
+    _write_cache used to store Advisory.to_dict() shapes while _read_cache
+    decodes via Advisory.from_osv, so every positive cache hit decoded to []
+    (false-clean on cached queries in connected mode).
+    """
+
+    _VULN: ClassVar[dict] = {
+        "id": "GHSA-aaaa-bbbb-cccc",
+        "summary": "prototype pollution",
+        "published": "2021-01-01T00:00:00Z",
+        "affected": [
+            {
+                "package": {"ecosystem": "npm", "name": "lodash"},
+                "ranges": [{"type": "SEMVER", "events": [{"introduced": "0"}, {"fixed": "4.17.21"}]}],
+                "versions": ["4.17.20"],
+            }
+        ],
+        "references": [{"url": "https://example.com/adv"}],
+        "database_specific": {"severity": "HIGH", "cwe_ids": ["CWE-1321"]},
+    }
+
+    def test_write_then_offline_read_returns_same_advisories(self, tmp_path, monkeypatch):
+        mock_resp = MagicMock()
+        body = json.dumps({"vulns": [self._VULN]}).encode("utf-8")
+
+        fresh_client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=1)
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=(mock_resp, body)) as m:
+            fresh = fresh_client.query("npm", "lodash", version="4.17.20")
+            assert m.call_count == 1
+        assert len(fresh) == 1
+
+        monkeypatch.setenv("PICOSENTRY_OFFLINE", "1")
+        offline_client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=1)
+        with patch("picosentry.scan.intelligence.safe_urlopen") as m:
+            cached = offline_client.query("npm", "lodash", version="4.17.20")
+            m.assert_not_called()
+        assert len(cached) == len(fresh)
+        for got, want in zip(cached, fresh, strict=True):
+            assert got.to_dict() == want.to_dict()
+
+    def test_cache_file_holds_raw_osv_records(self, tmp_path):
+        client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=1)
+        mock_resp = MagicMock()
+        body = json.dumps({"vulns": [self._VULN]}).encode("utf-8")
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=(mock_resp, body)):
+            client.query("npm", "lodash", version="4.17.20")
+        entry = json.loads((tmp_path / f"{client._cache_key('npm', 'lodash', '4.17.20')}.json").read_text())
+        assert entry["advisories"] == [self._VULN]
+
+    def test_negative_entry_honored_after_restart(self, tmp_path, monkeypatch):
+        mock_resp = MagicMock()
+        body = json.dumps({"vulns": []}).encode("utf-8")
+
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=(mock_resp, body)) as m:
+            OSVClient(cache_dir=tmp_path, cache_ttl_hours=1).query("npm", "clean-pkg", version="1.0.0")
+            assert m.call_count == 1
+
+        monkeypatch.setenv("PICOSENTRY_OFFLINE", "1")
+        with patch("picosentry.scan.intelligence.safe_urlopen") as m:
+            assert OSVClient(cache_dir=tmp_path, cache_ttl_hours=1).query("npm", "clean-pkg", version="1.0.0") == []
+            m.assert_not_called()
+
+    def test_offline_query_writes_no_negative_entry(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PICOSENTRY_OFFLINE", "1")
+        OSVClient(cache_dir=tmp_path, cache_ttl_hours=1).query("npm", "lodash", version="4.17.20")
+        assert list(tmp_path.glob("*.json")) == []
+        monkeypatch.delenv("PICOSENTRY_OFFLINE")
+        mock_resp = MagicMock()
+        body = json.dumps({"vulns": [self._VULN]}).encode("utf-8")
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=(mock_resp, body)) as m:
+            advisories = OSVClient(cache_dir=tmp_path, cache_ttl_hours=1).query("npm", "lodash", version="4.17.20")
+            assert m.call_count == 1  # offline run poisoned nothing — must hit the API
+        assert len(advisories) == 1
+
+    def test_refresh_cache_round_trips(self, tmp_path):
+        client = OSVClient(cache_dir=tmp_path, cache_ttl_hours=1)
+        mock_resp = MagicMock()
+        body = json.dumps({"vulns": [self._VULN]}).encode("utf-8")
+        with patch("picosentry.scan.intelligence.safe_urlopen", return_value=(mock_resp, body)):
+            assert client.refresh_cache("npm") == 1
+        with patch("picosentry.scan.intelligence.safe_urlopen") as m:
+            advisories = client.query("npm", "lodash")
+            m.assert_not_called()
+        assert len(advisories) == 1
+        assert advisories[0].id == "GHSA-aaaa-bbbb-cccc"

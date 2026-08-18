@@ -81,33 +81,35 @@ def test_watch_forwards_picoshogun_plugin() -> None:
 
 
 def test_check_forwards_flags_and_target() -> None:
-    with patch("picosentry.scan.cli.main", return_value=0) as inner:
+    with patch("picosentry.scan.cli_commands.check.cmd", return_value=0) as inner:
         code = _dispatch(["check", "myproj", "--fail-on", "high", "--check-corpus-age", "7"])
     assert code == 0
-    argv = inner.call_args[0][0]
-    assert argv[0] == "check"
-    assert argv[argv.index("--fail-on") + 1] == "high"
-    assert argv[argv.index("--check-corpus-age") + 1] == "7"
-    assert argv[-1] == "myproj"
+    ns = inner.call_args[0][0]
+    assert ns.target == "myproj"
+    assert ns.fail_on == "high"
+    assert ns.check_corpus_age == 7
 
 
 def test_check_forwards_rule_list_and_booleans() -> None:
-    with patch("picosentry.scan.cli.main", return_value=0) as inner:
+    with patch("picosentry.scan.cli_commands.check.cmd", return_value=0) as inner:
         code = _dispatch(["check", "--rules", "L2-POST-001", "L2-OBFS-001", "--enterprise"])
     assert code == 0
-    argv = inner.call_args[0][0]
-    assert argv[argv.index("--rules") + 1 : argv.index("--rules") + 3] == ["L2-POST-001", "L2-OBFS-001"]
-    assert "--enterprise" in argv
+    ns = inner.call_args[0][0]
+    assert ns.rules == ["L2-POST-001", "L2-OBFS-001"]
+    assert ns.enterprise is True
 
 
-def test_check_forwards_defaults_not_at_all() -> None:
-    with patch("picosentry.scan.cli.main", return_value=0) as inner:
+def test_check_defaults_reach_inner_cmd() -> None:
+    with patch("picosentry.scan.cli_commands.check.cmd", return_value=0) as inner:
         _dispatch(["check"])
-    assert inner.call_args[0][0] == ["check"]
+    ns = inner.call_args[0][0]
+    assert ns.target == "."
+    assert ns.fail_on == "medium"
+    assert ns.check_corpus_age is None
 
 
 def test_check_rejects_unsupported_flag(capsys) -> None:
-    with patch("picosentry.scan.cli.main", return_value=0) as inner, pytest.raises(SystemExit) as excinfo:
+    with patch("picosentry.scan.cli_commands.check.cmd", return_value=0) as inner, pytest.raises(SystemExit) as excinfo:
         _dispatch(["check", "--format", "json", "."])
     assert excinfo.value.code == 2
     assert "unrecognized arguments" in capsys.readouterr().err
@@ -139,65 +141,128 @@ def test_advisories_without_action_forwards_for_usage() -> None:
 
 
 def test_cluster_join_forwards_flags_and_peer() -> None:
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         code = _dispatch(["cluster", "join", "10.0.0.2:8444", "--port", "9444", "--backend", "sqlite"])
     assert code == 0
-    argv = inner.call_args[0][0]
-    assert argv[0:2] == ["cluster", "join"]
-    assert argv[argv.index("--port") + 1] == "9444"
-    assert argv[argv.index("--backend") + 1] == "sqlite"
-    assert argv[-1] == "10.0.0.2:8444"
+    ns = inner.call_args[0][0]
+    assert ns.cluster_action == "join"
+    assert ns.peer_address == "10.0.0.2:8444"
+    assert ns.port == 9444
+    assert ns.backend == "sqlite"
 
 
 def test_cluster_status_forwards_format() -> None:
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         code = _dispatch(["cluster", "status", "--format", "json"])
     assert code == 0
-    argv = inner.call_args[0][0]
-    assert argv[0:2] == ["cluster", "status"]
-    assert argv[argv.index("--format") + 1] == "json"
+    ns = inner.call_args[0][0]
+    assert ns.cluster_action == "status"
+    assert ns.format == "json"
 
 
 def test_cluster_rotate_token_forwards_flags() -> None:
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         code = _dispatch(["cluster", "rotate-token", "--new-token", "tok-2", "--retire-after", "60"])
     assert code == 0
-    argv = inner.call_args[0][0]
-    assert argv[0:2] == ["cluster", "rotate-token"]
-    assert argv[argv.index("--new-token") + 1] == "tok-2"
-    assert argv[argv.index("--retire-after") + 1] == "60"
+    ns = inner.call_args[0][0]
+    assert ns.cluster_action == "rotate-token"
+    assert ns.new_token == "tok-2"
+    assert ns.retire_after == 60
 
 
 def test_cluster_leave_forwards_bare() -> None:
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         code = _dispatch(["cluster", "leave"])
     assert code == 0
-    assert inner.call_args[0][0] == ["cluster", "leave"]
+    assert inner.call_args[0][0].cluster_action == "leave"
 
 
-def test_cluster_join_env_default_token_not_forwarded(monkeypatch) -> None:
-    """Token from env stays implicit — the inner CLI re-applies its own env default."""
+def test_cluster_join_env_default_token(monkeypatch) -> None:
+    """Token from env is applied by the shared inner parser — no forwarding step to drift."""
     monkeypatch.setenv("PICODOME_CLUSTER_TOKEN", "env-secret")
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         _dispatch(["cluster", "join", "peer:8444"])
-    argv = inner.call_args[0][0]
-    assert "--cluster-token" not in argv
+    assert inner.call_args[0][0].cluster_token == "env-secret"
 
 
-def test_cluster_join_explicit_token_forwarded(monkeypatch) -> None:
+def test_cluster_join_explicit_token_overrides_env(monkeypatch) -> None:
     monkeypatch.setenv("PICODOME_CLUSTER_TOKEN", "env-secret")
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner:
+    with patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner:
         _dispatch(["cluster", "join", "peer:8444", "--cluster-token", "explicit"])
-    argv = inner.call_args[0][0]
-    assert argv[argv.index("--cluster-token") + 1] == "explicit"
+    assert inner.call_args[0][0].cluster_token == "explicit"
 
 
 def test_cluster_join_rejects_unsupported_flag(capsys) -> None:
-    with patch("picosentry.sandbox.cli.main", return_value=0) as inner, pytest.raises(SystemExit) as excinfo:
+    with (
+        patch("picosentry.sandbox.cli_commands.cluster.cmd", return_value=0) as inner,
+        pytest.raises(SystemExit) as excinfo,
+    ):
         _dispatch(["cluster", "join", "peer:8444", "--policy", "p.json"])
     assert excinfo.value.code == 2
     assert "unrecognized arguments" in capsys.readouterr().err
     inner.assert_not_called()
+
+
+# ─── wrapper/inner argparse parity (WO5.0.0-025 item 8) ──────────────────
+
+
+def _parser_help(add_arguments, argv: list[str], prog: str) -> str:
+    import contextlib
+    import io
+
+    parser = argparse.ArgumentParser(prog=prog)
+    subparsers = parser.add_subparsers(dest="command")
+    add_arguments(subparsers)
+    buf = io.StringIO()
+    try:
+        with contextlib.redirect_stdout(buf):
+            parser.parse_args(argv)
+    except SystemExit as exc:
+        assert exc.code == 0
+    return buf.getvalue()
+
+
+def test_check_help_matches_inner_scan_check() -> None:
+    """`picosentry check --help` must equal `python -m picosentry.scan check --help`.
+
+    The unified wrapper reuses the inner add_arguments, so the surfaces
+    cannot drift (the hand-duplicated wrapper was the drift class).
+    """
+    from picosentry.scan.cli_commands import check as inner_check
+
+    unified = _parser_help(_add_check, ["check", "--help"], prog="picosentry")
+    inner = _parser_help(inner_check.add_arguments, ["check", "--help"], prog="picosentry")
+    assert unified == inner
+
+
+@pytest.mark.parametrize(
+    "sub", [[], ["join", "--help"], ["status", "--help"], ["leave", "--help"], ["rotate-token", "--help"]]
+)
+def test_cluster_help_matches_inner_sandbox_cluster(sub: list[str]) -> None:
+    """`picosentry cluster [<sub>] --help` must equal the inner module's help.
+
+    The inner `python -m picosentry.sandbox` entry uses prog "picodome" (two
+    chars shorter — argparse wraps usage lines by prog length), so parity is
+    asserted by building both parsers with the same prog; any difference in
+    flags, help strings, or defaults is real drift.
+    """
+    from picosentry.sandbox.cli_commands import cluster as inner_cluster
+
+    unified = _parser_help(_add_cluster, ["cluster", *sub, "--help"], prog="picosentry")
+    inner = _parser_help(inner_cluster.add_arguments, ["cluster", *sub, "--help"], prog="picosentry")
+    assert unified == inner
+
+
+def _add_check(subparsers: argparse._SubParsersAction) -> None:
+    from picosentry.cli_commands import scan as scan_wrapper
+
+    scan_wrapper.add_check_arguments(subparsers)
+
+
+def _add_cluster(subparsers: argparse._SubParsersAction) -> None:
+    from picosentry.cli_commands import sandbox as sandbox_wrapper
+
+    sandbox_wrapper.add_cluster_arguments(subparsers)
 
 
 # ─── `--backend landlock` forwarding ─────────────────────────────────────

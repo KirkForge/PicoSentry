@@ -257,3 +257,240 @@ def test_normalize_sdist_clamps_member_metadata(tmp_path: Path) -> None:
             assert (member.uid, member.gid, member.uname, member.gname) == (0, 0, "root", "root")
         # file content survives the rewrite
         assert tar.extractfile("picosentry-9.9.9/PKG-INFO").read().startswith(b"Metadata-Version")
+
+
+class TestGateTruthfulness:
+    """CI gates that look like verification must be able to fail (WO5.0.0-025).
+
+    The action run step, the GitLab template script and the verify-release
+    attestation step are executed against stubbed tools so their failure
+    paths are proven, not assumed.
+    """
+
+    SARIF_EMPTY = '{"runs": [{"results": []}]}'
+    SARIF_TWO = '{"runs": [{"results": ["a", "b"]}]}'
+
+    @staticmethod
+    def _run_script(
+        script: str, workdir: Path, stubs: dict[str, str], env: dict[str, str]
+    ) -> subprocess.CompletedProcess:
+        bin_dir = workdir / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        for name, body in stubs.items():
+            stub = bin_dir / name
+            stub.write_text(body)
+            stub.chmod(0o755)
+        script_file = workdir / "script.sh"
+        script_file.write_text(script)
+        return subprocess.run(
+            ["bash", str(script_file)],
+            cwd=workdir,
+            capture_output=True,
+            text=True,
+            timeout=30,
+            env={**env, "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}"},
+        )
+
+    @staticmethod
+    def _action_run_block() -> str:
+        import yaml
+
+        doc = yaml.safe_load((_REPO_ROOT / "action.yml").read_text())
+        steps = doc["runs"]["steps"]
+        return next(s["run"] for s in steps if s.get("name") == "Run PicoSentry scan")
+
+    @classmethod
+    def _action_script(cls, **inputs: str) -> str:
+        values = {
+            "format": "sarif",
+            "path": ".",
+            "sarif-file": "picosentry-results.sarif",
+            "severity-threshold": "",
+            "fail-on-findings": "true",
+            **inputs,
+        }
+        block = cls._action_run_block()
+        return re.sub(
+            r"\$\{\{ inputs\.([\w-]+) \}\}",
+            lambda m: values[m.group(1)],
+            block,
+        )
+
+    @staticmethod
+    def _picosentry_stub() -> str:
+        return (
+            "#!/bin/sh\n"
+            "printf '%s' \"$PICOSENTRY_STUB_OUTPUT\" > picosentry-results.sarif\n"
+            "printf '%s' \"$PICOSENTRY_STUB_OUTPUT\" > sarif.json\n"
+            "printf '%s\\n' \"$@\" >> picosentry-args.log\n"
+            "exit ${PICOSENTRY_STUB_EXIT:-0}\n"
+        )
+
+    def _run_action(self, tmp_path: Path, **inputs: str) -> tuple[subprocess.CompletedProcess, str]:
+        stub_output = inputs.pop("stub_output", self.SARIF_EMPTY)
+        stub_exit = inputs.pop("stub_exit", "0")
+        proc = self._run_script(
+            self._action_script(**inputs),
+            tmp_path,
+            {"picosentry": self._picosentry_stub()},
+            {
+                "PICOSENTRY_STUB_OUTPUT": stub_output,
+                "PICOSENTRY_STUB_EXIT": stub_exit,
+                "GITHUB_OUTPUT": str(tmp_path / "github_output.txt"),
+            },
+        )
+        args_log = tmp_path / "picosentry-args.log"
+        return proc, (args_log.read_text() if args_log.exists() else "")
+
+    def test_action_forwards_format_input(self, tmp_path):
+        proc, args = self._run_action(tmp_path, format="json", stub_output='{"findings": []}')
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "json" in args.split()
+
+    def test_action_rejects_unknown_format(self, tmp_path):
+        proc, args = self._run_action(tmp_path, format="bogus")
+        assert proc.returncode == 2
+        assert "Invalid format" in proc.stdout + proc.stderr
+        assert args == ""
+
+    def test_action_sarif_parse_failure_hard_fails(self, tmp_path):
+        proc, _ = self._run_action(tmp_path, stub_output="this is not sarif")
+        assert proc.returncode == 2
+        assert "refusing to report 0 findings" in proc.stdout + proc.stderr
+
+    def test_action_zero_findings_passes(self, tmp_path):
+        proc, _ = self._run_action(tmp_path, stub_output=self.SARIF_EMPTY)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_action_findings_trip_fail_on_findings(self, tmp_path):
+        proc, _ = self._run_action(tmp_path, stub_output=self.SARIF_TWO)
+        assert proc.returncode == 1
+
+    def test_action_scan_failure_propagates(self, tmp_path):
+        proc, _ = self._run_action(tmp_path, stub_exit="2")
+        assert proc.returncode == 2
+        assert "exit code 2" in proc.stdout + proc.stderr
+
+    def test_action_fail_on_findings_requires_findings_format(self, tmp_path):
+        proc, _ = self._run_action(tmp_path, format="cyclonedx", stub_output="{}")
+        assert proc.returncode == 2
+        assert "findings-bearing format" in proc.stdout + proc.stderr
+
+    @staticmethod
+    def _gitlab_script() -> str:
+        import yaml
+
+        doc = yaml.safe_load((_REPO_ROOT / "ci-templates" / "gitlab-picosentry.yml").read_text())
+        return doc[".picosentry-scan"]["script"][0]
+
+    def _run_gitlab(
+        self, tmp_path: Path, stub_output: str, stub_exit: str = "0", **env: str
+    ) -> subprocess.CompletedProcess:
+        variables = {
+            "PICOSENTRY_PATH": ".",
+            "PICOSENTRY_FORMAT": "sarif",
+            "PICOSENTRY_SEVERITY_THRESHOLD": "LOW",
+            "PICOSENTRY_FAIL_ON_FINDINGS": "true",
+            **env,
+        }
+        return self._run_script(
+            self._gitlab_script(),
+            tmp_path,
+            {"picosentry": self._picosentry_stub()},
+            {"PICOSENTRY_STUB_OUTPUT": stub_output, "PICOSENTRY_STUB_EXIT": stub_exit, **variables},
+        )
+
+    def test_gitlab_sarif_parse_failure_hard_fails(self, tmp_path):
+        proc = self._run_gitlab(tmp_path, stub_output="not json")
+        assert proc.returncode == 2
+        assert "refusing to report 0 findings" in proc.stdout + proc.stderr
+
+    def test_gitlab_zero_findings_passes(self, tmp_path):
+        proc = self._run_gitlab(tmp_path, stub_output=self.SARIF_EMPTY)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_gitlab_findings_trip_fail_on_findings(self, tmp_path):
+        proc = self._run_gitlab(tmp_path, stub_output=self.SARIF_TWO)
+        assert proc.returncode == 1
+
+    @pytest.mark.parametrize(("scan_exit", "expected"), [("2", 2), ("3", 3), ("4", 4), ("5", 5), ("9", 9)])
+    def test_gitlab_failure_exit_codes_fail_job(self, tmp_path, scan_exit, expected):
+        proc = self._run_gitlab(tmp_path, stub_output=self.SARIF_EMPTY, stub_exit=scan_exit)
+        assert proc.returncode == expected
+        assert "PicoSentry scan" in proc.stdout + proc.stderr
+
+    def test_gitlab_scan_exit_1_honored_even_with_zero_count(self, tmp_path):
+        proc = self._run_gitlab(tmp_path, stub_output=self.SARIF_EMPTY, stub_exit="1")
+        assert proc.returncode == 1
+
+    def test_gitlab_scan_exit_1_passes_when_opted_out(self, tmp_path):
+        proc = self._run_gitlab(
+            tmp_path, stub_output=self.SARIF_EMPTY, stub_exit="1", PICOSENTRY_FAIL_ON_FINDINGS="false"
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_gitlab_fail_on_findings_requires_findings_format(self, tmp_path):
+        proc = self._run_gitlab(tmp_path, stub_output="{}", PICOSENTRY_FORMAT="cyclonedx")
+        assert proc.returncode == 2
+        assert "findings-bearing format" in proc.stdout + proc.stderr
+
+    @staticmethod
+    def _attestation_run_block() -> str:
+        import yaml
+
+        doc = yaml.safe_load((_REPO_ROOT / ".github" / "workflows" / "verify-release.yml").read_text())
+        steps = doc["jobs"]["verify-docker"]["steps"]
+        return next(s["run"] for s in steps if s.get("name") == "Verify Docker image attestation")
+
+    def _run_attestation(self, tmp_path: Path, stubs: dict[str, str]) -> subprocess.CompletedProcess:
+        script = self._attestation_run_block()
+        script = script.replace("${{ github.repository }}", "KirkForge/PicoSentry")
+        script = script.replace("${{ steps.tag.outputs.TAG }}", "9.9.9")
+        return self._run_script(script, tmp_path, stubs, {})
+
+    def test_attestation_digest_failure_fails_step(self, tmp_path):
+        proc = self._run_attestation(tmp_path, {"docker": "#!/bin/sh\nexit 1\n"})
+        assert proc.returncode == 1
+        assert "cannot verify attestation" in proc.stdout + proc.stderr
+
+    def test_attestation_skips_only_when_provably_unattested(self, tmp_path):
+        proc = self._run_attestation(
+            tmp_path, {"docker": "#!/bin/sh\necho sha256:abc123\n", "gh": "#!/bin/sh\necho 0\n"}
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        assert "not attested yet" in proc.stdout + proc.stderr
+
+    def test_attestation_query_failure_fails_step(self, tmp_path):
+        proc = self._run_attestation(
+            tmp_path, {"docker": "#!/bin/sh\necho sha256:abc123\n", "gh": "#!/bin/sh\nexit 1\n"}
+        )
+        assert proc.returncode == 1
+        assert "cannot verify" in proc.stdout + proc.stderr
+
+    def test_attestation_verify_failure_fails_step(self, tmp_path):
+        """The core tooth: a real verification failure must fail the step."""
+        proc = self._run_attestation(
+            tmp_path,
+            {
+                "docker": "#!/bin/sh\necho sha256:abc123\n",
+                "gh": '#!/bin/sh\nif [ "$1" = "api" ]; then echo 1; else exit 1; fi\n',
+            },
+        )
+        assert proc.returncode == 1
+        assert "ceiling" not in proc.stdout + proc.stderr
+
+    def test_attestation_verify_success_passes(self, tmp_path):
+        proc = self._run_attestation(
+            tmp_path,
+            {
+                "docker": "#!/bin/sh\necho sha256:abc123\n",
+                "gh": '#!/bin/sh\nif [ "$1" = "api" ]; then echo 1; else exit 0; fi\n',
+            },
+        )
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+
+    def test_no_echo_fallbacks_in_ci_gate_files(self):
+        """The `|| echo <default>` green-blind class must not come back."""
+        for rel in ("action.yml", "ci-templates/gitlab-picosentry.yml", ".github/workflows/verify-release.yml"):
+            text = (_REPO_ROOT / rel).read_text()
+            assert "|| echo" not in text, f"{rel} reintroduced an || echo fallback"

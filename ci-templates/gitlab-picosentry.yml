@@ -14,15 +14,42 @@
       if [ "${PICOSENTRY_SEVERITY_THRESHOLD}" != "LOW" ]; then
         ARGS+=(--severity-threshold "${PICOSENTRY_SEVERITY_THRESHOLD}")
       fi
-      picosentry "${ARGS[@]}" 2>/dev/null || EXIT_CODE=$?
-      FINDINGS_COUNT=$(python3 -c "import json; d=json.load(open('picosentry-results.sarif')); print(len(d.get('runs',[{}])[0].get('results',[])))" 2>/dev/null || echo "0")
+      picosentry "${ARGS[@]}" || EXIT_CODE=$?
+      # Exit contract (picosentry scan): 0 clean; 1 findings (deferred to
+      # PICOSENTRY_FAIL_ON_FINDINGS below); 2 internal error (incl. explicit
+      # rule selection that runs nothing); 3 timeout; 4 rule error /
+      # determinism mismatch; 5 corpus age. Everything but 0/1 fails the job.
+      case "${EXIT_CODE}" in
+        ""|0|1) ;;
+        2) echo "PicoSentry scan failed with an internal error (exit 2)"; exit 2 ;;
+        3) echo "PicoSentry scan timed out (exit 3)"; exit 3 ;;
+        4) echo "PicoSentry scan hit a rule error or determinism mismatch (exit 4)"; exit 4 ;;
+        5) echo "PicoSentry scan found a stale corpus (exit 5)"; exit 5 ;;
+        *) echo "PicoSentry scan failed (unexpected exit ${EXIT_CODE})"; exit "${EXIT_CODE}" ;;
+      esac
+      case "${PICOSENTRY_FORMAT}" in
+        sarif)
+          FINDINGS_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('runs',[{}])[0].get('results',[])))" picosentry-results.sarif) || {
+            echo "Failed to parse picosentry-results.sarif as SARIF — refusing to report 0 findings"; exit 2;
+          }
+          ;;
+        json)
+          FINDINGS_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('findings',[])))" picosentry-results.sarif) || {
+            echo "Failed to parse picosentry-results.sarif as a JSON scan report — refusing to report 0 findings"; exit 2;
+          }
+          ;;
+        *)
+          if [ "${PICOSENTRY_FAIL_ON_FINDINGS}" = "true" ]; then
+            echo "PICOSENTRY_FAIL_ON_FINDINGS requires a findings-bearing format (sarif or json); '${PICOSENTRY_FORMAT}' cannot trip it"; exit 2
+          fi
+          FINDINGS_COUNT=0
+          ;;
+      esac
       echo "findings_count=${FINDINGS_COUNT}" >> picosentry-env.txt
-      if [ -n "${EXIT_CODE}" ] && [ "${EXIT_CODE}" -eq 2 ]; then
-        echo "PicoSentry scan failed with an internal error"
-        exit 2
-      fi
-      if [ "${PICOSENTRY_FAIL_ON_FINDINGS}" = "true" ] && [ "${FINDINGS_COUNT}" -gt 0 ]; then
-        echo "${FINDINGS_COUNT} finding(s) detected"
+      # EXIT_CODE 1 is the scan's own findings verdict at the severity
+      # threshold — honor it even when the parsed count disagrees.
+      if [ "${PICOSENTRY_FAIL_ON_FINDINGS}" = "true" ] && { [ "${FINDINGS_COUNT}" -gt 0 ] || [ "${EXIT_CODE}" = "1" ]; }; then
+        echo "${FINDINGS_COUNT} finding(s) detected (scan exit ${EXIT_CODE:-0})"
         exit 1
       fi
   artifacts:

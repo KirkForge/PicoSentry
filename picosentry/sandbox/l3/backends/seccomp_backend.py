@@ -270,6 +270,25 @@ class SeccompBackend(SandboxBackend):
                         )
                     )
 
+                if exit_code in (126, 127):
+                    # ponytail: 126/127 are the child-stub infra codes (exec
+                    # denied/not-found, filter-load failure) — a workload
+                    # exiting 126/127 itself is indistinguishable (same
+                    # tradeoff docker makes); degraded marks the ambiguity
+                    # instead of reporting a clean policy verdict (WO5.0.0-019).
+                    events.append(
+                        SandboxEvent(
+                            rule_id="L3-EXEC-001" if exit_code == 127 else "L3-EXEC-002",
+                            verdict=Verdict.DENY,
+                            operation="exec_not_found" if exit_code == 127 else "exec_permission_denied",
+                            detail=(
+                                f"child exited {exit_code} before/at exec — "
+                                "infrastructure failure, not a policy verdict"
+                            ),
+                            timestamp_ms=int(now_ms() - start_ms),
+                        )
+                    )
+
                 events.extend(self._posthoc_analysis(stdout, stderr))
 
         except FileNotFoundError:
@@ -308,7 +327,7 @@ class SeccompBackend(SandboxBackend):
             backend_name=self.name,
             isolation_level=self.isolation_level,
             enforcement_guarantee=self.enforcement_guarantee,
-            degraded=False,
+            degraded=exit_code in (126, 127),
             stdout=stdout,
             stderr=stderr,
         )
@@ -466,14 +485,9 @@ class SeccompBackend(SandboxBackend):
         return sb._check_suspicious_patterns(stdout, stderr)
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
-        if exit_code == -1:
-            return Verdict.KILL
-        for event in events:
-            if event.verdict == Verdict.KILL:
-                return Verdict.KILL
-            if event.verdict == Verdict.DENY:
-                return Verdict.DENY
-        return Verdict.ALLOW
+        from picosentry.sandbox.l3.backends.base import compute_verdict
+
+        return compute_verdict(events, exit_code)
 
     def _fallback_run(
         self,

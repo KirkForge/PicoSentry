@@ -609,7 +609,10 @@ class TestRealLandlock:
                 cwd=str(tmp_path),
             )
             assert result.exit_code != 0
-            assert result.overall_verdict is not Verdict.ALLOW
+            # WO5.0.0-019: verdicts are event-driven now — a blocked write is
+            # real enforcement (EACCES, no file created) but NOT a policy-verdict
+            # event; the workload fails on its own terms, so verdict is ALLOW.
+            assert result.overall_verdict is Verdict.ALLOW
             assert "Permission denied" in result.stderr
             assert not (outside / "should-deny.txt").exists()
         finally:
@@ -638,7 +641,12 @@ class TestRealLandlock:
             cwd=str(tmp_path),
         )
         assert result.exit_code != 0
-        assert result.overall_verdict is not Verdict.ALLOW
+        # WO5.0.0-019: verdicts are event-driven and no longer encode
+        # enforcement (EACCES) — and posthoc heuristics can legitimately
+        # differ by host (e.g. an interpreter installed under /home/<u>/.
+        # trips L3-SUS-010 in the traceback). Enforcement is proven by the
+        # exit code + EACCES below, not the verdict.
+        assert result.overall_verdict is not Verdict.KILL
         assert "Permission denied" in result.stderr
 
     @skip_without_net_abi

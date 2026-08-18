@@ -209,11 +209,28 @@ class ClusterState:
                 remote_accepted = token_store_snapshot.get("accepted", [])
                 if remote_accepted and "digest" in remote_accepted[0]:
                     # Secret-free gossip format: verify shared trust by digest
-                    # intersection. No adoption — a digest cannot be
-                    # re-materialized into a token (rotation via gossip is
-                    # deliberately disabled; see to_gossip_snapshot).
+                    # intersection. WO5.0.0-030: a rotation announcement is
+                    # applied BEFORE the trust check so a peer that missed the
+                    # rotation (or rejoined after grace) re-derives the new
+                    # token from a token it still holds instead of splitting.
+                    # Unknown announcement fields and unverifiable
+                    # announcements are ignored (rolling upgrades: old peers
+                    # never read this key, new peers survive junk).
+                    announcement = token_store_snapshot.get("announcement")
+                    if isinstance(announcement, dict) and self._token_store.apply_announcement(announcement):
+                        logger.warning(
+                            "Adopted rotated cluster token via announcement from %s "
+                            "(ANY-MEMBER policy; quorum adoption is the upgrade path)",
+                            announcement.get("announced_by"),
+                        )
                     remote_digests = {entry.get("digest") for entry in remote_accepted}
                     if self.cluster_token and not (remote_digests & self._token_store.accepted_digests()):
+                        logger.warning(
+                            "Cluster token mismatch on merge: peer shares no accepted "
+                            "token digest. If the cluster rotated while this node was "
+                            "partitioned and no announcement verifies, this node keeps "
+                            "its tokens until an operator intervenes."
+                        )
                         raise ValueError("cluster token mismatch")
                 else:
                     # Legacy peer still shipping raw tokens (rolling upgrade).

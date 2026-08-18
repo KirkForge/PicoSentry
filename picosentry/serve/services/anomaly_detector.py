@@ -268,7 +268,10 @@ class AnomalyDetector:
             statuses = list(latest_by_component.values())
             if any(s == "critical" for s in statuses):
                 return 2.0
-            if any(s in ("warning", "degraded", "disabled") for s in statuses):
+            # Only real probe results count as warnings: "disabled"
+            # (unconfigured SMTP) and "unknown" (statvfs failed) must not
+            # fire health_degraded every cycle forever.
+            if any(s in ("warning", "degraded") for s in statuses):
                 return 1.0
             return 0.0
         except _DB_BOUNDARY_ERRORS:

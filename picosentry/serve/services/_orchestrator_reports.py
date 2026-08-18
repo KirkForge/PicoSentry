@@ -23,6 +23,16 @@ class _ProjectProvider(Protocol):
 def generate_summary_report(orch: _StatusProvider, org_id: int | None = None) -> str:
     status = orch.get_status(org_id=org_id)
 
+    # An org-scoped report must contain only that org's data: the global
+    # registry count and the project-keyed threat breakdown would otherwise
+    # blend every tenant's numbers into org X's scheduled report.
+    org_project_ids: set[str] | None = None
+    if org_id is not None:
+        from picosentry.serve.services.orgs import Organization
+
+        org_project_ids = Organization.list_project_ids(org_id)
+        status["projects_total"] = len(org_project_ids)
+
     report = f"""
 ╔══════════════════════════════════════════════════════════════════╗
 ║     PicoShogun Command Centre Report                  ║
@@ -45,6 +55,8 @@ THREAT SCORE BREAKDOWN
 ──────────────────────
 """
     for pid, score in sorted(orch.intel.threat_scores.items(), key=lambda x: -x[1])[:10]:
+        if org_project_ids is not None and pid not in org_project_ids:
+            continue
         report += f"  {pid}: {score:.1f}\n"
 
     return report

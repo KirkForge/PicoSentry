@@ -1,3 +1,4 @@
+import contextlib
 import json
 import logging
 import re
@@ -18,6 +19,11 @@ logger = logging.getLogger("picoshogun.Scheduler")
 # The batch job's script lives at the repo root, not the scheduler's CWD —
 # resolving module-relative keeps it working under uvicorn/systemd/any cwd.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+
+
+class SchedulerJobConflict(ValueError):
+    """A job with this name exists in the same org with a different config."""
+
 
 _JOB_EXECUTE_ERRORS: tuple[type[BaseException], ...] = (
     OSError,
@@ -72,6 +78,9 @@ class JobScheduler:
         self._thread: threading.Thread | None = None
         self._lock = threading.RLock()
         self._slow_running: set[int] = set()
+        # job id -> its queued scheduler entries; _schedule_job
+        # cancel-and-replaces so boot/toggle cycles can never double-fire.
+        self._queued: dict[int, list[sched.Event]] = {}
         self._load_jobs()
 
     def _load_jobs(self):
@@ -110,10 +119,23 @@ class JobScheduler:
 
         params_json = json.dumps(params or {})
 
-        existing = db.execute_one("SELECT id, org_id FROM scheduled_jobs WHERE name = ?", (name,))
+        # Names are globally unique today (scheduled_jobs.name UNIQUE); the
+        # org check below only decides whose request wins. Per-org name
+        # scoping (like webhooks migration 20) is the upgrade path.
+        existing = db.execute_one(
+            "SELECT id, org_id, cron_expression, command, params FROM scheduled_jobs WHERE name = ?", (name,)
+        )
         if existing:
             if existing.get("org_id") != org_id:
                 raise ValueError(f"Job name already in use by another organization: {name!r}")
+            if (
+                existing["cron_expression"] != cron
+                or existing["command"] != command
+                or json.loads(existing["params"]) != (params or {})
+            ):
+                raise SchedulerJobConflict(
+                    f"Job {name!r} already exists with a different config; update it or choose another name"
+                )
             job_id = existing["id"]
         else:
             if self._get_next_run(cron) is None:
@@ -139,6 +161,7 @@ class JobScheduler:
             if job_id not in self.jobs:
                 return False
             del self.jobs[job_id]
+            self._cancel_queued(job_id)
 
         db.execute_insert("DELETE FROM scheduled_jobs WHERE id = ?", (job_id,))
         logger.info("Job removed: %s", job_id)
@@ -160,6 +183,8 @@ class JobScheduler:
             if job_id not in self.jobs:
                 return False
             self.jobs[job_id].enabled = False
+            # A queued entry for a now-disabled job must not fire.
+            self._cancel_queued(job_id)
 
         db.execute("UPDATE scheduled_jobs SET enabled = 0 WHERE id = ?", (job_id,))
         return True
@@ -347,7 +372,7 @@ class JobScheduler:
             elif command == "report":
                 from picosentry.serve.services.orchestrator import orchestrator as _orch
 
-                report = _orch.generate_summary_report()
+                report = _orch.generate_summary_report(org_id=job.org_id)
                 # Delivery: the alert hub fans the report out to the
                 # configured channels and its alerts-table row is the
                 # stored, queryable copy of the output.
@@ -423,6 +448,12 @@ class JobScheduler:
             if self.running and job_id in self.jobs and self.jobs[job_id].enabled:
                 self._schedule_job(job_id)
 
+    def _cancel_queued(self, job_id: int) -> None:
+        """Cancel (and forget) every queued scheduler entry for *job_id*."""
+        with contextlib.suppress(ValueError):  # entry already fired
+            for event in self._queued.pop(job_id, []):
+                self.scheduler.cancel(event)
+
     def _schedule_job(self, job_id: int):
         job = self.jobs.get(job_id)
         if not job or not job.enabled:
@@ -430,10 +461,16 @@ class JobScheduler:
 
         next_run = self._get_next_run(job.cron_expression)
         if next_run:
+            # Cancel-and-replace: boot order (start() then lifespan add_job)
+            # and update/enable cycles re-enter jobs; without the cancel every
+            # cycle permanently doubled the queue entry (double nightly
+            # backups, purges, probes).
+            self._cancel_queued(job_id)
             job.next_run = next_run
             delay = (next_run - datetime.now()).total_seconds()
             if delay > 0:
-                self.scheduler.enter(delay, 1, self._dispatch_job, argument=(job_id,))
+                event = self.scheduler.enter(delay, 1, self._dispatch_job, argument=(job_id,))
+                self._queued[job_id] = [event]
                 db.execute_insert(
                     """
                     UPDATE scheduled_jobs SET next_run = ? WHERE id = ?

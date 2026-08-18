@@ -357,3 +357,38 @@ class TestRuleSemantics:
         value, windowed = detector._evaluate_rule(rule)
         assert windowed
         assert value >= 11, f"middleware 503s not visible to the rule (value={value})"
+
+
+class TestHealthValueSemantics:
+    """WO5.0.0-021: only real probe results count as warnings.
+
+    "disabled" (unconfigured SMTP) and "unknown" (statvfs failed) must not
+    fire health_degraded every cycle once the SMTP check is persisted."""
+
+    @staticmethod
+    def _insert(db, component: str, status: str):
+        db.execute_insert(
+            "INSERT INTO health_checks (component, status, message, latency_ms) VALUES (?, ?, 'x', 0)",
+            (component, status),
+        )
+
+    def test_disabled_and_unknown_are_not_warnings(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "hv-disabled.db")
+        detector = AnomalyDetector(db=db)
+        self._insert(db, "database", "healthy")
+        self._insert(db, "smtp", "disabled")
+        self._insert(db, "disk_space", "unknown")
+        assert detector._get_health_value() == 0.0
+
+    def test_warning_counts(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "hv-warning.db")
+        detector = AnomalyDetector(db=db)
+        self._insert(db, "disk_space", "warning")
+        assert detector._get_health_value() == 1.0
+
+    def test_critical_counts(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "hv-critical.db")
+        detector = AnomalyDetector(db=db)
+        self._insert(db, "smtp", "critical")
+        assert detector._get_health_value() == 2.0
+

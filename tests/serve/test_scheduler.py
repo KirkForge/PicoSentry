@@ -203,3 +203,143 @@ class TestCleanupJobSeverityRetention:
         finally:
             scheduler.remove_job(job_id)
             mgr.close()
+
+
+class TestSchedulerQueueUniqueness:
+    """WO5.0.0-021: boot/toggle cycles must leave exactly ONE queued entry per job.
+
+    _schedule_job never canceled the existing entry, so boot order (start()
+    then lifespan add_job) permanently doubled every system job and
+    update_job/enable_job multiplied further.
+    """
+
+    @staticmethod
+    def _count_entries(instance: JobScheduler, job_id: int) -> int:
+        return sum(1 for e in instance.scheduler.queue if e.argument == (job_id,))
+
+    def test_boot_update_enable_restart_never_multiply(self, tmp_path, monkeypatch):
+        from picosentry.serve.database.manager import DatabaseManager
+        from picosentry.serve.services import scheduler as sched_mod
+
+        mgr = DatabaseManager(db_path=tmp_path / "sched-queue.db")
+        monkeypatch.setattr(sched_mod, "db", mgr)
+
+        s = sched_mod.JobScheduler()
+        job_id = s.add_job(name="nightly_backup", cron="0 2 * * *", command="backup", params={}, enabled=True)
+        assert self._count_entries(s, job_id) == 0  # not running yet: nothing queued
+
+        # The worker loop is irrelevant here; stub it so stop() is instant.
+        monkeypatch.setattr(s, "_run", lambda: None)
+        s.start()
+        assert self._count_entries(s, job_id) == 1
+
+        # Lifespan boot order re-seeds the same job after start().
+        assert s.add_job(name="nightly_backup", cron="0 2 * * *", command="backup", params={}, enabled=True) == job_id
+        assert self._count_entries(s, job_id) == 1
+
+        s.update_job(job_id, cron="*/30 * * * *")
+        assert self._count_entries(s, job_id) == 1
+
+        s.enable_job(job_id)
+        assert self._count_entries(s, job_id) == 1
+
+        # Process restart: a fresh scheduler loads the persisted job.
+        s2 = sched_mod.JobScheduler()
+        monkeypatch.setattr(s2, "_run", lambda: None)
+        s2.start()
+        try:
+            assert self._count_entries(s2, job_id) == 1
+        finally:
+            s2.stop()
+            mgr.close()
+        s.stop()
+
+        # Disabled jobs must not keep a pending entry that still fires.
+        mgr2 = DatabaseManager(db_path=tmp_path / "sched-queue.db")
+        monkeypatch.setattr(sched_mod, "db", mgr2)
+        s3 = sched_mod.JobScheduler()
+        monkeypatch.setattr(s3, "_run", lambda: None)
+        s3.start()
+        assert self._count_entries(s3, job_id) == 1
+        s3.disable_job(job_id)
+        assert self._count_entries(s3, job_id) == 0
+        s3.stop()
+        mgr2.close()
+
+
+class TestSameNameJobCreation:
+    """WO5.0.0-021: same org + name + config -> existing id; different config -> 409."""
+
+    def test_different_config_conflicts(self, tmp_path, monkeypatch):
+        from picosentry.serve.database.manager import DatabaseManager
+        from picosentry.serve.services import scheduler as sched_mod
+        from picosentry.serve.services.scheduler import SchedulerJobConflict
+
+        mgr = DatabaseManager(db_path=tmp_path / "sched-name.db")
+        monkeypatch.setattr(sched_mod, "db", mgr)
+        s = sched_mod.JobScheduler()
+
+        job_id = s.add_job(name="dup-job", cron="0 2 * * *", command="backup", params={}, enabled=False)
+        with pytest.raises(SchedulerJobConflict):
+            s.add_job(name="dup-job", cron="*/5 * * * *", command="backup", params={}, enabled=False)
+        with pytest.raises(SchedulerJobConflict):
+            s.add_job(name="dup-job", cron="0 2 * * *", command="cleanup", params={}, enabled=False)
+        with pytest.raises(SchedulerJobConflict):
+            s.add_job(name="dup-job", cron="0 2 * * *", command="backup", params={"k": "v"}, enabled=False)
+        # Same config is still idempotent (restart re-seed path).
+        assert s.add_job(name="dup-job", cron="0 2 * * *", command="backup", params={}, enabled=False) == job_id
+        mgr.close()
+
+
+class TestScheduledReportOrgScoping:
+    """WO5.0.0-021: org X's scheduled report must contain only org X's data."""
+
+    def test_report_job_delivers_org_scoped_report(self):
+        from picosentry.serve.api.server import auth_service
+        from picosentry.serve.database.manager import db
+        from picosentry.serve.services.orgs import Organization
+        from picosentry.serve.services.orchestrator import orchestrator
+
+        tag = time.time_ns()
+        user_id = auth_service.create_user(f"report_user_{tag}", "testpassword123")
+        org_a = Organization.create(name=f"RepA {tag}", slug=f"rep-a-{tag}", owner_user_id=user_id)["org_id"]
+        org_b = Organization.create(name=f"RepB {tag}", slug=f"rep-b-{tag}", owner_user_id=user_id)["org_id"]
+        Organization.add_project(org_a, f"alpha-proj-{tag}")
+        Organization.add_project(org_b, f"beta-proj-{tag}")
+        orchestrator.intel.ingest(
+            f"alpha-proj-{tag}",
+            {"type": "anomaly", "severity": "high", "data": {"match_count": 3}, "related": [], "confidence": 0.9},
+            org_id=org_a,
+        )
+        orchestrator.intel.ingest(
+            f"beta-proj-{tag}",
+            {"type": "anomaly", "severity": "critical", "data": {"match_count": 9}, "related": [], "confidence": 0.9},
+            org_id=org_b,
+        )
+
+        job_id = scheduler.add_job(
+            name=f"org_report_{tag}", cron="0 3 * * *", command="report", params={}, enabled=False, org_id=org_a
+        )
+        try:
+            scheduler._execute_job(job_id)
+            assert scheduler.jobs[job_id].last_status == "completed"
+
+            row = db.execute_one(
+                "SELECT message FROM alerts WHERE alert_type = 'scheduled_report' AND org_id = ? "
+                "ORDER BY id DESC LIMIT 1",
+                (org_a,),
+            )
+            assert row is not None, "scheduled report alert was not stored for the job's org"
+            report = row["message"]
+            assert f"alpha-proj-{tag}" in report
+            assert f"beta-proj-{tag}" not in report
+            assert "Projects:      1 total" in report  # org-scoped count, not the global registry
+        finally:
+            scheduler.remove_job(job_id)
+            db.execute(f"DELETE FROM intelligence WHERE source_project IN ('alpha-proj-{tag}', 'beta-proj-{tag}')")
+            db.execute(f"DELETE FROM alerts WHERE org_id IN ({org_a}, {org_b})")
+            db.execute(f"DELETE FROM org_projects WHERE org_id IN ({org_a}, {org_b})")
+            db.execute(f"DELETE FROM org_users WHERE org_id IN ({org_a}, {org_b})")
+            db.execute(f"DELETE FROM orgs WHERE id IN ({org_a}, {org_b})")
+            orchestrator.intel.threat_scores.pop(f"alpha-proj-{tag}", None)
+            orchestrator.intel.threat_scores.pop(f"beta-proj-{tag}", None)

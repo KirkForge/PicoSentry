@@ -423,3 +423,27 @@ class TestRateLimitLockDiscipline:
         resp = client.get("/")
         assert resp.status_code == 429
         assert resp.headers.get("Retry-After")
+
+class TestSchedulerJobNameConflict:
+    """WO5.0.0-021: same name + different config -> 409, not silent stale config."""
+
+    def test_conflicting_config_rejected_409(self, client, admin_token):
+        from picosentry.serve.services.scheduler import scheduler
+
+        tag = int(time.time() * 1000)
+        body = {"name": f"conflict_job_{tag}", "cron": "0 2 * * *", "command": "cleanup"}
+        resp = client.post("/scheduler/jobs", json=body, headers=_headers(admin_token))
+        assert resp.status_code == 201, resp.text
+        job_id = resp.json()["job_id"]
+        try:
+            dup = dict(body, cron="*/5 * * * *")
+            resp = client.post("/scheduler/jobs", json=dup, headers=_headers(admin_token))
+            assert resp.status_code == 409
+            assert "different config" in resp.text
+
+            same = client.post("/scheduler/jobs", json=body, headers=_headers(admin_token))
+            assert same.status_code == 201
+            assert same.json()["job_id"] == job_id
+        finally:
+            scheduler.remove_job(job_id)
+

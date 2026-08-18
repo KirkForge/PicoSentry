@@ -171,3 +171,34 @@ class TestReadyProbeOffLoop:
             ready_resp = await asyncio.wait_for(ready, timeout=5)
         assert ready_resp.status_code == 200
 
+
+class TestSmtpHealthPersisted:
+    """WO5.0.0-021: the SMTP check must reach the health_checks table.
+
+    It was appended after the persist loop, so health_degraded was
+    permanently blind to the one component that times out."""
+
+    def test_unconfigured_smtp_row_persisted_as_disabled(self, monkeypatch):
+        monkeypatch.setattr(health_mod.settings.alerts, "email_smtp_host", None)
+        health_mod.perform_health_checks({})
+        try:
+            row = db.execute_one("SELECT status FROM health_checks WHERE component = 'smtp' ORDER BY id DESC LIMIT 1")
+            assert row is not None, "smtp check never persisted"
+            assert row["status"] == "disabled"
+        finally:
+            db.execute("DELETE FROM health_checks WHERE component = 'smtp'")
+
+    def test_unreachable_smtp_row_persisted_critical(self, monkeypatch):
+        monkeypatch.setattr(health_mod.settings.alerts, "email_smtp_host", "smtp.invalid.test")
+
+        def _boom(*args, **kwargs):
+            raise OSError("smtp down")
+
+        monkeypatch.setattr(health_mod.smtplib, "SMTP", _boom)
+        health_mod.perform_health_checks({})
+        try:
+            row = db.execute_one("SELECT status FROM health_checks WHERE component = 'smtp' ORDER BY id DESC LIMIT 1")
+            assert row is not None, "smtp check never persisted"
+            assert row["status"] == "critical"
+        finally:
+            db.execute("DELETE FROM health_checks WHERE component = 'smtp'")

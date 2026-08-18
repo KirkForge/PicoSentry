@@ -121,18 +121,21 @@ class TokenAuth:
 
         logger.info("Loaded %d API token(s)", len(self._token_hashes))
 
-    @staticmethod
-    def _assert_token_file_permissions(token_file: Path) -> None:
+    def _assert_token_file_permissions(self, token_file: Path) -> None:
         try:
             stat = token_file.stat()
             mode = stat.st_mode
-            # Reject world-readable or world-writable files.
             if mode & 0o077:
-                logger.warning(
-                    "Token file %s has overly permissive mode %s; it should be readable only by owner (e.g. 0o600).",
-                    token_file,
-                    oct(mode & 0o777),
+                detail = (
+                    f"Token file {token_file} has overly permissive mode {oct(mode & 0o777)}; "
+                    "it must be readable only by owner (chmod 600)."
                 )
+                if self._is_enterprise:
+                    # WO5.0.0-018: the check claimed "Reject" but only warned —
+                    # a world-readable token file loaded anyway.
+                    logger.error("ENTERPRISE MODE: %s Refusing to start.", detail)
+                    raise AuthError(f"insecure token file permissions: {token_file}", status=403)
+                logger.warning("%s Tokens from it are still loaded (dev posture).", detail)
         except OSError:
             pass
 
@@ -164,6 +167,10 @@ class TokenAuth:
             self._rbac.register_token(token, Role.READER)
 
     def _check_brute_force(self, token_hash: str) -> float | None:
+        # ponytail: backoff is keyed by hash of the TRIED token, so an
+        # attacker rotating guesses never accumulates backoff — per-source
+        # throttling (IP/socket) is the upgrade path if that matters
+        # (WO5.0.0-018 documented ceiling).
         import time as _time
 
         entry = self._failed_attempts.get(token_hash)

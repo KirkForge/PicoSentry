@@ -74,6 +74,20 @@ def is_loopback_host(host: str) -> bool:
     return h in ("localhost", "::1") or h.startswith("127.")
 
 
+def target_host(target: str) -> str:
+    """Host part of a gRPC client target ("h:1", "dns:///h:1", "[::1]:1", "unix:/…")."""
+    if target.startswith("unix:"):
+        return "localhost"  # unix socket — local by construction
+    t = target
+    for prefix in ("dns:///", "dns:", "ipv4:", "ipv6:", "tcp:"):
+        if t.startswith(prefix):
+            t = t[len(prefix) :]
+            break
+    if t.startswith("["):
+        return t[1 : t.index("]")] if "]" in t else t
+    return t.rsplit(":", 1)[0] if ":" in t else t
+
+
 def assert_secure_transport(host: str, has_tls: bool) -> None:
     """Refuse a plaintext gRPC bind beyond loopback (mirrors serve assert_secure).
 
@@ -130,4 +144,5 @@ __all__ = [
     "build_auth_interceptor",
     "is_loopback_host",
     "metadata_value",
+    "target_host",
 ]

@@ -691,7 +691,9 @@ class TestDaemonExceptionHandling:
 
         with (
             caplog.at_level(logging.WARNING, logger="picodome.daemon"),
-            patch("picosentry.sandbox.daemon.handler_routes_post.get_audit_logger", return_value=_BoomAudit()),
+            # WO5.0.0-018: the helper is shared now — its audit call executes
+            # in handler_routes_get's namespace.
+            patch("picosentry.sandbox.daemon.handler_routes_get.get_audit_logger", return_value=_BoomAudit()),
         ):
             _check_cluster_token(handler, mgr)
 
@@ -1022,3 +1024,27 @@ class TestSubmitScanJobStoreHonesty:
 
         handler._send_error.assert_called_once()
         assert PersistentScanJobStore(store_dir=tmp_path / "jobs").list_recent(limit=100) == []
+
+
+class TestWO5HygieneFixes:
+    """WO5.0.0-018 hygiene regressions."""
+
+    def test_cluster_token_check_is_single_shared_helper(self):
+        from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token as get_check
+        from picosentry.sandbox.daemon.handler_routes_post import _check_cluster_token as post_check
+
+        assert post_check is get_check  # was duplicated verbatim with drifted tuples
+
+    def test_daemon_construction_stamps_start_time(self, tmp_path, monkeypatch):
+        import time as _time
+
+        monkeypatch.setenv("PICODOME_JOB_STORE_DIR", str(tmp_path))
+        from picosentry.sandbox.daemon import PicoDomeDaemon
+        from picosentry.sandbox.daemon.server import PicoDomeHandler
+
+        before = _time.time()  # class default was stamped at import, strictly earlier
+        daemon = PicoDomeDaemon(host="127.0.0.1", port=1)
+        try:
+            assert before <= PicoDomeHandler._start_time <= _time.time()
+        finally:
+            daemon._scan_executor.shutdown(wait=False)

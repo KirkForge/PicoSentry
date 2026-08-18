@@ -931,3 +931,134 @@ class TestEndToEndGRPC:
             "grpc.ServiceRpcHandlers API; the fallback will crash at runtime."
         )
         assert "method_handlers_generic_handler" in joined
+
+
+class TestClientTransportRefusal:
+    """WO5.0.0-018: the client must never downgrade to plaintext for a
+    non-loopback target and still send the Bearer token."""
+
+    def test_non_loopback_plaintext_target_refused(self):
+        from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
+
+        client = PicoDomeGRPCClient(target="scan.internal.example.com:50051", token="secret-token")
+        with pytest.raises(RuntimeError, match="plaintext"):
+            client._ensure_channel()
+
+    def test_non_loopback_ip_target_refused(self):
+        from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
+
+        client = PicoDomeGRPCClient(target="10.1.2.3:50051")
+        with pytest.raises(RuntimeError, match="non-loopback"):
+            client._ensure_channel()
+
+    def test_loopback_plaintext_not_refused(self):
+        from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
+
+        client = PicoDomeGRPCClient(target="localhost:50051")
+        try:
+            client._ensure_channel()
+        except RuntimeError as exc:
+            pytest.fail(f"loopback plaintext must not be refused: {exc}")
+        except ImportError:
+            pass  # grpcio absent — refusal check passed, channel creation needs grpc
+
+    def test_scan_refuses_before_any_retry_or_send(self):
+        from picosentry.sandbox.grpc_transport.client import PicoDomeGRPCClient
+
+        client = PicoDomeGRPCClient(target="evil.example.com:50051", token="secret-token", max_retries=3)
+        with (
+            patch("picosentry.sandbox.grpc_transport.client.time.sleep") as sleep_mock,
+            # _ensure_channel runs before the retry loop — refusal propagates
+            # immediately, no retries, no RPC sent, token never leaves.
+            pytest.raises(RuntimeError, match="plaintext"),
+        ):
+            client.scan(["echo", "hi"])
+        sleep_mock.assert_not_called()
+
+    def test_target_host_extraction(self):
+        from picosentry.sandbox.grpc_transport.auth import target_host
+
+        assert target_host("localhost:50051") == "localhost"
+        assert target_host("127.0.0.1:50051") == "127.0.0.1"
+        assert target_host("[::1]:50051") == "::1"
+        assert target_host("dns:///scanner.corp:443") == "scanner.corp"
+        assert target_host("unix:///tmp/picodome.sock") == "localhost"
+        assert target_host("host.example.com") == "host.example.com"
+
+
+class TestServicerQueryAuditClamp:
+    """WO5.0.0-018: QueryAudit limit unclamped (HTTP clamps at 1000)."""
+
+    def test_query_audit_limit_clamped(self, monkeypatch):
+        import picosentry.sandbox.audit as audit_pkg
+        from picosentry.sandbox.grpc_transport._servicer import PicoDomeServicer
+
+        seen = {}
+
+        class _Audit:
+            def query(self, **kwargs):
+                seen.update(kwargs)
+                return []
+
+        monkeypatch.setattr(audit_pkg, "get_audit_logger", lambda: _Audit())
+
+        servicer = PicoDomeServicer(scan_engine=MagicMock(), start_time=time.time(), scan_count_ref=MagicMock())
+        request = MagicMock()
+        request.event_type = ""
+        request.actor = ""
+        request.target = ""
+        request.since = ""
+        request.until = ""
+        request.limit = 10_000_000
+        context = MagicMock()
+
+        servicer.QueryAudit(request, context)
+
+        assert seen["limit"] <= 1000
+
+    def test_scan_count_increment_uses_stats_lock(self, fake_scan_fn, fake_analyze_fn):
+        import threading
+
+        from picosentry.sandbox.grpc_transport._servicer import PicoDomeServicer
+        from picosentry.sandbox.grpc_transport.server import _ScanEngine
+
+        class _Ref:
+            """If the servicer's increment runs inside the lock context,
+            count_at_exit == count_at_enter + 1; outside, they'd be equal."""
+
+            def __init__(self):
+                self._scan_count = 0
+                self._lock = threading.Lock()
+                self.count_at_enter = self.count_at_exit = None
+
+            @property
+            def _stats_lock(self):
+                outer = self
+
+                class _L:
+                    def __enter__(self):
+                        outer._lock.acquire()
+                        outer.count_at_enter = outer._scan_count
+                        return self
+
+                    def __exit__(self, *a):
+                        outer.count_at_exit = outer._scan_count
+                        outer._lock.release()
+                        return False
+
+                return _L()
+
+        ref = _Ref()
+        engine = _ScanEngine(scan_fn=fake_scan_fn, analyze_fn=fake_analyze_fn)
+        servicer = PicoDomeServicer(scan_engine=engine, start_time=time.time(), scan_count_ref=ref)
+
+        request = MagicMock()
+        request.command = ["echo", "hello"]
+        request.policy = ""
+        request.timeout = 30.0
+        request.cwd = ""
+        servicer.Scan(request, MagicMock())
+
+        assert ref._scan_count == 1
+        assert ref.count_at_enter == 0
+        assert ref.count_at_exit == 1

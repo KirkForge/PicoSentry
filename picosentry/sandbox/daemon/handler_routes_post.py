@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE, sanitize_scan_timeout
+from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
@@ -29,44 +30,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picodome.daemon")
 
-
-def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
-    """Verify X-Cluster-Token header matches any accepted cluster token."""
-    from picosentry._core.security import constant_time_compare
-
-    provided = self.headers.get("X-Cluster-Token", "")
-    if not provided:
-        self._send_error(403, "cluster token required")
-        return False
-
-    token_store = getattr(mgr.state, "token_store", None)
-    from picosentry.sandbox.cluster.token_store import ClusterTokenStore
-
-    if isinstance(token_store, ClusterTokenStore):
-        if token_store.is_accepted(provided):
-            return True
-        # Legacy single-token peers send the primary token directly.
-        if constant_time_compare(provided, mgr.state.cluster_token):
-            return True
-    else:
-        # Backwards-compatible path for state objects without a token_store.
-        expected = mgr.state.cluster_token
-        if expected and constant_time_compare(provided, expected):
-            return True
-
-    actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16]
-    try:
-        audit = get_audit_logger()
-        audit.record(
-            event_type=AuditEventType.AUTH_FAILURE,
-            actor=actor,
-            detail="Cluster token mismatch",
-            target=self.path,
-        )
-    except (OSError, RuntimeError):
-        logger.exception("Audit record failed")
-    self._send_error(403, "cluster token mismatch")
-    return False
+# _check_cluster_token lives in handler_routes_get (WO5.0.0-018: it was
+# duplicated verbatim here with drifted exception tuples).
 
 
 def _max_scan_timeout_seconds() -> float:

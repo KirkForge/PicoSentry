@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from concurrent import futures
@@ -58,6 +59,9 @@ class PicoDomeGRPCServer:
         self._start_time = time.time()
         self._scan_engine = _ScanEngine(scan_fn=scan_fn, analyze_fn=analyze_fn)
         self._scan_count = 0
+        # Mirrors PicoDomeHandler._stats_lock: the servicer increments
+        # _scan_count under this lock (WO5.0.0-018).
+        self._stats_lock = threading.Lock()
         if auth is None:
             from picosentry.sandbox.auth import TokenAuth
 

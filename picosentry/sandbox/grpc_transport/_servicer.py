@@ -95,7 +95,15 @@ class PicoDomeServicer:
             }
 
             if hasattr(self._scan_count_ref, "_scan_count"):
-                self._scan_count_ref._scan_count += 1
+                # WO5.0.0-018: increment under the stats lock — the HTTP
+                # daemon does the same; ref objects without a lock (test
+                # fakes) keep the bare increment.
+                lock = getattr(self._scan_count_ref, "_stats_lock", None)
+                if lock is not None:
+                    with lock:
+                        self._scan_count_ref._scan_count += 1
+                else:
+                    self._scan_count_ref._scan_count += 1
 
             self._audit_log(
                 "SCAN_COMPLETE",
@@ -239,6 +247,12 @@ class PicoDomeServicer:
         until = request.until if hasattr(request, "until") else ""
         limit = request.limit if hasattr(request, "limit") and request.limit else 100
 
+        # WO5.0.0-018: clamp like the HTTP route — an unclamped limit scanned
+        # the whole audit file.
+        from picosentry.sandbox.daemon.constants import max_list_limit
+
+        limit = max(1, min(int(limit), max_list_limit()))
+
         try:
             from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
@@ -358,6 +372,13 @@ def add_servicer_manually(servicer, server):
     Note: identity passthrough deserializers/serializers mean callers
     send raw protobuf bytes, not dicts.  The generated stubs use the
     real protobuf codecs — prefer the stub path when available.
+
+    ponytail: VERIFIED BROKEN end-to-end (WO5.0.0-018 item 10): with
+    identity deserializers the servicer receives raw bytes and its first
+    act (request.command) raises AttributeError — every manual-mode RPC
+    dies UNKNOWN. Only reachable when the committed pb2 stubs are missing.
+    Delete this + the client's _do_scan_manual fallback when touching
+    this area next; kept now because tests pin its modern-API shape.
     """
     import grpc
 

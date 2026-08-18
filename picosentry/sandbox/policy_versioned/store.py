@@ -23,9 +23,6 @@ def _default_store_dir() -> Path:
     return Path(os.environ.get("PICODOME_POLICY_STORE_DIR", Path.home() / ".picodome" / "policies"))
 
 
-_DEFAULT_STORE_DIR = _default_store_dir()
-
-
 def _validate_policy_name(name: str) -> None:
     """Reject path separators, traversal and all-dot names ("."/".."/"…") in
     policy names (same rule as l3.policy.load_policy). The read path always
@@ -73,6 +70,9 @@ class VersionedPolicyStore:
     def __init__(self, store_dir: Path | None = None) -> None:
         self._store_dir = store_dir or _default_store_dir()
         self._store_dir.mkdir(parents=True, exist_ok=True)
+        # WO5.0.0-018: two concurrent save()s computed the same next_version
+        # and silently overwrote each other via the atomic write.
+        self._save_lock = threading.Lock()
 
     def save(
         self,
@@ -85,46 +85,47 @@ class VersionedPolicyStore:
         policy_dir = self._store_dir / name
         policy_dir.mkdir(parents=True, exist_ok=True)
 
-        existing = self._list_versions(name)
-        next_version = max(v.version for v in existing) + 1 if existing else 1
+        with self._save_lock:
+            existing = self._list_versions(name)
+            next_version = max(v.version for v in existing) + 1 if existing else 1
 
-        timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
-        content_hash = self._hash_policy(policy)
+            timestamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+            content_hash = self._hash_policy(policy)
 
-        pv = PolicyVersion(
-            policy=policy,
-            version=next_version,
-            author=author,
-            timestamp=timestamp,
-            change_description=change_description,
-            content_hash=content_hash,
-        )
+            pv = PolicyVersion(
+                policy=policy,
+                version=next_version,
+                author=author,
+                timestamp=timestamp,
+                change_description=change_description,
+                content_hash=content_hash,
+            )
 
-        def _atomic_write(path: Path, content: str) -> None:
-            tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", dir=path.parent)
-            try:
-                with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
-                    f.write(content)
-                Path(tmp_path).replace(path)
-            finally:
+            def _atomic_write(path: Path, content: str) -> None:
+                tmp_fd, tmp_path = tempfile.mkstemp(suffix=".json", dir=path.parent)
                 try:
-                    Path(tmp_path).unlink(missing_ok=True)
-                except OSError:
-                    logger.warning("Failed to remove temp policy file %s", tmp_path)
+                    with os.fdopen(tmp_fd, "w", encoding="utf-8") as f:
+                        f.write(content)
+                    Path(tmp_path).replace(path)
+                finally:
+                    try:
+                        Path(tmp_path).unlink(missing_ok=True)
+                    except OSError:
+                        logger.warning("Failed to remove temp policy file %s", tmp_path)
 
-        serialized = json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str)
-        _atomic_write(policy_dir / f"v{next_version}.json", serialized)
-        _atomic_write(policy_dir / "latest.json", serialized)
+            serialized = json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str)
+            _atomic_write(policy_dir / f"v{next_version}.json", serialized)
+            _atomic_write(policy_dir / "latest.json", serialized)
 
-        logger.info(
-            "Policy '%s' v%d saved by %s: %s",
-            name,
-            next_version,
-            author,
-            change_description,
-        )
+            logger.info(
+                "Policy '%s' v%d saved by %s: %s",
+                name,
+                next_version,
+                author,
+                change_description,
+            )
 
-        return pv
+            return pv
 
     def load(self, name: str, version: int | None = None) -> PolicyVersion | None:
         _validate_policy_name(name)
@@ -245,9 +246,14 @@ _policy_store: VersionedPolicyStore | None = None
 
 
 def get_policy_store() -> VersionedPolicyStore:
+    """Singleton store whose directory tracks PICODOME_POLICY_STORE_DIR at
+    call time (WO5.0.0-018). l3.policy.load_policy reads the env at call
+    time; a singleton frozen at first call made save/load target different
+    dirs after the env changed (e.g. monkeypatch.setenv in tests)."""
     global _policy_store
-    if _policy_store is None:
+    key = _default_store_dir()
+    if _policy_store is None or _policy_store._store_dir != key:
         with _policy_store_lock:
-            if _policy_store is None:
-                _policy_store = VersionedPolicyStore()
+            if _policy_store is None or _policy_store._store_dir != key:
+                _policy_store = VersionedPolicyStore(store_dir=key)
     return _policy_store

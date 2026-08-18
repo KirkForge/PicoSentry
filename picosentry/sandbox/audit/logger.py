@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import collections
 import contextlib
 import gzip
 import hashlib
@@ -228,10 +229,16 @@ class AuditLogger:
         until: str | None = None,
         limit: int = 100,
     ) -> list[AuditEvent]:
-        results: list[AuditEvent] = []
+        """Most recent `limit` matching events, newest first (WO5.0.0-018).
+
+        The file is oldest-first; a forward scan that stops at `limit`
+        matched events returns the OLDEST window. The deque keeps the last
+        `limit` matches in bounded memory while scanning to EOF.
+        """
+        results: collections.deque[AuditEvent] = collections.deque(maxlen=max(1, limit))
 
         if not self._log_path.is_file():
-            return results
+            return []
 
         try:
             with self._log_path.open(encoding="utf-8") as f:
@@ -275,14 +282,10 @@ class AuditLogger:
                     )
                     results.append(evt)
 
-                    if len(results) >= limit:
-                        break
-
         except OSError:
             pass
 
-        results.reverse()
-        return results
+        return list(results)[::-1]
 
     def get_stats(self) -> dict[str, Any]:
         if not self._log_path.is_file():

@@ -5,6 +5,7 @@ import os
 import signal
 import socket
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -112,6 +113,12 @@ class PicoDomeDaemon:
         from picosentry.sandbox.tenant import load_tenants_from_env
 
         load_tenants_from_env()
+
+        # WO5.0.0-018: _start_time was a class attribute stamped at first
+        # import, so uptime reported time since module import, not daemon
+        # start. Handler instances are per-request; the daemon is the
+        # process-scoped owner of the start time.
+        PicoDomeHandler._start_time = time.time()
 
         # Scan worker pool: bounded concurrent scans with queued→running→completed
         # job states instead of blocking a server thread per scan.

@@ -48,6 +48,8 @@ class PicoDomeHandler(
     # (direct handler use in tests / library embedding).
     scan_executor: ThreadPoolExecutor | None = None
     scan_slots: threading.Semaphore | None = None
+    # Daemon start (re-stamped by PicoDomeDaemon.__init__; the class-level
+    # default is only for direct handler use without a daemon — WO5.0.0-018).
     _start_time: float = time.time()
     _stats_lock: threading.Lock = threading.Lock()
     _scan_count: int = 0

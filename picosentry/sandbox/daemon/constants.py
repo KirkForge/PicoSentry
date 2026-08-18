@@ -148,6 +148,16 @@ def max_scan_timeout_seconds() -> float:
         return 300.0
 
 
+def max_list_limit() -> int:
+    """Upper bound for list/audit query limits from env (default 1000).
+    Shared by the HTTP daemon and the gRPC servicer (WO5.0.0-018: QueryAudit
+    was unclamped and could scan the whole audit file)."""
+    try:
+        return max(1, int(os.environ.get("PICODOME_MAX_LIST_LIMIT", "1000")))
+    except ValueError:
+        return 1000
+
+
 def sanitize_scan_timeout(raw: Any) -> float | None:
     """Shared untrusted-timeout guard (WO5.0.0-002): numeric + finite check,
     then clamp to the server cap. Returns None when the value is unusable —

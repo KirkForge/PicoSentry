@@ -463,14 +463,14 @@ class TestTenantDataIsolation:
             ("proj-a", datetime.now(timezone.utc), "completed", org_a_id),
         )
         db.execute_insert(
-            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id) VALUES (?, ?, ?, ?, 1, 0, ?)",
-            (f"hook-a-{tag}", "https://example.com/hook", "secret", '["*"]', org_a_id),
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id) VALUES (?, ?, ?, ?, ?, 0, ?)",
+            (f"hook-a-{tag}", "https://example.com/hook", "secret", '["*"]', True, org_a_id),
         )
         db.execute_insert(
             "INSERT INTO scheduled_jobs "
             "(name, cron_expression, command, params, enabled, org_id) "
-            "VALUES (?, ?, ?, ?, 1, ?)",
-            (f"job-a-{tag}", "0 0 * * *", "report", "{}", org_a_id),
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (f"job-a-{tag}", "0 0 * * *", "report", "{}", True, org_a_id),
         )
         # Reload in-memory scheduler/webhook caches so the API sees the new rows.
 

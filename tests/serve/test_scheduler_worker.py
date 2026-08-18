@@ -213,9 +213,9 @@ class TestRejectedJobsReschedule:
         job_id = db.execute_insert(
             """
             INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
-            VALUES (?, '* * * * *', 'bogus_command', '{}', 1, NULL)
+            VALUES (?, '* * * * *', 'bogus_command', '{}', ?, NULL)
         """,
-            (f"bogus_{time.time_ns()}",),
+            (f"bogus_{time.time_ns()}", True),
         )
         scheduler._load_jobs()
         _drain_sched_queue()

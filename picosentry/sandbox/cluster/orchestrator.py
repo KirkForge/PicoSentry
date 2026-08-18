@@ -236,17 +236,27 @@ class ClusterManager:
     def rotate_token(self, new_token: str | None = None) -> dict[str, Any]:
         """Rotate this node's primary cluster token while keeping old tokens accepted.
 
-        The new token is propagated to peers via gossip snapshots, and peers
-        will adopt it into their accepted set. Both old and new tokens continue
-        to authenticate inbound requests until operators retire old tokens.
+        With no explicit token the new primary is derived from the old one and
+        announced over gossip (HMAC keyed digest — the new token's raw bytes
+        never travel); peers re-derive and adopt it per the ANY-MEMBER policy.
+        An explicitly supplied token is not peer-derivable and requires manual
+        distribution. Both old and new tokens continue to authenticate inbound
+        requests until the grace window retires the old ones.
         """
-        info = self._state.token_store.rotate(new_token)
-        logger.warning("Cluster token rotated on node %s: version=%d", self._node_id, info.version)
+        info = self._state.token_store.rotate(new_token, announced_by=self._node_id)
+        announced = self._state.token_store.announcement is not None
+        logger.warning(
+            "Cluster token rotated on node %s: version=%d announced=%s",
+            self._node_id,
+            info.version,
+            announced,
+        )
         return {
             "node_id": self._node_id,
             "token_version": info.version,
             "issued_at": info.issued_at,
             "accepted_count": len(self._state.token_store.accepted_tokens),
+            "announced": announced,
         }
 
     def retire_stale_tokens(self, max_age_seconds: float = 300.0) -> int:
@@ -437,12 +447,9 @@ class ClusterManager:
             logger.exception("Gossip loop error")
 
     def _retire_tokens_if_configured(self) -> None:
-        import os
+        from picosentry.sandbox.cluster.token_store import token_grace_seconds
 
-        try:
-            grace = float(os.environ.get("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", "3600"))
-        except (ValueError, TypeError):
-            grace = 3600.0
+        grace = token_grace_seconds()
         if grace > 0:
             self.retire_stale_tokens(grace)
 
@@ -477,10 +484,15 @@ class ClusterManager:
                 ctx.load_default_certs()
             if self._tls_cert_path and self._tls_key_path:
                 ctx.load_cert_chain(certfile=self._tls_cert_path, keyfile=self._tls_key_path)
-            # ceiling: cluster gossip uses self-signed certs with IP addresses;
-            # check_hostname=False is needed because peer URLs use IPs that don't
-            # match cert CN/SAN. Migrate to mTLS with proper hostnames to re-enable.
-            ctx.check_hostname = False
+            # ceiling: cluster gossip defaults to self-signed certs with IP
+            # addresses; peer URLs use IPs that don't match cert CN/SAN, so
+            # hostname verification is OFF by default (rolling upgrades keep
+            # working). Set PICODOME_CLUSTER_VERIFY_HOSTNAME=1 to verify —
+            # requires certs whose SAN matches the peer address. Migrate to
+            # mTLS with proper hostnames to make verification the default.
+            import os
+
+            ctx.check_hostname = os.environ.get("PICODOME_CLUSTER_VERIFY_HOSTNAME", "") == "1"
             kwargs["context"] = ctx
 
         _MAX_SNAPSHOT_BYTES = 10 * 1024 * 1024

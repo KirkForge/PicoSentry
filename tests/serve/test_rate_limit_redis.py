@@ -300,3 +300,61 @@ def test_settings_expose_rate_limit_backend():
     config = SecurityConfig()
     assert config.rate_limit_backend == "memory"
     assert "localhost" in config.redis_url
+
+
+class TestHungRedisDoesNotStallLoop:
+    """WO5.0.0-020: the sync redis-py roundtrip runs in the threadpool.
+
+    A configured-but-down Redis (1s connect/socket timeouts, up to 2 calls
+    per request) called on the event loop stalled every concurrent handler
+    including unauthenticated ones. With a wedged backend, an exempt request
+    on the SAME event loop must still answer immediately.
+    """
+
+    def test_exempt_request_completes_while_redis_wedged(self):
+        import threading
+        import time
+
+        entered = threading.Event()
+        release = threading.Event()
+
+        class StuckBackend:
+            def record_and_count(self, bucket_type, bucket_key):
+                entered.set()
+                # Safety bound only: on regression the loop stalls and the
+                # elapsed assertion below fails once this unblocks.
+                assert release.wait(10), "stuck redis was never released"
+                return 1
+
+            def reset(self, *args, **kwargs):
+                pass
+
+        async def ok(request: Request) -> JSONResponse:
+            return JSONResponse({"path": request.url.path})
+
+        app = Starlette(routes=[Route("/{full_path:path}", ok, methods=["GET"])])
+        app.add_middleware(
+            RateLimitMiddleware,
+            max_requests_per_ip=100,
+            window=60,
+            backend_instance=StuckBackend(),
+            exempt_paths={"/exempt"},
+        )
+
+        results: list[int] = []
+        # Context-manager mode: both requests below share one portal/loop,
+        # so a blocking dispatch would starve the exempt request too.
+        with TestClient(app) as client:
+            slow = threading.Thread(target=lambda: results.append(client.get("/slow").status_code), daemon=True)
+            slow.start()
+            assert entered.wait(5), "request never reached the redis backend"
+
+            start = time.monotonic()
+            resp = client.get("/exempt")
+            elapsed = time.monotonic() - start
+            assert resp.status_code == 200
+            assert elapsed < 1.5, f"exempt request blocked {elapsed:.2f}s by a hung redis backend"
+
+            release.set()
+            slow.join(timeout=10)
+        assert results and results[0] == 200

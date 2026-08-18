@@ -93,7 +93,10 @@ async def readiness_probe():
     try:
         from picosentry.serve.database.manager import db
 
-        db.execute_one("SELECT 1")
+        # Deliberately unauthenticated + rate-limit/DDoS-exempt (k8s probe
+        # contract); the DB ping runs in the threadpool so an unauthenticated
+        # hammering this endpoint can never stall the event loop.
+        await asyncio.to_thread(db.execute_one, "SELECT 1")
         checks["database"] = "ok"
     except (OSError, ValueError, RuntimeError):
         checks["database"] = "unavailable"
@@ -116,7 +119,8 @@ async def readiness_probe():
 async def health_history(limit: int = Query(50, ge=1, le=1000), user: dict = Depends(get_current_user)):
     from picosentry.serve.database.manager import db as _db
 
-    rows = _db.execute(
+    rows = await asyncio.to_thread(
+        _db.execute,
         "SELECT * FROM health_checks ORDER BY created_at DESC LIMIT ?",
         (limit,),
     )

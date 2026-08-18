@@ -10,6 +10,7 @@ from __future__ import annotations
 import threading
 import time
 
+import pytest
 from fastapi.testclient import TestClient
 
 from picosentry.serve.api.server import app
@@ -123,3 +124,50 @@ class TestHealthCache:
         count = db.execute_one("SELECT COUNT(*) AS c FROM health_checks")["c"]
         assert count <= 5, f"retention trim left {count} rows"
         db.execute("DELETE FROM health_checks")
+
+
+class TestReadyProbeOffLoop:
+    """WO5.0.0-020: the /health/ready DB ping must not run on the event loop.
+
+    The endpoint is unauthenticated and limiter-exempt (k8s contract); with
+    the ping on the loop, a slow DB wedged every concurrent handler for free.
+    """
+
+    @pytest.mark.asyncio
+    async def test_live_answers_while_ready_db_ping_wedged(self, monkeypatch):
+        import asyncio
+        import time
+
+        from httpx import ASGITransport, AsyncClient
+
+        from picosentry.serve.api.server import app
+        from picosentry.serve.database import manager as db_mod
+
+        entered = threading.Event()
+        release = threading.Event()
+        real_execute_one = db_mod.db.execute_one
+
+        def _stall(query, *args, **kwargs):
+            entered.set()
+            # Safety bound only: on regression the elapsed assertion below
+            # fails once this unblocks.
+            assert release.wait(10), "ready probe was never released"
+            return real_execute_one(query, *args, **kwargs)
+
+        monkeypatch.setattr(db_mod.db, "execute_one", _stall)
+
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            ready = asyncio.create_task(client.get("/health/ready"))
+            await asyncio.to_thread(entered.wait, 5)
+
+            start = time.monotonic()
+            resp = await asyncio.wait_for(client.get("/health/live"), timeout=2)
+            elapsed = time.monotonic() - start
+            assert resp.status_code == 200
+            assert elapsed < 1.5, f"/health/live blocked {elapsed:.2f}s by the ready probe's DB ping"
+
+            release.set()
+            ready_resp = await asyncio.wait_for(ready, timeout=5)
+        assert ready_resp.status_code == 200
+

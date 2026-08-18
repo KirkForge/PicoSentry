@@ -14,10 +14,13 @@ from __future__ import annotations
 import gzip
 import importlib.util
 import io
+import os
 import re
 import shutil
 import subprocess
 import tarfile
+import urllib.error
+import urllib.request
 from pathlib import Path
 from types import ModuleType
 
@@ -160,6 +163,39 @@ def test_kubernetes_manifest_image_lockstep() -> None:
     assert match.group(1) == f"kirkforge/picodome:v{picosentry.__version__}", (
         f"deployment.yaml image = {match.group(1)!r}, expected 'kirkforge/picodome:v{picosentry.__version__}'"
     )
+
+
+@pytest.mark.network
+def test_docker_hub_carries_current_version_tag() -> None:
+    """The Docker Hub registry must carry the current version's image tag.
+
+    The docs claimed ``kirkforge/picodome:v2.1.2`` existed while the Hub's
+    newest tag was v2.0.18 — nothing verified registry existence
+    (WO5.0.0-014 evidence #1). release.yml now hard-fails on a missing tag
+    post-push; this is the local/CI counterpart.
+
+    Opt-in via ``PICOSENTRY_CHECK_REGISTRY=1``: the check needs network and
+    a completed push. The v2.1.2 git tag predates the image push, so
+    "released" cannot imply "pushed" — enforcement is deliberate, not
+    automatic. Fails on an authoritative 404; skips when the Hub cannot be
+    reached (an unreachable registry proves nothing either way).
+    """
+    if os.environ.get("PICOSENTRY_CHECK_REGISTRY") != "1":
+        pytest.skip("set PICOSENTRY_CHECK_REGISTRY=1 to verify the Docker Hub tag")
+    tag = f"v{picosentry.__version__}"
+    url = f"https://hub.docker.com/v2/repositories/kirkforge/picodome/tags/{tag}"
+    try:
+        with urllib.request.urlopen(url, timeout=15) as response:
+            assert response.status == 200
+    except urllib.error.HTTPError as exc:
+        if exc.code == 404:
+            pytest.fail(
+                f"kirkforge/picodome:{tag} is not on Docker Hub — push it "
+                f"(scripts/build_docker_multiarch.sh --push) or correct the pending-push claims"
+            )
+        pytest.skip(f"Docker Hub returned HTTP {exc.code} for {tag} — cannot verify")
+    except OSError as exc:
+        pytest.skip(f"cannot reach Docker Hub: {exc}")
 
 
 def _load_normalizer() -> ModuleType:

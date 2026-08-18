@@ -321,6 +321,7 @@ class ScanOrchestrator:
             worker = multiprocessing.Process(
                 target=self._scan_worker,
                 args=(target, config.rules, str(corpus_dir) if corpus_dir else None, config.advisory_db, result_queue),
+                kwargs={"intelligence_mode": config.intelligence},
             )
             worker.start()
             worker.join(timeout=self.args.timeout)
@@ -587,6 +588,20 @@ class ScanOrchestrator:
 
         if cache is not None and input_hash and not cached_result:
             self._save_cache(cache, input_hash, result, config)
+
+        # Explicitly requested rules that ecosystem detection dropped must not
+        # surface as a clean scan (WO5.0.0-015) — exit 2 (input error) when
+        # NOTHING ran. Partial runs keep normal exit codes; the skipped
+        # executions stay visible in the result for scan_completeness.
+        if config.rules is not None and not any(r.status == "ok" for r in result.rule_executions):
+            skipped = [r for r in result.rule_executions if r.status == "skipped"]
+            if skipped:
+                print(
+                    "Error: no rules ran — requested rules are not applicable to this target: "
+                    + ", ".join(f"{r.rule_id} ({r.error})" for r in skipped),
+                    file=sys.stderr,
+                )
+                return 2
 
         from picosentry.scan.enterprise import is_enterprise_mode
 

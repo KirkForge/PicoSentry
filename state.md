@@ -33,7 +33,7 @@ Lockstep bump (pyproject, 6 __init__s, uv.lock, README/experimental/docker claim
 - 5h-runaway lesson recorded in lessons.md (kill criteria for workers were missing from the dispatch).
 
 ### Gate (dev tip after docs fixes; release artifacts verified on PyPI)
-- ruff/format/mypy clean · fast **5489 passed / 0 failed** · release lockstep 34 passed · PyPI digests = local build · **dev push CI green at fix SHA `5af027ca` (32187246990, full push tier incl. integration)** · main ff'd to dev tip — run ID recorded below once watched to completion.
+- ruff/format/mypy clean · fast **5489 passed / 0 failed** + **integration 5521 passed / 0 failed locally on the release tip** · release lockstep 34 passed · PyPI digests = local build · dev push CI green at fix SHA `5af027ca` (32187246990) · **main GREEN at `c9c99544` — run 32188391051, all 13 push-tier jobs success (matrix 3.10-3.14, pg-live 15-18, docker amd64+arm64, reproducible-build, landlock-real-exec), watched to completion**.
 
 ### Blocked
 - Docker Hub push (tooling + credentials) — WO5.0.0-014, runbook recorded.

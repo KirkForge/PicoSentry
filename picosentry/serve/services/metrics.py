@@ -1,9 +1,24 @@
 import json
+import re
 import threading
 import time
 from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
+
+# Label values arrive from request context (the endpoint label is the request's
+# percent-decoded path) — strip characters that break the exposition format.
+_LABEL_UNSAFE = re.compile(r'[\\",\n\r{}]')
+
+# api families are never org-stamped (upgrade path: stamp org in
+# AuditMiddleware.dispatch) — exempt from the org filter or org-filtered views
+# would hide every api series.
+_ORG_UNSTAMPED_FAMILIES = frozenset({"api_requests_total", "api_request_duration_seconds"})
+
+
+def _format_labels(labels: dict[str, str]) -> str:
+    """Single-source label renderer: sorted, escaped, injection-safe."""
+    return ",".join(f'{k}="{_LABEL_UNSAFE.sub("_", str(v))}"' for k, v in sorted(labels.items()))
 
 
 @dataclass
@@ -93,7 +108,9 @@ class MetricsCollector:
     def api_request(self, method: str, endpoint: str, status_code: int, duration: float):
         # status keeps the exact code; status_class ("5xx") is the label the
         # high_error_rate anomaly rule matches — exact codes would need one
-        # rule per status code.
+        # rule per status code. The endpoint label is attacker-controlled
+        # (unauthenticated paths included) — sanitized once here.
+        endpoint = _LABEL_UNSAFE.sub("_", endpoint)
         labels = {
             "method": method,
             "endpoint": endpoint,
@@ -122,27 +139,39 @@ class MetricsCollector:
             lines.append(f"picoshogun_{name} {value}")
 
         with self._lock:
-            grouped = defaultdict(list)
+            # Aggregate by full label set at render time: exactly ONE sample
+            # per series per scrape (Prometheus rejects duplicate samples).
+            # Counters arrive as cumulative snapshots and gauges as current
+            # state — latest wins; histogram observations accumulate (sum).
+            aggregated: dict[tuple[str, tuple[tuple[str, str], ...]], float] = {}
+            types: dict[str, str] = {}
             for metrics_list in self.metrics.values():
                 for m in metrics_list:
-                    if org_id is not None and m.labels.get("org_id") != str(org_id):
+                    if (
+                        org_id is not None
+                        and m.name not in _ORG_UNSTAMPED_FAMILIES
+                        and m.labels.get("org_id") != str(org_id)
+                    ):
                         continue
-                    grouped[m.name].append(m)
-
-            for name, metrics_list in sorted(grouped.items()):
-                if not metrics_list:
-                    continue
-
-                metric_type = metrics_list[0].metric_type
-                lines.append(f"# HELP picoshogun_{name} {metric_type} metric")
-                lines.append(f"# TYPE picoshogun_{name} {metric_type}")
-
-                for m in metrics_list[-50:]:  # Last 50 per metric
-                    label_str = ",".join(f'{k}="{v}"' for k, v in m.labels.items())
-                    if label_str:
-                        lines.append(f"picoshogun_{name}{{{label_str}}} {m.value}")
+                    key = (m.name, tuple(sorted(m.labels.items())))
+                    if m.metric_type == "histogram":
+                        aggregated[key] = aggregated.get(key, 0.0) + m.value
                     else:
-                        lines.append(f"picoshogun_{name} {m.value}")
+                        aggregated[key] = m.value
+                    types.setdefault(m.name, m.metric_type)
+
+            current_name = None
+            for (name, label_items), value in sorted(aggregated.items()):
+                if name != current_name:
+                    metric_type = types[name]
+                    lines.append(f"# HELP picoshogun_{name} {metric_type} metric")
+                    lines.append(f"# TYPE picoshogun_{name} {metric_type}")
+                    current_name = name
+                label_str = _format_labels(dict(label_items))
+                if label_str:
+                    lines.append(f"picoshogun_{name}{{{label_str}}} {value}")
+                else:
+                    lines.append(f"picoshogun_{name} {value}")
 
         return "\n".join(lines)
 
@@ -154,7 +183,7 @@ class MetricsCollector:
                 filtered = [
                     {"value": m.value, "labels": m.labels, "timestamp": m.timestamp, "type": m.metric_type}
                     for m in metrics_list[-100:]
-                    if org_id is None or m.labels.get("org_id") == str(org_id)
+                    if org_id is None or m.name in _ORG_UNSTAMPED_FAMILIES or m.labels.get("org_id") == str(org_id)
                 ]
                 if filtered:
                     metrics_data[name] = filtered

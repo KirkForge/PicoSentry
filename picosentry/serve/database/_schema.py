@@ -887,6 +887,30 @@ MIGRATIONS: list[Migration] = [
             ON correlation_events(org_id, timestamp);
     """,
     ),
+    Migration(
+        20,
+        "webhooks_unique_name_per_org",
+        """
+        -- WO5.0.0-008: webhook names are unique PER ORG. Cross-org same-name
+        -- rows are legitimate and all survive — only rows sharing one org_id
+        -- collide. Keep the newest active row per (org_id, name). The index is
+        -- partial so a soft-deleted (active=0) name can be recreated.
+        DELETE FROM webhooks WHERE active = 1 AND id NOT IN (
+            SELECT MAX(id) FROM webhooks WHERE active = 1 GROUP BY org_id, name
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_webhooks_org_name
+            ON webhooks(org_id, name) WHERE active = 1;
+    """,
+        postgres_sql="""
+        DELETE FROM webhooks WHERE active AND id NOT IN (
+            SELECT MAX(id) FROM webhooks WHERE active GROUP BY org_id, name
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_webhooks_org_name
+            ON webhooks(org_id, name) WHERE active;
+    """,
+    ),
 ]
 
 __all__ = [

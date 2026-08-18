@@ -153,3 +153,53 @@ class TestSchedulerExecuteExceptionNarrowing:
             scheduler._execute_job(job_id)
 
         scheduler.remove_job(job_id)
+
+
+class TestCleanupJobSeverityRetention:
+    """WO5.0.0-006: the automatic periodic cleanup job must use the per-severity
+    retention policy (critical 365d / high 180d), not the flat
+    audit_retention_days window — the flat override is admin-endpoint-only."""
+
+    def test_periodic_cleanup_keeps_critical_and_high_past_flat_window(self, tmp_path, monkeypatch):
+        from datetime import datetime, timedelta, timezone
+
+        from picosentry.serve.database.manager import DatabaseManager
+        from picosentry.serve.services import scheduler as sched_mod
+        from picosentry.serve.services.audit_cleanup import SQLITE_TS
+        import picosentry.serve.services.audit_cleanup as cleanup_mod
+
+        mgr = DatabaseManager(db_path=tmp_path / "sched-audit.db")
+        monkeypatch.setattr(sched_mod, "db", mgr)
+        monkeypatch.setattr(cleanup_mod, "db", mgr)
+
+        # All three older than the flat 90d window; only low is outside its
+        # per-severity policy (critical 365d, high 180d, low 30d).
+        created = (datetime.now(timezone.utc) - timedelta(days=100)).strftime(SQLITE_TS)
+        for severity in ("critical", "high", "low"):
+            mgr.execute(
+                """
+                INSERT INTO audit_log (action, user_id, resource_type, resource_id, details,
+                    ip_address, user_agent, prev_hash, row_hash, org_id, severity, created_at)
+                VALUES ('GET', 1, 'api', '/wo5-006', '{}', NULL, NULL, '', '', NULL, ?, ?)
+            """,
+                (severity, created),
+            )
+
+        job_id = scheduler.add_job(
+            name=f"wo5_cleanup_{time.time_ns()}",
+            cron="0 */6 * * *",
+            command="cleanup",
+            params={},
+            enabled=False,
+        )
+        try:
+            scheduler._execute_job(job_id)
+
+            assert scheduler.jobs[job_id].last_status == "completed"
+            rows = mgr.execute(
+                "SELECT severity FROM audit_log WHERE resource_id = '/wo5-006' AND action != 'audit.purge'"
+            )
+            assert sorted(r["severity"] for r in rows) == ["critical", "high"]
+        finally:
+            scheduler.remove_job(job_id)
+            mgr.close()

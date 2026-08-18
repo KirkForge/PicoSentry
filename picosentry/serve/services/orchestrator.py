@@ -70,7 +70,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             lambda evt: correlation_engine.on_run_completed(
                 project_id=evt.payload.get("project_id", ""),
                 run_id=str(evt.payload.get("run_id", "")),
-                org_id=evt.payload.get("org_id"),
+                org_id=evt.org_id,
             ),
             persistent=True,
             subscriber_id="correlation-engine",

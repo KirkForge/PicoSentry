@@ -104,7 +104,6 @@ async def lifespan(app: FastAPI):
         correlation_engine,
     )
     from picosentry.serve.services.correlation.engine import CorrelationEngine
-    from picosentry.serve.services.orchestrator import PICO_CLI
     from picosentry.serve.services.webhooks import webhook_manager
 
     from picosentry.serve.database.manager import db
@@ -164,40 +163,6 @@ async def lifespan(app: FastAPI):
     correlation_engine.on_chain_escalated(_chain_escalated_alert)
     correlation_engine.on_chain_escalated(_chain_escalated_webhook)
     logger.info("Correlation escalation callbacks wired")
-
-    def _on_auto_analyze(event):
-        payload = event.payload
-        downstream = payload.get("downstream_project", "")
-        target = payload.get("target", "")
-        if downstream and target and downstream in PICO_CLI:
-            logger.info(
-                "Auto-analyze queued: %s → %s (%s)",
-                payload.get("source_project", "?"),
-                downstream,
-                target,
-            )
-
-            event_bus.publish(
-                "project.run.requested",
-                {
-                    "project_id": downstream,
-                    "target": target,
-                    "trigger": "correlation_auto_analysis",
-                    "source_artifact": payload.get("artifact_id"),
-                    "source_run_id": payload.get("run_id"),
-                },
-                source="correlation_engine",
-                priority="high",
-                org_id=event.org_id,
-            )
-
-    event_bus.subscribe(
-        "project.run.auto_analyze",
-        _on_auto_analyze,
-        persistent=True,
-        subscriber_id="correlation-auto-analyze",
-    )
-    logger.info("Cross-layer auto-analysis subscriber registered")
 
     anomaly_detector.start()
     if settings.orchestrator.schedule_enabled:

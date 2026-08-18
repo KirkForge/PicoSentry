@@ -11,7 +11,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import ClassVar
 
-from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
 
 logger = logging.getLogger("picoshogun.Scheduler")
@@ -381,7 +380,10 @@ class JobScheduler:
                 log_manager.auto_rotate()
                 from picosentry.serve.services.audit_cleanup import purge_audit_logs
 
-                purge_audit_logs(retention_days=settings.database.audit_retention_days)
+                # Per-severity retention policy; the flat retention_days override
+                # is admin-endpoint-only — it would delete critical audit history
+                # at the same cutoff as low.
+                purge_audit_logs()
                 auth.purge_expired_revocations()
                 status = "completed"
                 _output = f"Cleaned up {expired} expired API keys, rotated logs, purged audit entries"

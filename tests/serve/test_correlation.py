@@ -753,3 +753,37 @@ class TestCorrelationEngineHardening:
         assert result is False
         assert CorrelationEngine.PERSIST_ENABLED is False
         assert any("Correlation persistence not available" in r.message for r in caplog.records)
+
+
+class TestAutoAnalysisRemoved:
+    """WO5.0.0-008: the dead auto-analysis publish chain is deleted — an
+    exploitable critical chain must not emit project.run.* events. A re-add
+    must come with a real consumer that runs the downstream project on the
+    artifact (the orchestrator run machinery takes no target today)."""
+
+    def test_no_auto_analysis_events_published(self):
+        from picosentry.serve.services.correlation import CorrelationEngine
+        from picosentry.serve.services.event_bus import event_bus
+
+        engine = CorrelationEngine()
+        engine.ingest(
+            CorrelatedEvent(
+                artifact_id="wo5-auto@1.0.0",
+                layer="sandbox_l3",
+                rule_id="L3-NET-001",  # C2 — an exploitable phase
+                severity=Severity.CRITICAL,
+                confidence=Confidence.EXACT,
+                target="proj",
+                title="C2 beacon",
+                detail="dns tunnel",
+                timestamp="2026-08-18T12:00:00+00:00",
+                org_id="1",
+            )
+        )
+        event_bus.clear_history()
+
+        engine.on_run_completed("picosentry", run_id="r", org_id="1")
+
+        types = [e.type for e in event_bus.get_history()]
+        assert "project.run.auto_analyze" not in types
+        assert "project.run.requested" not in types

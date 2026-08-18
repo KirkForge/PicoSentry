@@ -227,7 +227,10 @@ class CorrelationEngine:
 
         for chain in critical:
             self._notify_escalated(chain)
-            self._trigger_cross_layer_analysis(chain, project_id, run_id)
+        # Cross-layer auto-analysis chaining was removed 2026-08 (WO5.0.0-008):
+        # it published project.run.* events no consumer ever read. Re-add only
+        # with a real subscriber that runs the downstream project on the
+        # artifact — the orchestrator run machinery takes no target today.
 
         if self.PERSIST_ENABLED and critical:
             self.persist_events()
@@ -239,62 +242,6 @@ class CorrelationEngine:
             run_id,
             len(critical),
         )
-
-    _AUTO_ANALYSIS_MAP: ClassVar[dict[str, list[str]]] = {
-        "picosentry": ["picodome"],  # scan CRITICAL → sandbox
-        "picodome": ["picowatch"],  # sandbox CRITICAL → watch
-        "picowatch": [],  # watch is terminal
-    }
-
-    def _trigger_cross_layer_analysis(
-        self,
-        chain: KillChainTimeline,
-        source_project_id: str,
-        run_id: str | None = None,
-    ) -> None:
-        from picosentry.serve.services.event_bus import event_bus
-
-        downstream_projects = self._AUTO_ANALYSIS_MAP.get(source_project_id, [])
-        if not downstream_projects:
-            return
-
-        exploitable_phases = {"execution", "c2", "exfiltration", "impact"}
-        has_exploitable = any(p in exploitable_phases for p in chain.phases)
-        if not has_exploitable:
-            return
-
-        sample_target = chain.artifact_id
-        for phase_name, events in chain.phases.items():
-            if phase_name in exploitable_phases and events:
-                sample_target = events[0].target
-                break
-
-        for downstream in downstream_projects:
-            logger.info(
-                "Auto-analysis trigger: %s %s → %s (chain_score=%.2f)",
-                source_project_id,
-                chain.artifact_id,
-                downstream,
-                chain.chain_score,
-            )
-
-            chain_org = next(
-                (e.org_id for events in chain.phases.values() for e in events if e.org_id is not None),
-                None,
-            )
-
-            event_bus.publish(
-                "project.run.auto_analyze",
-                {
-                    "source_project": source_project_id,
-                    "downstream_project": downstream,
-                    "artifact_id": chain.artifact_id,
-                    "target": sample_target,
-                    "run_id": run_id,
-                    "chain_score": chain.chain_score,
-                },
-                org_id=chain_org,
-            )
 
     def on_chain_escalated(self, callback: Callable[[KillChainTimeline], None]) -> None:
         self._escalation_callbacks.append(callback)

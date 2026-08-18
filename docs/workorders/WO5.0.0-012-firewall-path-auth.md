@@ -1,7 +1,7 @@
 # WO5.0.0-012 — Firewall: path classification on the query-less path + auth crash
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `f2bd9115`, worker SA-Z) — `classify_path` runs on `urlsplit(path).path.rstrip("/")`: query-decorated metadata URLs scanned under clean names (query preserved upstream), trailing-slash variant fixed; `_authorized` compares UTF-8 bytes (mirrors watch) — non-ASCII Authorization → clean 401. 9 classify + 3 handler-level + 2 auth regression tests.
 **Owner:** (unassigned — worktree `wo/5.0.0/firewall-path`)
 **Priority:** P0 · Effort S-M · Risk L
 **Scope:** `picosentry/firewall/{scanner.py,proxy.py}`, `tests/firewall/`

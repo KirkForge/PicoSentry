@@ -1,7 +1,7 @@
 # WO5.0.0-010 — Scan: cache input-hash parity with the rule read-surface + escape hatch
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `8a0fbe2f`, worker SA-Y) — `BUILD_HOOK_READ_SUFFIXES/NAMES` declared once in dangerous_build_hooks.py (derived from ECOSYSTEM_FILES), imported by `_hash_target_inputs`; `node_modules/**/package.json` manifests hashed (mirrors iter_node_modules); truncation marker (full count + byte total folds into the key when caps bite) with `ceiling:` comment; `--no-cache` flag added (unified wrapper forwarded via add_arguments delegation, zero edit). Tests: read-surface parity property, shared-surface import equality, nm manifest invalidation, truncation markers, flag parse + cache disable. The stale-clean repro (malicious install.ps1 after cached clean) now fires L2-BUILD-001.
 **Owner:** (unassigned — worktree `wo/5.0.0/scan-cache-parity`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/scan/cli_service.py`, `picosentry/scan/rules/dangerous_build_hooks.py`, `picosentry/scan/campaigns/_base.py`, `picosentry/scan/cli_commands/scan.py`, `tests/scan/test_cache_correctness.py`

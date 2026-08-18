@@ -1,7 +1,7 @@
 # WO5.0.0-015 — Scan: selection & worker honesty (dropped rules, rules=[], intelligence mode)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `8a0fbe2f`, worker SA-Y) — explicit-but-deselected rules → `RuleExecution(status="skipped", error=…)` + `scan_completeness: partial`; CLI exits 2 when explicit selection left nothing running; `rules` is-not-None semantics (`[]` → zero rules); `--timeout` worker forwards `intelligence_mode` (Process kwargs, old callers compatible); `--validate` help synced to the real 0.94/0.84 floors. 13 tests.
 **Owner:** (unassigned — worktree `wo/5.0.0/scan-selection`)
 **Priority:** P1 · Effort S-M · Risk L
 **Scope:** `picosentry/scan/engine.py`, `picosentry/scan/cli_service.py`, `picosentry/scan/_cli_service_worker.py`, `picosentry/scan/cli_commands/scan.py`, `tests/scan/`

@@ -1,7 +1,7 @@
 # WO5.0.0-005 — Serve: kill-chain escalation reads org from the payload, which never carries it
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `4a5cad75`, worker SA-X) — one-line root fix (`org_id=evt.org_id`); other two payload-org readers audited and left as-is (both read JWT claims which genuinely carry org_id); regression test tests/serve/test_killchain_tenancy.py (two orgs, negative assertions on org-NULL alerts + org-B artifacts; mutation-verified). Post-merge order-dependence fixed centrally in `1b312f10` (event_bus.shutdown() from earlier lifespan tests cleared subscribers — test now re-registers the production subscriber deterministically).
 **Owner:** (unassigned — worktree `wo/5.0.0/killchain-tenancy`)
 **Priority:** P0 · Effort S · Risk L
 **Scope:** `picosentry/serve/services/orchestrator.py`, sweep of all `payload.get("org_id")` readers, `tests/serve/`

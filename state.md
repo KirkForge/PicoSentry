@@ -2,35 +2,46 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, WO5.0.0 SEEDED — 27 WOs open, zero code changes this session) ═══
+# ═══ CURRENT STATE (2026-08-18, WO5.0.0 P0 WAVE LANDED — 14 P0s merged to dev, WO4 series CLOSED) ═══
 
-**This session was a seeding round** (five read-only explorers → triage → WO5.0.0 series): 5 explorers on disjoint areas (SA-R scan, SA-S sandbox, SA-T serve, SA-U watch+firewall, SA-V core/CLI/CI), ~70 verified findings → **27 WOs (P0×14, P1×11, P2×2)** in `docs/workorders/`. Top claims re-verified by orchestrator (tenant loader callers, resolve_tenant order, payload-vs-Event.org_id, doctor --json exit, pypi regex anchor) — all confirmed. No code changed; docs-only commit.
+**P0 wave complete** (5 workers in exclusive worktrees → 5 `--no-ff` merges, zero conflicts): WO5.0.0-001..013 **DONE**, 014 **PARTIAL** (all code/doc gates landed; image push BLOCKED — no container tooling on this host; unblock: install docker+buildx, login, `TAG=v2.1.2 docker buildx bake --push`, flip "pending" claims). WO4.0.0 series **CLOSED** (15 DONE shipped, 9 remainders folded into WO5.0.0-019/025/027/028-032). Gates at close: **fast 5267 passed / 0 failed (~240s)**, ruff/format/mypy clean.
 
-**Headline findings (the queue):**
-1. **P0 security cluster**: WO5.0.0-001 sandbox tenant isolation DEAD in production (loader unwired + X-Tenant override — CRITICAL) · 002 untrusted-input hardening (NaN timeout, retention traversal) · 003 policy signature fails open · 004 cluster gossip 401 on auth daemons.
-2. **P0 serve cluster**: 005 kill-chain escalation reads org from payload (cross-tenant, one-line fix) · 006 scheduler bypasses severity-aware retention · 007 /metrics invalid exposition + label injection · 008 alerting truthfulness (sent=1 on failed delivery, webhook name clobber, auto-analysis no-op).
-3. **P0 scan/watch/firewall cluster**: 009 advisory pipeline dead on default installs (envelope no-op) + maven keying misses real OSV · 010 cache serves stale clean for build-hook files/node_modules · 011 layered-encoding prompt bypasses + decode-budget dial · 012 firewall query-string bypass · 013 output guard misses encoded exfil + gateway attests unscanned choices.
-4. **P0 release-blocking**: 014 docker truth (v2.1.2 image claim false — Hub has no v2.1.x; helm default tag can never resolve).
-5. **P1**: 015-025 (selection honesty, silent-skip accounting, job-store, hygiene sweeps, loop remainder, scheduler double-fire, org scoping, gateway hardening, metrics/telemetry, gate truthfulness). **P2**: 026-027 (CI paths/REPORT gating, docs riders).
+**Headline fixes landed:** sandbox tenant isolation real in production (env loader wired into daemon+gRPC, X-Tenant may only confirm — mismatch 403, audit/tenants scoped, daemon-boot tests); policy signatures fail closed; cluster gossip survives API auth; NaN-timeout/traversal/dot-name/obs-fold input hardening; serve kill-chain tenancy (payload→Event.org_id), scheduler uses severity-aware retention, /metrics one-sample-per-series + label-injection proof, alert delivery truthfulness + per-org webhook identity (migration 20) + dead auto-analysis deleted; scan advisory pipeline fires on default installs (envelope) + real-keyed maven + multi-package OSV; cache input-hash parity with the rule read-surface + `--no-cache`; selection honesty (skipped rules visible, `rules=[]`=none, worker intelligence forwarded); watch layered-decode closure (b64∘url/rot13, entity layer, budget-dial hardening + 5 rot13 vocabulary typos fixed); firewall query-string bypass + non-ASCII auth crash; gateway attests ALL choices/tool_calls + output guard decodes (encoded exfil caught).
 
-**Cross-cutting lesson (lessons.md session g)**: "wired in tests, dead in production" is the recurring CRITICAL class (tenant loader, advisory envelope, auto-analysis subscriber); WO4's landing wave grew its own bug crop at the seams it created.
+**Two order/parallel flakes root-caused post-merge** (`1b312f10`): watch perf ceiling now measures CPU time (wall doubled under xdist load 16/8 cores); killchain test re-registers the production subscriber (earlier lifespan tests call `event_bus.shutdown()` which clears ALL subscribers for the worker's remaining life — same class as the DDoS-shield reset bug; a SYSTEMIC event-bus-reset fix may be warranted — noted, not done).
 
-**WO4.0.0 series state (24 WOs):** DONE — 002-009, 010-013, 015, 017, 018, 022, 023. PARTIAL — 001 (real-exec landlock CI job + seccomp composition), 014 (scan 1.33×; parallel fan-out measured worse, documented), 016 (watch 2.8×; <1s/MB needs fused pass), 019/020/021 (P2 remainders: gossip rotation pending HMAC announcements; API_WORKERS>1 unsupported; tier enforcement not built). OPEN — 024 (cli/doctor/deploy hygiene, P2; partially superseded by WO5.0.0-025, keep both — 024 is argparse-duplication + doctor coverage, 025 is exit-codes/gates-can't-fail).
+**WO5.0.0 series state (35 WOs):** DONE — 001-013, 015. PARTIAL — 014 (push blocked). OPEN — 016-035 (P1×12 incl. new flags 033 webhook-wildcard + 034 OSV-cache-roundtrip; P2×9 incl. WO4 folds 028-032 + 035 test-infra py3.14 races).
 
-**Open follow-ups (carried, pre-WO5):** WO-024 · WO-001 remainder · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side · watch <1s/MB fused pass · 019/020/021 P2 remainder · docker image push (now folded into WO5.0.0-014 which also fixes the false claims + helm tag convention).
-
-**v2.1.2 shipped (2026-08-18):** PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH release published, `main` = `dev` = **`506942cc`**, CI 13/13 green on main (run 32088064603). Local gates at that close: fast 5161 passed / ~130s, ruff/format/mypy clean.
+**Carried:** docker push (WO5-014 remainder, tooling-gated) · py3.14 forkserver spawn race fails COLD runners (WO5-035 — expect 3.14 CI legs flaky until fixed) · event-bus shutdown systemic reset (candidate WO) · `main` is now >20 commits behind `dev` — release trigger met; v2.2.0 should wait for the P1 batch (016-025) + WO5-014 push.
 
 ## The queue (jump-in order)
 
-1. **P0 security cluster**: WO5.0.0-001 (tenant) · 002 (input hardening) · 003 (signature) · 004 (cluster×auth) — sandbox worktree batch.
-2. **P0 serve cluster**: 005 (one-liner + sweep) · 006 · 007 · 008.
-3. **P0 scan+watch+firewall**: 009 · 010 · 011 · 012 · 013.
-4. **P0 release**: 014 before cutting v2.2.0 (also: `dev` release trigger check — dev will move past ~20 commits fast once P0s land).
-5. **P1**: 015-025 per README priority. **P2**: 026-027 + WO4-024.
-Suggested batch shape: 3 parallel subagent worktrees (sandbox 001-004 / serve 005-008 / scan+watch+firewall 009-013), orchestrator merges; 014 solo before release.
+1. **P1 batch** (next wave, 3-4 worktrees): 016 scan silent-skip + 017 sandbox job-store + 018 sandbox hygiene + 019 landlock parity (incl. WO4-001 real-exec CI job) / 020 serve loop + 021 scheduler + 022 org-scoping / 023 gateway hardening + 024 watch metrics sweep / 025 gate truthfulness (incl. WO4-024 folds) + 033 webhook wildcard + 034 OSV cache round-trip (both small, quick wins).
+2. **P2**: 026 CI paths, 027 docs riders, 028-032 WO4 folds, 035 test-infra races (035 BEFORE the next push if 3.14 CI legs matter — they do).
+3. **Release v2.2.0** after P1 lands + docker push unblocked.
 
 # ═══ SESSION HISTORY ═══
+
+## Session 2026-08-18 (h): WO5 P0 execution wave + WO4 closure — COMPLETE
+
+### Method
+5 parallel workers in exclusive worktrees off dev@b8e2ad67 (SA-W sandbox 001-004, SA-X serve 005-008, SA-Y scan 009/010/015, SA-Z watch+firewall 011-013, SA-AA docker-truth 014); orchestrator folded WO4 remainders into WO5 (series closed), merged all 5 `--no-ff` (zero conflicts), root-caused 2 merge-surface flakes, ran central gates. Every worker reproduced its WO evidence on base before fixing; worker-flagged new bugs became WOs 033-035.
+
+### Notable
+- The P0 that made the owner angry (tenant isolation dead in production) is fixed with the gate that matters: tests boot the REAL daemon from env vars, not hand-wired handlers.
+- Worker-discovered during fixes: webhook `events:["*"]` wildcard never dispatches (033); OSV disk-cache round-trip decodes empty (034); py3.14 forkserver spawn race (035, fails cold runners — pre-existing, on base); 5 rot13 vocabulary typos meaning rot13 payloads were never decodable (fixed in 011).
+- SA-AA proved the registry gate can fail (opted-in run went red on the true absence of v2.1.2 on Hub) before shipping it in skip-by-default mode.
+
+### Gate (head dev @ 1b312f10)
+- ruff: All checks passed! · format: 698 files · mypy: 417 files clean
+- `bash scripts/test.sh fast`: **5267 passed, 24 skipped, 0 failed in 241.71s**
+- detect_changes vs b8e2ad67: 96 files / 237 symbols — all map to the 5 worker scopes + 2 orchestrator test fixes; no surprise blast radius.
+
+### Pending / next
+The WO5 P1 batch IS the queue (above). Docker push tooling-gated.
+
+### Blocked
+- Docker image push (no container tooling/creds on host) — WO5.0.0-014 remainder.
 
 ## Session 2026-08-18 (g): Five-explorer round → WO5.0.0 series — COMPLETE
 

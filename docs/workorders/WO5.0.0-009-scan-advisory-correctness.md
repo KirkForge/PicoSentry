@@ -1,7 +1,7 @@
 # WO5.0.0-009 — Scan: advisory pipeline correctness (default no-op, maven keying, multi-package records)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `8a0fbe2f`, worker SA-Y) — `AdvisoryDB.load()` unwraps the envelope (`load_bundled_advisories()` now delegates, ~25 lines deleted); pom emits `group:artifact` primary + bare fallback (deduped so dual-keyed DBs fire once); `from_osv` → `list[Advisory]` one per affected entry with isolated ranges (4 call sites updated); `from_ghsa` deleted. Tests: default-corpus lodash@4.17.15 fires L2-ADV-001 with no `--advisory-db` (hermetic), real-keyed pom repro, multi-package isolation. Fallout: clean fixtures no longer declare corpus-vulnerable lodash (→ chalk). FLAGGED → WO5.0.0-034 (OSV disk-cache round-trip decodes empty — pre-existing, adjacent file).
 **Owner:** (unassigned — worktree `wo/5.0.0/scan-advisory`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/scan/rules/advisory_check.py`, `picosentry/scan/advisory.py`, `tests/scan/`

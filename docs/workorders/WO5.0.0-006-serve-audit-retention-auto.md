@@ -1,7 +1,7 @@
 # WO5.0.0-006 — Serve: scheduler cleanup bypasses the severity-aware audit retention
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `4a5cad75`, worker SA-X) — scheduler cleanup uses the per-severity policy path (`purge_audit_logs()`); flat `retention_days` admin-only; test: critical+high at 100d survive the job, low purged (mutation-verified).
 **Owner:** (unassigned — worktree `wo/5.0.0/audit-retention`)
 **Priority:** P0 · Effort S · Risk L
 **Scope:** `picosentry/serve/services/scheduler.py`, `picosentry/serve/services/audit_cleanup.py`, `tests/serve/`

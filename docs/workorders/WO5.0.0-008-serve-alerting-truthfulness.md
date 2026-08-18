@@ -1,7 +1,7 @@
 # WO5.0.0-008 — Serve: alerting truthfulness (sent=1 on failed delivery, webhook clobber, auto-analysis no-op)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `4a5cad75`, worker SA-X) — channel delivery errors propagate to sent/retry bookkeeping (internal catches only for unconfigured channels, documented); webhooks keyed by id + migration 20 (intra-org dupes merged, partial unique index `(org_id, name) WHERE active`, per-backend SQL) + 409 on intra-org collision; auto-analysis chain DELETED (consumer infeasible ≤30 lines — run machinery has no artifact/target arg; upgrade-path note left, test pins no phantom events). Tests: unreachable discord/slack/SMTP → sent=0 + retry + send() False; two orgs same name both dispatch; recreate-after-soft-delete. FLAGGED → WO5.0.0-033 (webhook `events:["*"]` wildcard never matches).
 **Owner:** (unassigned — worktree `wo/5.0.0/alerting-truth`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/{alert_hub.py,webhooks.py,orchestrator.py,correlation/engine.py}`, `picosentry/serve/api/routers/{webhooks,orgs}.py`, `picosentry/serve/database/_schema.py` (webhooks index), `picosentry/serve/api/server.py`, `tests/serve/`

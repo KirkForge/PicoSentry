@@ -1,7 +1,7 @@
 # WO5.0.0-002 — Sandbox: untrusted-input hardening (NaN timeout, traversal, names, header charset)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `0846f177`, worker SA-W) — shared `sanitize_scan_timeout()` (isfinite + clamp, None=reject) at all 3 entry points (HTTP 400 `ErrorCodes.INVALID_TIMEOUT`, gRPC INVALID_ARGUMENT, `sandbox_run` pre-spawn ValueError; non-numeric now 400); retention `_package_slug()` (basename+slug, both callers); all-dot policy names rejected (write + read paths); X-Request-ID `[A-Za-z0-9_-]{1,128}`; 16 tests incl. real-daemon NaN POST (engine canary never fired, no job persisted) + raw-socket obs-fold repro.
 **Owner:** (unassigned — worktree `wo/5.0.0/sandbox-input`)
 **Priority:** P0 · Effort M · Risk L
 **Scope:** `picosentry/sandbox/daemon/{handler_routes_post.py,handler_mixins.py}`, `picosentry/sandbox/grpc_transport/_servicer.py`, `picosentry/sandbox/retention/manager.py`, `picosentry/sandbox/policy_versioned/store.py`, `picosentry/sandbox/l3/**` (timeout consumers), `tests/sandbox/`

@@ -1,7 +1,7 @@
 # WO5.0.0-011 — Watch: prompt decode completeness (layered encodings, budget dial, entities)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `f2bd9115`, worker SA-Z) — `decode_and_rescan` → BFS `_decode_candidates` (depth ≤2, shared budget): b64∘url, b64∘rot13, url∘b64, b64∘entities, rot13∘url all peel; injection-hint prefilter exempts suspicious decodes from the 32 benign-slot cap + `details["decode_budget_exhausted"]` honest signal; `html.unescape` decode layer, pure-encoded payloads block via decoded-content rules with NO weight/threshold changes. Root-cause bonus: 5 pre-existing rot13 misspellings in the gate vocabulary (`qvfrertnq`→`qvfertneq` etc.) fixed — rot13 "disregard"/"system prompt" were never decodable even single-layer. Perf: faster than baseline on the ceiling input (7.4s vs 8.1s under load-28); 12 adversarial tests.
 **Owner:** (unassigned — worktree `wo/5.0.0/watch-decode`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/watch/prompt_guard/{__init__.py,normalize.py,rules.py}`, `picosentry/watch/rules/prompt_injection/encoding_attack.yaml`, `tests/watch/`

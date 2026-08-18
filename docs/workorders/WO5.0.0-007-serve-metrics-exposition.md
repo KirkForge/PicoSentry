@@ -1,7 +1,7 @@
 # WO5.0.0-007 — Serve: /metrics/prometheus exposition invalid (duplicate samples + label injection)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `4a5cad75`, worker SA-X) — render-time aggregation by full label set (one sample/series; counters/gauges latest-wins, histograms summed); `_LABEL_UNSAFE` sanitizer at `api_request` + single-source escaped renderer (watch's approach); api families exempt from the org filter in both exporters with upgrade-path comment (per-request org stamping); strict-parser tests: zero duplicates under repeated increments, the exact injection repro path injects nothing, org views keep api series. Mutation-verified (3/4 tests fail on unfixed code).
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-metrics`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/metrics.py`, `picosentry/serve/middleware/audit.py`, `tests/serve/`

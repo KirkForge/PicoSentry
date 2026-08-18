@@ -1,7 +1,7 @@
 # WO5.0.0-014 — Docker truth end-to-end: hub image, helm tag convention, existence gate
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** PARTIAL (2026-08-18, merge `fcb44059`, worker SA-AA) — FIXED: tag convention unified on v-prefix across helm/k8s/bake (appVersion `"v2.1.2"`, both lockstep guards now enforce the SAME v-form, new render test asserts the resolved tag); registry-existence gate in release.yml (`imagetools inspect`, hard-fail post-push) + `network`-marked Hub-API test (opt-in `PICOSENTRY_CHECK_REGISTRY=1`, proven able to fail); ALL claims made honest (latest published v2.0.18, v2.1.2 "push pending"; OFFLINE.md air-gap pins :v2.0.18 not the stale :latest); broken `--ci` flag removed from build_docker_multiarch.sh + docs/docker.md synced. **BLOCKED: the push itself — no container tooling on this host** (no docker/podman/buildx, no socket, no creds). Unblock: install docker+buildx, `docker login`, `TAG=v2.1.2 docker buildx bake --push` from dev, verify with imagetools inspect, flip the "pending" wording to published.
 **Owner:** (unassigned — worktree `wo/5.0.0/docker-truth`)
 **Priority:** P0 (release-blocking honesty) · Effort M · Risk L
 **Scope:** `deploy/helm/picodome/**`, `deploy/kubernetes/deployment.yaml`, `scripts/build_docker_multiarch.sh`, `.github/workflows/release.yml`, `tests/test_release.py`, `README.md`, `picosentry/experimental.py`, `docs/{manual.md,TECHNICAL_MANUAL.md,OFFLINE.md}`

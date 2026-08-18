@@ -1,7 +1,7 @@
 # WO5.0.0-004 — Sandbox: cluster gossip 401-dead on any auth-configured daemon
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `0846f177`, worker SA-W) — `_authorize_cluster_route()` accepts EITHER valid X-Cluster-Token (narrow bypass: only those routes, only when the manager runs + token check passes, errors sent once) or normal API auth; merge docstring made honest; tests boot real daemons with `PICODOME_API_TOKENS`+`PICODOME_CLUSTER_TOKEN`, a real ClusterManager peer runs the orchestrator's exact request → converges both managers; no-auth 401 / wrong-token 403; cluster token does NOT leak to /api/v1/scans.
 **Owner:** (unassigned — worktree `wo/5.0.0/cluster-auth`)
 **Priority:** P0 · Effort S-M · Risk M
 **Scope:** `picosentry/sandbox/daemon/{handler_routes_get.py,handler_routes_post.py}`, `picosentry/sandbox/cluster/orchestrator.py`, `tests/sandbox/test_cluster*.py`

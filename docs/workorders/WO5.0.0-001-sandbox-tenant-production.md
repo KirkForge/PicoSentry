@@ -1,7 +1,7 @@
 # WO5.0.0-001 — Sandbox: tenant isolation is dead in production
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `0846f177`, worker SA-W) — `load_tenants_from_env()` wired into `PicoDomeDaemon.__init__` + gRPC server start; `resolve_tenant` rewritten (token mapping wins, header may only confirm, mismatch → 403/PERMISSION_DENIED via new `TenantMismatchError`; operator allowlist `PICODOME_TENANT_OPERATOR_TOKENS`); audit + /api/v1/tenants tenant-scoped (operator sees all); NULL tenant_id normalized at the store boundary; 6 daemon-boot tests (tests/sandbox/test_tenant_production.py — real daemon from env vars, both-direction isolation, foreign-token+victim-header denied, operator narrow-allowed, jobs land in token's tenant, sqlite NULL row → DEFAULT, audit/tenants scoping). 7 legacy tests that asserted the old header-override (vulnerable) semantics updated to the new contract.
 **Owner:** (unassigned — worktree `wo/5.0.0/sandbox-tenant`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/sandbox/tenant/**`, `picosentry/sandbox/daemon/{daemon.py,handler_mixins.py,handler_routes_get.py}`, `picosentry/sandbox/grpc_transport/_servicer.py`, `tests/sandbox/`

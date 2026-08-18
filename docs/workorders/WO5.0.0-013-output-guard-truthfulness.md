@@ -1,7 +1,7 @@
 # WO5.0.0-013 — Output truthfulness: gateway attests unscanned choices; output guard misses encoded exfil
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `f2bd9115`, worker SA-Z) — gateway output-guard input = ALL choices[*].message.content + serialized tool_calls arguments + honest `output_fields_scanned` metadata (n:2 and tool-call repros block/flag); output guard gained bounded decode-and-rescan reusing prompt-side `_decode_candidates`, decoded-only hits marked `[decoded]`; `_is_textlike` gate (printable ≥0.95 + ≥50% decode survival) eliminates sha256-dump FP noise without touching the pre-existing raw crypto-wallet FPs (pinned as pre-existing). 12 tests.
 **Owner:** (unassigned — worktree `wo/5.0.0/output-truth`)
 **Priority:** P0 · Effort M · Risk M
 **Scope:** `picosentry/watch/gateway.py`, `picosentry/watch/output_guard/__init__.py`, `tests/watch/`

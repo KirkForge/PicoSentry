@@ -156,9 +156,9 @@ class WebhookManager:
             webhook_id = db.execute_insert(
                 """
                 INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
-                VALUES (?, ?, ?, ?, 1, 0, ?)
+                VALUES (?, ?, ?, ?, ?, 0, ?)
             """,
-                (name, url, secret, json.dumps(events), org_id),
+                (name, url, secret, json.dumps(events), True, org_id),
             )
             self._load_webhooks()
 

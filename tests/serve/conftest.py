@@ -79,7 +79,16 @@ def client():
 
 
 def _find_and_clear_rate_limiter(app):
-    """Walk the middleware stack to find and reset RateLimitMiddleware."""
+    """Walk the middleware stack to reset request-rate state.
+
+    Two independent limiters return 429 and both accumulate across tests:
+    RateLimitMiddleware (per-IP/per-org windows) and DDoSShieldMiddleware
+    (200/10s global, 50/10s on high-risk paths — /api/v1/auth/login is one,
+    and every authed test logs in). On CI runners with few xdist workers the
+    login burst alone crosses the shield limit mid-suite (429 == 200
+    failures in test_integration_features).
+    """
+    from picosentry.serve.middleware.ddos_shield import DDoSShieldMiddleware
     from picosentry.serve.middleware.rate_limit import RateLimitMiddleware
 
     if not app.middleware_stack:
@@ -93,7 +102,9 @@ def _find_and_clear_rate_limiter(app):
             if obj._redis_backend is not None:
                 with contextlib.suppress(Exception):
                     obj._redis_backend.reset()
-            return
+        elif isinstance(obj, DDoSShieldMiddleware):
+            obj._path_buckets.clear()
+            obj._global_bucket.clear()
         if hasattr(obj, "app"):
             obj = obj.app
         else:

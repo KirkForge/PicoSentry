@@ -174,9 +174,11 @@ class _StrictPsycopg2Cursor(_FakePGCursor):
     def __init__(self, conn):
         super().__init__(conn)
         self.params_passed: list[bool] = []
+        self.executed_sql: list[str] = []
 
     def execute(self, sql, params=None):
         self.params_passed.append(params is not None)
+        self.executed_sql.append(sql)
         if params is not None and "%" in sql and "%s" not in sql:
             # psycopg2 pyformat: a literal '%' that is not a placeholder has
             # no matching params entry -> IndexError (as seen on pg-live CI).
@@ -206,3 +208,41 @@ class TestNoParamsNoInterpolation:
         mgr = _pg_manager(conn)
         mgr.execute("SELECT * FROM users WHERE id = %s", ("7",))
         assert cursor.params_passed[-1] is True
+
+
+class TestBooleanLiteralTranslation:
+    """Postgres BOOLEAN columns reject `= 1` (pg-live CI: operator does not
+    exist: boolean = integer). _prepare_sql must translate 1/0 literals on
+    the four boolean columns; integer columns must stay untouched."""
+
+    def test_where_bool_equals_one_becomes_true(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("SELECT * FROM webhooks WHERE active = 1")
+        assert "active = TRUE" in cursor.executed_sql[-1]
+
+    def test_where_bool_equals_zero_becomes_false(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("UPDATE webhooks SET active = 0 WHERE id = ?", ("5",))
+        assert "active = FALSE" in cursor.executed_sql[-1]
+
+    def test_is_active_and_sent_and_enabled_translate(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("SELECT id FROM users WHERE is_active = 1 AND sent = 0 AND enabled = 1")
+        stmt = cursor.executed_sql[-1]
+        assert "is_active = TRUE" in stmt and "sent = FALSE" in stmt and "enabled = TRUE" in stmt
+
+    def test_integer_column_literal_untouched(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("SELECT * FROM alerts WHERE retry_count = 1")
+        assert "retry_count = 1" in cursor.executed_sql[-1]
+
+    def test_multi_digit_and_neq_operators(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("SELECT * FROM t WHERE active = 10 OR active != 1")
+        stmt = cursor.executed_sql[-1]
+        assert "active = 10" in stmt and "active != TRUE" in stmt

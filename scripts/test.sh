@@ -15,7 +15,10 @@ case "$profile" in
     ;;
   fast)
     marker='not slow and not network and not benchmark_realworld and not malicious_workload'
-    extra=(--timeout=60 --durations=25 --durations-min=0.25)
+    # junit on every tier: a flaky failure must always leave a name behind
+    # (identifiable from the CI artifact instead of vanishing in the log).
+    extra=(--timeout=60 --durations=25 --durations-min=0.25 --junitxml=.pytest-artifacts/junit-fast.xml)
+    mkdir -p .pytest-artifacts
     ;;
   integration)
     marker='not slow and not network and not benchmark_realworld'

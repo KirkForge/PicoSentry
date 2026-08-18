@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import logging
+import re
 import sqlite3
 import sys
 import threading
@@ -26,6 +27,11 @@ except ImportError:
 
 def _adapt_datetime(dt):
     return dt.isoformat()
+
+
+# Boolean columns per _schema.py DDL — compared to 1/0 literals in runtime
+# SQL (portable on SQLite, rejected by postgres BOOLEAN columns).
+_BOOL_LITERAL_RE = re.compile(r"\b(is_active|active|sent|enabled)(\s*[=!<>]+\s*)([01])\b")
 
 
 def _convert_timestamp(val):
@@ -95,7 +101,14 @@ class DatabaseManager:
             return sql
         # Migration SQL is backend-specific; runtime SQL uses ? placeholders.
         # The codebase never puts a literal ? inside SQL string literals.
-        return sql.replace("?", "%s")
+        sql = sql.replace("?", "%s")
+        # SQLite accepts `boolean_col = 1`; postgres BOOLEAN columns reject
+        # integer literals ("operator does not exist: boolean = integer").
+        # Translate 1/0 literals compared against the schema's boolean
+        # columns (see _schema.py) to TRUE/FALSE. Integer columns are
+        # untouched: only these four names are BOOLEAN in the DDL.
+        sql = _BOOL_LITERAL_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{'TRUE' if m.group(3) == '1' else 'FALSE'}", sql)
+        return sql
 
     def _get_connection(self):
         return self._pool.acquire()

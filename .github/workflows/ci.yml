@@ -95,6 +95,12 @@ jobs:
       - name: Slow-test budget report (warn mode on PR)
         if: always()
         run: python3 scripts/check-test-budget.py .pytest-artifacts/junit-fast.xml --warn
+      - name: Upload JUnit (always — a flaky failure must leave a name)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-fast-pr
+          path: .pytest-artifacts/junit-fast.xml
 
   # Scan artifact consistency (moved out of the old test-scan job; the pytest
   # part was a duplicate of test-fast). Only runs when scan-relevant paths

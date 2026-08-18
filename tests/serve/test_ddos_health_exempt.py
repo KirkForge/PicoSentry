@@ -183,3 +183,47 @@ def test_path_bucket_lru_eviction() -> None:
     assert "/projects" in shield._path_buckets
     # The oldest path should have been evicted.
     assert "/api/v1/scans" not in shield._path_buckets
+
+
+def test_conftest_walker_clears_ddos_shield_and_rate_limiter() -> None:
+    """Regression (CI 429 == 200 in test_integration_features): the autouse
+    conftest fixture must reset DDoSShieldMiddleware too — on few-worker CI
+    runners the per-worker login burst crosses the 50/10s shield limit
+    mid-suite. Also pins the old bug where the walker `return`ed after the
+    first RateLimitMiddleware and never reached deeper middleware."""
+    from fastapi.testclient import TestClient
+
+    from picosentry.serve.api.server import app
+    from picosentry.serve.middleware.ddos_shield import DDoSShieldMiddleware
+    from picosentry.serve.middleware.rate_limit import RateLimitMiddleware
+    from tests.serve.conftest import _find_and_clear_rate_limiter
+
+    client = TestClient(app)
+    if not app.middleware_stack:
+        client.get("/health/live")
+
+    # Fill both limiters past their limits with non-exempt requests.
+    for _ in range(3):
+        client.get("/api/v1/scans")
+
+    shield = rate = None
+    obj = app.middleware_stack
+    depth = 0
+    while obj is not None and depth < 30:
+        if isinstance(obj, DDoSShieldMiddleware):
+            shield = obj
+        elif isinstance(obj, RateLimitMiddleware):
+            rate = obj
+        obj = getattr(obj, "app", None)
+        depth += 1
+    assert shield is not None and rate is not None, "both limiters must be in the stack"
+
+    shield._global_bucket.extend([1.0] * 250)
+    shield._path_buckets["/api/v1/auth/login"] = [1.0] * 60
+    rate.ip_requests["testclient"] = [1.0] * 999
+
+    _find_and_clear_rate_limiter(app)
+
+    assert len(shield._global_bucket) == 0
+    assert len(shield._path_buckets) == 0
+    assert len(rate.ip_requests) == 0

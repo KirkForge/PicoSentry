@@ -82,19 +82,30 @@ class PicoDomeGRPCClient:
         if self._channel is not None:
             return
 
+        # WO5.0.0-018: client-side counterpart of the server's
+        # assert_secure_transport — never send the Bearer token over
+        # plaintext to a non-loopback target. Checked before anything else
+        # so refusal needs no grpcio.
+        from picosentry.sandbox.grpc_transport.auth import is_loopback_host, target_host
+
+        credentials = self._create_client_credentials(self._mtls_config)
+        if credentials is None and not is_loopback_host(target_host(self._target)):
+            raise RuntimeError(
+                f"Refusing plaintext gRPC to non-loopback target '{self._target}'. "
+                "Configure mTLS credentials or target a loopback address."
+            )
+
         if not is_grpc_available():
             raise ImportError("grpcio is not installed. Install it with: pip install grpcio")
 
         import grpc
-
-        credentials = self._create_client_credentials(self._mtls_config)
 
         if credentials:
             self._channel = grpc.secure_channel(self._target, credentials)
             logger.info("gRPC client connected (TLS) to %s", self._target)
         else:
             self._channel = grpc.insecure_channel(self._target)
-            logger.info("gRPC client connected (plaintext) to %s", self._target)
+            logger.info("gRPC client connected (plaintext, loopback) to %s", self._target)
 
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2_grpc as pb2_grpc

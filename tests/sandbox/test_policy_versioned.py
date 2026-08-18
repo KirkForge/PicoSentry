@@ -143,3 +143,50 @@ class TestVersionedPolicyStoreHardening:
             store.save(sample_policy, author="admin", change_description="boom")
 
         assert not controlled_path.exists()
+
+
+class TestPolicyStoreEnvSplitBrain:
+    """WO5.0.0-018: get_policy_store() froze its directory at first call while
+    l3.policy.load_policy read PICODOME_POLICY_STORE_DIR at call time."""
+
+    def test_singleton_follows_env_dir_change(self, tmp_path, monkeypatch, sample_policy):
+        import picosentry.sandbox.policy_versioned.store as store_mod
+        from picosentry.sandbox.l3.policy import load_policy
+
+        dir_a = tmp_path / "A"
+        dir_b = tmp_path / "B"
+        monkeypatch.setattr(store_mod, "_policy_store", None)
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(dir_a))
+
+        store_mod.get_policy_store().save(sample_policy, author="t")
+        assert (dir_a / sample_policy.name / "latest.json").is_file()
+
+        monkeypatch.setenv("PICODOME_POLICY_STORE_DIR", str(dir_b))
+        # Before the fix: the cached singleton kept writing dir A while
+        # load_policy looked in dir B → FileNotFoundError split-brain.
+        store_mod.get_policy_store().save(sample_policy, author="t")
+        assert (dir_b / sample_policy.name / "latest.json").is_file()
+        assert load_policy(name=sample_policy.name) is not None
+
+    def test_concurrent_saves_get_distinct_versions(self, tmp_path, sample_policy):
+        """WO5.0.0-018 item 9: two threads computed the same next_version and
+        silently overwrote each other."""
+        import threading
+
+        from picosentry.sandbox.policy_versioned.store import VersionedPolicyStore
+
+        store = VersionedPolicyStore(store_dir=tmp_path)
+        barrier = threading.Barrier(4)
+
+        def _save():
+            barrier.wait()
+            store.save(sample_policy, author="thread")
+
+        threads = [threading.Thread(target=_save) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        versions = [v.version for v in store.list_versions(sample_policy.name)]
+        assert sorted(versions) == [1, 2, 3, 4]

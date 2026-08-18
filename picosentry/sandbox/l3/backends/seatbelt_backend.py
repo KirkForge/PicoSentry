@@ -325,12 +325,9 @@ class SeatbeltBackend(SandboxBackend):
         return str(Path(path).resolve())
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
-        for event in events:
-            if event.verdict == Verdict.KILL:
-                return Verdict.KILL
-            if event.verdict == Verdict.DENY:
-                return Verdict.DENY
-        return Verdict.ALLOW
+        from picosentry.sandbox.l3.backends.base import compute_verdict
+
+        return compute_verdict(events, exit_code)
 
     def _fallback_run(
         self,

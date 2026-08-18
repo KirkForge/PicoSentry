@@ -112,6 +112,25 @@ class TestAuditLogger:
         results = audit.query(actor="alice")
         assert len(results) == 2
 
+    def test_query_returns_most_recent_window(self, audit):
+        """WO5.0.0-018: query(limit=N) must return the N MOST RECENT events —
+        the old forward-scan-and-break returned the N oldest in reversed dress."""
+        for i in range(6):
+            audit.record(event_type=AuditEventType.SCAN_START, actor=f"a{i}", detail=f"e{i}")
+
+        results = audit.query(limit=3)
+        assert [e.actor for e in results] == ["a5", "a4", "a3"]
+
+    def test_query_limit_with_filter_returns_latest_matches(self, audit):
+        audit.record(event_type=AuditEventType.SCAN_START, actor="a", detail="0")
+        audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="a", detail="1")
+        audit.record(event_type=AuditEventType.SCAN_START, actor="a", detail="2")
+        audit.record(event_type=AuditEventType.SCAN_COMPLETE, actor="a", detail="3")
+        audit.record(event_type=AuditEventType.SCAN_START, actor="a", detail="4")
+
+        results = audit.query(event_type=AuditEventType.SCAN_START, limit=2)
+        assert [e.detail for e in results] == ["4", "2"]
+
     def test_get_stats(self, audit):
         audit.record(event_type=AuditEventType.SCAN_START, actor="u1", detail="cmd1")
         stats = audit.get_stats()

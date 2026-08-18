@@ -386,8 +386,8 @@ def load_config(target_dir: Path) -> PicoDomeConfig:
 
     if "store_backend" in data:
         val = str(data["store_backend"])
-        if val not in ("sqlite", "json"):
-            logger.warning("Invalid store_backend %r in %s (expected: sqlite or json)", val, config_path)
+        if val not in ("sqlite", "json", "jsonl", "redis"):
+            logger.warning("Invalid store_backend %r in %s (expected: sqlite, json or redis)", val, config_path)
         else:
             config.store_backend = val
 

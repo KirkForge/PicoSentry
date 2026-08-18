@@ -3,7 +3,6 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import logging
-import os
 import time
 from typing import TYPE_CHECKING, Any
 from urllib.parse import parse_qs, urlparse
@@ -61,10 +60,9 @@ def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
 
 def _max_list_limit() -> int:
     """Upper bound for list/audit query limits from env (default 1000)."""
-    try:
-        return max(1, int(os.environ.get("PICODOME_MAX_LIST_LIMIT", "1000")))
-    except ValueError:
-        return 1000
+    from picosentry.sandbox.daemon.constants import max_list_limit
+
+    return max_list_limit()
 
 
 def _authorize_cluster_route(self: PicoDomeHandler, permission: str) -> bool:

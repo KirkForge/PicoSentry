@@ -272,3 +272,52 @@ class TestTokenAuth:
             from picosentry._core import security as security_module
 
             assert hasattr(security_module, "constant_time_compare")
+
+
+class TestTokenFilePermissions:
+    """WO5.0.0-018: the permission check claimed "Reject" but only warned."""
+
+    def _write_token_file(self, tmp_path, mode):
+        import pathlib
+
+        token_file = tmp_path / ".picodome" / "api-tokens"
+        token_file.parent.mkdir(parents=True, exist_ok=True)
+        token_file.write_text("file-token-with-plenty-of-length\n")
+        token_file.chmod(mode)
+        return pathlib.Path
+
+    def test_enterprise_rejects_world_readable_token_file(self, tmp_path, monkeypatch):
+        pathlib_cls = self._write_token_file(tmp_path, 0o644)
+        monkeypatch.setattr(pathlib_cls, "home", classmethod(lambda cls: tmp_path))
+        with (
+            patch.dict(os.environ, {"PICODOME_ENTERPRISE_MODE": "1"}, clear=False),
+            pytest.raises(AuthError, match="insecure token file"),
+        ):
+            TokenAuth()
+
+    def test_enterprise_accepts_owner_only_token_file(self, tmp_path, monkeypatch):
+        pathlib_cls = self._write_token_file(tmp_path, 0o600)
+        monkeypatch.setattr(pathlib_cls, "home", classmethod(lambda cls: tmp_path))
+        with patch.dict(os.environ, {"PICODOME_ENTERPRISE_MODE": "1"}, clear=False):
+            auth = TokenAuth()
+        assert auth.validate("file-token-with-plenty-of-length") is True
+
+    def test_dev_mode_warns_but_still_loads(self, tmp_path, monkeypatch, caplog):
+        import logging
+        import pathlib
+
+        self._write_token_file(tmp_path, 0o644)
+        monkeypatch.setattr(pathlib.Path, "home", classmethod(lambda cls: tmp_path))
+        picodome_logger = logging.getLogger("picodome")
+        saved_propagate = picodome_logger.propagate
+        picodome_logger.propagate = True
+        try:
+            with (
+                caplog.at_level(logging.WARNING, logger="picodome.auth"),
+                patch.dict(os.environ, {"PICODOME_ENTERPRISE_MODE": ""}, clear=False),
+            ):
+                auth = TokenAuth()
+            assert auth.validate("file-token-with-plenty-of-length") is True
+            assert any("still loaded (dev posture)" in r.message for r in caplog.records)
+        finally:
+            picodome_logger.propagate = saved_propagate

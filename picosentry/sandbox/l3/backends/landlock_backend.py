@@ -20,6 +20,7 @@ from picosentry.sandbox.l3.backends._rlimits import kill_process_group, set_reso
 from picosentry.sandbox.l3.backends.base import SandboxBackend
 from picosentry.sandbox.l3.models import (
     RuleTarget,
+    SandboxEvent,
     SandboxResult,
     SyscallAction,
     Verdict,
@@ -258,6 +259,21 @@ def _net_handling(policy: Policy, abi: int) -> tuple[int, list[str]]:
     return handled, ceilings
 
 
+def _fs_ceilings(policy: Policy, abi: int) -> list[str]:
+    """FS access rights this kernel's landlock ABI cannot express, for
+    operations the policy explicitly denies (WO5.0.0-019: the ABI<2/3 gaps
+    around REFER/TRUNCATE were silently unenforced — neither degraded nor
+    logged). Explicit-deny-only, same rule as _net_handling, so ambient
+    default-deny posture does not render "degraded" meaningless."""
+    ceilings: list[str] = []
+    if _explicitly_denied(policy, RuleTarget.FILE_WRITE):
+        if abi < 2:
+            ceilings.append(f"refer/rename across dirs (needs landlock ABI 2, kernel >= {_REFER_MIN_KERNEL})")
+        if abi < 3:
+            ceilings.append(f"truncate (needs landlock ABI 3, kernel >= {_TRUNCATE_MIN_KERNEL})")
+    return ceilings
+
+
 def _glob_anchor(pattern: str) -> str | None:
     """Longest glob-free directory prefix of a policy path (None = unbounded)."""
     if pattern.startswith("**"):
@@ -442,10 +458,11 @@ class LandlockBackend(SandboxBackend):
 
         handled_fs = _abi_fs_bits(abi)
         handled_net, net_ceilings = _net_handling(policy, abi)
-        if net_ceilings:
+        ceilings = net_ceilings + _fs_ceilings(policy, abi)
+        if ceilings:
             logger.warning(
                 "landlock: policy denies %s but this kernel (ABI %d) cannot enforce it",
-                ", ".join(net_ceilings),
+                ", ".join(ceilings),
                 abi,
             )
 
@@ -522,6 +539,7 @@ class LandlockBackend(SandboxBackend):
                 stdout_chunks: list[bytes] = []
                 stderr_chunks: list[bytes] = []
                 exit_code: int | None = None
+                timed_out = False
                 deadline = time.monotonic() + (timeout or 30.0)
                 while exit_code is None:
                     # Drain while polling: a child writing >64KB would otherwise
@@ -539,6 +557,7 @@ class LandlockBackend(SandboxBackend):
                     if time.monotonic() >= deadline:
                         # Child ran setsid() (pgid == pid): kill the group so
                         # grandchildren die too (WO4.0.0-011).
+                        timed_out = True
                         kill_process_group(pid)
                         with contextlib.suppress(OSError):
                             _, status = os.waitpid(pid, 0)
@@ -574,22 +593,62 @@ class LandlockBackend(SandboxBackend):
             shutil.rmtree(workspace_root, ignore_errors=True)
 
         elapsed = time.monotonic() - start_time
+        stdout = b"".join(stdout_chunks).decode("utf-8", errors="replace").strip()
+        stderr = b"".join(stderr_chunks).decode("utf-8", errors="replace").strip()
+
+        # WO5.0.0-019: verdict is event-driven, shared with seccomp/subprocess.
+        # The old ALLOW-iff-exit==0 rule turned a grep-no-match (exit 2) or
+        # npm-audit findings (exit 1) into a policy DENY that no other backend
+        # produced. Signal deaths are KILL; plain nonzero exits are ALLOW.
+        events: list[SandboxEvent] = []
+        degraded = bool(ceilings)
+
+        if timed_out:
+            events.append(
+                SandboxEvent(
+                    rule_id="L3-TIMEOUT-001",
+                    verdict=Verdict.KILL,
+                    operation="process_timeout",
+                    detail=f"Process exceeded {timeout or 30.0}s timeout",
+                )
+            )
+        if exit_code in (125, 126, 127):
+            # Child-stub infra codes (cwd unusable / exec failed / setup or
+            # exec-not-found) — an infrastructure failure reported honestly as
+            # degraded, never as a clean policy DENY (WO5.0.0-019 item 2).
+            # ponytail: a workload exiting 125/126/127 itself is
+            # indistinguishable — same tradeoff docker makes.
+            events.append(
+                SandboxEvent(
+                    rule_id="L3-EXEC-001" if exit_code == 127 else "L3-EXEC-002",
+                    verdict=Verdict.DENY,
+                    operation="exec_not_found" if exit_code == 127 else "exec_permission_denied",
+                    detail=(f"child exited {exit_code} before/at exec — infrastructure failure, not a policy verdict"),
+                )
+            )
+            degraded = True
+
+        from picosentry.sandbox.l3.backends.subprocess_backend import SubprocessBackend
+
+        events.extend(SubprocessBackend()._check_suspicious_patterns(stdout, stderr))
+
+        from picosentry.sandbox.l3.backends.base import compute_verdict
 
         return SandboxResult(
             run_id=f"landlock-{os.getpid()}-{int(start_time)}",
             timestamp=datetime.datetime.now(datetime.timezone.utc).isoformat(),
             command=command,
-            overall_verdict=Verdict.ALLOW if exit_code == 0 else Verdict.DENY,
+            overall_verdict=compute_verdict(events, exit_code),
             exit_code=exit_code,
             duration_ms=int(elapsed * 1000),
-            events=[],
+            events=events,
             policy_name=policy.name if hasattr(policy, "name") else "landlock-default",
             backend_name=self.name,
             isolation_level=self.isolation_level,
             enforcement_guarantee=self.enforcement_guarantee,
-            degraded=bool(net_ceilings),
-            stdout=b"".join(stdout_chunks).decode("utf-8", errors="replace").strip(),
-            stderr=b"".join(stderr_chunks).decode("utf-8", errors="replace").strip(),
+            degraded=degraded,
+            stdout=stdout,
+            stderr=stderr,
         )
 
     def _unavailable(

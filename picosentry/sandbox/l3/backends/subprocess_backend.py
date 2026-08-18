@@ -296,13 +296,6 @@ class SubprocessBackend(SandboxBackend):
         return events
 
     def _compute_verdict(self, events: list[SandboxEvent], exit_code: int) -> Verdict:
-        if exit_code == -1 and any(e.rule_id == "L3-TIMEOUT-001" for e in events):
-            return Verdict.KILL
+        from picosentry.sandbox.l3.backends.base import compute_verdict
 
-        for event in events:
-            if event.verdict == Verdict.KILL:
-                return Verdict.KILL
-            if event.verdict == Verdict.DENY:
-                return Verdict.DENY
-
-        return Verdict.ALLOW
+        return compute_verdict(events, exit_code)

@@ -91,3 +91,41 @@ class TestDaemonInputCaps:
 
         monkeypatch.setenv("PICODOME_MAX_SCAN_TIMEOUT", "60")
         assert _max_scan_timeout_seconds() == 60.0
+
+
+class TestStoreBackendSelection:
+    """WO5.0.0-017: PICODOME_STORE_BACKEND must not silently fall back."""
+
+    def test_unknown_backend_fails_fast(self, tmp_path, monkeypatch):
+        monkeypatch.setenv("PICODOME_JOB_STORE_DIR", str(tmp_path))
+        from picosentry.sandbox.daemon import PicoDomeDaemon
+
+        with pytest.raises(ValueError, match="PICODOME_STORE_BACKEND"):
+            PicoDomeDaemon(host="127.0.0.1", port=1, store_backend="cassandra")
+
+    def test_redis_backend_wired_and_loud_when_down(self, tmp_path, monkeypatch, caplog):
+        import logging
+
+        from picosentry.sandbox.daemon import PicoDomeDaemon
+        from picosentry.sandbox.daemon.server import PicoDomeHandler
+        from picosentry.sandbox.daemon.redis_store import RedisScanJobStore
+        from picosentry.sandbox.tenant.store import TenantAwareScanJobStore
+
+        monkeypatch.setenv("PICODOME_JOB_STORE_DIR", str(tmp_path))
+        monkeypatch.setenv("PICODOME_REDIS_URL", "redis://localhost:1/0")
+
+        picodome_logger = logging.getLogger("picodome")
+        saved_propagate = picodome_logger.propagate
+        picodome_logger.propagate = True
+        try:
+            with caplog.at_level(logging.ERROR, logger="picodome.daemon"):
+                daemon = PicoDomeDaemon(host="127.0.0.1", port=1, store_backend="redis")
+            try:
+                wrapped = PicoDomeHandler.job_store
+                assert isinstance(wrapped, TenantAwareScanJobStore)
+                assert isinstance(wrapped.store, RedisScanJobStore)
+                assert any("NOT reachable" in r.message for r in caplog.records)
+            finally:
+                daemon._scan_executor.shutdown(wait=False)
+        finally:
+            picodome_logger.propagate = saved_propagate

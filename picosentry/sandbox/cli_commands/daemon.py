@@ -27,9 +27,9 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument(
         "--store-backend",
-        choices=["jsonl", "sqlite"],
+        choices=["jsonl", "sqlite", "redis"],
         default=None,
-        help="Job store backend: jsonl (default) or sqlite",
+        help="Job store backend: jsonl (default), sqlite or redis (PICODOME_REDIS_URL)",
     )
     parser.add_argument(
         "--metrics-port",

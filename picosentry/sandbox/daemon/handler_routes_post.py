@@ -12,6 +12,7 @@ from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE, sanitize_scan_timeout
+from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
@@ -29,44 +30,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picodome.daemon")
 
-
-def _check_cluster_token(self: PicoDomeHandler, mgr: Any) -> bool:
-    """Verify X-Cluster-Token header matches any accepted cluster token."""
-    from picosentry._core.security import constant_time_compare
-
-    provided = self.headers.get("X-Cluster-Token", "")
-    if not provided:
-        self._send_error(403, "cluster token required")
-        return False
-
-    token_store = getattr(mgr.state, "token_store", None)
-    from picosentry.sandbox.cluster.token_store import ClusterTokenStore
-
-    if isinstance(token_store, ClusterTokenStore):
-        if token_store.is_accepted(provided):
-            return True
-        # Legacy single-token peers send the primary token directly.
-        if constant_time_compare(provided, mgr.state.cluster_token):
-            return True
-    else:
-        # Backwards-compatible path for state objects without a token_store.
-        expected = mgr.state.cluster_token
-        if expected and constant_time_compare(provided, expected):
-            return True
-
-    actor = hashlib.sha256(provided.encode("utf-8")).hexdigest()[:16]
-    try:
-        audit = get_audit_logger()
-        audit.record(
-            event_type=AuditEventType.AUTH_FAILURE,
-            actor=actor,
-            detail="Cluster token mismatch",
-            target=self.path,
-        )
-    except (OSError, RuntimeError):
-        logger.exception("Audit record failed")
-    self._send_error(403, "cluster token mismatch")
-    return False
+# _check_cluster_token lives in handler_routes_get (WO5.0.0-018: it was
+# duplicated verbatim here with drifted exception tuples).
 
 
 def _max_scan_timeout_seconds() -> float:
@@ -163,27 +128,9 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.INVALID_TIMEOUT, detail="timeout must be a finite number")
             return
 
-        job_id = uuid.uuid4().hex
-        actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
-
-        tenant_id = self._resolve_tenant(token)
-
-        # Tenant-scoped add (WO4.0.0-010): the job is persisted with its
-        # owning tenant so later reads are denied cross-tenant.
-        self.job_store.add(job_id, command, actor, tenant_id=tenant_id)
-
-        try:
-            audit = get_audit_logger()
-            audit.record(
-                event_type=AuditEventType.SCAN_START,
-                actor=actor,
-                detail=f"{' '.join(command)}",
-                target=command[0] if command else "",
-                metadata={"job_id": job_id, "timeout": timeout, "tenant_id": str(tenant_id)},
-            )
-        except (OSError, RuntimeError):
-            logger.exception("Audit record failed")
-
+        # WO5.0.0-017: validate policy and backend BEFORE persisting the job.
+        # The old add-first order error-returned on every validation failure
+        # without failing the row, leaving orphaned pending jobs forever.
         policy_name = data.get("policy")
         if policy_name:
             try:
@@ -199,34 +146,61 @@ class PicoDomePostRoutesMixin:
         else:
             policy = default_policy()
 
-        try:
-            backend_name = data.get("backend", "auto")
-            backend: SandboxBackend | None = None
+        backend_name = data.get("backend", "auto")
+        backend: SandboxBackend | None = None
 
-            if _ENTERPRISE_MODE and backend_name == "subprocess":
-                self._send_error(
-                    ErrorCodes.ENTERPRISE_ENFORCEMENT,
-                    detail="subprocess backend is not allowed in enterprise mode",
-                )
+        if _ENTERPRISE_MODE and backend_name == "subprocess":
+            self._send_error(
+                ErrorCodes.ENTERPRISE_ENFORCEMENT,
+                detail="subprocess backend is not allowed in enterprise mode",
+            )
+            return
+        if backend_name != "auto":
+            cls_path = _DAEMON_BACKEND_MAP.get(backend_name)
+            if cls_path is None:
+                self._send_error(ErrorCodes.INVALID_BACKEND, detail=backend_name)
                 return
-            if backend_name != "auto":
-                cls_path = _DAEMON_BACKEND_MAP.get(backend_name)
-                if cls_path is None:
-                    self._send_error(ErrorCodes.INVALID_BACKEND, detail=backend_name)
-                    return
-                try:
-                    module_path, cls_name = cls_path.rsplit(":", 1)
+            try:
+                module_path, cls_name = cls_path.rsplit(":", 1)
 
-                    backend_cls = getattr(import_module(module_path), cls_name)
-                    backend = backend_cls()
-                    if not backend.is_available():
-                        self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
-                        return
-                except (ImportError, AttributeError, ValueError):
-                    logger.exception("Backend instantiation failed for %s", backend_name)
+                backend_cls = getattr(import_module(module_path), cls_name)
+                backend = backend_cls()
+                if not backend.is_available():
                     self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
                     return
+            except (ImportError, AttributeError, ValueError, RuntimeError):
+                logger.exception("Backend instantiation failed for %s", backend_name)
+                self._send_error(ErrorCodes.BACKEND_UNAVAILABLE, detail=backend_name)
+                return
 
+        job_id = uuid.uuid4().hex
+        actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
+
+        tenant_id = self._resolve_tenant(token)
+
+        # Tenant-scoped add (WO4.0.0-010): the job is persisted with its
+        # owning tenant so later reads are denied cross-tenant. A store that
+        # cannot persist rejects the submit — never a fake 201 (WO5.0.0-017).
+        try:
+            self.job_store.add(job_id, command, actor, tenant_id=tenant_id)
+        except (OSError, RuntimeError) as exc:
+            logger.error("Job store unavailable, rejecting submit of %s: %s", job_id, exc)
+            self._send_error(ErrorCodes.NOT_READY, detail="job store unavailable")
+            return
+
+        try:
+            audit = get_audit_logger()
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor=actor,
+                detail=f"{' '.join(command)}",
+                target=command[0] if command else "",
+                metadata={"job_id": job_id, "timeout": timeout, "tenant_id": str(tenant_id)},
+            )
+        except (OSError, RuntimeError):
+            logger.exception("Audit record failed")
+
+        try:
             executor = self.scan_executor
             if executor is None:
                 # No daemon-managed pool (direct handler use): run inline.

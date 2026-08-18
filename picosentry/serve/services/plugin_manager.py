@@ -37,6 +37,18 @@ VALID_HOOKS = {"project_start", "project_complete", "intelligence", "alert"}
 
 # Capabilities are deny-by-default. A plugin must declare each capability it
 # needs in its manifest; the host enforces the allowed surface area.
+#
+# ADR (WO5.0.0-032, decided 2026-08-18): capability ENFORCEMENT is
+# documented-declared-only in phase 1. network/filesystem/subprocess are
+# validated as manifest vocabulary and surfaced in logs/metadata, but nothing
+# yet stops a handler from attempting the behavior — the plugin host runs
+# in-process, so a declared-but-lying plugin gets whatever the server's own
+# OS permissions allow.
+# ceiling: honest declared-only until enforcement reuses the PicoDome sandbox
+# (seccomp/landlock backend) — run untrusted plugin dispatch through
+# picodome with a per-capability policy (network=on/off, fs roots, exec
+# allowlist) instead of building a second enforcement mechanism here.
+# Upgrade trigger: any third-party (non-repo) plugin is loaded outside dev.
 VALID_CAPABILITIES = {
     "network",  # outbound network access
     "filesystem",  # read/write outside the plugin's own directory

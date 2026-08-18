@@ -916,9 +916,10 @@ MIGRATIONS: list[Migration] = [
         "multiworker_outbox_and_scheduler_lease",
         """
         -- WO5.0.0-031: cross-worker primitives. event_outbox is the shared
-        -- event fanout channel (each worker polls seq > last_seen); the
-        -- seeded scheduler_leases row is the leader lease anchors. The seed
+        -- event fanout channel (each worker polls seq > last_seen) and the
+        -- seeded scheduler_leases row is the leader lease anchor. The seed
         -- expiry predates the epoch so the first boot always acquires.
+        -- No semicolons in comments: the runner splits statements on them.
         CREATE TABLE IF NOT EXISTS event_outbox (
             seq INTEGER PRIMARY KEY AUTOINCREMENT,
             id TEXT NOT NULL UNIQUE,

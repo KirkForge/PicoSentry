@@ -315,6 +315,16 @@ class PicoDomeGetRoutesMixin:
             until=query.get("until", [None])[0],
             limit=_clamped_limit(query, "limit", 100),
         )
+
+        # Tenant scoping (WO5.0.0-001): tenant tokens see only their own
+        # tenant's events; operator tokens see all. Filtered post-query, so a
+        # tenant's page may under-fill when other tenants' events interleave —
+        # query()-side filters are WO5.0.0-018 territory.
+        token = self._get_token()
+        if not self._is_tenant_operator(token):
+            tenant_id = self._resolve_tenant(token)
+            events = [e for e in events if e.metadata.get("tenant_id") == str(tenant_id)]
+
         self._send_json(
             {
                 "events": [e.to_dict() for e in events],
@@ -323,10 +333,17 @@ class PicoDomeGetRoutesMixin:
         )
 
     def _handle_list_tenants(self: PicoDomeHandler) -> None:
-        from picosentry.sandbox.tenant import get_tenant_registry
+        from picosentry.sandbox.tenant import TenantContext, get_tenant_registry
 
         registry = get_tenant_registry()
-        tenants = registry.list_tenants()
+        token = self._get_token()
+        if self._is_tenant_operator(token):
+            contexts = registry.list_tenants()
+        else:
+            # Tenant tokens see only their own tenant (WO5.0.0-001).
+            tid = self._resolve_tenant(token)
+            own = registry.get(tid)
+            contexts = [own] if own is not None else [TenantContext(tenant_id=tid)]
         self._send_json(
             {
                 "tenants": [
@@ -335,9 +352,9 @@ class PicoDomeGetRoutesMixin:
                         "display_name": ctx.display_name,
                         "is_default": ctx.is_default,
                     }
-                    for ctx in tenants
+                    for ctx in contexts
                 ],
-                "count": len(tenants),
+                "count": len(contexts),
             }
         )
 

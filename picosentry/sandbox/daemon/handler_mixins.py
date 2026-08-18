@@ -140,6 +140,15 @@ class PicoDomeAuthMixin:
 
         return registry.resolve_tenant(token_hash, header_tenant=header_tenant)
 
+    def _is_tenant_operator(self: PicoDomeHandler, token: str | None) -> bool:
+        """Explicitly-designated operator tokens see all tenants (WO5.0.0-001)."""
+        from picosentry.sandbox.tenant import get_tenant_registry
+
+        if not token or token == "no-auth-dev-mode":
+            return False
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        return get_tenant_registry().is_operator_token(token_hash)
+
     def _require_auth(self: PicoDomeHandler) -> str | None:
         token = self._get_token()
 

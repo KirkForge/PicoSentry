@@ -64,6 +64,13 @@ class PicoDomeGRPCServer:
             auth = TokenAuth()
         self._auth = auth
 
+        # Tenant registry from the environment (WO5.0.0-001) — the servicer
+        # resolves tenants per request; without this the registry is empty and
+        # every request lands in DEFAULT.
+        from picosentry.sandbox.tenant import load_tenants_from_env
+
+        load_tenants_from_env()
+
     def start(self) -> None:
         if not is_grpc_available():
             raise ImportError("grpcio is not installed. Install it with: pip install grpcio")

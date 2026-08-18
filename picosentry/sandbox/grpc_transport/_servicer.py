@@ -61,7 +61,13 @@ class PicoDomeServicer:
                     logger.warning("Policy '%s' rejected: %s", policy_name, e)
                     return self._reject(context, "INVALID_ARGUMENT", f"invalid policy '{policy_name}'")
 
-            tenant_id = self._resolve_tenant(context)
+            from picosentry.sandbox.tenant import TenantMismatchError
+
+            try:
+                tenant_id = self._resolve_tenant(context)
+            except TenantMismatchError:
+                self._audit_log("SCAN_ERROR", detail="x-tenant does not match token's tenant")
+                return self._reject(context, "PERMISSION_DENIED", "x-tenant does not match token's tenant")
 
             sandbox_result = self._scan_engine.scan(
                 command=command,
@@ -284,10 +290,13 @@ class PicoDomeServicer:
         return
 
     def _resolve_tenant(self, context) -> str:
-        """Tenant resolution mirroring the HTTP daemon's _resolve_tenant."""
+        """Tenant resolution mirroring the HTTP daemon's rule (WO5.0.0-001):
+        the x-tenant metadata key may only confirm the token's mapped tenant;
+        anything else raises TenantMismatchError (the caller rejects the RPC)."""
+        from picosentry.sandbox.tenant import TenantMismatchError, get_tenant_registry
+
         try:
             from picosentry.sandbox.grpc_transport.auth import bearer_token_from_metadata, metadata_value
-            from picosentry.sandbox.tenant import get_tenant_registry
 
             token = bearer_token_from_metadata(context.invocation_metadata())
             header_tenant = metadata_value(context.invocation_metadata(), "x-tenant") or None
@@ -295,6 +304,8 @@ class PicoDomeServicer:
 
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest() if token else ""
             return str(get_tenant_registry().resolve_tenant(token_hash, header_tenant=header_tenant))
+        except TenantMismatchError:
+            raise
         except Exception:
             logger.debug("tenant resolution failed", exc_info=True)
             return ""

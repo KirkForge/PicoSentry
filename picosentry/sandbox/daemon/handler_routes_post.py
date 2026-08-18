@@ -364,7 +364,11 @@ class PicoDomePostRoutesMixin:
                     actor=actor,
                     detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}",
                     target=command[0] if command else "",
-                    metadata={"job_id": job_id, "findings": len(analysis_result.findings)},
+                    metadata={
+                        "job_id": job_id,
+                        "findings": len(analysis_result.findings),
+                        "tenant_id": str(tenant_id) if tenant_id is not None else None,
+                    },
                 )
             except (OSError, RuntimeError):
                 logger.exception("Audit record failed")

@@ -20,6 +20,7 @@
 3. **Check progression**: after each file edit, verify it lints/compiles. Don't batch 10 changes then discover the 3rd was wrong.
 4. **Session close** (all required, in order): commit → `lessons.md` (what I learned / didn't work / would do differently) → `state.md` (what changed, pending, blocked) → `CHANGELOG.md` entry → verify clean tree → verify gates green → paste final gate output + head SHA. A session is NOT done until all are done.
 5. **Commit target**: routine work commits directly to `dev`. Risky/disjoint parallel work runs in dedicated worktrees branched `wo/<series>/<slug>` off `origin/dev` (see §2); the orchestrator merges them into `dev` (`--no-ff`) and re-runs gates so `dev` CI is green after every merge. Never touch `main` directly. Never force-push. Fix forward.
+   - **Green-before-ff (standing rule, 2026-08-18)**: fast-forward `main` to `dev` LIBERALLY — dev must never drift tens of commits ahead — but ONLY onto a dev push-CI run that is green at that exact headSha (verify by workflowName AND headSha, never "a green row exists"; docs-only pushes that skip CI are safe to ff). Red CI must never appear on `main` in a security product: failures live, get root-caused, and get fixed on `dev`, and `main` follows once green. Before any release tag additionally: run `bash scripts/test.sh integration` locally on the release commit — it is the tier the push run executes.
 
 ## 2. Subagent strategy
 

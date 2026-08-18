@@ -186,6 +186,10 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
     rule_executions: list[RuleExecution] = field(default_factory=list)
     package_intel: dict[str, Any] = field(default_factory=dict)
     behavioral_evidence: dict[str, Any] | None = None
+    # SBOM components no ecosystem fallback could map — they are NOT scanned;
+    # surfaced instead of vanishing (WO5.0.0-016). 0 (the default) is omitted
+    # from serialized output so non-SBOM scans stay byte-identical.
+    unscannable_components: int = 0
 
     def recompute_stats(self) -> None:
         by_sev: dict[str, int] = {}
@@ -217,6 +221,9 @@ class ScanResult:  # rationale: top-level scan result, deterministic by construc
             "target": self.target,
             "findings": [f.to_dict() for f in sorted_findings],
         }
+
+        if self.unscannable_components:
+            d["unscannable_components"] = self.unscannable_components
 
         if not deterministic_output:
             d["stats"] = self.stats.to_dict()

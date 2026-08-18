@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -44,6 +45,34 @@ _CYCLONEDX_TYPE_MAP: dict[str, str] = {
 }
 
 _MAX_XML_BYTES = 10 * 1024 * 1024  # ponytail: 10MB cap rejects billion-laughs amplification
+
+# Registry hosts → ecosystem, for purl-less components whose download URL or
+# sourceInfo names a known registry (WO5.0.0-016: purl is optional in
+# CycloneDX; without a fallback these components vanished silently).
+_REGISTRY_HOST_MAP: dict[str, str] = {
+    "registry.npmjs.org": "npm",
+    "www.npmjs.com": "npm",
+    "npmjs.com": "npm",
+    "pypi.org": "pypi",
+    "files.pythonhosted.org": "pypi",
+    "rubygems.org": "rubygems",
+    "crates.io": "cargo",
+    "static.crates.io": "cargo",
+    "repo1.maven.org": "maven",
+    "repo.maven.apache.org": "maven",
+    "mvnrepository.com": "maven",
+    "nuget.org": "nuget",
+    "api.nuget.org": "nuget",
+    "www.nuget.org": "nuget",
+    "proxy.golang.org": "golang",
+    "sum.golang.org": "golang",
+}
+
+# Go module paths start with a host ("github.com/owner/repo"); npm scoped
+# names ("@scope/pkg") never contain a dot-host segment.
+_GO_MODULE_PATH_RE = re.compile(r"^[a-z0-9][a-z0-9.-]*\.[a-z]{2,}(?:/[^/\s]+){2,}$")
+# Maven coordinates "org.apache.commons:commons-io" (reverse-domain group).
+_MAVEN_COORDS_RE = re.compile(r"^[a-z][a-z0-9]*(?:\.[a-z][a-z0-9]*)+:[^/\s:]+$")
 
 
 def _purl_namespace(purl: str) -> str:
@@ -169,6 +198,21 @@ def _ecosystem_from_purl(purl: str) -> str:
     return _PURL_ECOSYSTEM_MAP.get(pkg_type, "unknown")
 
 
+def _ecosystem_from_url(url: str) -> str:
+    host = url.split("//", 1)[-1].split("/", 1)[0].split(":", 1)[0].lower()
+    return _REGISTRY_HOST_MAP.get(host, "unknown")
+
+
+def _ecosystem_from_name(name: str) -> str:
+    if name.startswith("@") and "/" in name:
+        return "npm"
+    if _GO_MODULE_PATH_RE.match(name):
+        return "golang"
+    if _MAVEN_COORDS_RE.match(name):
+        return "maven"
+    return "unknown"
+
+
 def _parse_cyclonedx_json(data: dict) -> list[PackageRef]:
     components = data.get("components") or []
     refs: list[PackageRef] = []
@@ -179,6 +223,14 @@ def _parse_cyclonedx_json(data: dict) -> list[PackageRef]:
         version = comp.get("version", "")
         purl = comp.get("purl", "")
         ecosystem = _ecosystem_from_purl(purl) if purl else "unknown"
+        if ecosystem == "unknown":
+            ecosystem = _ecosystem_from_name(name)
+        if ecosystem == "unknown":
+            for ref in comp.get("externalReferences", []) or []:
+                if isinstance(ref, dict):
+                    ecosystem = _ecosystem_from_url(str(ref.get("url", "")))
+                    if ecosystem != "unknown":
+                        break
         if ecosystem == "maven":
             group = comp.get("group", "") if isinstance(comp.get("group", ""), str) else ""
             name = _maven_display_name(name, group, purl)
@@ -217,6 +269,17 @@ def _parse_cyclonedx_xml(data: bytes) -> list[PackageRef]:
         purl_el = _find_child(comp, "purl")
         purl = (purl_el.text if purl_el is not None else comp.get("purl", "")) or ""
         ecosystem = _ecosystem_from_purl(purl) if purl else "unknown"
+        if ecosystem == "unknown":
+            ecosystem = _ecosystem_from_name(name)
+        if ecosystem == "unknown":
+            for ref in comp.iter():
+                rtag = ref.tag.split("}")[-1] if "}" in ref.tag else ref.tag
+                if rtag == "reference":
+                    url_el = _find_child(ref, "url")
+                    url = (url_el.text if url_el is not None else ref.get("url", "")) or ""
+                    ecosystem = _ecosystem_from_url(url)
+                    if ecosystem != "unknown":
+                        break
         if ecosystem == "maven":
             name = _maven_display_name(name, comp.get("group", "") or "", purl)
         refs.append(PackageRef(name=name, version=version, ecosystem=ecosystem, purl=purl))
@@ -242,6 +305,13 @@ def _parse_spdx_json(data: dict) -> list[PackageRef]:
             pkg_manager = pkg.get("packageManager", "")
             if isinstance(pkg_manager, str) and pkg_manager:
                 ecosystem = _SPDX_PKG_MANAGER_MAP.get(pkg_manager.lower(), pkg_manager.lower())
+        if ecosystem == "unknown":
+            for field in ("downloadLocation", "sourceInfo"):
+                ecosystem = _ecosystem_from_url(str(pkg.get(field, "") or ""))
+                if ecosystem != "unknown":
+                    break
+        if ecosystem == "unknown":
+            ecosystem = _ecosystem_from_name(name)
         if ecosystem == "maven":
             name = _maven_display_name(name, "", purl)
         refs.append(PackageRef(name=name, version=version, ecosystem=ecosystem, purl=purl))

@@ -167,6 +167,7 @@ class ScanOrchestrator:
         self.args = args
         self.workspace_root = _workspace_root()
         self._sbom_tmpdir: tempfile.TemporaryDirectory | None = None
+        self._unscannable_components = 0
         # Import the scan command module here (not at module top) to avoid a
         # circular import, and capture its worker reference so tests that patch
         # ``picosentry.scan.cli_commands.scan._scan_worker`` are honoured.
@@ -268,6 +269,7 @@ class ScanOrchestrator:
                 scanner_version=audit.get("scanner_version", cached_data.get("engine_version", __version__)),
                 package_intel=cached_data.get("package_intel", {}),
                 behavioral_evidence=cached_data.get("behavioral_evidence"),
+                unscannable_components=cached_data.get("unscannable_components", 0),
             )
         except (ValueError, TypeError, KeyError, AttributeError) as exc:
             logger.warning("Cache entry for %s is corrupted, ignoring: %s", target, exc)
@@ -441,10 +443,15 @@ class ScanOrchestrator:
         if not sbom.is_file():
             print(f"Error: SBOM file not found: {sbom}", file=sys.stderr)
             raise SystemExit(2)
-        refs = parse_sbom(sbom)
+        try:
+            refs = parse_sbom(sbom)
+        except ValueError as exc:
+            print(f"Error: invalid SBOM file: {exc}", file=sys.stderr)
+            raise SystemExit(2) from exc
         if not refs:
             print(f"Error: SBOM contains no packages: {sbom}", file=sys.stderr)
             raise SystemExit(2)
+        self._unscannable_components = sum(1 for ref in refs if ref.ecosystem == "unknown")
         tmpdir = tempfile.TemporaryDirectory(prefix="picosentry-sbom-")
         self._sbom_tmpdir = tmpdir
         scan_dir = Path(tmpdir.name)
@@ -588,6 +595,16 @@ class ScanOrchestrator:
 
         if cache is not None and input_hash and not cached_result:
             self._save_cache(cache, input_hash, result, config)
+
+        # SBOM components no fallback could map must not vanish silently
+        # (WO5.0.0-016): count them in the result and say so on stderr.
+        if self._unscannable_components:
+            result.unscannable_components = self._unscannable_components
+            print(
+                f"Warning: {self._unscannable_components} SBOM component(s) have no recognizable "
+                "ecosystem — not scanned (see unscannable_components in the result)",
+                file=sys.stderr,
+            )
 
         # Explicitly requested rules that ecosystem detection dropped must not
         # surface as a clean scan (WO5.0.0-015) — exit 2 (input error) when
@@ -778,6 +795,13 @@ class ScanOrchestrator:
             )
             for name, rid in report.unknown_rule_expectations[:20]:
                 print(f"  {name}: expects nonexistent rule {rid}", file=sys.stderr)
+
+        if report.skipped_fixtures:
+            print(
+                f"WARNING: {report.skipped_fixtures} fixture(s) skipped (malformed fixture.json "
+                "or unknown label) — precision/recall computed over the loaded fixtures only",
+                file=sys.stderr,
+            )
 
         print(
             f"\nfixtures: {report.total_fixtures} "

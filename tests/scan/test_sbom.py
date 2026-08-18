@@ -255,3 +255,200 @@ class TestParseSBOMIntegration:
         p.write_text("not a sbom")
         with pytest.raises(ValueError, match="Cannot detect SBOM format"):
             parse_sbom(p)
+
+
+class TestEcosystemFallback:
+    """WO5.0.0-016 — purl-less components get ecosystem fallbacks instead of
+    silently landing in unknown-packages.json where no rule parses them."""
+
+    def test_scoped_name_maps_to_npm(self):
+        refs = _parse_cyclonedx_json(
+            {"specVersion": "1.5", "components": [{"type": "library", "name": "@evil/dep", "version": "1.0.0"}]}
+        )
+        assert refs[0].ecosystem == "npm"
+
+    def test_external_reference_url_maps_to_npm(self):
+        refs = _parse_cyclonedx_json(
+            {
+                "specVersion": "1.5",
+                "components": [
+                    {
+                        "type": "library",
+                        "name": "lodash",
+                        "version": "4.17.20",
+                        "externalReferences": [
+                            {"type": "distribution", "url": "https://registry.npmjs.org/lodash/-/lodash-4.17.20.tgz"}
+                        ],
+                    }
+                ],
+            }
+        )
+        assert refs[0].ecosystem == "npm"
+
+    def test_go_module_path_name(self):
+        refs = _parse_cyclonedx_json(
+            {
+                "specVersion": "1.5",
+                "components": [{"type": "library", "name": "github.com/pkg/errors", "version": "v0.9.1"}],
+            }
+        )
+        assert refs[0].ecosystem == "golang"
+
+    def test_maven_coords_name(self):
+        refs = _parse_cyclonedx_json(
+            {
+                "specVersion": "1.5",
+                "components": [{"type": "library", "name": "org.apache.commons:commons-io", "version": "1.4"}],
+            }
+        )
+        assert refs[0].ecosystem == "maven"
+        assert refs[0].name == "org.apache.commons:commons-io"
+
+    def test_plain_name_stays_unknown(self):
+        refs = _parse_cyclonedx_json(
+            {"specVersion": "1.5", "components": [{"type": "library", "name": "mystery-blob", "version": "2.0"}]}
+        )
+        assert refs[0].ecosystem == "unknown"
+
+    def test_cyclonedx_xml_reference_url_child_element(self):
+        bom = (
+            '<?xml version="1.0" encoding="UTF-8"?>'
+            '<bom xmlns="http://cyclonedx.org/schema/bom/1.5" version="1">'
+            "  <components>"
+            '    <component type="library">'
+            "      <name>lodash</name>"
+            "      <version>4.17.20</version>"
+            "      <externalReferences>"
+            '        <reference type="distribution">'
+            "          <url>https://registry.npmjs.org/lodash/-/lodash-4.17.20.tgz</url>"
+            "        </reference>"
+            "      </externalReferences>"
+            "    </component>"
+            "  </components>"
+            "</bom>"
+        )
+        refs = _parse_cyclonedx_xml(bom.encode())
+        assert len(refs) == 1
+        assert refs[0].ecosystem == "npm"
+
+    def test_spdx_download_location_sniffing(self):
+        refs = _parse_spdx_json(
+            {
+                "SPDXID": "SPDXRef-DOCUMENT",
+                "packages": [
+                    {
+                        "name": "express",
+                        "versionInfo": "4.18.2",
+                        "downloadLocation": "https://registry.npmjs.org/express/-/express-4.18.2.tgz",
+                    },
+                    {
+                        "name": "requests",
+                        "versionInfo": "2.31.0",
+                        "downloadLocation": "NOASSERTION",
+                        "sourceInfo": "acquired from https://pypi.org/project/requests/2.31.0/",
+                    },
+                ],
+            }
+        )
+        assert refs[0].ecosystem == "npm"
+        assert refs[1].ecosystem == "pypi"
+
+    def test_spdx_purl_still_wins_over_heuristics(self):
+        refs = _parse_spdx_json(
+            {
+                "SPDXID": "SPDXRef-DOCUMENT",
+                "packages": [
+                    {
+                        "name": "weird-name",
+                        "versionInfo": "1.0",
+                        "downloadLocation": "https://registry.npmjs.org/weird-name/-/weird-name-1.0.tgz",
+                        "externalRefs": [{"referenceType": "purl", "referenceLocator": "pkg:pypi/weird-name@1.0"}],
+                    }
+                ],
+            }
+        )
+        assert refs[0].ecosystem == "pypi"
+
+
+class TestSbomCliAccounting:
+    """WO5.0.0-016 — purl-less SBOM components are scanned via fallback or
+    counted as unscannable (result + stderr), never silently dropped; garbage
+    --sbom input exits 2 with a clean message."""
+
+    def _run(self, tmp_path, monkeypatch, sbom_content: str):
+        import argparse
+
+        from picosentry.scan.cli_commands.scan import add_arguments
+        from picosentry.scan.cli_service import ScanOrchestrator
+
+        monkeypatch.setenv("PICOSENTRY_CACHE_DIR", str(tmp_path / "cache"))
+        monkeypatch.setenv("PICOSENTRY_ADVISORY_DIR", str(tmp_path / "no-adv"))
+        monkeypatch.setenv("PICOSENTRY_CORPUS_DIR", str(tmp_path / "no-user-corpus"))
+        monkeypatch.setenv("PICOSENTRY_INTELLIGENCE_DIR", str(tmp_path / "intel"))
+
+        sbom = tmp_path / "sbom.json"
+        sbom.write_text(sbom_content)
+        proj = tmp_path / "proj"
+        proj.mkdir()
+        parser = argparse.ArgumentParser()
+        add_arguments(parser.add_subparsers())
+        args = parser.parse_args(
+            ["scan", str(proj), "--sbom", str(sbom), "--no-cache", "--offline", "--format", "json"]
+        )
+        return ScanOrchestrator(args).run()
+
+    def test_unscannable_counted_in_result_and_stderr(self, tmp_path, monkeypatch, capsys):
+        import json as json_mod
+
+        rc = self._run(
+            tmp_path,
+            monkeypatch,
+            json_mod.dumps(
+                {
+                    "bomFormat": "CycloneDX",
+                    "specVersion": "1.5",
+                    "version": 1,
+                    "components": [
+                        {"type": "library", "name": "@evil/dep", "version": "1.0.0"},
+                        {"type": "library", "name": "mystery-blob", "version": "2.0"},
+                    ],
+                }
+            ),
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        data = json_mod.loads(captured.out)
+        assert data["unscannable_components"] == 1
+        assert "unscannable_components" in captured.err
+        assert "1 SBOM component(s)" in captured.err
+
+    def test_all_mapped_components_no_warning(self, tmp_path, monkeypatch, capsys):
+        import json as json_mod
+
+        rc = self._run(
+            tmp_path,
+            monkeypatch,
+            json_mod.dumps(
+                {
+                    "bomFormat": "CycloneDX",
+                    "specVersion": "1.5",
+                    "version": 1,
+                    "components": [
+                        {"type": "library", "name": "@evil/dep", "version": "1.0.0"},
+                        {"type": "library", "name": "lodash", "version": "4.17.20", "purl": "pkg:npm/lodash@4.17.20"},
+                    ],
+                }
+            ),
+        )
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "unscannable_components" not in captured.err
+        assert "unscannable_components" not in json_mod.loads(captured.out)
+
+    def test_garbage_sbom_exits_2_cleanly(self, tmp_path, monkeypatch, capsys):
+        with pytest.raises(SystemExit) as ei:
+            self._run(tmp_path, monkeypatch, "this is not json {{{")
+        assert ei.value.code == 2
+        captured = capsys.readouterr()
+        assert "invalid SBOM" in captured.err
+        assert "Traceback" not in captured.err

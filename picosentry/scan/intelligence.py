@@ -118,10 +118,10 @@ class OSVClient:
             return None
         return data.get("advisories")
 
-    def _write_cache(self, key: str, advisories: list[dict], negative: bool = False) -> None:
+    def _write_cache(self, key: str, records: list[dict], negative: bool = False) -> None:
         self._cache_dir.mkdir(parents=True, exist_ok=True)
         path = self._cache_path(key)
-        entry: dict = {"cached_at": time.time(), "advisories": advisories}
+        entry: dict = {"cached_at": time.time(), "advisories": records}
         if negative:
             entry["negative"] = True
         tmp = path.with_suffix(f".tmp.{os.getpid()}.{next(_TMP_SEQ)}")
@@ -129,10 +129,12 @@ class OSVClient:
         tmp.replace(path)
         self._enforce_caps()
 
-    def _fetch(self, payload: dict) -> list[Advisory] | None:
-        """Query OSV. Returns None on transport/API failure (never cacheable as empty)."""
+    def _fetch(self, payload: dict) -> list[dict] | None:
+        """Query OSV. Returns the raw OSV vuln records, or None on transport/API
+        failure (never cacheable as empty — offline counts as unavailable: an
+        unreachable API is not evidence the package is clean)."""
         if self._offline:
-            return []
+            return None
         body = json.dumps(payload).encode("utf-8")
         req = Request(_OSV_API_URL, data=body, headers={"Content-Type": "application/json"}, method="POST")
         try:
@@ -142,8 +144,13 @@ class OSVClient:
         except (URLError, OSError, TimeoutError, json.JSONDecodeError, ResponseTooLargeError) as exc:
             logger.warning("OSV API request failed: %s", exc)
             return None
-        results = []
-        for vuln in data.get("vulns", []):
+        vulns = data.get("vulns", [])
+        return vulns if isinstance(vulns, list) else []
+
+    @staticmethod
+    def _decode(vulns: list[dict]) -> list[Advisory]:
+        results: list[Advisory] = []
+        for vuln in vulns:
             results.extend(Advisory.from_osv(vuln))
         return results
 
@@ -151,29 +158,26 @@ class OSVClient:
         key = self._cache_key(ecosystem, package_name, version)
         cached = self._read_cache(key)
         if cached is not None:
-            results = []
-            for entry in cached:
-                results.extend(Advisory.from_osv(entry))
-            return results
+            return self._decode(cached)
 
         payload: dict = {"package": {"name": package_name, "ecosystem": ecosystem}}
         if version:
             payload["version"] = version
 
-        advisories = self._fetch(payload)
-        if advisories is None:
-            # Transport failure must not be negative-cached: an unreachable API
-            # is not evidence the package is clean.
+        # The cache stores the raw OSV records and decodes on read — the same
+        # record shape end-to-end. Caching Advisory.to_dict() shapes broke the
+        # round-trip: from_osv could not decode them, so every positive cache
+        # hit returned [] (WO5.0.0-034).
+        vulns = self._fetch(payload)
+        if vulns is None:
             return []
 
-        raw = [adv.to_dict() for adv in advisories]
-        self._write_cache(key, raw, negative=not raw)
-
-        return advisories
+        self._write_cache(key, vulns, negative=not vulns)
+        return self._decode(vulns)
 
     def query_by_commit(self, commit: str) -> list[Advisory]:
         payload = {"commit": commit}
-        return self._fetch(payload) or []
+        return self._decode(self._fetch(payload) or [])
 
     def bulk_query(self, packages: list[tuple[str, str]]) -> dict[tuple[str, str], list[Advisory]]:
         results: dict[tuple[str, str], list[Advisory]] = {}
@@ -183,15 +187,15 @@ class OSVClient:
 
     def refresh_cache(self, ecosystem: str) -> int:
         payload = {"package": {"ecosystem": ecosystem}}
-        advisories = self._fetch(payload)
-        if advisories is None:
+        vulns = self._fetch(payload)
+        if vulns is None:
             return 0
         count = 0
-        by_package: dict[str, list[Advisory]] = {}
-        for adv in advisories:
-            by_package.setdefault(adv.package_name, []).append(adv)
-            count += 1
-        for pkg_name, pkg_advisories in by_package.items():
-            key = self._cache_key(ecosystem, pkg_name)
-            self._write_cache(key, [a.to_dict() for a in pkg_advisories])
+        by_package: dict[str, list[dict]] = {}
+        for vuln in vulns:
+            for adv in Advisory.from_osv(vuln):
+                by_package.setdefault(adv.package_name, []).append(vuln)
+                count += 1
+        for pkg_name, pkg_vulns in by_package.items():
+            self._write_cache(self._cache_key(ecosystem, pkg_name), pkg_vulns)
         return count

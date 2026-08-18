@@ -85,7 +85,7 @@ def count_relevant_files(target_path: Path) -> int:
 
 
 def count_installed_packages(target_path: Path) -> int:
-    """Count installed dependencies under node_modules or .venv site-packages."""
+    """Count installed dependencies under node_modules or Python venv site-packages."""
     nm_path = target_path / "node_modules"
     if nm_path.is_dir():
         count = 0
@@ -98,7 +98,15 @@ def count_installed_packages(target_path: Path) -> int:
                 count += 1
         return count
 
-    for sp_path in target_path.glob(".venv/lib/python*/site-packages"):
-        if sp_path.is_dir():
-            return sum(1 for d in sp_path.iterdir() if d.is_dir() and d.name.endswith((".dist-info", ".egg-info")))
-    return 0
+    # Same layout set the rule layer reads (rules/pypi_utils) — .venv, venv,
+    # .tox, … — so packages_scanned matches what the pypi rules actually saw
+    # (WO5.0.0-027 item 8). Deduped by dist-info dir name across layouts so
+    # multi-python .tox envs don't double-count the same package version.
+    from .rules.pypi_utils import _find_site_packages_dirs
+
+    seen: set[str] = set()
+    for sp_path in _find_site_packages_dirs(target_path):
+        for d in sp_path.iterdir():
+            if d.is_dir() and d.name.endswith((".dist-info", ".egg-info")):
+                seen.add(d.name)
+    return len(seen)

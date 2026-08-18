@@ -1,10 +1,13 @@
 import hashlib
+import logging
 import secrets
 from datetime import datetime, timezone
 from typing import Any, ClassVar
 
 from picosentry._core.security import constant_time_compare
 from picosentry.serve.database.manager import db
+
+logger = logging.getLogger("picoshogun.Orgs")
 
 
 class Organization:
@@ -30,10 +33,10 @@ class Organization:
                     conn,
                     """
                     INSERT INTO orgs (name, slug, owner_id, tier, api_key_hash, is_active, created_at)
-                    VALUES (?, ?, ?, ?, ?, 1, ?)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
                     RETURNING id
                 """,
-                    (name, slug, owner_user_id, tier, api_key_hash, now),
+                    (name, slug, owner_user_id, tier, api_key_hash, True, now),
                 )
                 org_id = rows[0]["id"]
                 db.execute_on(
@@ -45,6 +48,10 @@ class Organization:
                     (org_id, owner_user_id, now, now),
                 )
         except Exception:
+            # Silent-None here hid a postgres dialect failure for two CI
+            # rounds (integer literal into BOOLEAN on the INSERT above).
+            # Return contract stays None; the cause must not be invisible.
+            logger.warning("org create failed (name=%r slug=%r)", name, slug, exc_info=True)
             return None
 
         return {"org_id": org_id, "api_key": api_key}

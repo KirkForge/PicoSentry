@@ -328,6 +328,58 @@ class TestProxyAuth:
         handler.do_GET()
         assert any("401" in str(c) for c in handler.send_response.call_args_list)
 
+    def test_non_ascii_authorization_returns_clean_401(self):
+        # WO5.0.0-012: latin-1 header bytes (0xE9 = é) decode to a non-ASCII
+        # str; compare_digest on str raises TypeError and used to kill the
+        # connection with a traceback instead of a 401.
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.headers = {"Authorization": "Bearer caf\xe9"}
+        handler.do_GET()
+        assert any("401" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_non_ascii_but_correct_length_token_returns_401(self):
+        handler = _make_handler("/safe-pkg/1.0.0", FirewallConfig(auth_token="sekrit"))
+        handler.headers = {"Authorization": "Bearer s\xe9krit"}
+        handler.do_GET()
+        assert any("401" in str(c) for c in handler.send_response.call_args_list)
+
+
+class TestQueryDecoratedPaths:
+    """WO5.0.0-012: query-decorated metadata URLs must be scanned under a clean name."""
+
+    def test_pypi_query_url_scanned_with_clean_name(self):
+        handler = _make_handler("/pypi/requests/2.31.0/json?refresh=1", FirewallConfig())
+        handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.ALLOW, []))
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            payload = {"info": {"name": "requests", "version": "2.31.0"}}
+            mock_safe.return_value = _upstream_json(payload)
+            handler.do_GET()
+            handler.scanner.scan_metadata.assert_called_once_with("pypi", "requests", "2.31.0", payload)
+            header_dict = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+            assert header_dict.get("X-PicoSentry-Verdict") == "allow"
+            upstream_url = mock_safe.call_args[0][0].full_url
+            assert "refresh=1" in upstream_url
+
+    def test_pypi_quarantine_on_query_url_not_passthrough(self):
+        handler = _make_handler("/pypi/requests/2.31.0/json?refresh=1", FirewallConfig())
+        handler.scanner.scan_metadata = MagicMock(
+            return_value=(FirewallVerdict.QUARANTINE, [_make_finding("L2-OBFS-001", "MEDIUM", "obfuscated code")])
+        )
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_safe.return_value = _upstream_json({"info": {"name": "requests"}})
+            handler.do_GET()
+            header_dict = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+            assert header_dict.get("X-PicoSentry-Verdict") == "quarantine"
+
+    def test_npm_query_url_scanned_with_clean_name(self):
+        handler = _make_handler("/lodash?meta=1", FirewallConfig())
+        handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.ALLOW, []))
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            payload = {"name": "lodash", "versions": {}}
+            mock_safe.return_value = _upstream_json(payload)
+            handler.do_GET()
+            handler.scanner.scan_metadata.assert_called_once_with("npm", "lodash", "latest", payload)
+
 
 class TestQuarantineAction:
     def test_tag_action_serves_body_with_headers(self):

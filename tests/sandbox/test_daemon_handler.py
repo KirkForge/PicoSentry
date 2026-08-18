@@ -947,3 +947,78 @@ class TestHandlerPolicySignatureVerify:
         handler._send_error.assert_called_once()
         args = handler._send_error.call_args[0]
         assert args[0] == ErrorCodes.INVALID_POLICY
+
+
+class TestSubmitScanJobStoreHonesty:
+    """WO5.0.0-017: no orphaned pending rows, no fake 201s on store failure."""
+
+    def _handler_with_body(self, tmp_path, body):
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        handler = _new_handler()
+        handler.headers = {
+            "Content-Type": "application/json",
+            "Content-Length": str(len(body)),
+        }
+        handler.rfile = io.BytesIO(body.encode())
+        return handler
+
+    def test_nonexistent_policy_leaves_no_pending_row(self, tmp_path):
+        import json
+
+        from picosentry.sandbox.errors import ErrorCodes
+
+        handler = self._handler_with_body(
+            tmp_path, json.dumps({"command": ["echo", "hi"], "policy": "no-such-policy-xyz"})
+        )
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.INVALID_POLICY
+        handler.job_store.add.assert_not_called()
+
+    def test_invalid_backend_leaves_no_pending_row(self, tmp_path):
+        import json
+
+        from picosentry.sandbox.errors import ErrorCodes
+
+        handler = self._handler_with_body(tmp_path, json.dumps({"command": ["echo", "hi"], "backend": "bogus-backend"}))
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.INVALID_BACKEND
+        handler.job_store.add.assert_not_called()
+
+    def test_store_unavailable_rejects_instead_of_fake_201(self, tmp_path):
+        import json
+
+        from picosentry.sandbox.errors import ErrorCodes
+
+        handler = self._handler_with_body(tmp_path, json.dumps({"command": ["echo", "hi"]}))
+        handler.job_store.add.side_effect = RuntimeError("redis down")
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        args = handler._send_error.call_args[0]
+        assert args[0] == ErrorCodes.NOT_READY
+
+    def test_nonexistent_policy_no_pending_row_in_real_store(self, tmp_path, monkeypatch):
+        """End-to-end with a real store: 400 submit leaves zero rows."""
+        import json
+
+        from picosentry.sandbox.daemon.store import PersistentScanJobStore
+        from picosentry.sandbox.tenant.store import TenantAwareScanJobStore
+
+        real_store = TenantAwareScanJobStore(PersistentScanJobStore(store_dir=tmp_path / "jobs"))
+        _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
+        PicoDomeHandler.job_store = real_store
+        handler = _new_handler()
+        body = json.dumps({"command": ["echo", "hi"], "policy": "no-such-policy-xyz"})
+        handler.headers = {"Content-Type": "application/json", "Content-Length": str(len(body))}
+        handler.rfile = io.BytesIO(body.encode())
+
+        handler._handle_submit_scan("test-token-32-chars-long-for-perm")
+
+        handler._send_error.assert_called_once()
+        assert PersistentScanJobStore(store_dir=tmp_path / "jobs").list_recent(limit=100) == []

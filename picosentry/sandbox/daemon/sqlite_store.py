@@ -223,12 +223,19 @@ class SQLiteScanJobStore:
         limit = max_jobs or self._max_jobs
         with self._lock:
             conn = self._get_conn()
+            # WO5.0.0-017: the excess fed straight into LIMIT goes negative
+            # when limit > count, and negative LIMIT means "no limit" in
+            # SQLite — prune(max_jobs=10) on 3 jobs deleted everything.
+            count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+            excess = max(0, count - limit)
+            if excess == 0:
+                return 0
             cursor = conn.execute(
                 """DELETE FROM jobs WHERE job_id IN (
                     SELECT job_id FROM jobs ORDER BY created_at ASC
-                    LIMIT (SELECT COUNT(*) FROM jobs) - ?
+                    LIMIT ?
                 )""",
-                (limit,),
+                (excess,),
             )
             conn.commit()
             deleted = cursor.rowcount

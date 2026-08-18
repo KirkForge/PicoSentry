@@ -30,13 +30,14 @@ class TestRedisStoreFallback:
         # This will try to connect and fail
         assert not store.available
 
-    def test_add_returns_job_when_unavailable(self):
-        """Add still returns a job dict even when Redis is down."""
+    def test_add_raises_when_unavailable(self):
+        """WO5.0.0-017: add() with Redis down must be loud — the old
+        success-shaped return made callers 201-accept a job that 404s."""
+        from picosentry.sandbox.daemon.redis_store import RedisStoreUnavailable
+
         store = RedisScanJobStore(redis_url="redis://localhost:1/0")
-        job = store.add("job-1", ["ls"], "alice")
-        assert job["job_id"] == "job-1"
-        assert job["status"] == "pending"
-        assert job["command"] == ["ls"]
+        with pytest.raises(RedisStoreUnavailable):
+            store.add("job-1", ["ls"], "alice")
 
     def test_get_returns_none_when_unavailable(self):
         store = RedisScanJobStore(redis_url="redis://localhost:1/0")
@@ -57,6 +58,7 @@ class MockRedis:
     def __init__(self, **kwargs):
         self._data: dict[str, dict[str, str]] = {}
         self._sorted_sets: dict[str, dict[str, float]] = {}
+        self.expires: list[tuple[str, int]] = []
 
     def ping(self):
         return True
@@ -102,6 +104,9 @@ class MockRedis:
         def zadd(self, key, mapping=None, **kwargs):
             self._commands.append(("zadd", key, mapping))
 
+        def expire(self, key, ttl):
+            self._commands.append(("expire", key, ttl))
+
         def hgetall(self, key):
             self._commands.append(("hgetall", key))
 
@@ -113,6 +118,9 @@ class MockRedis:
                     results.append(True)
                 elif cmd[0] == "zadd":
                     self._redis.zadd(cmd[1], mapping=cmd[2])
+                    results.append(True)
+                elif cmd[0] == "expire":
+                    self._redis.expires.append((cmd[1], cmd[2]))
                     results.append(True)
                 elif cmd[0] == "hgetall":
                     results.append(self._redis.hgetall(cmd[1]))
@@ -186,6 +194,19 @@ class TestRedisStoreWithMock:
         store.add("job-1", ["ls", "-la", "/tmp"], "alice")
         job = store.get("job-1")
         assert job["command"] == ["ls", "-la", "/tmp"]
+
+    def test_add_sets_hash_ttl(self, store):
+        """WO5.0.0-017: the promised per-job EXPIRE never existed — job hashes
+        grew without bound."""
+        from picosentry.sandbox.daemon.redis_store import _DEFAULT_JOB_TTL_SECONDS, _JOB_KEY_PREFIX
+
+        store.add("job-ttl", ["ls"], "alice")
+        assert store._client.expires == [(_JOB_KEY_PREFIX + "job-ttl", _DEFAULT_JOB_TTL_SECONDS)]
+
+    def test_add_ttl_disabled_via_env(self, store, monkeypatch):
+        monkeypatch.setenv("PICODOME_REDIS_JOB_TTL", "0")
+        store.add("job-nottl", ["ls"], "alice")
+        assert store._client.expires == []
 
     def test_empty_fields_become_none(self, store):
         """Verify empty strings become None for completed_at, result, error."""

@@ -84,6 +84,40 @@ class TestSQLiteStoreIntegration:
         count = store.count()
         assert count <= 20
 
+    def test_prune_max_jobs_above_count_deletes_nothing(self, tmp_path):
+        """WO5.0.0-017: prune(max_jobs > count) used to delete EVERYTHING —
+        negative LIMIT means unlimited in SQLite."""
+        store = SQLiteScanJobStore(db_path=tmp_path / "prune.db", max_jobs=5)
+
+        for i in range(3):
+            store.add(f"job-{i}", [f"cmd-{i}"], "tester")
+
+        assert store.prune(max_jobs=10) == 0
+        assert store.count() == 3
+
+    def test_prune_over_capacity_deletes_oldest_only(self, tmp_path, monkeypatch):
+        import time as _time
+
+        from picosentry.sandbox.daemon import sqlite_store
+
+        # Distinct created_at per job (same-second ties would make the
+        # ASC ordering arbitrary).
+        ticks = iter(range(1700000000, 1700000100))
+        real_strftime = _time.strftime
+        monkeypatch.setattr(
+            sqlite_store.time,
+            "strftime",
+            lambda fmt, *_a, **_k: real_strftime(fmt, _time.gmtime(next(ticks))),
+        )
+
+        store = SQLiteScanJobStore(db_path=tmp_path / "prune.db", max_jobs=100)
+        for i in range(5):
+            store.add(f"job-{i}", [f"cmd-{i}"], "tester")
+
+        assert store.prune(max_jobs=2) == 3
+        remaining = [j["job_id"] for j in store.list_recent(limit=10)]
+        assert remaining == ["job-4", "job-3"]
+
     def test_schema_version_persistence(self, tmp_path):
         """Verify schema_version survives close/reopen."""
         db_path = tmp_path / "versioned.db"

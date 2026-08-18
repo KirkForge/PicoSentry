@@ -30,6 +30,18 @@ if _redis is not None:
 _DEFAULT_REDIS_URL = "redis://localhost:6379/0"
 _JOB_KEY_PREFIX = "picodome:job:"
 _JOB_LIST_KEY = "picodome:jobs:recent"
+_DEFAULT_JOB_TTL_SECONDS = 7 * 24 * 3600
+
+
+def _job_ttl_seconds() -> int:
+    try:
+        return int(os.environ.get("PICODOME_REDIS_JOB_TTL", _DEFAULT_JOB_TTL_SECONDS))
+    except ValueError:
+        return _DEFAULT_JOB_TTL_SECONDS
+
+
+class RedisStoreUnavailable(RuntimeError):
+    """Redis is down/unconfigured — the job could NOT be persisted."""
 
 
 ALLOWED_COLUMNS = frozenset(
@@ -100,18 +112,11 @@ class RedisScanJobStore:
 
     def add(self, job_id: str, command: list[str], actor: str) -> dict[str, Any]:
         client = self._get_client()
-        if not self._available:
-            logger.warning("Redis unavailable, job %s not persisted", job_id)
-            return {
-                "job_id": job_id,
-                "command": command,
-                "actor": actor,
-                "status": "pending",
-                "created_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                "completed_at": None,
-                "result": None,
-                "error": None,
-            }
+        if not self._available or client is None:
+            # WO5.0.0-017: this used to return a success-shaped pending dict,
+            # so callers 201-accepted a job that later 404'd — a fake success.
+            logger.error("Redis unavailable, job %s NOT persisted — rejecting", job_id)
+            raise RedisStoreUnavailable(f"Redis unavailable, job {job_id} not persisted")
 
         job = {
             "job_id": job_id,
@@ -128,6 +133,11 @@ class RedisScanJobStore:
         pipe = client.pipeline()
         pipe.hset(key, mapping=job)
         pipe.zadd(_JOB_LIST_KEY, {job_id: time.time()})
+        ttl = _job_ttl_seconds()
+        if ttl > 0:
+            # WO5.0.0-017: the promised hash TTL never existed — job hashes
+            # grew without bound. 0/negative disables (keep forever).
+            pipe.expire(key, ttl)
         # Prune (WO4.0.0-019): _max_jobs was dead — the recent-jobs zset grew
         # forever. Trim oldest beyond the cap; their hash keys expire via TTL.
         pipe.zremrangebyrank(_JOB_LIST_KEY, 0, -(self._max_jobs + 1))

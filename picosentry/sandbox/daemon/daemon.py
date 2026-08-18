@@ -59,7 +59,13 @@ class PicoDomeDaemon:
 
         backend = self._store_backend.lower()
         raw_store: Any
-        if backend == "sqlite":
+        if backend == "jsonl":
+            from picosentry.sandbox.daemon.store import PersistentScanJobStore
+
+            store_dir = Path(self._job_store_dir) if self._job_store_dir else None
+            raw_store = PersistentScanJobStore(store_dir=store_dir)
+            logger.info("Using JSONL job store backend")
+        elif backend == "sqlite":
             from picosentry.sandbox.daemon.sqlite_store import SQLiteScanJobStore
 
             db_path = os.environ.get("PICODOME_SQLITE_PATH")
@@ -67,12 +73,23 @@ class PicoDomeDaemon:
                 db_path=Path(db_path) if db_path else None,
             )
             logger.info("Using SQLite job store backend")
-        else:
-            from picosentry.sandbox.daemon.store import PersistentScanJobStore
+        elif backend == "redis":
+            from picosentry.sandbox.daemon.redis_store import RedisScanJobStore
 
-            store_dir = Path(self._job_store_dir) if self._job_store_dir else None
-            raw_store = PersistentScanJobStore(store_dir=store_dir)
-            logger.info("Using JSONL job store backend")
+            raw_store = RedisScanJobStore(max_jobs=int(os.environ.get("PICODOME_REDIS_MAX_JOBS", "1000")))
+            if not raw_store.available:
+                # WO5.0.0-017: misconfiguration must be loud. Submits will be
+                # rejected (503) until Redis is reachable; we do not crash here
+                # so Redis can come up after the daemon.
+                logger.error(
+                    "PICODOME_STORE_BACKEND=redis but Redis is NOT reachable at %s "
+                    "— scans will be rejected until it is",
+                    raw_store.redis_url,
+                )
+            logger.info("Using Redis job store backend")
+        else:
+            # WO5.0.0-017: unknown backends used to silently fall back to jsonl.
+            raise ValueError(f"Unknown PICODOME_STORE_BACKEND {self._store_backend!r} (expected: jsonl, sqlite, redis)")
 
         # Tenant scoping at the store boundary (WO4.0.0-010): the daemon never
         # exposes the raw store — every get/list/update carries tenant_id.

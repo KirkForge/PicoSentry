@@ -259,11 +259,30 @@ def create_gateway_app(
             completion = _json.loads(bytes(forwarded.body))
         except ValueError:
             return forwarded
-        output_text = ""
+        # Every delivered token must be validated (WO5.0.0-013): n>1
+        # completions and tool-call arguments are part of what the client
+        # executes — scanning only choices[0].message.content attested
+        # unscanned output as output_valid.
         choices = completion.get("choices") or []
-        if choices and isinstance(choices[0], dict):
-            message = choices[0].get("message") or {}
-            output_text = str(message.get("content") or "")
+        output_parts: list[str] = []
+        for choice in choices:
+            if not isinstance(choice, dict):
+                continue
+            message = choice.get("message") or {}
+            if not isinstance(message, dict):
+                continue
+            content = message.get("content")
+            if content:
+                output_parts.append(str(content))
+            tool_calls = message.get("tool_calls")
+            if isinstance(tool_calls, list):
+                for tool_call in tool_calls:
+                    if not isinstance(tool_call, dict):
+                        continue
+                    function = tool_call.get("function") or {}
+                    if isinstance(function, dict) and function.get("arguments"):
+                        output_parts.append(str(function["arguments"]))
+        output_text = "\n".join(output_parts)
 
         output_result = gateway._output_guard.validate(output_text)
         violations = output_result.violations
@@ -286,6 +305,10 @@ def create_gateway_app(
             "prompt_score": prompt_result.score,
             "prompt_rules_matched": prompt_result.rules_matched,
             "output_scanned": True,
+            "output_fields_scanned": [
+                "choices[*].message.content",
+                "choices[*].message.tool_calls[*].function.arguments",
+            ],
             "output_valid": output_result.valid,
             "output_violations": violations,
         }

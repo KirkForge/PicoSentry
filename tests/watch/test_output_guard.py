@@ -1,5 +1,6 @@
 """PicoWatch OutputGuard tests."""
 
+import hashlib
 from pathlib import Path
 
 import pytest
@@ -310,3 +311,88 @@ class TestOutputGuardFailClosed:
         guard = OutputGuard(config=config)
         result = guard.validate("The weather is sunny today.")
         assert result.valid is True
+
+
+class TestDecodeExfilWO013:
+    """WO5.0.0-013: encoded exfiltration must not pass by wrapping."""
+
+    def test_base64_wrapped_secrets_flagged(self) -> None:
+        """b64-wrapped AWS key + RSA private key fire with [decoded] markers."""
+        import base64
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        encoded = base64.b64encode(
+            b"AWS_SECRET_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE\n-----BEGIN RSA PRIVATE KEY-----"
+        ).decode()
+        result = guard.validate("here (encoded): " + encoded)
+        assert result.valid is False
+        assert "out_pii_api_key[decoded]" in result.violations
+        assert "out_exfil_env_var[decoded]" in result.violations
+        assert "out_exfil_ssh_key[decoded]" in result.violations
+
+    def test_base64_wrapped_oauth_token_flagged(self) -> None:
+        import base64
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        encoded = base64.b64encode(b"slack token: xoxb-1234567890-abcdefghij").decode()
+        result = guard.validate("rotation note: " + encoded)
+        assert result.valid is False
+        assert "out_exfil_oauth_token[decoded]" in result.violations
+
+    def test_hex_wrapped_secret_flagged(self) -> None:
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        encoded = b"aws_secret_access_key=AKIAIOSFODNN7EXAMPLE".hex()
+        result = guard.validate("blob: " + encoded)
+        assert result.valid is False
+        assert any(v.endswith("[decoded]") for v in result.violations)
+
+    def test_plaintext_control_still_fires_unmarked(self) -> None:
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        result = guard.validate("AWS_SECRET_ACCESS_KEY=AKIAIOSFODNN7EXAMPLE")
+        assert result.valid is False
+        assert "out_exfil_env_var" in result.violations
+        assert all(not v.endswith("[decoded]") for v in result.violations)
+
+    def test_benign_inline_base64_image_not_newly_flagged(self) -> None:
+        """Legitimate data-URI image embeds decode to non-printable bytes.
+
+        The raw crypto-wallet pattern can still FP on base64 blobs (known
+        pre-existing FP source, WO5.0.0-013 evidence) — this test pins that
+        the decode pass adds nothing on top.
+        """
+        import base64
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        png = bytes(range(256)) * 8
+        output = 'Screenshot: <img src="data:image/png;base64,' + base64.b64encode(png).decode() + '" />'
+        result = guard.validate(output)
+        assert all(not v.endswith("[decoded]") for v in result.violations)
+
+    def test_benign_sha256_hex_dump_not_newly_flagged(self) -> None:
+        """Hex digests decode to garbage and must not add decoded violations."""
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        output = "\n".join(f"{i:08x}  {hashlib.sha256(str(i).encode()).hexdigest()}" for i in range(20))
+        result = guard.validate(output)
+        assert all(not v.endswith("[decoded]") for v in result.violations)
+
+    def test_benign_encoded_text_not_newly_flagged(self) -> None:
+        """Base64 of ordinary benign text must not newly fire.
+
+        Pre-existing (dev): the raw crypto-wallet pattern FPs on long
+        base64 blobs — out of scope here; this pins that decoding a clean
+        changelog adds no violation.
+        """
+        import base64
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        encoded = base64.b64encode(b"Release notes: fixed a parsing bug, improved caching, added tests.").decode()
+        result = guard.validate("Changelog (encoded): " + encoded)
+        assert "out_pii_crypto_wallet" in result.violations  # pre-existing raw FP, fires on dev
+        assert all(not v.endswith("[decoded]") for v in result.violations)

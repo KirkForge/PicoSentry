@@ -260,14 +260,29 @@ class Normalizer:
         ):
             for match in pattern.finditer(text):
                 try:
-                    payload = decoder(match.group()).decode("utf-8", errors="ignore")
+                    raw = decoder(match.group())
                 except (ValueError, UnicodeDecodeError):
                     continue
-                if len(payload) > 5 and self._is_mostly_printable(payload) and payload not in seen:
-                    # skip trivial/garbage decodes
+                payload = raw.decode("utf-8", errors="ignore")
+                if self._is_textlike(raw, payload) and payload not in seen:
                     seen.add(payload)
                     payloads.append(payload)
         return payloads
+
+    @staticmethod
+    def _is_textlike(raw: bytes, payload: str) -> bool:
+        """Text gate for decoded runs.
+
+        errors="ignore" shrinking the decode means the run was not text:
+        hash/blob bytes decode to a few stray printable chars that rule
+        noise then fires on (WO5.0.0-013 FP fallout). Real wrapped payloads
+        are printable text surviving the decode intact. Ceiling: non-ASCII
+        multibyte payloads (survival ~1/3) are dropped — the rule corpus is
+        ASCII-pattern based regardless.
+        """
+        if len(payload) < 6 or len(payload) * 2 < len(raw):
+            return False
+        return sum(ch.isprintable() for ch in payload) / len(payload) >= 0.95
 
     def decode_hex(self, text: str) -> list[str]:
         """Decode long hex runs; non-printable results (hashes, IDs) are dropped."""
@@ -278,19 +293,14 @@ class Normalizer:
         seen: set[str] = set()
         for match in self._HEX.finditer(text):
             try:
-                payload = bytes.fromhex(match.group().removeprefix("0x")).decode("utf-8", errors="ignore")
+                raw = bytes.fromhex(match.group().removeprefix("0x"))
             except ValueError:
                 continue
-            if len(payload) > 5 and self._is_mostly_printable(payload) and payload not in seen:
+            payload = raw.decode("utf-8", errors="ignore")
+            if self._is_textlike(raw, payload) and payload not in seen:
                 seen.add(payload)
                 payloads.append(payload)
         return payloads
-
-    @staticmethod
-    def _is_mostly_printable(text: str) -> bool:
-        if not text:
-            return False
-        return sum(ch.isprintable() for ch in text) / len(text) >= 0.9
 
     def has_zero_width(self, text: str) -> bool:
         return not self._ZERO_WIDTH.isdisjoint(text)

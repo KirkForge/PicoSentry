@@ -17,20 +17,28 @@
 
 ---
 
-**Catch malicious packages before they bite.** Offline supply-chain scanner — obfuscation, typosquatting, dependency confusion, exfiltration, IOCs, CVEs across 7 ecosystems. No internet required.
+**Catch malicious packages before they bite.** PicoSentry is an offline,
+deterministic supply-chain security suite: a static scanner for typosquatting,
+dependency confusion, obfuscation, exfiltration, IOCs and CVEs across 7
+ecosystems; a kernel sandbox; an LLM prompt/output guard; and a multi-tenant
+API server tying them together. No internet required, no phone-home,
+bit-identical output for identical inputs.
+
+All technical documentation lives in the **[manual](docs/manual.md)** —
+install options, CLI reference, every detection rule, deployment, security
+model, operations, and benchmarks.
 
 ---
 
-## Quick start
+## 60-second quickstart
 
 ```bash
 pip install picosentry
 picosentry scan ./your-project
 ```
 
-That's it. Works offline, deterministic, no phone-home.
-
-### See it in action
+Works offline, deterministic, no API keys. Try it on a built-in malicious
+fixture:
 
 ```bash
 git clone https://github.com/KirkForge/PicoSentry.git
@@ -38,69 +46,42 @@ cd PicoSentry
 picosentry scan examples/pypi-obfuscated-setup/
 ```
 
-```text
-🦞 PicoSentry
-Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.1.2 | Corpus: vabd36dc30c3f
-Scan ID: 08057439b4ba08d8
-
-Packages scanned: 0
-Files scanned:     2
-Duration:          20ms
-```
-
-The scan fires 5+ findings across obfuscation, post-install, and exfiltration rules. Re-run and the `Scan ID` and `Corpus` digest match exactly — that's the determinism guarantee.
+The scan fires 5+ findings across obfuscation, post-install, and exfiltration
+rules. Re-run it: the `Scan ID` and `Corpus` digest match exactly — that's the
+determinism guarantee (`--verify-determinism` asserts it in CI).
 
 ---
 
-## What it detects
+## The four components
 
-| Rule | What it catches | Example |
-|------|----------------|---------|
-| L2-TYPO-001 | Typosquatted package names | `reqursts` instead of `requests` |
-| L2-DEPC-001 | Dependency confusion | `internal-pkg` not on registry |
-| L2-PYPI-OBFS-001 | Dynamic execution in setup.py | `exec()`/`eval()` in install scripts |
-| L2-PYPI-OBFS-002 | Base64-decoded payloads | `base64.b64decode(...)` + dynamic use |
-| L2-PYPI-POST-001 | Post-install code execution | `setup.py` runs code at install time |
-| L2-NETEX-001 | Network calls during install | `urllib.request`, `curl`, `wget` at install |
-| L2-IOC-001 | Known IOC behavior patterns | Hardcoded C2 host, exfil URL patterns |
-| L2-CVE-001 | Known CVEs in dependency tree | OSV-matched vulnerabilities |
-| L2-INTEL-001 | Suspiciously-new low-download packages | Package <30 days old with <100 downloads (`package_intel.py`, `rules/package_age.py`) |
+**`picosentry scan`** — the static supply-chain scanner. Analyzes package
+manifests, lockfiles, and source across npm, PyPI, Go, Cargo, Maven, RubyGems,
+and NuGet: 53 L2 detection rules covering typosquats, dependency confusion,
+install-time execution, obfuscation, credential access, network exfiltration,
+known CVEs (OSV), and license compliance. Advisory findings carry a `reachable`
+flag so present-but-unused CVEs triage faster. → [Manual ch. 5](docs/manual.md#5-scanner-rules-ecosystems-and-corpus)
 
-Advisory findings also carry a **`reachable`** flag — `True` when the vulnerable package is actually imported/used in the scanned source, so you can triage present-but-unused CVEs (`rules/advisory_check.py`).
+**`picosentry sandbox`** — the runtime sandbox (PicoDome). Executes untrusted
+commands under seccomp-bpf (Linux) or seatbelt (macOS), records syscall-level
+behavioral events for L4 analysis, and ships as an HTTP + gRPC
+sandbox-as-a-service daemon with auth, rate limiting, TLS/mTLS, and
+token-scoped multi-tenancy. → [Manual ch. 8](docs/manual.md#8-sandbox-picodome)
 
-**53 L2 rules (68 with L4 behavioral detectors) across npm, PyPI, Go, Cargo, Maven, RubyGems, and NuGet.**
-Full catalog: [`picosentry/scan/docs/rules/`](picosentry/scan/docs/rules/)
+**`picosentry watch`** — the LLM defense layer (PicoWatch). Deterministic,
+offline prompt-injection detection (L5) and output-policy validation (L6):
+regex rules plus a lexical classifier behind a normalizer that defeats
+base64/ROT13/homoglyph/zero-width obfuscation. A fast pre-filter, honestly not
+a semantic guarantee. → [Manual ch. 7](docs/manual.md#7-watch-llm-defense)
 
----
+**`picosentry serve`** — the control plane. FastAPI API server with dashboard,
+RBAC (viewer/operator/admin), MFA/TOTP, JWT revocation, role-scoped API keys,
+multi-tenant SQLite/Postgres persistence, plugins, scheduling, alerting, and
+cross-layer kill-chain correlation (Beta). → [Manual ch. 9](docs/manual.md#9-serve-control-plane)
 
-## Supported ecosystems
-
-| Ecosystem | Typosquat | Dep Confusion | Obfuscation | CVE Match | License |
-|-----------|:---------:|:-------------:|:-----------:|:---------:|:-------:|
-| npm | ✅ | ✅ | ✅ | ✅ | ✅ |
-| PyPI | ✅ | ✅ | ✅ | ✅ | — |
-| Go | ✅ | ✅ | — | ✅ | — |
-| Cargo | ✅ | ✅ | — | ✅ | — |
-| Maven | ✅ | ✅ | — | ✅ | — |
-| RubyGems | ✅ | ✅ | — | ✅ | — |
-| NuGet | ✅ | ✅ | — | ✅ | — |
-
-License detection (`L2-LICENSE-001`) reads npm `package.json` license fields only.
-
----
-
-## Why PicoSentry?
-
-| Capability | PicoSentry | pip-audit | osv-scanner | Trivy | Socket |
-|------------|:---------:|:---------:|:-----------:|:-----:|:------:|
-| Offline operation | ✅ | partial | partial | partial | ❌ |
-| Deterministic output | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Malicious-behavior rules | ✅ | ❌ | ❌ | partial | partial |
-| 7 ecosystems | ✅ | partial | ✅ | ✅ | partial |
-| Kernel sandbox | ✅ | ❌ | ❌ | ❌ | ❌ |
-
-Offline + deterministic + malicious-behavior rules in one package.
+Also: `picosentry firewall` (registry metadata proxy), `daemon`, `admission`
+(K8s webhook), `corpus`, `advisories`, `update`, `diff`, `doctor`, `rules`,
+`init`, `health`, `version` — full CLI reference in the
+[manual ch. 4](docs/manual.md#4-cli-reference).
 
 ---
 
@@ -123,7 +104,10 @@ Offline + deterministic + malicious-behavior rules in one package.
 | Docker image | **Stable** | multi-arch (linux/amd64 + linux/arm64), non-root; latest published: kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.2 push pending (WO5.0.0-014) |
 | PyPI package | **Stable** | `pip install picosentry` — v2.1.2 published |
 
-"Beta" = works, has regression + security tests, suitable for controlled production use. Per-component reviews in [`docs/`](docs/).
+"Beta" = works, has regression + security tests, suitable for controlled
+production use. This table is generated from
+[`picosentry/experimental.py`](picosentry/experimental.py) and CI-enforced
+against drift. Per-component reviews: [manual, security chapters](docs/manual.md#16-threat-model).
 
 ---
 
@@ -132,37 +116,52 @@ Offline + deterministic + malicious-behavior rules in one package.
 ```bash
 pip install picosentry                # core (offline-ready)
 pip install picosentry[scan]          # + online corpus management
-pip install picosentry[serve]          # + API server + dashboard
-pip install picosentry[all]            # everything
+pip install picosentry[serve]         # + API server + dashboard
+pip install picosentry[all]           # everything
 ```
 
-**Docker:** `docker pull kirkforge/picodome:v2.0.18` (latest published) — multi-arch, non-root. `kirkforge/picodome:v2.1.2` push pending (WO5.0.0-014).
+**Docker:** `docker pull kirkforge/picodome:v2.0.18` (latest published;
+multi-arch, non-root) — `kirkforge/picodome:v2.1.2` push pending (WO5.0.0-014).
+All install options incl. `[grpc]`, `[watch-server]`, `[otel]`, `[sigstore]`:
+[manual ch. 2](docs/manual.md#2-installation).
 
 ---
 
-## More
+## The manual
 
-- **[Technical manual](docs/manual.md)** — full install options, gRPC transport, plugin system, corpus management, repository structure, and sandbox details
+Everything technical is in **[docs/manual.md](docs/manual.md)**:
 
-### CLI commands
+[Quick start](docs/manual.md#1-quick-start) ·
+[Install](docs/manual.md#2-installation) ·
+[Docker](docs/manual.md#3-docker-builds-and-deployment) ·
+[CLI reference](docs/manual.md#4-cli-reference) ·
+[Scanner](docs/manual.md#5-scanner-rules-ecosystems-and-corpus) ·
+[Firewall](docs/manual.md#6-registry-firewall) ·
+[Watch](docs/manual.md#7-watch-llm-defense) ·
+[Sandbox](docs/manual.md#8-sandbox-picodome) ·
+[Serve](docs/manual.md#9-serve-control-plane) ·
+[Plugins](docs/manual.md#10-plugin-system) ·
+[Architecture](docs/manual.md#11-architecture) ·
+[Configuration](docs/manual.md#12-configuration-reference) ·
+[Runbook](docs/manual.md#13-operations-runbook) ·
+[Offline](docs/manual.md#14-offline-and-air-gapped-operation) ·
+[Deployment security](docs/manual.md#15-deployment-security-checklist) ·
+[Threat model](docs/manual.md#16-threat-model) ·
+[Attack surface](docs/manual.md#17-attack-surface-and-pentest-scope) ·
+[Benchmarks & model card](docs/manual.md#18-detection-benchmarks-and-model-card) ·
+[Internal API map](docs/manual.md#19-internal-api-map) ·
+[Extension guide](docs/manual.md#20-extension-guide) ·
+[Limitations & status](docs/manual.md#21-known-limitations-and-component-status) ·
+[ADR index](docs/manual.md#23-appendix-adr-index)
 
-`picosentry scan` (core scanner), `sandbox` (isolation), `watch` (LLM guards), `serve` (API server), `daemon` (sandbox-as-a-service), `admission` (K8s webhook), `corpus` (IoC packs), `diff` (compare scans), `doctor` (self-verification), `firewall` (network policy), `rules` (list/disable rules), `init` (project config), `health` (status check), `version`, `update`.
+Reference files that stay standalone: generated per-rule benchmark table
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md) (CI-enforced) and the
+[ADRs](docs/adr/).
 
-- **[Architecture](docs/ARCHITECTURE.md)** — component diagram and trust boundaries
-- **[Detection benchmarks](docs/model-card.md)** — 5673 fixtures, 53 L2 + 15 L4 behavioral rules, precision/recall per rule
-- **[Threat model](docs/THREAT_MODEL.md)** / **[attack surface](docs/SECURITY-ATTACK-SURFACE.md)** — trust boundaries and per-component analysis
-- **[Plugin development](docs/PLUGIN_DEVELOPMENT.md)** — write, sign, and deploy plugins
-
-**Supply chain:** wheel builds are **reproducible** — `SOURCE_DATE_EPOCH` is pinned from the commit timestamp in `release.yml`, the Dockerfile, and CI, so the same source yields a byte-identical wheel (asserted by the CI `reproducible-build` job).
-
----
-
-## Design principles
-
-- **Deterministic** — same inputs + same policy = same SHA-256 output
-- **Offline by default** — no phone-home, no remote API calls
-- **Lightweight core** — default install pulls only `pyyaml` + `cryptography`
-- **Typed** — full annotations, `py.typed` shipped
+**Supply chain:** wheel builds are **reproducible** — `SOURCE_DATE_EPOCH` is
+pinned from the commit timestamp in `release.yml`, the Dockerfile, and CI, so
+the same source yields a byte-identical wheel (asserted by the CI
+`reproducible-build` job). Details: [manual ch. 15](docs/manual.md#reproducible-builds).
 
 ---
 

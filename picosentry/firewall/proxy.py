@@ -232,10 +232,10 @@ class _ProxyHandler(BaseHTTPRequestHandler):
     def _proxy_pass(self) -> None:
         """Stream non-classified paths (tarballs, static assets) upstream→client in bounded memory.
 
-        Documented decision (WO4.0.0-022, docs/FIREWALL.md): this is a metadata
-        firewall — tarballs are passed through UNINSPECTED and tagged with
-        X-PicoSentry-Verdict: passthrough. Artifact scanning happens elsewhere
-        (picosentry scan on the extracted tarball).
+        Documented decision (WO4.0.0-022, docs/manual.md#tarball-decision-explicit-not-accidental):
+        this is a metadata firewall — tarballs are passed through UNINSPECTED and
+        tagged with X-PicoSentry-Verdict: passthrough. Artifact scanning happens
+        elsewhere (picosentry scan on the extracted tarball).
         """
         url = self._guess_upstream(self.path)
         if url is None:

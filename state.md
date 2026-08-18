@@ -22,6 +22,21 @@
 
 # ═══ SESSION HISTORY ═══
 
+## Session 2026-08-18 (i): WO5 P1 execution wave (parallel workers) + docs manual restructure — IN FLIGHT
+
+### Method
+P1 batch executed by parallel workers in exclusive worktrees (scan / sandbox / serve / watch / core) + this docs agent (SA-AH) restructuring documentation into one manual in `wo/5.0.0/docs-manual` off 80bb2ae3.
+
+### Worker facts (as reported; merge/CI status: orchestrator to fill at close)
+- **scan**: WO-016/034 + venv rider FIXED (17 tests).
+- **sandbox**: WO-017/018(items 1-9)/019 FIXED incl. real-exec landlock — 96 tests green on kernel 7.0; item 10 (gRPC manual fallback) verified-broken + annotated delete-next.
+- **serve**: WO-020/021/022/033 + riders FIXED (818 insertions).
+- **watch**: WO-023/024 all FIXED.
+- **core**: WO-025 + WO4-024 folds FIXED (doctor 12 checks, wrapper consolidation −164 lines, action/gitlab gates with teeth — proven 16-fail on pre-fix CI files).
+
+### Docs restructure (SA-AH, this worktree)
+`docs/manual.md` is now THE chaptered manual (23 chapters) absorbing all standalone tech docs; old files are one-line pointer stubs; README slimmed to a landing page (status table kept byte-synced with experimental.py); riders: .env.example SSL note fixed, OFFLINE advisories claim fixed (`picosentry advisories` works), PG 15/16 → 15/16/17/18 (experimental.py + README lockstep, matches ci.yml matrix). docs/BENCHMARKS.md (generated) and docs/adr/* (immutable) referenced/indexed, not absorbed. Docs claims verified against code at base 80bb2ae3 before writing.
+
 ## Session 2026-08-18 (h): WO5 P0 execution wave + WO4 closure — COMPLETE
 
 ### Method

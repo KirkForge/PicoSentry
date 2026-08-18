@@ -59,12 +59,12 @@ Entry points for the most common changes:
 
 | Task | Start here |
 |------|------------|
-| Add a scan rule | `docs/EXTENSION_GUIDE.md` → `picosentry/scan/rules/` |
-| Add a watch rule | `docs/EXTENSION_GUIDE.md` → `picosentry/watch/rules/` |
-| Add a sandbox backend | `docs/EXTENSION_GUIDE.md` → `picosentry/sandbox/l3/backends/` |
-| Find an internal API | `docs/INTERNAL_API.md` |
-| Understand trust boundaries | `docs/ARCHITECTURE.md` |
-| Write a plugin | `docs/PLUGIN_DEVELOPMENT.md` |
+| Add a scan rule | [Extension guide](docs/manual.md#20-extension-guide) → `picosentry/scan/rules/` |
+| Add a watch rule | [Extension guide](docs/manual.md#20-extension-guide) → `picosentry/watch/rules/` |
+| Add a sandbox backend | [Extension guide](docs/manual.md#20-extension-guide) → `picosentry/sandbox/l3/backends/` |
+| Find an internal API | [Internal API map](docs/manual.md#19-internal-api-map) |
+| Understand trust boundaries | [Architecture](docs/manual.md#11-architecture) |
+| Write a plugin | [Plugin system](docs/manual.md#10-plugin-system) |
 
 ## What we need help with
 
@@ -82,7 +82,7 @@ Entry points for the most common changes:
 
 ## Guidelines
 
-- **Determinism matters**: Don't introduce randomness, timing-dependent logic, or non-deterministic IDs into findings. Read the "Determinism contract" section of `docs/INTERNAL_API.md`.
+- **Determinism matters**: Don't introduce randomness, timing-dependent logic, or non-deterministic IDs into findings. Read the "Determinism contract" section of the [internal API map](docs/manual.md#determinism-contract).
 - **Add tests**: New rules need test fixtures with known-good and known-bad examples.
 - **Sort imports**: Run `ruff check picosentry/ --fix` before committing.
 - **One feature per PR**: Small, focused PRs get reviewed faster.

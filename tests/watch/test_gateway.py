@@ -388,6 +388,11 @@ async def test_large_prompt_does_not_starve_concurrent_request() -> None:
 
     assert scan.status_code == 200
     assert small.status_code == 200
-    assert small_done < scan_done - 0.05, (
+    # Any strict ordering suffices: a SYNC guard blocks the loop, so the
+    # small request cannot even start until the scan completes (strictly
+    # later). No time margin: on small CI runners the to_thread guard and
+    # the loop contend for the GIL, which collapses fixed margins while
+    # preserving the ordering.
+    assert small_done < scan_done, (
         "concurrent request only completed after the 200KB scan — the guard is blocking the event loop"
     )

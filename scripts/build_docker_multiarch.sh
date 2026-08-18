@@ -7,7 +7,6 @@
 # Usage:
 #   ./scripts/build_docker_multiarch.sh              # build to OCI tarball
 #   ./scripts/build_docker_multiarch.sh --push       # build and push
-#   ./scripts/build_docker_multiarch.sh --ci         # build CI tag only
 #   ./scripts/build_docker_multiarch.sh --load       # build + load current platform
 #
 # Requires:
@@ -26,13 +25,11 @@ REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 cd "${REPO_ROOT}"
 
 PUSH_FLAG=""
-CI_FLAG=""
 LOAD_FLAG=""
 
 for arg in "$@"; do
     case "$arg" in
         --push) PUSH_FLAG="--push" ;;
-        --ci)   CI_FLAG="--set=*.target=picosentry-ci" ;;
         --load) LOAD_FLAG="1" ;;
         *)      echo "Unknown argument: $arg"; exit 1 ;;
     esac
@@ -86,14 +83,14 @@ export TAG
 
 if [[ -n "$PUSH_FLAG" ]]; then
     echo "Building and pushing multi-arch PicoSentry image (tag: ${TAG})..."
-    docker buildx bake --builder "${BUILDER_NAME}" $CI_FLAG --push
+    docker buildx bake --builder "${BUILDER_NAME}" --push
 elif [[ -n "$LOAD_FLAG" ]]; then
     echo "Building and loading single-platform PicoSentry image (tag: ${TAG})..."
-    docker buildx bake --builder "${BUILDER_NAME}" $CI_FLAG --set '*.output=type=docker'
+    docker buildx bake --builder "${BUILDER_NAME}" --set '*.output=type=docker'
 else
     DEST="/tmp/picosentry-multiarch-${TAG}.oci.tar"
     echo "Building multi-arch PicoSentry image (tag: ${TAG}) to ${DEST}..."
-    docker buildx bake --builder "${BUILDER_NAME}" $CI_FLAG \
+    docker buildx bake --builder "${BUILDER_NAME}" \
         --set '*.output=type=oci,dest='"${DEST}"''
     echo "Multi-arch OCI archive written to: ${DEST}"
     if command -v skopeo >/dev/null 2>&1; then

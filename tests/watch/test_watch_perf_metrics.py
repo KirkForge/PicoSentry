@@ -215,13 +215,15 @@ class TestScanCostCeiling:
         text = (prose * (200_000 // len(prose) + 1))[:200_000]
         guard = PromptGuard(config=_make_config(api_key=None))
         guard.check("warmup")  # compile/loads done
-        t0 = time.monotonic()
+        # ponytail: CPU-time budget, not wall time — wall ceilings double under xdist
+        # machine load (failed 4/5 worker gates at load 16 on 8 cores while passing
+        # solo); process_time is load-independent and still catches prefilter
+        # regressions. Ceiling ~2x the idle-wall measurement 2026-08-17 (1.8s) and
+        # 2026-08-18 (1.4s post WO5.0.0-011).
+        t0 = time.process_time()
         result = guard.check(text)
-        elapsed = time.monotonic() - t0
-        # Regression ceiling: pre-prefilter this buffer took 4.9s (24s/MB).
-        # Ceiling 4.0s leaves headroom for CI load while catching a return to
-        # the old behavior. Measured 2026-08-17: 1.8s idle, 2.4s under load-15.
-        assert elapsed < 4.0, f"200KB benign scan took {elapsed:.2f}s (>20s/MB — prefilter regressed)"
+        elapsed = time.process_time() - t0
+        assert elapsed < 4.0, f"200KB benign scan took {elapsed:.2f}s CPU (>20s/MB — prefilter regressed)"
         assert result.blocked is False
 
 

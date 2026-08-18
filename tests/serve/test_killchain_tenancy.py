@@ -32,6 +32,16 @@ def _event(artifact: str, org: str) -> CorrelatedEvent:
 
 class TestKillChainEscalationTenancy:
     def test_org_a_completion_escalates_only_org_a_chains(self):
+        # The subscriber under test is registered by EnhancedOrchestrator's
+        # constructor (module-level `orchestrator = EnhancedOrchestrator()`).
+        # An app-lifespan teardown in an earlier test calls event_bus.shutdown()
+        # which clears ALL subscribers for the rest of the worker's life —
+        # re-register the production subscriber deterministically.
+        from picosentry.serve.services.orchestrator import EnhancedOrchestrator
+
+        if event_bus.get_subscribers().get("project.run.completed", 0) == 0:
+            EnhancedOrchestrator()
+
         artifact_a = "wo5-orga-pkg@1.0.0"
         artifact_b = "wo5-orgb-pkg@1.0.0"
 

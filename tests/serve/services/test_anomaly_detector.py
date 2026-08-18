@@ -392,3 +392,47 @@ class TestHealthValueSemantics:
         self._insert(db, "smtp", "critical")
         assert detector._get_health_value() == 2.0
 
+
+class TestAnomalyAlertsSqlOrgFilter:
+    """WO5.0.0-022: the org filter belongs in SQL, not Python after LIMIT.
+
+    A busy org filling the global LIMIT window starved every other org."""
+
+    @staticmethod
+    def _insert(db, rule_id: str, org_id: str | None, created_at: str):
+        db.execute_insert(
+            """
+            INSERT INTO anomaly_alerts (rule_id, metric_name, value, threshold, comparison,
+                                        severity, description, created_at, org_id)
+            VALUES (?, 'm', 1, 1, 'gt', 'warning', 'desc', ?, ?)
+            """,
+            (rule_id, created_at, org_id),
+        )
+
+    def test_busy_org_does_not_starve_quiet_org(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "anomaly-org.db")
+        detector = AnomalyDetector(db=db)
+        for i in range(60):  # more than the default limit of 50
+            self._insert(db, "busy_rule", "999", f"2026-01-01 00:{i:02d}:00")
+        self._insert(db, "quiet_rule", "7", "2026-01-01 01:00:00")
+
+        rows = detector.get_alerts(limit=50, org_id="7")
+        assert [r["rule_id"] for r in rows] == ["quiet_rule"]
+
+    def test_global_alert_rows_visible_to_org_filter(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "anomaly-global.db")
+        detector = AnomalyDetector(db=db)
+        self._insert(db, "global_rule", None, "2026-01-01 00:00:00")
+        self._insert(db, "other_org_rule", "999", "2026-01-01 00:01:00")
+
+        rows = detector.get_alerts(limit=50, org_id="7")
+        assert [r["rule_id"] for r in rows] == ["global_rule"]
+
+    def test_no_org_filter_returns_everything(self, tmp_path):
+        db = DatabaseManager(db_path=tmp_path / "anomaly-nofilter.db")
+        detector = AnomalyDetector(db=db)
+        self._insert(db, "global_rule", None, "2026-01-01 00:00:00")
+        self._insert(db, "org_rule", "7", "2026-01-01 00:01:00")
+
+        rows = detector.get_alerts(limit=50)
+        assert {r["rule_id"] for r in rows} == {"global_rule", "org_rule"}

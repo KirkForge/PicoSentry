@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException, Path, Query
 from pydantic import BaseModel, Field
 
-from picosentry.serve.api.deps import get_current_org, require_permission
+from picosentry.serve.api.deps import get_current_org, require_permission, require_role
 from picosentry.serve.api.models import AnomalyAlertItem, AnomalyCheckResponse, AnomalyRuleResponse
 from picosentry.serve.services.rbac import Permission
 
@@ -73,7 +73,10 @@ async def trigger_anomaly_check(
 async def update_anomaly_rule(
     rule_id: Annotated[str, Path(max_length=64)],
     body: AnomalyRuleUpdateRequest,
-    user: dict = Depends(require_permission(Permission.WRITE_ANOMALY)),
+    # Rules are a global singleton (no org scoping yet) — any org's
+    # WRITE_ANOMALY operator mutating them changed every tenant's thresholds.
+    # Admin-only until rules carry org_id; per-org scoping is the upgrade path.
+    user: dict = Depends(require_role("admin")),
     org: dict = Depends(get_current_org),
 ):
     updates: dict = {}
@@ -84,8 +87,17 @@ async def update_anomaly_rule(
     if not updates:
         raise HTTPException(status_code=400, detail="No updates provided")
     detector = _get_anomaly_detector()
-    if not detector.update_rule(rule_id, **updates):
-        raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+    try:
+        if not detector.update_rule(rule_id, **updates):
+            raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found")
+    except OSError as exc:
+        # Read-only installs (wheel/container): _save_rules cannot write the
+        # config dir. Surface it clearly instead of an opaque 500.
+        logger.error("Anomaly rules config not writable: %s", exc)
+        raise HTTPException(
+            status_code=500,
+            detail=f"Anomaly rules config is not writable (read-only deployment?): {exc}",
+        ) from exc
     matching = [r for r in detector.get_rules(org_id=str(org["id"])) if r["id"] == rule_id]
     if not matching:
         raise HTTPException(status_code=404, detail=f"Rule '{rule_id}' not found after update")

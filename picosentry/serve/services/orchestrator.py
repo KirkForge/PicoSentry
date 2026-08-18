@@ -167,10 +167,14 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             f"SELECT COUNT(*) as c FROM project_runs {running_where}",
             tuple(params_running),
         )
-        threat_score = self.intel.get_aggregate_score()
+        # Org-scoped aggregate (see IntelligenceEngine.get_aggregate_score);
+        # the global in-memory sum leaked every tenant into org /status.
+        threat_score = self.intel.get_aggregate_score(org_id=org_id)
         # /status and the metrics endpoint read the same value; recording it
         # here makes picoshogun_threat_score exist without a second producer.
-        metrics.threat_level(threat_score)
+        # Org-stamped so the gauge reflects the caller's scope, not whichever
+        # org hit /status last.
+        metrics.threat_level(threat_score, org_id=org_id)
         return {
             "projects_total": len(self.registry),
             "projects_active": (running_row or {}).get("c") or 0,

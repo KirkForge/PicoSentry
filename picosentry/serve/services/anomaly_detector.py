@@ -446,16 +446,30 @@ class AnomalyDetector:
 
     def get_alerts(self, limit: int = 50, org_id: str | None = None) -> list[dict[str, Any]]:
         try:
-            rows = self.db.execute(
-                """
-                SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at, org_id
-                FROM anomaly_alerts
-                ORDER BY created_at DESC
-                LIMIT ?
-            """,
-                (limit,),
-            )
-            results = [
+            # Org filter belongs in SQL: a global LIMIT filtered in Python
+            # starved quieter orgs whenever a busy tenant filled the window.
+            if org_id is None:
+                rows = self.db.execute(
+                    """
+                    SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at, org_id
+                    FROM anomaly_alerts
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (limit,),
+                )
+            else:
+                rows = self.db.execute(
+                    """
+                    SELECT rule_id, metric_name, value, threshold, comparison, severity, description, created_at, org_id
+                    FROM anomaly_alerts
+                    WHERE org_id IS NULL OR org_id = ?
+                    ORDER BY created_at DESC
+                    LIMIT ?
+                """,
+                    (org_id, limit),
+                )
+            return [
                 {
                     "rule_id": r["rule_id"],
                     "metric_name": r["metric_name"],
@@ -469,9 +483,6 @@ class AnomalyDetector:
                 }
                 for r in rows
             ]
-            if org_id is not None:
-                results = [a for a in results if a.get("org_id") is None or a.get("org_id") == org_id]
-            return results
         except _DB_BOUNDARY_ERRORS:
             logger.warning("Failed to load anomaly alerts; returning empty list", exc_info=True)
             return []

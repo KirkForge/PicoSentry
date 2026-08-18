@@ -181,3 +181,34 @@ class TestRunOutputBounding:
         assert bounded.startswith("x" * 100)
         assert bounded.endswith("\n...[truncated]")
         assert len(bounded) <= _RUN_OUTPUT_LIMIT + len("\n...[truncated]")
+
+
+class TestOrgScopedThreatScore:
+    """WO5.0.0-022: /status threat_score must not blend other orgs' intel."""
+
+    def test_org_a_status_unaffected_by_org_b_ingest(self):
+        from picosentry.serve.database.manager import db
+        from picosentry.serve.services.orchestrator import orchestrator
+
+        org_a, org_b = 555001, 555002
+        before = orchestrator.get_status(org_id=org_a)["threat_score"]
+        try:
+            orchestrator.intel.ingest(
+                f"orgb-proj-{org_b}",
+                {
+                    "type": "anomaly",
+                    "severity": "critical",
+                    "data": {"match_count": 5},
+                    "related": [],
+                    "confidence": 0.9,
+                },
+                org_id=org_b,
+            )
+            after = orchestrator.get_status(org_id=org_a)["threat_score"]
+            assert after == before, "org B ingest leaked into org A's threat score"
+
+            assert orchestrator.get_status(org_id=org_b)["threat_score"] > 0
+            assert orchestrator.get_status()["threat_score"] > 0  # global view unchanged
+        finally:
+            db.execute(f"DELETE FROM intelligence WHERE org_id IN ({org_a}, {org_b})")
+            orchestrator.intel.threat_scores.pop(f"orgb-proj-{org_b}", None)

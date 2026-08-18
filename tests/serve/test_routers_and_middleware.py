@@ -424,6 +424,69 @@ class TestRateLimitLockDiscipline:
         assert resp.status_code == 429
         assert resp.headers.get("Retry-After")
 
+
+@pytest.fixture
+def operator_token(client):
+    """Create and authenticate an operator user with a default org."""
+    tag = int(time.time() * 1000)
+    username = f"operator_{tag}"
+    password = "testpassword123"
+    from picosentry.serve.api.server import auth_service
+    from picosentry.serve.services.orgs import Organization
+
+    auth_service.create_user(username, password, role="operator")
+    token = auth_service.authenticate(username, password)
+    assert token
+    info = auth_service.validate_token(token)
+    Organization.create(name=f"Operator Org {tag}", slug=f"operator-org-{tag}", owner_user_id=info["id"])
+    return token
+
+
+class TestAnomalyRuleMutationSurface:
+    """WO5.0.0-022: anomaly rules are a global singleton — only admins mutate them."""
+
+    def test_operator_patch_rules_forbidden(self, client, operator_token):
+        resp = client.patch("/anomaly/rules/health_degraded", json={"threshold": 2}, headers=_headers(operator_token))
+        assert resp.status_code == 403
+
+    def test_admin_patch_on_read_only_config_is_clear_500(self, client, admin_token, monkeypatch, tmp_path):
+        import picosentry.serve.services.anomaly_detector as ad_mod
+        from picosentry.serve.api.server import anomaly_detector
+
+        # Parent path is a file: mkdir/open raise OSError regardless of privileges.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a dir")
+        monkeypatch.setattr(ad_mod, "CONFIG_PATH", blocker / "rules.json")
+
+        rule = next(r for r in anomaly_detector.rules if r.id == "health_degraded")
+        before = (rule.enabled, rule.threshold)
+        try:
+            resp = client.patch(
+                "/anomaly/rules/health_degraded", json={"enabled": False}, headers=_headers(admin_token)
+            )
+            assert resp.status_code == 500
+            assert "not writable" in resp.text
+        finally:
+            rule.enabled, rule.threshold = before
+
+    def test_admin_patch_still_allowed(self, client, admin_token, monkeypatch, tmp_path):
+        import picosentry.serve.services.anomaly_detector as ad_mod
+        from picosentry.serve.api.server import anomaly_detector
+
+        # The real repo config is never touched: saves go to tmp_path.
+        monkeypatch.setattr(ad_mod, "CONFIG_PATH", tmp_path / "rules.json")
+        rule = next(r for r in anomaly_detector.rules if r.id == "health_degraded")
+        before = (rule.enabled, rule.threshold)
+        try:
+            resp = client.patch(
+                "/anomaly/rules/health_degraded", json={"threshold": 1.5}, headers=_headers(admin_token)
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["threshold"] == 1.5
+        finally:
+            rule.enabled, rule.threshold = before
+
+
 class TestSchedulerJobNameConflict:
     """WO5.0.0-021: same name + different config -> 409, not silent stale config."""
 

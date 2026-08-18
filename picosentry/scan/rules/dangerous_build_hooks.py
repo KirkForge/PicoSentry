@@ -141,6 +141,18 @@ ECOSYSTEM_FILES: dict[str, tuple[tuple[str, ...], tuple[str, ...]]] = {
     ),
 }
 
+# Read-surface of this rule, shared with the scan-cache input hash
+# (cli_service._hash_target_inputs): every suffix/filename L2-BUILD-001 reads
+# must be hashed or a cached clean verdict survives edits to exactly those
+# files (WO5.0.0-010). Derived from ECOSYSTEM_FILES — never duplicated — so a
+# new ecosystem here extends the cache key automatically.
+BUILD_HOOK_READ_SUFFIXES: frozenset[str] = frozenset(
+    marker for _manifests, suffixes in ECOSYSTEM_FILES.values() for marker in suffixes
+)
+BUILD_HOOK_READ_NAMES: frozenset[str] = frozenset(
+    name for manifests, _suffixes in ECOSYSTEM_FILES.values() for name in manifests if not name.startswith(".")
+)
+
 
 def _detect_ecosystem(target: Path) -> str | None:
     """Return the dominant non-npm/pypi ecosystem marker present in target."""

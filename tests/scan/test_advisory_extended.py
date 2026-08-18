@@ -10,6 +10,7 @@ from contextlib import suppress
 from pathlib import Path
 from typing import Any
 
+from picosentry.scan import advisory as advisory_module
 from picosentry.scan.advisory import (
     _SEMVER_RE,
     Advisory,
@@ -75,6 +76,13 @@ def _make_osv(
 
 def _write_json(path: Path, obj):
     path.write_text(json.dumps(obj), encoding="utf-8")
+
+
+def _from_osv_one(data: dict) -> Advisory | None:
+    """Single-package view of ``Advisory.from_osv`` (which returns a list, one
+    Advisory per affected package entry — WO5.0.0-009)."""
+    advs = Advisory.from_osv(data)
+    return advs[0] if advs else None
 
 
 def _make_advisory(**kw) -> Advisory:
@@ -147,7 +155,7 @@ class TestAdvisoryFromOsv(unittest.TestCase):
 
     def test_basic_parse(self):
         data = _make_osv(adv_id="GHSA-1234-5678", pkg_name="lodash", severity="CRITICAL")
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertIsNotNone(adv)
         self.assertEqual(adv.id, "GHSA-1234-5678")
         self.assertEqual(adv.package_name, "lodash")
@@ -155,15 +163,15 @@ class TestAdvisoryFromOsv(unittest.TestCase):
 
     def test_returns_none_when_no_npm_pypi_go_or_cargo_package(self):
         data = _make_osv(ecosystem="CocoaPods", pkg_name="some-pod")
-        self.assertIsNone(Advisory.from_osv(data))
+        self.assertIsNone(_from_osv_one(data))
 
     def test_returns_none_when_empty_affected(self):
         data = {"id": "GHSA-empty", "summary": "no affected", "affected": []}
-        self.assertIsNone(Advisory.from_osv(data))
+        self.assertIsNone(_from_osv_one(data))
 
     def test_summary_fallback_to_details(self):
         data = _make_osv(summary="", details="A" * 300)
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertIsNotNone(adv)
         self.assertEqual(len(adv.summary), 200)
         self.assertTrue(adv.summary.startswith("AAA"))
@@ -171,49 +179,49 @@ class TestAdvisoryFromOsv(unittest.TestCase):
     def test_severity_from_database_specific(self):
         for sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
             data = _make_osv(severity=sev)
-            adv = Advisory.from_osv(data)
+            adv = _from_osv_one(data)
             self.assertEqual(adv.severity, sev)
 
     def test_severity_default_when_missing(self):
         data = _make_osv(db_specific={})
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.severity, "MEDIUM")
 
     def test_severity_ignored_when_invalid(self):
         data = _make_osv(db_specific={"severity": "UNKNOWN"})
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.severity, "MEDIUM")
 
     def test_severity_ignored_when_not_dict(self):
         data = _make_osv()
         data["database_specific"] = "not a dict"
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.severity, "MEDIUM")
 
     def test_fixed_version_extracted(self):
         data = _make_osv(fixed="3.1.0")
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.fixed_version, "3.1.0")
 
     def test_no_fixed_version(self):
         data = _make_osv(fixed="")
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.fixed_version, "")
 
     def test_affected_versions_deduplicated(self):
         data = _make_osv(versions=["1.0.0", "1.0.0", "1.1.0"])
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.affected_versions, ["1.0.0", "1.1.0"])
 
     def test_range_with_last_affected(self):
         data = _make_osv(fixed="", last_affected="2.5.0")
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertIsNotNone(adv)
         self.assertEqual(adv.affected_ranges, [("1.0.0", "2.5.0", True)])
 
     def test_range_with_no_upper_bound(self):
         data = _make_osv(fixed="", last_affected="")
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertEqual(adv.affected_ranges, [("1.0.0", "", False)])
 
     def test_multiple_ranges_in_one_affected(self):
@@ -230,7 +238,7 @@ class TestAdvisoryFromOsv(unittest.TestCase):
                 }
             ],
         }
-        adv = Advisory.from_osv(osv)
+        adv = _from_osv_one(osv)
         self.assertIsNotNone(adv)
         self.assertEqual(len(adv.affected_ranges), 2)
         self.assertEqual(adv.affected_ranges[0], ("1.0.0", "2.0.0", False))
@@ -239,9 +247,95 @@ class TestAdvisoryFromOsv(unittest.TestCase):
     def test_missing_id_defaults_empty(self):
         data = _make_osv()
         del data["id"]
-        adv = Advisory.from_osv(data)
+        adv = _from_osv_one(data)
         self.assertIsNotNone(adv)
         self.assertEqual(adv.id, "")
+
+
+class TestAdvisoryFromOsvMultiPackage(unittest.TestCase):
+    """WO5.0.0-009 — multi-package records: one Advisory per affected entry."""
+
+    def test_multi_package_record_yields_one_advisory_per_package(self):
+        data = {
+            "id": "GHSA-multi-2pkgs",
+            "summary": "affects two packages",
+            "affected": [
+                {
+                    "package": {"ecosystem": "npm", "name": "pkg-a"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "1.0.0"}, {"fixed": "2.0.0"}]}],
+                },
+                {
+                    "package": {"ecosystem": "npm", "name": "pkg-b"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "3.0.0"}, {"fixed": "4.0.0"}]}],
+                },
+            ],
+            "database_specific": {"severity": "HIGH"},
+        }
+        advs = Advisory.from_osv(data)
+        self.assertEqual(len(advs), 2)
+        by_pkg = {adv.package_name: adv for adv in advs}
+        self.assertEqual(set(by_pkg), {"pkg-a", "pkg-b"})
+        # Each package carries ONLY its own ranges — pkg-b must not inherit
+        # pkg-a's range (the old last-package-wins bug flagged wrong versions).
+        self.assertEqual(by_pkg["pkg-a"].affected_ranges, [("1.0.0", "2.0.0", False)])
+        self.assertEqual(by_pkg["pkg-b"].affected_ranges, [("3.0.0", "4.0.0", False)])
+        self.assertEqual(by_pkg["pkg-a"].fixed_version, "2.0.0")
+        self.assertEqual(by_pkg["pkg-b"].fixed_version, "4.0.0")
+
+    def test_multi_package_db_check_matches_each_package(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(
+            d / "multi.json",
+            {
+                "id": "GHSA-multi-2pkgs",
+                "summary": "affects two packages",
+                "affected": [
+                    {
+                        "package": {"ecosystem": "npm", "name": "pkg-a"},
+                        "ranges": [{"type": "SEMVER", "events": [{"introduced": "1.0.0"}, {"fixed": "2.0.0"}]}],
+                    },
+                    {
+                        "package": {"ecosystem": "npm", "name": "pkg-b"},
+                        "ranges": [{"type": "SEMVER", "events": [{"introduced": "3.0.0"}, {"fixed": "4.0.0"}]}],
+                    },
+                ],
+            },
+        )
+        db = AdvisoryDB(d)
+        self.assertEqual(len(db.check("pkg-a", "1.5.0")), 1)
+        # pkg-a's range must not apply to pkg-b: 1.5.0 is only vulnerable via pkg-a.
+        self.assertEqual(db.check("pkg-b", "1.5.0"), [])
+        self.assertEqual(len(db.check("pkg-b", "3.5.0")), 1)
+
+
+class TestAdvisoryDBLoadEnvelope(unittest.TestCase):
+    """WO5.0.0-009 — AdvisoryDB.load() understands the bundled-snapshot envelope."""
+
+    def test_envelope_shape_loads(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(
+            d / "snapshot.json",
+            {
+                "metadata": {"source": "test"},
+                "advisories": [
+                    _make_osv(adv_id="GHSA-env-1", pkg_name="lodash"),
+                    _make_osv(adv_id="GHSA-env-2", pkg_name="express"),
+                ],
+            },
+        )
+        db = AdvisoryDB(d)
+        self.assertEqual(db.advisory_count, 2)
+        self.assertEqual(len(db.check("lodash", "1.5.0")), 1)
+
+    def test_bundled_corpus_advisories_dir_loads_via_advisory_db(self):
+        # The default scan path loads corpus/advisories with AdvisoryDB — the
+        # envelope must parse there too (this is the exact default-path no-op).
+        bundled = Path(advisory_module.__file__).parent / "corpus" / "advisories"
+        if not bundled.is_dir():  # pragma: no cover - wheel packaging guarantee
+            self.skipTest("bundled corpus advisories dir not shipped")
+        db = AdvisoryDB(bundled)
+        self.assertGreater(db.advisory_count, 0)
+        self.assertGreater(len(db.check("lodash", "4.17.15")), 0)
 
 
 # ══════════════════════════════════════════════════════════════════════════
@@ -818,6 +912,37 @@ class TestSemverRegex(unittest.TestCase):
 
     def test_no_match(self):
         self.assertIsNone(_SEMVER_RE.search("not-a-version"))
+
+
+def test_default_path_advisory_scan_fires_without_explicit_db(tmp_path, monkeypatch):
+    """WO5.0.0-009 — the default scan path (no --advisory-db) must load the
+    bundled corpus envelope and fire L2-ADV-001 on a known-vulnerable dep."""
+    from picosentry.scan.rules import advisory_check
+    from picosentry.scan.engine import create_default_engine
+
+    # Hermetic: force the bundled corpus (no user corpus) and an absent user
+    # advisory dir, and clear the process-level advisory DB cache.
+    monkeypatch.setenv("PICOSENTRY_CORPUS_DIR", str(tmp_path / "no-user-corpus"))
+    monkeypatch.setenv("PICOSENTRY_ADVISORY_DIR", str(tmp_path / "no-user-advisories"))
+    monkeypatch.delenv("PICOADVISORY_DIR", raising=False)
+    advisory_check._advisory_db_cache.clear()
+
+    target = tmp_path / "proj"
+    (target / "node_modules" / "lodash").mkdir(parents=True)
+    (target / "package.json").write_text(
+        json.dumps({"name": "x", "version": "1.0.0", "dependencies": {"lodash": "4.17.15"}})
+    )
+    (target / "node_modules" / "lodash" / "package.json").write_text(
+        json.dumps({"name": "lodash", "version": "4.17.15"})
+    )
+
+    result = create_default_engine().scan(target)
+    adv = [f for f in result.findings if f.rule_id == "L2-ADV-001" and f.package.startswith("lodash@")]
+    assert adv, (
+        f"default-path scan (no --advisory-db) must fire L2-ADV-001 for "
+        f"lodash@4.17.15; got: {[(f.rule_id, f.package) for f in result.findings]}"
+    )
+    assert any("GHSA" in f.message or "CVE" in f.message for f in adv)
 
 
 if __name__ == "__main__":

@@ -341,7 +341,12 @@ class ScanEngine:
         _detected_rubygems = "rubygems" in _detected
         _detected_nuget = "nuget" in _detected
 
-        selected_rules = {k: v for k, v in self._rules.items() if k in rules} if rules else dict(self._rules)
+        explicit_rules = set(rules) if rules is not None else None
+        selected_rules = (
+            {k: v for k, v in self._rules.items() if k in explicit_rules}
+            if explicit_rules is not None
+            else dict(self._rules)
+        )
 
         _cross_ecosystem_rules = frozenset(
             {
@@ -352,51 +357,70 @@ class ScanEngine:
             }
         )
 
-        if not _detected_npm:
-            _npm_prefixes = (
-                "L2-POST-",
-                "L2-OBFS-",
-                "L2-MANI-",
-                "L2-NETEX-",
-                "L2-CRED-",
-                "L2-LOCK-",
-                "L2-BUND-",
-                "L2-BUILD-",
-                "L2-PROV-",
-                "L2-MAINT-",
-                "L2-PNPM-",
-                "L2-LICENSE-",
-                "L2-ENGIN-",
-                "L2-SIDELOAD-",
-                "L2-IOC-",
-                "L2-WORM-",
-                "L2-FORK-",
-                "L2-DEPC-",
-                "L2-TYPO-",
-                "L2-ADV-",
-                "L2-CAMP-",
-                "L2-INTEL-",
-                "L2-VCONF-",
-            )
-            selected_rules = {
-                k: v
-                for k, v in selected_rules.items()
-                if k in _cross_ecosystem_rules or not k.startswith(_npm_prefixes)
-            }
-        if not _detected_pypi:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-PYPI-")}
-        if not _detected_go:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-GO-")}
-        if not _detected_cargo:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-CARGO-")}
-        if not _detected_maven:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-MAVEN-")}
-        if not _detected_rubygems:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-RUBYGEMS-")}
-        if not _detected_nuget:
-            selected_rules = {k: v for k, v in selected_rules.items() if not k.startswith("L2-NUGET-")}
+        _npm_prefixes = (
+            "L2-POST-",
+            "L2-OBFS-",
+            "L2-MANI-",
+            "L2-NETEX-",
+            "L2-CRED-",
+            "L2-LOCK-",
+            "L2-BUND-",
+            "L2-BUILD-",
+            "L2-PROV-",
+            "L2-MAINT-",
+            "L2-PNPM-",
+            "L2-LICENSE-",
+            "L2-ENGIN-",
+            "L2-SIDELOAD-",
+            "L2-IOC-",
+            "L2-WORM-",
+            "L2-FORK-",
+            "L2-DEPC-",
+            "L2-TYPO-",
+            "L2-ADV-",
+            "L2-CAMP-",
+            "L2-INTEL-",
+            "L2-VCONF-",
+        )
 
-        if not selected_rules:
+        # Ecosystem deselection, data-driven so every filter both drops the
+        # rules and records WHY for explicitly-requested ones — a silent drop
+        # reported as a clean scan is the WO5.0.0-015 honesty bug.
+        _deselected_by: dict[str, str] = {}
+        for eco, detected, prefixes, cross in (
+            ("npm", _detected_npm, _npm_prefixes, _cross_ecosystem_rules),
+            ("pypi", _detected_pypi, ("L2-PYPI-",), frozenset()),
+            ("go", _detected_go, ("L2-GO-",), frozenset()),
+            ("cargo", _detected_cargo, ("L2-CARGO-",), frozenset()),
+            ("maven", _detected_maven, ("L2-MAVEN-",), frozenset()),
+            ("rubygems", _detected_rubygems, ("L2-RUBYGEMS-",), frozenset()),
+            ("nuget", _detected_nuget, ("L2-NUGET-",), frozenset()),
+        ):
+            if detected:
+                continue
+            for rid in selected_rules:
+                if rid not in cross and rid.startswith(prefixes):
+                    _deselected_by.setdefault(rid, eco)
+            selected_rules = {k: v for k, v in selected_rules.items() if k in cross or not k.startswith(prefixes)}
+
+        skipped_executions: list[RuleExecution] = []
+        if explicit_rules is not None:
+            for rid in sorted(explicit_rules - selected_rules.keys()):
+                dropped_eco = _deselected_by.get(rid)
+                skipped_executions.append(
+                    RuleExecution(
+                        rule_id=rid,
+                        status="skipped",
+                        findings_count=0,
+                        error=(
+                            f"ecosystem {dropped_eco} not detected"
+                            if dropped_eco
+                            else "rule not registered on this engine"
+                        ),
+                    )
+                )
+
+        if not selected_rules and not skipped_executions:
             logger.warning("No detector rules selected for scan")
             return ScanResult(target=str(target_path))
 
@@ -412,7 +436,7 @@ class ScanEngine:
         wall_started = datetime.now(timezone.utc)
         start_ms = now_ms()
         all_findings: list[Finding] = []
-        rule_executions: list[RuleExecution] = []
+        rule_executions: list[RuleExecution] = list(skipped_executions)
         packages_scanned = 0
         rule_timings: dict[str, int] = {}
 

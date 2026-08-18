@@ -213,10 +213,13 @@ def _collect_maven_packages(target: Path) -> list[tuple[str, str, str, Path]]:
         for dep in pom_data.get("dependencies", []):
             group_id, artifact_id, version, _scope = dep if len(dep) == 4 else (dep[0], dep[1], dep[2], "")
 
-            pkg_key = artifact_id
-            if pkg_key and version and (pkg_key, version) not in seen:
-                seen.add((pkg_key, version))
-                packages.append((pkg_key, version, f"{group_id}:{artifact_id}@{version}", target / "pom.xml"))
+            # Real OSV maven records key packages "group:artifact"; bare
+            # artifactId is kept as a fallback for hand-rolled DBs (WO5.0.0-009).
+            label = f"{group_id}:{artifact_id}@{version}"
+            for pkg_key in (f"{group_id}:{artifact_id}", artifact_id):
+                if pkg_key and version and (pkg_key, version) not in seen:
+                    seen.add((pkg_key, version))
+                    packages.append((pkg_key, version, label, target / "pom.xml"))
 
     gradle_data = parse_gradle_build(target)
     if gradle_data:
@@ -369,6 +372,7 @@ def _check_packages(
     config: AdvisoryConfig,
 ) -> list[Finding]:
     findings: list[Finding] = []
+    reported: set[tuple[str, str]] = set()
 
     for pkg_name, pkg_version, pkg_label, source_path in packages:
         advisories = db.check(pkg_name, pkg_version)
@@ -378,6 +382,12 @@ def _check_packages(
         reachable = _is_package_reachable(target, pkg_name, config.ecosystem)
 
         for adv in advisories:
+            # The maven collector emits two lookup keys per pom dependency;
+            # a DB holding both key forms must not fire the same advisory
+            # twice for the same package@version.
+            if (adv.id, pkg_label) in reported:
+                continue
+            reported.add((adv.id, pkg_label))
             severity = Severity.HIGH
             with contextlib.suppress(ValueError):
                 severity = Severity(adv.severity)

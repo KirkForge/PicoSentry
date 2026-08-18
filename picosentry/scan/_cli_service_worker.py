@@ -26,6 +26,7 @@ def _scan_worker(
     corpus_dir: str | None,
     advisory_db_path: str | None,
     result_queue: multiprocessing.Queue,
+    intelligence_mode: str = "offline",
 ) -> None:
     try:
         from picosentry.scan.engine import create_default_engine
@@ -33,6 +34,7 @@ def _scan_worker(
         eng = create_default_engine(
             corpus_dir=Path(corpus_dir) if corpus_dir else None,
             advisory_db_path=advisory_db_path,
+            intelligence_mode=intelligence_mode,
         )
         r = eng.scan(target_path, rules=rules, advisory_db_path=advisory_db_path)
         result_queue.put(("ok", r))

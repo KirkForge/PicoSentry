@@ -211,6 +211,19 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             buckets[row["bucket_key"]] = merged
 
     def _evict_if_needed(self, now: float):
+        # Persist/re-sync runs on ITS OWN cadence (sync_interval), not under
+        # the 60s eviction gate: multi-worker deployments configure a few
+        # seconds and must not wait a minute between counter exchanges.
+        if self.persist and now - self._last_flush > self.sync_interval:
+            self._last_flush = now
+            self._flush_to_db()
+            # Pull the other workers' counts in the same cadence; a worker
+            # with no local traffic would otherwise never re-sync.
+            try:
+                self._sync_from_db(now)
+            except (OSError, ValueError) as exc:
+                logger.warning("Rate limit persistence sync failed: %s", exc)
+
         if now - self._last_eviction < 60:
             return
         self._last_eviction = now
@@ -235,16 +248,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             )
             for k in sorted_keys[: len(self.org_requests) - self.max_buckets]:
                 del self.org_requests[k]
-
-        if self.persist and now - self._last_flush > self.sync_interval:
-            self._last_flush = now
-            self._flush_to_db()
-            # Pull the other workers' counts in the same cadence; a worker
-            # with no local traffic would otherwise never re-sync.
-            try:
-                self._sync_from_db(now)
-            except (OSError, ValueError) as exc:
-                logger.warning("Rate limit persistence sync failed: %s", exc)
 
     def _clean_and_count(self, buckets: dict, key: str, now: float) -> int:
         buckets[key] = [t for t in buckets[key] if now - t < self.window]

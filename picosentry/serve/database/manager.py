@@ -125,7 +125,12 @@ class DatabaseManager:
             if isinstance(self._pool, SQLitePool):
                 # BEGIN IMMEDIATE takes the write lock up front, so concurrent
                 # writers serialize at the DB instead of racing between a read
-                # and their INSERT (audit hash chain depends on this).
+                # and their INSERT (audit hash chain depends on this). It is
+                # also the DEFAULT because every deferred caller is a
+                # read-check-then-write pattern: cross-process, a deferred
+                # BEGIN→read→write-upgrade deadlocks instantly ("database is
+                # locked") whenever another worker wrote since the read began
+                # — the WAL snapshot-upgrade failure sqlite will not retry.
                 conn.execute("BEGIN IMMEDIATE" if immediate else "BEGIN")
             # Postgres connections have autocommit=False, so transactions
             # are implicit — no explicit BEGIN needed.

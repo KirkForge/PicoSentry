@@ -576,21 +576,47 @@ class JobScheduler:
             logger.debug("Scheduler lease release failed (lease will expire)", exc_info=True)
 
     def _reschedule_all(self) -> None:
-        """Drop every queued entry and recompute from cron.
+        """Reload jobs from the shared DB, drop every queued entry and
+        recompute from cron.
 
-        Called on leadership transitions: the previous leader's in-memory
-        queue may hold overdue entries that a fresh next_run computation
-        must replace, or a takeover would double-fire the boundary job.
+        Called on leadership transitions. The reload is the cross-worker
+        correctness point: jobs created via ANOTHER worker's API (or its
+        lifespan) since this process booted are unknown here, and without
+        the reload a takeover leader would resurrect only its stale
+        in-memory set — the fleet's jobs would silently stop firing after
+        failover. The cancel-and-replace also drops the previous leader's
+        overdue in-memory entries so a takeover cannot double-fire the
+        boundary job.
         """
         with self._lock:
+            self._load_jobs()
             for job_id in list(self._queued):
                 self._cancel_queued(job_id)
             for job_id in list(self.jobs):
                 if self.jobs[job_id].enabled:
                     self._schedule_job(job_id)
 
+    def _converge_jobs(self) -> None:
+        """Leader-side refresh: pick up job CRUD done via other workers.
+
+        Job rows are shared state; without this, a job created on worker A
+        would not run until the leader restarts. Converge = load fresh,
+        cancel queued entries for removed/disabled jobs, schedule enabled
+        jobs that have no queue entry.
+        """
+        with self._lock:
+            self._load_jobs()
+            for job_id in list(self._queued):
+                if job_id not in self.jobs or not self.jobs[job_id].enabled:
+                    self._cancel_queued(job_id)
+            for job_id, job in self.jobs.items():
+                if job.enabled and job_id not in self._queued:
+                    self._schedule_job(job_id)
+
     def _run(self):
         lease_failures = 0
+        reload_every = max(15, self.lease_ttl * 2)
+        last_reload = time.monotonic()
         while True:
             with self._lock:
                 if not self.running:
@@ -611,6 +637,7 @@ class JobScheduler:
                 if leader:
                     self._reschedule_all()
                     logger.info("Scheduler leadership acquired by %s", self.worker_id)
+                    last_reload = time.monotonic()
                 else:
                     for job_id in list(self._queued):
                         self._cancel_queued(job_id)
@@ -618,6 +645,9 @@ class JobScheduler:
                 self._leader = leader
             if leader:
                 self.scheduler.run(blocking=False)
+                if time.monotonic() - last_reload > reload_every:
+                    last_reload = time.monotonic()
+                    self._converge_jobs()
             time.sleep(self._tick_sleep)
 
     def stop(self):

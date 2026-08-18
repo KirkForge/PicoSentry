@@ -2,7 +2,42 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, WO5.0.0 P1 + DOCS WAVE LANDED — dev CI GREEN, series 30/35 DONE) ═══
+# ═══ CURRENT STATE (2026-08-18, v2.1.3 RELEASED — WO5.0.0 series complete: 33 DONE / 2 PARTIAL) ═══
+
+**v2.1.3 published and verified**: PyPI live (wheel `55cecc7b…`, sdist `e52bad87…`, digests byte-verified), reproducible (two builds identical incl. normalized sdist), tag `v2.1.3` pushed, `main` ff'd = `86b94c4b`. Main push CI green (32185985387). Post-tag: release.yml's integration tier (not run by push CI) caught 2 test-tier items — SARIF fixture hardcoded 2.1.2 (the 2.1.1 incident class; artifact cosmetic metadata) + gateway starvation test's fixed time margin collapsing under GIL contention on small runners — both root-fixed on dev (`5af027ca`, bump-proof fixture + ordering-only assertion), 5489 fast green. The tag's release run stays red on those two; every later commit is clean.
+
+**WO5.0.0 series final: 35 WOs — 33 DONE, 2 honest PARTIALs** (014 docker push: tooling+credentials blocked, runbook in the WO, docker/verify-docker CI jobs opt-in via `vars.DOCKER_PUSH_ENABLED` until Hub secrets exist; 031 multi-worker e2e: core landed (outbox, leader lease, rate-limit sync, WS queues, sqlite busy_timeout, migrations 21/22) but the 2-real-worker e2e tests need isolation rework — the 5h agent was cancelled, core salvaged). WO4 series fully closed earlier (17 DONE + 7 folded). L2-TYPO-001 DP 46-65× + short-name calibration landed (WO-028); the silent timebox-drop of typosquat findings on dep-heavy trees was a real bug fixed en route.
+
+**Next-release notes**: docker push runbook = WO5.0.0-014 §5 (install docker+buildx+qemu, `docker login`, `TAG=v<x> ./scripts/build_docker_multiarch.sh --push`, flip the "pending" claims at README:104/123-124, experimental:113-114/120, manual:128/131-132/2085-2090, set `DOCKER_PUSH_ENABLED=true`); WO-031 remainder (e2e isolation + serve helm chart); WO-029 fused-pass target (~1.6 s/MB idle-equiv vs <1); watch slow-tier 155s non-typosquat rule cost; ws.py multi-org first-org lock + rate_limit per-key bucketing seams (flagged in WO-032).
+
+## The queue (jump-in order)
+
+1. **Small riders wave** (one short session): WO-018 item-10 gRPC-manual-fallback deletion · serve falsy-zero flags (serve.py:72-79) · ScanStats fold for unscannable_components · ws.py X-Org-Id + rate-limit org bucketing seams · WO-031 e2e isolation rework (or park until needed).
+2. **Docker push** when tooling/credentials exist (runbook above).
+3. Next release (v2.2.0) whenever the riders accumulate; nothing is pending-release right now.
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-08-18 (j): WO5 P2 wave + v2.1.3 release — COMPLETE
+
+### Method
+5 workers on the P2 tail (scan-typo/watch-fused/cluster-rot/serve-multi/serve-tenant) + 1 read-only explorer auditing WO-014. WO-031's worker ran 5h and was CANCELLED by the owner; orchestrator salvaged its core (2 commits + coherent WIP), root-caused what it was circling in bounded time (leaked fake-clock lease; real sqlite cross-process locked collision → busy_timeout=15s pragma + transaction immediate-default), dropped the 2 isolation-broken e2e tests with rationale, merged as PARTIAL. Merge conflicts resolved centrally: migration same-number collision (21+21 → 21+22), stray uncommitted edit from the cancelled agent in the main checkout (discarded, superseded by its own branch commit).
+
+### Release (v2.1.3)
+Lockstep bump (pyproject, 6 __init__s, uv.lock, README/experimental/docker claims with honest v2.1.3-push-pending wording, k8s manifest, helm appVersion, manual) → gates green (fast 5489) → ff main → reproducible build (wheel + normalized sdist, two builds hash-identical) → PyPI publish via Lockdown token → digests verified → tag + push. Docker jobs gated opt-in (no Hub secrets exist — SA-AO audit). Post-tag integration-tier failures root-fixed on dev same session.
+
+### Notable
+- SA-AJ found dev SILENTLY DROPPING L2-TYPO-001 findings via the rule timebox on dep-heavy trees (fixed + regression-pinned) — the "reports success while failing" class again, this time as a perf cliff.
+- SA-AL found the rotation grace window was a no-op on long-lived clusters (issued_at kept on demote).
+- SA-AN found GET /intelligence 500'd for any org WITH rows (latent since forever; zero-row orgs masked it).
+- 5h-runaway lesson recorded in lessons.md (kill criteria for workers were missing from the dispatch).
+
+### Gate (head dev @ 5af027ca; release artifacts verified on PyPI)
+- ruff/format/mypy clean · fast **5489 passed / 0 failed** · release lockstep 34 passed · PyPI digests = local build.
+
+### Blocked
+- Docker Hub push (tooling + credentials) — WO5.0.0-014, runbook recorded.
+
 
 **P1 wave complete and shipped to dev** (5 WO workers + CI/merge agent + docs agent; 7 agents total this session): WO5.0.0-016..027, 033, 034, 035 all DONE. **WO5.0.0 series: 29 DONE, 1 PARTIAL (014 — docker push tooling-blocked), 5 OPEN (028-032, the P2 tail: typo DP, watch fused pass, cluster rotation, multi-worker, tenant product).**
 

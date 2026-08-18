@@ -91,15 +91,16 @@ def require_permission(permission: Permission):
 def get_current_org(
     request: Request,
     api_key: str | None = Header(None, alias="X-Org-API-Key"),
+    org_id_header: str | None = Header(None, alias="X-Org-Id"),
     user: dict = Depends(get_current_user),
 ):
-    org = _resolve_current_org(api_key, user)
+    org = _resolve_current_org(api_key, org_id_header, user)
     # Shared with the audit middleware (see get_current_user).
     request.state.picoshogun_org = org
     return org
 
 
-def _resolve_current_org(api_key: str | None, user: dict) -> dict:
+def _resolve_current_org(api_key: str | None, org_id_header: str | None, user: dict) -> dict:
     user_orgs = Organization.list_orgs_for_user(user["id"])
 
     # A user API key minted scoped to an org may only reach that org.
@@ -126,6 +127,23 @@ def _resolve_current_org(api_key: str | None, user: dict) -> dict:
                 )
             return org
         raise HTTPException(status_code=403, detail="Invalid organization API key")
+
+    # Org switch for multi-org JWT users: X-Org-Id selects which of the
+    # caller's own orgs this request acts in. Key paths above return before
+    # this point — an org-scoped key stays pinned to its org. No header =
+    # first org (pre-existing behavior).
+    if org_id_header is not None:
+        try:
+            requested_id = int(org_id_header)
+        except ValueError:
+            raise HTTPException(status_code=400, detail="X-Org-Id header must be a numeric org id") from None
+        org = next((o for o in (user_orgs or []) if o["id"] == requested_id), None)
+        if not org:
+            raise HTTPException(
+                status_code=403,
+                detail="X-Org-Id does not match an organization you are a member of",
+            )
+        return org
 
     if not user_orgs:
         raise HTTPException(status_code=403, detail="User not associated with any organization")

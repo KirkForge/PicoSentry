@@ -900,7 +900,7 @@ MIGRATIONS: list[Migration] = [
         );
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_webhooks_org_name
-            ON webhooks(org_id, name) WHERE active = 1;
+            ON webhooks(org_id, name) WHERE active;
     """,
         postgres_sql="""
         DELETE FROM webhooks WHERE active AND id NOT IN (
@@ -909,6 +909,62 @@ MIGRATIONS: list[Migration] = [
 
         CREATE UNIQUE INDEX IF NOT EXISTS idx_webhooks_org_name
             ON webhooks(org_id, name) WHERE active;
+    """,
+    ),
+    Migration(
+        21,
+        "org_member_management",
+        """
+        -- WO5.0.0-032: member management. Membership is unique per
+        -- (org_id, user_id) — keep the oldest row per pair first. org_invites
+        -- records invite tokens (sha256-hashed, same discipline as
+        -- api_key_hash) for audit and later accept-flows.
+        DELETE FROM org_users WHERE id NOT IN (
+            SELECT MIN(id) FROM org_users GROUP BY org_id, user_id
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_org_users_org_user
+            ON org_users(org_id, user_id);
+
+        CREATE TABLE IF NOT EXISTS org_invites (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            org_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            accepted_at TIMESTAMP,
+            FOREIGN KEY (org_id) REFERENCES orgs(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_org_invites_org ON org_invites(org_id, created_at);
+    """,
+        postgres_sql="""
+        DELETE FROM org_users WHERE id NOT IN (
+            SELECT MIN(id) FROM org_users GROUP BY org_id, user_id
+        );
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_org_users_org_user
+            ON org_users(org_id, user_id);
+
+        CREATE TABLE IF NOT EXISTS org_invites (
+            id SERIAL PRIMARY KEY,
+            org_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            role TEXT NOT NULL,
+            token_hash TEXT UNIQUE NOT NULL,
+            status TEXT DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            expires_at TIMESTAMP,
+            accepted_at TIMESTAMP,
+            FOREIGN KEY (org_id) REFERENCES orgs(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_org_invites_org ON org_invites(org_id, created_at);
     """,
     ),
 ]

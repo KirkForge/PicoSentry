@@ -10,6 +10,7 @@ from typing import Any
 
 from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
+from picosentry.serve.errors import QuotaExceededError
 from picosentry.serve.services.alert_hub import AlertHub
 from picosentry.serve.services.correlation import (
     build_event_from_intel,
@@ -239,6 +240,18 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
         meta = self.registry.get(project_id)
         if not meta:
             return {"error": f"Unknown project: {project_id}"}
+
+        # Tier quotas (WO5.0.0-032): enforced before any side effect — no run
+        # row, no org association. Quota rejection keeps the dict-error
+        # contract (scheduler jobs degrade to "failed", API maps to 402)
+        # instead of raising through callers we do not own.
+        if org_id is not None:
+            try:
+                Organization.check_run_quota(org_id)
+                Organization.check_project_quota(org_id, project_id)
+            except QuotaExceededError as exc:
+                logger.info("Run of %s rejected for org %s: %s", project_id, org_id, exc)
+                return {"error": str(exc), "quota_exceeded": True}
 
         _validate_project_command(project_id, meta.package or project_id)
         cli_args = PICO_CLI.get(project_id, [meta.package or project_id])

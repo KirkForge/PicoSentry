@@ -36,6 +36,7 @@ from picosentry.serve.errors import (
     ConflictError,
     NotFoundError,
     PicoSentryError,
+    QuotaExceededError,
     ServiceError,
     ValidationError,
 )
@@ -253,6 +254,7 @@ async def serve_error_handler(request: Request, exc: PicoSentryError):
         NotFoundError: 404,
         ValidationError: 422,
         ConflictError: 409,
+        QuotaExceededError: 402,
         ServiceError: 500,
     }
     status = mapping.get(type(exc), 500)
@@ -299,7 +301,7 @@ app.add_middleware(
     allow_origins=settings.api.cors_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allow_headers=["Authorization", "X-API-Key", "X-Org-API-Key", "Content-Type", "X-Request-ID"],
+    allow_headers=["Authorization", "X-API-Key", "X-Org-API-Key", "X-Org-Id", "Content-Type", "X-Request-ID"],
 )
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(DDoSShieldMiddleware, enabled=settings.security.ddos_shield_enabled)

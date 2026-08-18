@@ -46,6 +46,7 @@ class PersistentScanJobStore:
         self._store_file = self._store_dir / "jobs.jsonl"
         self._jobs: dict[str, dict[str, Any]] = {}
         self._loaded = False
+        self._appends_since_rewrite = 0
 
     def _ensure_loaded(self) -> None:
         if self._loaded:
@@ -134,6 +135,7 @@ class PersistentScanJobStore:
                 for job in sorted_jobs:
                     f.write(json.dumps(job, sort_keys=True, default=str) + "\n")
             tmp_file.replace(self._store_file)
+            self._appends_since_rewrite = 0
             logger.info("Compacted job store: %d → %d jobs", len(jobs), len(sorted_jobs))
         except OSError as e:
             logger.warning("Failed to compact job store: %s", e)
@@ -170,6 +172,13 @@ class PersistentScanJobStore:
             if len(self._jobs) > self._max_jobs:
                 self._evict_oldest_locked()
             self._append_to_disk(job)
+            self._appends_since_rewrite += 1
+            # Bounded compaction (WO5.0.0-030): add() only appends, so lines
+            # for evicted jobs pile up between full rewrites. Once appended
+            # dead weight rivals the live set, rewrite from memory (the same
+            # cap pattern as max_jobs) — the file stays within ~2x live size.
+            if self._appends_since_rewrite > len(self._jobs):
+                self._rewrite_disk()
         return job
 
     def _evict_oldest_locked(self) -> None:
@@ -217,6 +226,7 @@ class PersistentScanJobStore:
             with tmp_file.open("w", encoding="utf-8") as f:
                 f.writelines(json.dumps(job, sort_keys=True, default=str) + "\n" for job in self._jobs.values())
             tmp_file.replace(self._store_file)
+            self._appends_since_rewrite = 0
         except OSError as e:
             logger.warning("Failed to rewrite job store: %s", e)
             with contextlib.suppress(OSError):

@@ -9,6 +9,7 @@ backed by a test that actually runs in CI.
 
 from __future__ import annotations
 
+import argparse
 import functools
 import json
 
@@ -272,3 +273,62 @@ def test_expected_findings_are_deduped() -> None:
         "Narrow assertion should match when its finding is not in `seen` — "
         "otherwise the dedup test is checking the wrong thing"
     )
+
+
+# ── Skipped-fixture accounting (WO5.0.0-016) ─────────────────────────────
+
+
+def _make_validation_root(tmp_path):
+    """A tiny validation root: one loadable fixture, two skipped ones."""
+    good = tmp_path / "positive" / "good"
+    good.mkdir(parents=True)
+    (good / "fixture.json").write_text(json.dumps({"label": "positive", "expected_rule_ids": []}))
+    malformed = tmp_path / "positive" / "malformed"
+    malformed.mkdir(parents=True)
+    (malformed / "fixture.json").write_text("{not json")
+    badlabel = tmp_path / "negative" / "badlabel"
+    badlabel.mkdir(parents=True)
+    (badlabel / "fixture.json").write_text(json.dumps({"label": "wat"}))
+    no_spec = tmp_path / "negative" / "not-a-fixture"
+    no_spec.mkdir(parents=True)
+    return tmp_path
+
+
+def test_skipped_fixtures_counted_in_report(tmp_path):
+    root = _make_validation_root(tmp_path)
+    report = run_validation(validation_root=root)
+    assert report.total_fixtures == 1
+    assert report.skipped_fixtures == 2
+    assert report.to_dict()["skipped_fixtures"] == 2
+    assert "skipped fixtures: 2" in report.to_text()
+
+
+def test_discover_fixtures_signature_unchanged(tmp_path):
+    """discover_fixtures keeps its list return (mutation_benchmark depends on it)."""
+    root = _make_validation_root(tmp_path)
+    fixtures = discover_fixtures(root)
+    assert [f.name for f in fixtures] == ["good"]
+
+
+def test_zero_skips_reported_as_zero(tmp_path):
+    good = tmp_path / "negative" / "only"
+    good.mkdir(parents=True)
+    (good / "fixture.json").write_text(json.dumps({"label": "negative"}))
+    report = run_validation(validation_root=tmp_path)
+    assert report.skipped_fixtures == 0
+    assert "skipped fixtures" not in report.to_text()
+
+
+def test_cli_validate_warns_when_fixtures_skipped(tmp_path, monkeypatch, capsys):
+    """`--validate` surfaces a loud stderr warning when fixtures were skipped."""
+    from unittest.mock import patch
+
+    from picosentry.scan.validation import ValidationReport
+
+    with patch("picosentry.scan.cli_service.run_validation", return_value=ValidationReport(skipped_fixtures=3)):
+        from picosentry.scan.cli_service import ScanOrchestrator
+
+        rc = ScanOrchestrator(argparse.Namespace(target=str(tmp_path), output=None, advisory_db=None)).run_validation()
+    assert rc in (0, 1)
+    err = capsys.readouterr().err
+    assert "WARNING" in err and "3 fixture(s) skipped" in err

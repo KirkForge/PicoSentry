@@ -174,6 +174,10 @@ class ValidationReport:
     unknown_rule_expectations: tuple[tuple[str, str], ...] = ()
     """(fixture_name, unknown_rule_id) — expectations against rule ids that
     don't exist; each one is guaranteed recall loss, so surface it."""
+    skipped_fixtures: int = 0
+    """Fixture dirs whose fixture.json failed to load (malformed JSON, unknown
+    label, bad assertions). They are excluded from every metric above — the
+    count keeps the shrunken denominator visible (WO5.0.0-016)."""
 
     @property
     def mean_precision(self) -> float:
@@ -192,6 +196,7 @@ class ValidationReport:
             "total_fixtures": self.total_fixtures,
             "total_positive": self.total_positive,
             "total_negative": self.total_negative,
+            "skipped_fixtures": self.skipped_fixtures,
             "mean_precision": round(self.mean_precision, 4),
             "mean_recall": round(self.mean_recall, 4),
             "rule_metrics": [
@@ -221,6 +226,8 @@ class ValidationReport:
         lines.append(
             f"fixtures: {self.total_fixtures} (positive: {self.total_positive}, negative: {self.total_negative})"
         )
+        if self.skipped_fixtures:
+            lines.append(f"skipped fixtures: {self.skipped_fixtures} (excluded from metrics)")
         lines.append(f"mean precision: {self.mean_precision:.2%}")
         lines.append(f"mean recall:    {self.mean_recall:.2%}")
         if self.unknown_rule_expectations:
@@ -296,25 +303,33 @@ def _load_fixture(path: Path) -> FixtureSpec | None:
     )
 
 
-def discover_fixtures(
-    validation_root: Path | None = None,
-) -> list[FixtureSpec]:
-    if validation_root is None:
-        validation_root = Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
+def _discover_fixtures_with_skips(validation_root: Path) -> tuple[list[FixtureSpec], int]:
+    """Discover fixtures, counting dirs whose fixture.json failed to load."""
     if not validation_root.is_dir():
-        return []
+        return [], 0
     fixtures: list[FixtureSpec] = []
+    skipped = 0
     for sub in ("positive", "negative"):
         sub_root = validation_root / sub
         if not sub_root.is_dir():
             continue
         for entry in sorted(sub_root.iterdir()):
-            if not entry.is_dir():
+            if not entry.is_dir() or not (entry / "fixture.json").is_file():
                 continue
             spec = _load_fixture(entry)
-            if spec is not None:
+            if spec is None:
+                skipped += 1
+            else:
                 fixtures.append(spec)
-    return fixtures
+    return fixtures, skipped
+
+
+def discover_fixtures(
+    validation_root: Path | None = None,
+) -> list[FixtureSpec]:
+    if validation_root is None:
+        validation_root = Path(__file__).parent.parent.parent / "tests" / "scan" / "fixtures" / "validation"
+    return _discover_fixtures_with_skips(validation_root)[0]
 
 
 def _metrics_from_fixtures(
@@ -423,7 +438,7 @@ def run_validation(
         if auto_path.is_dir():
             advisory_db_path = str(auto_path)
 
-    fixtures = discover_fixtures(validation_root)
+    fixtures, skipped = _discover_fixtures_with_skips(validation_root)
     metrics, fixture_results = _metrics_from_fixtures(fixtures, advisory_db_path=advisory_db_path)
 
     known = known_rule_ids()
@@ -440,6 +455,7 @@ def run_validation(
         total_negative=sum(1 for f in fixtures if f.label == "negative"),
         fixture_results=tuple(fixture_results),
         unknown_rule_expectations=unknown_expectations,
+        skipped_fixtures=skipped,
     )
 
     if output_path is not None:

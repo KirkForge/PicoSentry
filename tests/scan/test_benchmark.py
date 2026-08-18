@@ -177,6 +177,7 @@ def test_bench_rule_registration(engine):
         "L2-CAMP",  # Per-campaign IOC packages
         "L2-INTEL",  # Registry-intel (download count / package age)
         "L2-VCONF",  # Version-confusion (placeholder version on popular package)
+        "L2-NSCOL",  # Namespace collision (internal package squatting a public namespace)
     }
     for rule_id in rules:
         prefix = "-".join(rule_id.split("-")[:2])

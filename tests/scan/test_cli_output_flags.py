@@ -275,15 +275,17 @@ class TestQuietAndSummary:
 
         project = _make_project(tmp_path, {"name": "x", "version": "1.0.0"})
 
-        # Patch with the module-level function itself (new=), not a MagicMock:
-        # the function becomes the multiprocessing.Process target and must
-        # survive pickling under 3.14's default forkserver start method.
+        # The timeout arg only exists to enter the subprocess branch; what this
+        # test asserts is the error MAPPING. The budget must be spawn-independent:
+        # py3.14's forkserver start method can take seconds to come up on cold
+        # 2-core CI runners, and worker.join() returns as soon as the worker
+        # exits, so a generous budget costs nothing on the happy path (WO5.0.0-035).
         with (
             patch.object(scan_module, "_scan_worker", new=_error_worker),
             pytest.raises(scan_module.ScanError, match="engine blew up"),
         ):
             _run_scan(
-                argparse.Namespace(timeout=1),
+                argparse.Namespace(timeout=30),
                 project,
                 merged_config=PicoSentryConfig(),
             )

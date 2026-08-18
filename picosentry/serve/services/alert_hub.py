@@ -137,6 +137,9 @@ class AlertHub:
         return channels
 
     def _discord_notify(self, project_id: str, severity: str, message: str, metadata: dict | None = None):
+        # Unconfigured channel: nothing is attempted, so retry is meaningless.
+        # Delivery errors elsewhere propagate to send()'s handler (sent=0,
+        # retry_count++). requests.RequestException is an OSError subclass.
         if not HAS_REQUESTS or not settings.alerts.discord_webhook:
             return
 
@@ -167,14 +170,12 @@ class AlertHub:
 
         payload = {"embeds": [embed]}
 
-        try:
-            requests.post(
-                settings.alerts.discord_webhook, json=payload, timeout=5, headers={"Content-Type": "application/json"}
-            )
-        except requests.RequestException:
-            logger.exception("Discord webhook failed")
+        requests.post(
+            settings.alerts.discord_webhook, json=payload, timeout=5, headers={"Content-Type": "application/json"}
+        )
 
     def _slack_notify(self, project_id: str, severity: str, message: str, metadata: dict | None = None):
+        # Unconfigured channel: nothing is attempted, so retry is meaningless.
         if not HAS_REQUESTS or not settings.alerts.slack_webhook:
             return
 
@@ -198,21 +199,18 @@ class AlertHub:
             for key, value in metadata.items():
                 payload["attachments"][0]["fields"].append({"title": key, "value": str(value)[:1000], "short": True})
 
-        try:
-            requests.post(settings.alerts.slack_webhook, json=payload, timeout=5)
-        except requests.RequestException:
-            logger.exception("Slack webhook failed")
+        requests.post(settings.alerts.slack_webhook, json=payload, timeout=5)
 
     def _email_notify(self, project_id: str, severity: str, message: str):
         import contextlib
         import smtplib
         from email.mime.text import MIMEText
 
+        # Unconfigured channel: nothing is attempted, so retry is meaningless.
         if not settings.alerts.email_smtp_host or not settings.alerts.email_to:
             return
 
-        try:
-            msg = MIMEText(f"""
+        msg = MIMEText(f"""
 PicoShogun Alert
 
 Project: {project_id}
@@ -222,32 +220,31 @@ Time: {datetime.now(timezone.utc).isoformat()}
 {message}
             """)
 
-            msg["Subject"] = f"[PicoShogun] {severity.upper()}: {project_id}"
-            msg["From"] = settings.alerts.email_from or "picoshogun@localhost"
-            msg["To"] = ", ".join(settings.alerts.email_to)
+        msg["Subject"] = f"[PicoShogun] {severity.upper()}: {project_id}"
+        msg["From"] = settings.alerts.email_from or "picoshogun@localhost"
+        msg["To"] = ", ".join(settings.alerts.email_to)
 
-            if settings.alerts.email_smtp_use_ssl:
-                server: smtplib.SMTP_SSL | smtplib.SMTP = smtplib.SMTP_SSL(
-                    settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10
-                )
-            else:
-                server = smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10)
+        if settings.alerts.email_smtp_use_ssl:
+            server: smtplib.SMTP_SSL | smtplib.SMTP = smtplib.SMTP_SSL(
+                settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10
+            )
+        else:
+            server = smtplib.SMTP(settings.alerts.email_smtp_host, settings.alerts.email_smtp_port, timeout=10)
 
-            try:
-                if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
-                    server.starttls()
+        try:
+            if settings.alerts.email_smtp_starttls and not settings.alerts.email_smtp_use_ssl:
+                server.starttls()
 
-                if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
-                    server.login(settings.alerts.email_smtp_user, settings.alerts.email_smtp_password)
+            if settings.alerts.email_smtp_user and settings.alerts.email_smtp_password:
+                server.login(settings.alerts.email_smtp_user, settings.alerts.email_smtp_password)
 
-                server.send_message(msg)
-                logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
-            finally:
-                with contextlib.suppress(smtplib.SMTPException, OSError):
-                    server.quit()
-
-        except (smtplib.SMTPException, OSError):
-            logger.exception("Email notification failed")
+            server.send_message(msg)
+            logger.info("Email alert sent to %s recipients", len(settings.alerts.email_to))
+        finally:
+            # Quit is cleanup after the send verdict — a failed close must not
+            # turn a delivered alert into a retry.
+            with contextlib.suppress(smtplib.SMTPException, OSError):
+                server.quit()
 
     def _syslog_notify(self, project_id: str, severity: str, message: str):
         import sys

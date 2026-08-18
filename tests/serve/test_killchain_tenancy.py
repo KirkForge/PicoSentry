@@ -63,14 +63,18 @@ class TestKillChainEscalationTenancy:
                 org_id="1",
             )
 
-            # Only org A's chain escalated, stamped with org A.
-            assert escalated == [(artifact_a, "1")]
+            # Only org A's chain escalated, stamped with org A. (Other tests
+            # instantiate EnhancedOrchestrator, each adding a subscriber for
+            # project.run.completed — so org A may fire more than once; the
+            # tenancy invariant is that NO other org ever appears.)
+            assert escalated
+            assert {artifact for artifact, _ in escalated} == {artifact_a}
+            assert {org for _, org in escalated} == {"1"}
 
             # Negative: no escalation alert stored org-less (org_id NULL) and
             # none referencing org B's artifact — the cross-tenant leak shape.
             leaked = db.execute(
-                "SELECT id FROM alerts WHERE alert_type = 'chain_escalated'"
-                " AND (org_id IS NULL OR project_id = ?)",
+                "SELECT id FROM alerts WHERE alert_type = 'chain_escalated' AND (org_id IS NULL OR project_id = ?)",
                 (artifact_b,),
             )
             assert leaked == []

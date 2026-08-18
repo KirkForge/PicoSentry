@@ -97,12 +97,18 @@ class Webhook:
     pinned_ips: list[str] | None = None
 
 
+class WebhookNameConflict(ValueError):
+    """A webhook with this name already exists in the same org."""
+
+
 class WebhookManager:
     """Registers and dispatches webhook notifications with SSRF protection and DNS-rebind pinning."""
 
     def __init__(self, dns_resolver=None):
         self.dns_resolver = dns_resolver
-        self.webhooks: dict[str, Webhook] = {}
+        # Keyed by webhook id: names are only unique per org, so keying by
+        # name let one org's row clobber another org's (WO5.0.0-008).
+        self.webhooks: dict[int, Webhook] = {}
         self._lock = threading.RLock()
         self._load_webhooks()
 
@@ -130,7 +136,7 @@ class WebhookManager:
                     org_id=row.get("org_id"),
                     pinned_ips=pinned_ips,
                 )
-                self.webhooks[row["name"]] = webhook
+                self.webhooks[row["id"]] = webhook
 
     def create(
         self, name: str, url: str, events: list[str], secret: str | None = None, org_id: int | None = None
@@ -153,6 +159,17 @@ class WebhookManager:
         secret = secret or secrets.token_urlsafe(32)
 
         with self._lock:
+            if org_id is None:
+                dup = db.execute_one(
+                    "SELECT id FROM webhooks WHERE active = 1 AND name = ? AND org_id IS NULL", (name,)
+                )
+            else:
+                dup = db.execute_one(
+                    "SELECT id FROM webhooks WHERE active = 1 AND name = ? AND org_id = ?", (name, org_id)
+                )
+            if dup:
+                raise WebhookNameConflict(f"Webhook name {name!r} already exists in this organization")
+
             webhook_id = db.execute_insert(
                 """
                 INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)
@@ -187,26 +204,23 @@ class WebhookManager:
 
         with self._lock:
             dispatch_list = [
-                (
-                    name,
-                    Webhook(
-                        id=wh.id,
-                        name=wh.name,
-                        url=wh.url,
-                        secret=wh.secret,
-                        events=list(wh.events),
-                        active=wh.active,
-                        retries=wh.retries,
-                        created_at=wh.created_at,
-                        org_id=wh.org_id,
-                        pinned_ips=list(wh.pinned_ips) if wh.pinned_ips else None,
-                    ),
+                Webhook(
+                    id=wh.id,
+                    name=wh.name,
+                    url=wh.url,
+                    secret=wh.secret,
+                    events=list(wh.events),
+                    active=wh.active,
+                    retries=wh.retries,
+                    created_at=wh.created_at,
+                    org_id=wh.org_id,
+                    pinned_ips=list(wh.pinned_ips) if wh.pinned_ips else None,
                 )
-                for name, wh in self.webhooks.items()
+                for wh in self.webhooks.values()
                 if event in wh.events and (org_id is None or wh.org_id is None or str(wh.org_id) == str(org_id))
             ]
 
-        for name, webhook in dispatch_list:
+        for webhook in dispatch_list:
             event_payload: dict[str, Any] = {
                 "event": event,
                 "timestamp": datetime.now(timezone.utc).isoformat(),
@@ -222,9 +236,9 @@ class WebhookManager:
                 # registration and dispatch.
                 parsed = urlparse(webhook.url)
                 if not parsed.hostname:
-                    logger.warning("Webhook %s rejected: URL has no hostname", name)
+                    logger.warning("Webhook %s rejected: URL has no hostname", webhook.name)
                     results.append(
-                        {"webhook": name, "status": 0, "success": False, "error": "Webhook URL has no hostname"}
+                        {"webhook": webhook.name, "status": 0, "success": False, "error": "Webhook URL has no hostname"}
                     )
                     continue
                 current_ips = set(_resolve_hostname(parsed.hostname) or [])
@@ -232,11 +246,13 @@ class WebhookManager:
                 if webhook.pinned_ips is not None and not current_ips.issubset(allowed_ips):
                     logger.warning(
                         "Webhook %s rejected: DNS rebind detected (was %s, now %s)",
-                        name,
+                        webhook.name,
                         allowed_ips,
                         current_ips,
                     )
-                    results.append({"webhook": name, "status": 0, "success": False, "error": "DNS rebind detected"})
+                    results.append(
+                        {"webhook": webhook.name, "status": 0, "success": False, "error": "DNS rebind detected"}
+                    )
                     continue
 
                 response = requests.post(
@@ -258,19 +274,25 @@ class WebhookManager:
                 if 300 <= response.status_code < 400:
                     logger.warning(
                         "Webhook %s returned a redirect (%s) — treating as failure (redirects bypass the DNS pin)",
-                        name,
+                        webhook.name,
                         response.status_code,
                     )
 
                 results.append(
-                    {"webhook": name, "status": response.status_code, "success": 200 <= response.status_code < 300}
+                    {
+                        "webhook": webhook.name,
+                        "status": response.status_code,
+                        "success": 200 <= response.status_code < 300,
+                    }
                 )
 
-                logger.info("Webhook %s: %s", name, response.status_code)
+                logger.info("Webhook %s: %s", webhook.name, response.status_code)
 
             except requests.RequestException:
-                logger.exception("Webhook %s failed", name)
-                results.append({"webhook": name, "status": 0, "success": False, "error": "webhook delivery failed"})
+                logger.exception("Webhook %s failed", webhook.name)
+                results.append(
+                    {"webhook": webhook.name, "status": 0, "success": False, "error": "webhook delivery failed"}
+                )
 
         return results
 

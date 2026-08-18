@@ -1,6 +1,13 @@
 """Unit tests for the webhook manager and SSRF guard."""
 
-from picosentry.serve.services.webhooks import Webhook, WebhookManager, _is_safe_webhook_url
+import pytest
+
+from picosentry.serve.services.webhooks import (
+    Webhook,
+    WebhookManager,
+    WebhookNameConflict,
+    _is_safe_webhook_url,
+)
 
 
 def _fake_resolver(ips):
@@ -79,7 +86,7 @@ class TestWebhookDispatch:
         manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
         # Isolate from any webhooks loaded from the shared test database.
         manager.webhooks = {}
-        manager.webhooks["timeout-hook"] = Webhook(
+        manager.webhooks[1] = Webhook(
             id=1,
             name="timeout-hook",
             url="https://example.com/hook",
@@ -120,7 +127,7 @@ class TestWebhookDispatch:
         # 127.0.0.1.
         manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
         manager.webhooks = {}
-        manager.webhooks["rebind-hook"] = Webhook(
+        manager.webhooks[2] = Webhook(
             id=2,
             name="rebind-hook",
             url="https://evil.example/hook",
@@ -162,7 +169,7 @@ class TestWebhookDispatch:
 
         manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
         manager.webhooks = {}
-        manager.webhooks["redirect-hook"] = Webhook(
+        manager.webhooks[3] = Webhook(
             id=3,
             name="redirect-hook",
             url="https://example.com/hook",
@@ -195,3 +202,119 @@ class TestWebhookDispatch:
         assert results[0]["success"] is False
         assert results[0]["status"] == 302
         assert captured_kwargs.get("allow_redirects") is False
+
+
+class TestPerOrgWebhookIdentity:
+    """WO5.0.0-008: webhooks are keyed by id; names are unique per org only."""
+
+    ORG_A = 9101
+    ORG_B = 9102
+
+    def _manager(self):
+        return WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+
+    def test_same_name_two_orgs_both_dispatch(self, monkeypatch):
+        import requests
+
+        from picosentry.serve.database.manager import db
+
+        manager = self._manager()
+        try:
+            id_a = manager.create("ops-alerts", "https://example.com/a", ["chain.escalated"], org_id=self.ORG_A)
+            id_b = manager.create("ops-alerts", "https://example.com/b", ["chain.escalated"], org_id=self.ORG_B)
+            assert id_a != id_b
+            # both survive in the id-keyed registry (name-keying clobbered org A)
+            assert {manager.webhooks[id_a].org_id, manager.webhooks[id_b].org_id} == {self.ORG_A, self.ORG_B}
+
+            posted: list[str] = []
+
+            def _capture_post(url, **kwargs):
+                posted.append(url)
+                response = requests.Response()
+                response.status_code = 200
+                return response
+
+            monkeypatch.setattr(requests, "post", _capture_post)
+            monkeypatch.setattr(
+                "picosentry.serve.services.webhooks._resolve_hostname",
+                _fake_resolver(["1.1.1.1"]),
+            )
+
+            results_a = manager.dispatch("chain.escalated", {}, org_id=self.ORG_A)
+            assert posted == ["https://example.com/a"]
+            assert all(r["success"] for r in results_a)
+
+            posted.clear()
+            manager.dispatch("chain.escalated", {}, org_id=self.ORG_B)
+            assert posted == ["https://example.com/b"]
+        finally:
+            db.execute("DELETE FROM webhooks WHERE name IN ('dup-name', 'ops-alerts')")
+
+    def test_intra_org_duplicate_name_rejected_cross_org_allowed(self):
+        from picosentry.serve.database.manager import db
+
+        manager = self._manager()
+        manager.create("dup-name", "https://example.com/a", ["alert"], org_id=self.ORG_A)
+        try:
+            with pytest.raises(WebhookNameConflict):
+                manager.create("dup-name", "https://example.com/b", ["alert"], org_id=self.ORG_A)
+
+            # same name in a different org is legitimate
+            manager.create("dup-name", "https://example.com/b", ["alert"], org_id=self.ORG_B)
+        finally:
+            db.execute("DELETE FROM webhooks WHERE name IN ('dup-name', 'ops-alerts')")
+
+
+class TestWebhookNameUniqueMigration:
+    """Migration 20 (webhooks_unique_name_per_org) must merge intra-org
+    duplicate rows keeping the newest, leave cross-org same-name rows alone,
+    and enforce the partial unique index on (org_id, name) for active rows."""
+
+    def test_migration_dedupes_intra_org_and_keeps_cross_org(self, tmp_path):
+        import sqlite3
+
+        from picosentry.serve.database._schema import MIGRATIONS
+        from picosentry.serve.database.manager import DatabaseManager
+
+        mgr = DatabaseManager(db_path=tmp_path / "mig.db", backend="sqlite")
+        # Simulate legacy state: duplicates predate the unique index.
+        mgr.execute("DROP INDEX IF EXISTS idx_webhooks_org_name")
+        mgr.execute(
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
+            " VALUES ('ops-alerts', 'https://example.com/old', 's', '[]', 1, 0, 1)"
+        )
+        mgr.execute(
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
+            " VALUES ('ops-alerts', 'https://example.com/new', 's', '[]', 1, 0, 1)"
+        )
+        mgr.execute(
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
+            " VALUES ('ops-alerts', 'https://example.com/org2', 's', '[]', 1, 0, 2)"
+        )
+
+        migration = next(m for m in MIGRATIONS if m.name == "webhooks_unique_name_per_org")
+        # Re-run the migration SQL exactly like the runner does.
+        for raw_stmt in migration.sqlite_sql.split(";"):
+            stmt = raw_stmt.strip()
+            if stmt:
+                mgr.execute(stmt)
+
+        rows = mgr.execute("SELECT org_id, url FROM webhooks WHERE active = 1 ORDER BY org_id, url")
+        # org 1 kept its newest row; org 2's same-name row survives.
+        assert [(r["org_id"], r["url"]) for r in rows] == [
+            (1, "https://example.com/new"),
+            (2, "https://example.com/org2"),
+        ]
+
+        # The partial unique index now rejects an intra-org active duplicate...
+        with pytest.raises(sqlite3.IntegrityError):
+            mgr.execute(
+                "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
+                " VALUES ('ops-alerts', 'https://example.com/dup', 's', '[]', 1, 0, 1)"
+            )
+        # ...but a soft-deleted name can be recreated (index is active-only).
+        mgr.execute("UPDATE webhooks SET active = 0 WHERE org_id = 1")
+        mgr.execute(
+            "INSERT INTO webhooks (name, url, secret, events, active, retries, org_id)"
+            " VALUES ('ops-alerts', 'https://example.com/reborn', 's', '[]', 1, 0, 1)"
+        )

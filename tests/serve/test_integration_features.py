@@ -124,6 +124,30 @@ class TestWebhooksIntegration:
         )
         assert resp.status_code == 400, f"{url} should be rejected: {resp.text}"
 
+    def test_webhook_name_unique_per_org(self, client):
+        """WO5.0.0-008: the same webhook name may exist in two orgs; within
+        one org a duplicate is a 409 and each org lists only its own."""
+        token_a, _ = _register_and_login(client, role="operator")
+        token_b, _ = _register_and_login(client, role="operator")
+        body = {"url": "https://example.com/a", "events": ["*"], "name": "ops-alerts"}
+
+        resp = client.post("/webhooks", json=body, headers=_auth_headers(token_a))
+        assert resp.status_code == 201, resp.text
+        resp = client.post("/webhooks", json={**body, "url": "https://example.com/b"}, headers=_auth_headers(token_b))
+        assert resp.status_code == 201, resp.text
+
+        resp = client.post("/webhooks", json={**body, "url": "https://example.com/c"}, headers=_auth_headers(token_a))
+        assert resp.status_code == 409, resp.text
+
+        hooks_a = client.get("/webhooks", headers=_auth_headers(token_a)).json()["webhooks"]
+        assert [h["url"] for h in hooks_a.values() if h["url"].startswith("https://example.com/")] == [
+            "https://example.com/a"
+        ]
+        hooks_b = client.get("/webhooks", headers=_auth_headers(token_b)).json()["webhooks"]
+        assert [h["url"] for h in hooks_b.values() if h["url"].startswith("https://example.com/")] == [
+            "https://example.com/b"
+        ]
+
 
 # ── Intelligence & Alerts ─────────────────────────────────────────────────
 

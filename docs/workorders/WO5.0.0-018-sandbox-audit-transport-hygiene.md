@@ -1,7 +1,7 @@
 # WO5.0.0-018 — Sandbox: audit & transport hygiene sweep
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE items 1-9 (2026-08-18, merge `aa73aee7`, worker SA-AC) — audit query() last-N window; gRPC client refuses plaintext non-loopback; QueryAudit clamp + stats-lock; _check_cluster_token deduped; _start_time instance-stamped; token-file perms enforced in enterprise/honest warn in dev (brute-force keying = documented ponytail ceiling); store-dir env read at call time; signal deaths → KILL consistently; save() version race serialized. ITEM 10 LEFTOVER: gRPC manual fallback verified BROKEN end-to-end (reproduced), annotated `ponytail:` delete-next — delete in a hygiene round (touches client+servicer+server+AST-pinning tests).
 **Owner:** (unassigned — worktree `wo/5.0.0/sandbox-hygiene`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/sandbox/audit/logger.py`, `picosentry/sandbox/grpc_transport/{client.py,_servicer.py}`, `picosentry/sandbox/daemon/{handler.py,handler_routes_get.py,handler_routes_post.py}`, `picosentry/sandbox/policy_versioned/{store.py,signing.py}`, `picosentry/sandbox/l3/backends/subprocess_backend.py`, `tests/sandbox/`

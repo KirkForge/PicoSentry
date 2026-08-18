@@ -816,11 +816,14 @@ Keys are accepted via `X-API-Key` or `Authorization: Bearer <key>`.
 
 The PicoWatch gateway (`picosentry/watch/gateway.py`) fronts the guard server
 with per-tenant policy profiles: each configured gateway API key selects a
-rule-category subset and thresholds (`TenantProfile`); unknown callers fall
-back to the default profile. Streaming output cannot be scored token-by-token —
-the gateway annotates streamed responses with `X-Picowatch-Output-Scanned:
-false` so callers can see that the output guard did not evaluate them (a
-buffered streaming scanner is the documented upgrade hook).
+rule-category subset and thresholds (`TenantProfile`). When tenant keys are
+configured they are the auth surface — an unknown or missing key gets 401
+(WO5.0.0-023); only a gateway configured without tenants falls back to the
+default profile. Streaming output cannot be scored token-by-token — the
+gateway fully buffers "streaming" responses (SSE cadence is not preserved) and
+annotates them with `X-Picowatch-Streaming: buffered` plus
+`X-Picowatch-Output-Scanned: false` where the output guard did not evaluate
+them (a buffered streaming scanner is the documented upgrade hook).
 
 #### Rate limiting
 
@@ -1059,11 +1062,13 @@ JWTs.
 ### Alert delivery
 
 Alerts fan out to configured webhooks. Webhook URLs are read from the
-environment at settings load: `DISCORD_WEBHOOK_URL` and `SLACK_WEBHOOK_URL`
-(unprefixed names; see `picosentry/serve/config/settings.py`). Per-org webhook
-identity (each org delivering with its own webhook configuration) is persisted
-via the alerting migrations. Delivery failures surface in the alert history —
-delivery status is reported truthfully rather than assumed.
+environment at settings load: canonical `PICOSHOGUN_DISCORD_WEBHOOK_URL` and
+`PICOSHOGUN_SLACK_WEBHOOK_URL`, with the legacy unprefixed
+`DISCORD_WEBHOOK_URL` / `SLACK_WEBHOOK_URL` still honored (deprecated, logged).
+Per-org webhook identity (each org delivering with its own webhook
+configuration) is persisted via the alerting migrations. Delivery failures
+surface in the alert history — delivery status is reported truthfully rather
+than assumed.
 
 ### Cross-layer correlation
 
@@ -1527,8 +1532,8 @@ development guide.
 | `PICOSHOGUN_SKIP_SECURE_ASSERT` | Skip boot security checks | **Dangerous** |
 | `PICOSHOGUN_RATE_LIMIT_BACKEND` | `memory`, `sqlite`, or `redis` | `memory` |
 | `PICOSHOGUN_RATELIMIT_REDIS_FAIL_CLOSED` | `true`: 429 when Redis unreachable instead of failing open | `false` |
-| `DISCORD_WEBHOOK_URL` | Discord alert webhook URL (read at settings load) | — |
-| `SLACK_WEBHOOK_URL` | Slack alert webhook URL (read at settings load) | — |
+| `PICOSHOGUN_DISCORD_WEBHOOK_URL` | Discord alert webhook URL (legacy unprefixed `DISCORD_WEBHOOK_URL` honored, deprecated) | — |
+| `PICOSHOGUN_SLACK_WEBHOOK_URL` | Slack alert webhook URL (legacy unprefixed `SLACK_WEBHOOK_URL` honored, deprecated) | — |
 
 #### Watch (`PICOWATCH_*`)
 

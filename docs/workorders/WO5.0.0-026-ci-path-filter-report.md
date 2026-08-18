@@ -1,7 +1,7 @@
 # WO5.0.0-026 — CI: path-filter completion + REPORT.json gating + nightly cancellation
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `d0fc6437`, agent SA-AG) — five residual paths classify as code (+10 test pins, verified with the workflow's actual grep dialect); scan-artifacts gates REPORT.json too; nightly gets its own concurrency group + no cancel-in-progress (main pushes can't kill it); picosentry-scan checkout v4→v7; PR reality check: PRs #5/#6 targeted dev and got NO PR-tier CI under the main-only trigger — trigger widened to [main, dev]; docker jobs got type=gha cache. All in run 32137930302 (green).
 **Owner:** (unassigned — worktree `wo/5.0.0/ci-paths`)
 **Priority:** P2 · Effort S · Risk L
 **Scope:** `.github/workflows/ci.yml`, `tests/test_ci_paths.py`

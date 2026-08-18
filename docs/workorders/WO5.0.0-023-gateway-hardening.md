@@ -1,7 +1,7 @@
 # WO5.0.0-023 — Watch: gateway production hardening (loop, body, auth, streaming ceiling)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `ce8e06fd`, worker SA-AE) — guards via to_thread (ordering test proves concurrency); body cap reused from server (33MB → 413 before buffering); tenant keys are the auth surface (unknown/missing → 401, constant-time); byte-based prompt cap (astral-plane closes the 4x budget hole); streaming ceiling annotated in docstring + `X-Picowatch-Streaming: buffered` header; true chunked passthrough documented as upgrade path.
 **Owner:** (unassigned — worktree `wo/5.0.0/gateway-hardening`)
 **Priority:** P1 · Effort M · Risk M
 **Scope:** `picosentry/watch/{gateway.py,server.py}`, `tests/watch/`

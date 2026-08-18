@@ -1,7 +1,7 @@
 # WO5.0.0-035 — Test-infra: py3.14 forkserver spawn race + slow-tier drift (new, flagged during P0 wave)
 
 **Series:** WO5.0.0 (new 2026-08-18 — independently verified by 3 workers on pristine base b8e2ad67)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `2b166216`, agent SA-AG) — spawn budget 1s→30s (assertion unchanged; warm cost zero, cold forkserver covered; 3.14 CI legs green twice post-fix); L2-NSCOL added to the benchmark allowlist; slow-tier 180s timeouts measured + documented where they live (the fix is WO-028's DP cost, deliberately not blanket-raised); repo `.python-version` = 3.10 pins fresh-worktree uv resolution (was silently 3.14).
 **Owner:** (unassigned — worktree `wo/5.0.0/test-infra-races`)
 **Priority:** P2 · Effort S-M · Risk L
 **Scope:** `tests/scan/test_cli_output_flags.py`, `tests/scan/test_benchmark.py`, `tests/scan/test_mutation_benchmark.py`, `tests/scan/test_validation.py`

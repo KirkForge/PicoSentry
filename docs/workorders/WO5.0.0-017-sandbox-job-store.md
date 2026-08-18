@@ -1,7 +1,7 @@
 # WO5.0.0-017 — Sandbox: job-store correctness (prune, orphans, redis honesty)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `aa73aee7`, worker SA-AC) — prune max(0, count-limit) guard; validate-before-add (no orphan pending rows; store-down → 503, never a fake 201); redis EXPIRE per job hash (PICODOME_REDIS_JOB_TTL, default 7d), raise-on-unavailable, PICODOME_STORE_BACKEND=redis wired into the daemon (~25 lines, fail-fast + boot ERROR when down), unknown backends raise. One test updated from asserting the bug to the contract.
 **Owner:** (unassigned — worktree `wo/5.0.0/sandbox-store`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/sandbox/daemon/{sqlite_store.py,redis_store.py,daemon.py,handler_routes_post.py}`, `tests/sandbox/`

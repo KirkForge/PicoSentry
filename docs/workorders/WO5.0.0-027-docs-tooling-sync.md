@@ -1,7 +1,7 @@
 # WO5.0.0-027 — Docs & tooling sync sweep (small truthfulness riders)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, landed across the P1 wave) — SA-AF: verify_release predicate hint, test_doctor CI-mirror claims, post_pr_comment.py deleted, dead coverage omit deleted, experimental PG 15-18; SA-AB: count_installed_packages venv/.tox parity; SA-AD: org-create error mapping (409 vs logged 500) + PICOSHOGUN_ webhook env canonical with legacy fallback + sandbox denylist seam; SA-AH: .env.example SSL note, OFFLINE.md advisories claim, PG rows in README/manual/experimental (byte-lockstep kept green).
 **Owner:** (unassigned — worktree `wo/5.0.0/docs-sync`)
 **Priority:** P2 · Effort S · Risk L
 **Scope:** `.env.example`, `docs/OFFLINE.md`, `scripts/{verify_release.py,test_doctor.py,post_pr_comment.py}`, `picosentry/experimental.py`, `picosentry/scan/_engine_scan_helpers.py`, `picosentry/serve/services/orgs.py`, `picosentry/serve/config/settings.py`, `pyproject.toml`, `tests/`

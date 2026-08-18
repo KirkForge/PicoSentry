@@ -1,7 +1,7 @@
 # WO5.0.0-033 — Serve: webhook wildcard event matching is broken (new, flagged during P0 wave)
 
 **Series:** WO5.0.0 (new 2026-08-18 — verified by worker SA-X while fixing WO5.0.0-008)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `134327f4`, worker SA-AD) — `"*" in wh.events or event in wh.events` in dispatch; semantics documented in the API model; tests: wildcard receives chain.escalated, explicit lists exact.
 **Owner:** (unassigned — worktree `wo/5.0.0/webhook-wildcard`)
 **Priority:** P1 · Effort S · Risk L
 **Scope:** `picosentry/serve/services/webhooks.py`, `tests/serve/`

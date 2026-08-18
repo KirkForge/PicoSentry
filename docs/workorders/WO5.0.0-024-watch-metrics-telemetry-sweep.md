@@ -1,7 +1,7 @@
 # WO5.0.0-024 — Watch: metrics/telemetry honesty sweep (family render, edge hardening)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `ce8e06fd`, worker SA-AE) — render() groups by family (one HELP/TYPE per family; labeled two-model exposition test added); zero-rule tenant profile refused at startup + rules_loaded in metadata; XFF takes the LAST entry (trust model documented); chunked-TE byte-counting receive wrapper (over-cap → 413, no full buffering); OTel spans carry request_id; PII/redaction also runs on normalized text (fullwidth secrets redacted; separator-collapse ceiling ponytail-documented); dead scorer branch deleted; dual-unit counters dropped. Two wall-time tests CPU-time-converted (population documented in-test).
 **Owner:** (unassigned — worktree `wo/5.0.0/watch-metrics`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/watch/telemetry/{metrics.py,otel.py,sink.py}`, `picosentry/watch/{server.py,gateway.py,prompt_guard/rules.py}`, `picosentry/watch/output_guard/__init__.py`, `picosentry/watch/scorer.py`, `tests/watch/`

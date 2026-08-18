@@ -1,7 +1,7 @@
 # WO5.0.0-019 — Sandbox: landlock verdict parity + degraded honesty
 
 **Series:** WO5.0.0 (exploration round 2026-08-18; folds WO4.0.0-001 remainder 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, backend merge `aa73aee7` worker SA-AC; CI job in `d0fc6437` agent SA-AG) — shared compute_verdict(events, exit_code) across subprocess/seccomp/seatbelt/landlock; landlock 125/126/127 → degraded (was clean policy DENY) + seccomp-stub 126/127 fixed the same way (new verified bug fixed en route); ABI<2/3 FS ceilings surfaced degraded+logged; parity tests mocked + real (96 landlock tests green on kernel 7.0, 38 seccomp-trace, 24 malicious/containment). Deliverable 4: `landlock-real-exec` push-tier CI job (ubuntu-24.04) GREEN in run 32137930302. Deliverable 5 (seccomp composition) remains a documented ceiling per ADR-002.
 **Owner:** (unassigned — worktree `wo/5.0.0/landlock-parity`)
 **Priority:** P1 · Effort M · Risk M
 **Scope:** `picosentry/sandbox/l3/backends/{landlock_backend.py,seccomp_backend.py,subprocess_backend.py,seatbelt_backend.py}`, `tests/sandbox/` (real-exec where kernels support: `PICODOME_HAS_LANDLOCK=1`)

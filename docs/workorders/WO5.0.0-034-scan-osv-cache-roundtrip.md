@@ -1,7 +1,7 @@
 # WO5.0.0-034 — Scan: OSV disk-cache round-trip decodes to empty (new, flagged during P0 wave)
 
 **Series:** WO5.0.0 (new 2026-08-18 — verified by worker SA-Y while fixing WO5.0.0-009)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `c9dba832`, worker SA-AB) — cache stores raw OSV vuln records end-to-end, decode on read (new OSVClient._decode); round-trip + negative-entry tests. NEW verified bug fixed en route: offline queries wrote NEGATIVE entries to the shared disk cache (false-clean for 300s on later connected runs) — _fetch now returns None offline (WO4.0.0-006 guarantee extended).
 **Owner:** (unassigned — worktree `wo/5.0.0/osv-cache-roundtrip`)
 **Priority:** P1 · Effort S · Risk L
 **Scope:** `picosentry/scan/intelligence.py`, `tests/scan/test_cache_correctness.py`

@@ -1,7 +1,7 @@
 # WO5.0.0-022 — Serve: org-scoping remainder (threat score, anomaly filters, rule mutation surface)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `134327f4`, worker SA-AD) — get_aggregate_score(org_id) org-filters /status + /dashboard/summary + the gauge (org-stamped), semantics reconciled with /intelligence/threat-score; anomaly alert org filter in SQL; anomaly rule PATCH admin-only (per-org = documented upgrade path), _save_rules OSError → explicit read-only-deployment 500. Item 4 (api-metrics org exemption) verified already held from WO5.0.0-007.
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-orgscope`)
 **Priority:** P1 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/{orchestrator.py,intelligence.py,anomaly_detector.py}`, `picosentry/serve/api/routers/anomaly.py`, `tests/serve/`

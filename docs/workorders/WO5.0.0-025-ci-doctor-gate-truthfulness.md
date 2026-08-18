@@ -1,7 +1,7 @@
 # WO5.0.0-025 — CI/doctor gate truthfulness (exit codes, gates that can't fail)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18; folds WO4.0.0-024 remainder 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `aeadabb7`, worker SA-AF) — doctor --json exits 1 on failure; health check real-imports the engine; fixture_count cross-checks disk ↔ REPORT.json ↔ experimental claims (ONE population definition: 5673 = 3431 pos + 2235 neg + 7 tricky); action.yml forwards+validates format; action+GitLab SARIF parse failure hard-fails (teeth proven: 16 tests fail against pre-fix CI files); attestation step fails on real failures (explicit skip only for provable zero-attestations); wrapper consolidation via inner add_arguments (−164 lines, help byte-identity pinned); GitLab exit-map covers 1/2/3/4/5 + unexpected; 3 new doctor checks (watch rules corpus, optional extras vs claims, version consistency incl. helm v-prefix) — doctor 12/12. DECISION (11a): watch keeps exit-2 for blocked prompts (documented; consumers branch on it; GitLab map handles scan separately). RIDER FLAGGED OPEN: serve falsy-zero flags ignored (serve.py:72-79) — backlog.
 **Owner:** (unassigned — worktree `wo/5.0.0/gate-truth`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/cli_commands/doctor.py`, `picosentry/cli_commands/health.py`, `picosentry/_core/doctor.py`, `action.yml`, `ci-templates/gitlab-picosentry.yml`, `.github/workflows/verify-release.yml`, `tests/test_doctor.py`, `tests/test_release.py`

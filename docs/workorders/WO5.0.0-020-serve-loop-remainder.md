@@ -1,7 +1,7 @@
 # WO5.0.0-020 — Serve: event-loop hygiene remainder (ready/history/projects/redis)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `134327f4`, worker SA-AD) — /health/ready DB ping to_thread (kept unauthenticated+exempt, decision documented); /health/history + 10 projects-router reads to_thread; redis rate-limit roundtrip via to_thread (wedged-backend test proves a concurrent request completes <1.5s on a shared loop).
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-loop`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/serve/api/routers/{health.py,projects.py}`, `picosentry/serve/middleware/rate_limit.py`, `picosentry/serve/api/server.py`, `tests/serve/`

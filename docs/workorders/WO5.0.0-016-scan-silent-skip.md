@@ -1,7 +1,7 @@
 # WO5.0.0-016 — Scan: silent-skip accounting (SBOM unknown dead-end, error paths, validation skips)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `c9dba832`, worker SA-AB) — SBOM ecosystem fallbacks (name heuristics + registry-host URL sniffing, CycloneDX+SPDX); `unscannable_components` surfaced in ScanResult + stderr when non-zero (note: lives on ScanResult, folding into ScanStats is a 1-line follow-up for a _core owner); `--sbom` garbage/oversized → clean exit 2; `skipped_fixtures` counted in ValidationReport + loud --validate warning. 17 tests.
 **Owner:** (unassigned — worktree `wo/5.0.0/scan-silentskip`)
 **Priority:** P1 · Effort M · Risk L
 **Scope:** `picosentry/scan/sbom.py`, `picosentry/scan/cli_service.py`, `picosentry/scan/validation.py`, `tests/scan/`

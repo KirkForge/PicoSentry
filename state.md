@@ -2,32 +2,32 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, WO5.0.0 P0 WAVE LANDED — 14 P0s merged to dev, WO4 series CLOSED) ═══
+# ═══ CURRENT STATE (2026-08-18, WO5.0.0 P1 + DOCS WAVE LANDED — dev CI GREEN, series 30/35 DONE) ═══
 
-**P0 wave complete** (5 workers in exclusive worktrees → 5 `--no-ff` merges, zero conflicts): WO5.0.0-001..013 **DONE**, 014 **PARTIAL** (all code/doc gates landed; image push BLOCKED — no container tooling on this host; unblock: install docker+buildx, login, `TAG=v2.1.2 docker buildx bake --push`, flip "pending" claims). WO4.0.0 series **CLOSED** (15 DONE shipped, 9 remainders folded into WO5.0.0-019/025/027/028-032). Gates at close: **fast 5267 passed / 0 failed (~240s)**, ruff/format/mypy clean.
+**P1 wave complete and shipped to dev** (5 WO workers + CI/merge agent + docs agent; 7 agents total this session): WO5.0.0-016..027, 033, 034, 035 all DONE. **WO5.0.0 series: 29 DONE, 1 PARTIAL (014 — docker push tooling-blocked), 5 OPEN (028-032, the P2 tail: typo DP, watch fused pass, cluster rotation, multi-worker, tenant product).**
 
-**Headline fixes landed:** sandbox tenant isolation real in production (env loader wired into daemon+gRPC, X-Tenant may only confirm — mismatch 403, audit/tenants scoped, daemon-boot tests); policy signatures fail closed; cluster gossip survives API auth; NaN-timeout/traversal/dot-name/obs-fold input hardening; serve kill-chain tenancy (payload→Event.org_id), scheduler uses severity-aware retention, /metrics one-sample-per-series + label-injection proof, alert delivery truthfulness + per-org webhook identity (migration 20) + dead auto-analysis deleted; scan advisory pipeline fires on default installs (envelope) + real-keyed maven + multi-package OSV; cache input-hash parity with the rule read-surface + `--no-cache`; selection honesty (skipped rules visible, `rules=[]`=none, worker intelligence forwarded); watch layered-decode closure (b64∘url/rot13, entity layer, budget-dial hardening + 5 rot13 vocabulary typos fixed); firewall query-string bypass + non-ASCII auth crash; gateway attests ALL choices/tool_calls + output guard decodes (encoded exfil caught).
+**Merge/CI record (agent SA-AG):** 5 `--no-ff` merges (zero conflicts) + seam fix (sandbox env denylist += PICOSHOGUN_ webhook URLs). Two real CI root-causes fixed en route: (1) the metrics-exposition test parser rejected scientific notation (`5.19e-05` uptime on fresh runners — valid Prometheus; the 3.12 leg failure); (2) `test_orchestrator.py` raw-assigned a MagicMock onto the global `event_bus.publish` with no cleanup — leaked for the worker's life and broke the killchain test under `--dist=loadfile` (the 3.13 "flake", twice = pattern). **Final push run 32137930302: SUCCESS — matrix 3.10-3.14, pg-live 15/16/17/18, docker amd64+arm64, reproducible-build, and the NEW landlock-real-exec job, all green.** Central gate at close: fast 5424 passed / 0 failed / ~155s, ruff/format/mypy clean, lockstep tests 115 passed.
 
-**Two order/parallel flakes root-caused post-merge** (`1b312f10`): watch perf ceiling now measures CPU time (wall doubled under xdist load 16/8 cores); killchain test re-registers the production subscriber (earlier lifespan tests call `event_bus.shutdown()` which clears ALL subscribers for the worker's remaining life — same class as the DDoS-shield reset bug; a SYSTEMIC event-bus-reset fix may be warranted — noted, not done).
+**CI surfaces landed this wave (WO-026 + folds):** path-filter holes closed (+10 pins), REPORT.json gated, nightly un-cancellable, PR trigger widened to [main, dev] (PRs #5/#6 to dev had silently gotten NO PR-tier CI), docker jobs got GHA cache, `.python-version`=3.10 pins fresh worktrees.
 
-**WO5.0.0 series state (35 WOs):** DONE — 001-013, 015. PARTIAL — 014 (push blocked). OPEN — 016-035 (P1×12 incl. new flags 033 webhook-wildcard + 034 OSV-cache-roundtrip; P2×9 incl. WO4 folds 028-032 + 035 test-infra py3.14 races).
+**Docs restructure (agent SA-AH):** `docs/manual.md` is now THE manual — 23 chapters, ~3.9k lines, every tech doc absorbed (14 stubs left for link stability; BENCHMARKS.md stays generated+gated; ADRs indexed not absorbed). README slimmed to a landing page (status table kept byte-lockstep with experimental.py). WO-027 doc riders done. Post-merge orchestrator riders: manual updated for P1-landed facts (gateway 401 + `X-Picowatch-Streaming: buffered`, canonical PICOSHOGUN_ webhook envs).
 
-**Carried:** docker push (WO5-014 remainder, tooling-gated) · py3.14 forkserver spawn race fails COLD runners (WO5-035 — expect 3.14 CI legs flaky until fixed) · event-bus shutdown systemic reset (candidate WO) · `main` is now >20 commits behind `dev` — release trigger met; v2.2.0 should wait for the P1 batch (016-025) + WO5-014 push.
+**Carried:** docker push (WO-014 remainder, tooling-gated — install docker+buildx, login, `TAG=v2.1.2 docker buildx bake --push`, flip "pending" claims) · WO-018 item 10 (gRPC manual fallback verified broken, `ponytail:` delete-next) · serve falsy-zero flags (serve.py:72-79, backlog from WO-025) · ScanStats fold for unscannable_components (1-line, _core owner) · slow-tier 180s timeouts = WO-028's DP cost · `main` now >35 commits behind dev — release trigger LONG met; cut v2.2.0 after the P2 tail (or now — P0+P1 are all in).
 
 ## The queue (jump-in order)
 
-1. **P1 batch** (next wave, 3-4 worktrees): 016 scan silent-skip + 017 sandbox job-store + 018 sandbox hygiene + 019 landlock parity (incl. WO4-001 real-exec CI job) / 020 serve loop + 021 scheduler + 022 org-scoping / 023 gateway hardening + 024 watch metrics sweep / 025 gate truthfulness (incl. WO4-024 folds) + 033 webhook wildcard + 034 OSV cache round-trip (both small, quick wins).
-2. **P2**: 026 CI paths, 027 docs riders, 028-032 WO4 folds, 035 test-infra races (035 BEFORE the next push if 3.14 CI legs matter — they do).
-3. **Release v2.2.0** after P1 lands + docker push unblocked.
+1. **P2 tail** (one wave, 4-5 worktrees): 028 scan typo DP + calibration · 029 watch fused pass · 030 cluster rotation announcements · 031 serve multi-worker (L) · 032 serve tenant product (L) — 031/032 are the big ones; 028/029/030 are M.
+2. **Release v2.2.0**: gates green → ff main → bump (17-file lockstep + helm v-prefix + manual/README claims) → reproducible build → publish (PyPI config in /home/henrik/madlab/Lockdown/.pypi) → docker push (needs tooling) → tag + verify.
+3. Hygiene riders: WO-018 item-10 deletion, serve falsy-zero flags, ScanStats fold.
 
 # ═══ SESSION HISTORY ═══
 
-## Session 2026-08-18 (i): WO5 P1 execution wave (parallel workers) + docs manual restructure — IN FLIGHT
+## Session 2026-08-18 (i): WO5 P1 execution wave (parallel workers) + docs manual restructure — COMPLETE
 
 ### Method
-P1 batch executed by parallel workers in exclusive worktrees (scan / sandbox / serve / watch / core) + this docs agent (SA-AH) restructuring documentation into one manual in `wo/5.0.0/docs-manual` off 80bb2ae3.
+P1 batch executed by parallel workers in exclusive worktrees (scan / sandbox / serve / watch / core) + docs agent (SA-AH) restructuring documentation into one manual in `wo/5.0.0/docs-manual` off 80bb2ae3; CI/merge agent (SA-AG) fixed red dev, merged all branches, landed the CI-file WOs, and drove push-CI to green.
 
-### Worker facts (as reported; merge/CI status: orchestrator to fill at close)
+### Worker facts (merge/CI status filled at close by orchestrator)
 - **scan**: WO-016/034 + venv rider FIXED (17 tests).
 - **sandbox**: WO-017/018(items 1-9)/019 FIXED incl. real-exec landlock — 96 tests green on kernel 7.0; item 10 (gRPC manual fallback) verified-broken + annotated delete-next.
 - **serve**: WO-020/021/022/033 + riders FIXED (818 insertions).
@@ -38,6 +38,8 @@ P1 batch executed by parallel workers in exclusive worktrees (scan / sandbox / s
 `docs/manual.md` is now THE chaptered manual (23 chapters) absorbing all standalone tech docs; old files are one-line pointer stubs; README slimmed to a landing page (status table kept byte-synced with experimental.py); riders: .env.example SSL note fixed, OFFLINE advisories claim fixed (`picosentry advisories` works), PG 15/16 → 15/16/17/18 (experimental.py + README lockstep, matches ci.yml matrix). docs/BENCHMARKS.md (generated) and docs/adr/* (immutable) referenced/indexed, not absorbed. Docs claims verified against code at base 80bb2ae3 before writing.
 
 ## Session 2026-08-18 (h): WO5 P0 execution wave + WO4 closure — COMPLETE
+
+*Headline fixes: sandbox tenant isolation real in production (env loader wired into daemon+gRPC, X-Tenant confirm-only, audit/tenants scoped, daemon-boot tests); policy signatures fail closed; cluster gossip survives API auth; NaN-timeout/traversal/dot-name/obs-fold input hardening; serve kill-chain tenancy, severity-aware scheduler retention, valid /metrics, alerting truthfulness + per-org webhook identity (migration 20), auto-analysis deleted; scan advisory envelope + maven keying + multi-package OSV; cache read-surface parity + --no-cache; selection honesty; watch layered-decode closure (+5 rot13 vocabulary typos); firewall query-string bypass + non-ASCII auth; gateway full-output attestation + output-guard decode. Two order-flakes "root-caused" in 1b312f10: the watch CPU-time conversion was correct; the killchain subscriber re-registration was a WORKAROUND — the deeper root cause (a leaked MagicMock on the global event_bus singleton, fixed in session (i) by SA-AG) was found later.*
 
 ### Method
 5 parallel workers in exclusive worktrees off dev@b8e2ad67 (SA-W sandbox 001-004, SA-X serve 005-008, SA-Y scan 009/010/015, SA-Z watch+firewall 011-013, SA-AA docker-truth 014); orchestrator folded WO4 remainders into WO5 (series closed), merged all 5 `--no-ff` (zero conflicts), root-caused 2 merge-surface flakes, ran central gates. Every worker reproduced its WO evidence on base before fixing; worker-flagged new bugs became WOs 033-035.

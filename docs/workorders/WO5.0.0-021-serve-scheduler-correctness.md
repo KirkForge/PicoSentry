@@ -1,7 +1,7 @@
 # WO5.0.0-021 — Serve: scheduler correctness (double-fire, SMTP persistence, report scope, name squat)
 
 **Series:** WO5.0.0 (exploration round 2026-08-18)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `134327f4`, worker SA-AD) — per-job queued-entry tracking, cancel-and-replace (boot/update/enable/restart leave exactly ONE entry; disable drops to zero); SMTP probe persisted + disabled/unknown no longer count as warnings in health_degraded; scheduled reports org-scoped end-to-end; same org+name+config → existing id, different config → 409.
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-scheduler`)
 **Priority:** P1 · Effort M · Risk M
 **Scope:** `picosentry/serve/services/{scheduler.py,_orchestrator_health.py}`, `picosentry/serve/api/server.py` (lifespan boot order), `picosentry/serve/services/anomaly_detector.py`, `tests/serve/`

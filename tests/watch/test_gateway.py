@@ -351,8 +351,14 @@ class TestGatewayHardeningWO023:
 @pytest.mark.asyncio
 async def test_large_prompt_does_not_starve_concurrent_request() -> None:
     """200KB prompt through the gateway must not freeze the loop — a
-    concurrent small request completes while the CPU-bound scan runs
-    (guard calls are in asyncio.to_thread; WO5.0.0-023)."""
+    concurrent small request completes while the CPU-bound scan is still
+    running (guard calls are in asyncio.to_thread; WO5.0.0-023).
+
+    Ordering assertion, not an absolute wall budget: the small request must
+    finish BEFORE the big scan does. A sync guard call blocks the loop, so
+    the small request can only complete after the scan; under xdist load
+    both durations inflate together, which an absolute threshold cannot
+    absorb."""
     prose = (
         "Please summarize the quarterly report and highlight risks. "
         "The deployment notes are below. // check config\n"
@@ -375,11 +381,13 @@ async def test_large_prompt_does_not_starve_concurrent_request() -> None:
             client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": big}]})
         )
         await asyncio.sleep(0.05)
-        t0 = time.monotonic()
         small = await client.post("/v1/chat/completions", json={"messages": [{"role": "user", "content": BENIGN}]})
-        small_rtt = time.monotonic() - t0
+        small_done = time.monotonic()
         scan = await scan_task
+        scan_done = time.monotonic()
 
     assert scan.status_code == 200
     assert small.status_code == 200
-    assert small_rtt < 1.0, f"concurrent request took {small_rtt:.2f}s while a 200KB scan was in flight — loop froze"
+    assert small_done < scan_done - 0.05, (
+        "concurrent request only completed after the 200KB scan — the guard is blocking the event loop"
+    )

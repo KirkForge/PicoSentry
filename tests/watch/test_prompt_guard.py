@@ -686,8 +686,11 @@ class TestDecodeCompletenessWO011:
         guard.check("warmup")
         block = base64.b64encode(("def process(record):\n    return record.normalized\n" * 8).encode()).decode()
         text = ("Here is the encoded config sample:\n```\n" + block + "\n```\n") * (200_000 // (len(block) + 45) + 1)
-        t0 = time.monotonic()
+        # ponytail: CPU-time budget, not wall time — same class as
+        # TestScanCostCeiling: the wall ceiling (8s) flaked under xdist load
+        # (measured 2026-08-18: cpu 1.2s, wall 4.2s on the same input).
+        t0 = time.process_time()
         result = guard.check(text[:200_000])
-        elapsed = time.monotonic() - t0
+        elapsed = time.process_time() - t0
         assert result.blocked is False
-        assert elapsed < 8.0, f"200KB base64-heavy scan took {elapsed:.2f}s — layered decode is unbounded"
+        assert elapsed < 4.0, f"200KB base64-heavy scan took {elapsed:.2f}s CPU — layered decode is unbounded"

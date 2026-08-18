@@ -12,7 +12,12 @@ import re
 
 from picosentry.serve.services.metrics import MetricsCollector
 
-_SAMPLE_RE = re.compile(r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)(?P<labels>\{.*\})? (?P<value>-?[0-9.eE+]+)$")
+# Prometheus float grammar (Go ParseFloat subset actually emitted): decimal or
+# scientific notation, incl. negative exponents — a fresh collector's uptime is
+# microseconds and repr() renders e.g. 5e-05, which is valid exposition.
+_SAMPLE_RE = re.compile(
+    r"^(?P<name>[a-zA-Z_:][a-zA-Z0-9_:]*)(?P<labels>\{.*\})? (?P<value>-?[0-9]+(?:\.[0-9]+)?(?:[eE][+-]?[0-9]+)?)$"
+)
 
 
 def _parse_exposition(text: str) -> dict[str, float]:

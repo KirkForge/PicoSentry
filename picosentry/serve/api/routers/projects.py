@@ -36,7 +36,9 @@ async def list_projects(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    projects = orchestrator.list_projects(category=category, status_filter=status, org_id=org["id"])
+    projects = await asyncio.to_thread(
+        orchestrator.list_projects, category=category, status_filter=status, org_id=org["id"]
+    )
     return projects
 
 
@@ -46,7 +48,7 @@ async def get_project(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    project = orchestrator.get_project(project_id, org_id=org["id"])
+    project = await asyncio.to_thread(orchestrator.get_project, project_id, org_id=org["id"])
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
     return project
@@ -88,7 +90,7 @@ async def export_project(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    project = orchestrator.get_project(project_id, org_id=org["id"])
+    project = await asyncio.to_thread(orchestrator.get_project, project_id, org_id=org["id"])
     if not project:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
 
@@ -125,7 +127,7 @@ async def list_intelligence(
         limit,
     )
 
-    rows = db.execute(query, params)
+    rows = await asyncio.to_thread(db.execute, query, params)
     return [dict(r) for r in rows] if rows else []
 
 
@@ -135,7 +137,8 @@ async def get_correlations(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
 ):
-    rows = db.execute(
+    rows = await asyncio.to_thread(
+        db.execute,
         "SELECT * FROM intelligence WHERE source_project = ? AND org_id = ? ORDER BY created_at DESC",
         (project_id, org["id"]),
     )
@@ -147,7 +150,8 @@ async def get_threat_score(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
 ):
-    result = db.execute_one(
+    result = await asyncio.to_thread(
+        db.execute_one,
         "SELECT AVG(confidence) as avg_score, COUNT(*) as total "
         "FROM intelligence WHERE severity IN ('critical', 'high') AND org_id = ?",
         (org["id"],),
@@ -174,7 +178,7 @@ async def list_alerts(
         limit,
     )
 
-    rows = db.execute(query, params)
+    rows = await asyncio.to_thread(db.execute, query, params)
     return [dict(r) for r in rows] if rows else []
 
 
@@ -184,13 +188,18 @@ async def acknowledge_alert(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.WRITE_ALERTS)),
 ):
-    alert = db.execute_one(
-        "SELECT id FROM alerts WHERE id = ? AND org_id = ?",
-        (alert_id, org["id"]),
-    )
-    if not alert:
+    def _acknowledge() -> int | None:
+        alert = db.execute_one(
+            "SELECT id FROM alerts WHERE id = ? AND org_id = ?",
+            (alert_id, org["id"]),
+        )
+        if not alert:
+            return None
+        db.execute_insert("UPDATE alerts SET sent = 1 WHERE id = ?", (alert_id,))
+        return alert_id
+
+    if await asyncio.to_thread(_acknowledge) is None:
         raise HTTPException(status_code=404, detail=f"Alert '{alert_id}' not found")
-    db.execute_insert("UPDATE alerts SET sent = 1 WHERE id = ?", (alert_id,))
     return {"status": "acknowledged", "alert_id": alert_id}
 
 
@@ -199,7 +208,7 @@ async def get_summary_report(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_DASHBOARD)),
 ):
-    projects = orchestrator.list_projects(org_id=org["id"])
+    projects = await asyncio.to_thread(orchestrator.list_projects, org_id=org["id"])
     total = len(projects)
     active = sum(1 for p in projects if p.get("status") == "active")
     failed = sum(1 for p in projects if p.get("status") == "failed")
@@ -217,7 +226,7 @@ async def get_project_report(
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
-    report = orchestrator.generate_project_report(project_id, org_id=org["id"])
+    report = await asyncio.to_thread(orchestrator.generate_project_report, project_id, org_id=org["id"])
     if not report:
         raise HTTPException(status_code=404, detail=f"Project '{project_id}' not found")
     return report

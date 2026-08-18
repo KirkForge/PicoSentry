@@ -423,3 +423,113 @@ class TestRateLimitLockDiscipline:
         resp = client.get("/")
         assert resp.status_code == 429
         assert resp.headers.get("Retry-After")
+
+
+@pytest.fixture
+def operator_token(client):
+    """Create and authenticate an operator user with a default org."""
+    tag = int(time.time() * 1000)
+    username = f"operator_{tag}"
+    password = "testpassword123"
+    from picosentry.serve.api.server import auth_service
+    from picosentry.serve.services.orgs import Organization
+
+    auth_service.create_user(username, password, role="operator")
+    token = auth_service.authenticate(username, password)
+    assert token
+    info = auth_service.validate_token(token)
+    Organization.create(name=f"Operator Org {tag}", slug=f"operator-org-{tag}", owner_user_id=info["id"])
+    return token
+
+
+class TestAnomalyRuleMutationSurface:
+    """WO5.0.0-022: anomaly rules are a global singleton — only admins mutate them."""
+
+    def test_operator_patch_rules_forbidden(self, client, operator_token):
+        resp = client.patch("/anomaly/rules/health_degraded", json={"threshold": 2}, headers=_headers(operator_token))
+        assert resp.status_code == 403
+
+    def test_admin_patch_on_read_only_config_is_clear_500(self, client, admin_token, monkeypatch, tmp_path):
+        import picosentry.serve.services.anomaly_detector as ad_mod
+        from picosentry.serve.api.server import anomaly_detector
+
+        # Parent path is a file: mkdir/open raise OSError regardless of privileges.
+        blocker = tmp_path / "blocker"
+        blocker.write_text("not a dir")
+        monkeypatch.setattr(ad_mod, "CONFIG_PATH", blocker / "rules.json")
+
+        rule = next(r for r in anomaly_detector.rules if r.id == "health_degraded")
+        before = (rule.enabled, rule.threshold)
+        try:
+            resp = client.patch(
+                "/anomaly/rules/health_degraded", json={"enabled": False}, headers=_headers(admin_token)
+            )
+            assert resp.status_code == 500
+            assert "not writable" in resp.text
+        finally:
+            rule.enabled, rule.threshold = before
+
+    def test_admin_patch_still_allowed(self, client, admin_token, monkeypatch, tmp_path):
+        import picosentry.serve.services.anomaly_detector as ad_mod
+        from picosentry.serve.api.server import anomaly_detector
+
+        # The real repo config is never touched: saves go to tmp_path.
+        monkeypatch.setattr(ad_mod, "CONFIG_PATH", tmp_path / "rules.json")
+        rule = next(r for r in anomaly_detector.rules if r.id == "health_degraded")
+        before = (rule.enabled, rule.threshold)
+        try:
+            resp = client.patch(
+                "/anomaly/rules/health_degraded", json={"threshold": 1.5}, headers=_headers(admin_token)
+            )
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["threshold"] == 1.5
+        finally:
+            rule.enabled, rule.threshold = before
+
+
+class TestSchedulerJobNameConflict:
+    """WO5.0.0-021: same name + different config -> 409, not silent stale config."""
+
+    def test_conflicting_config_rejected_409(self, client, admin_token):
+        from picosentry.serve.services.scheduler import scheduler
+
+        tag = int(time.time() * 1000)
+        body = {"name": f"conflict_job_{tag}", "cron": "0 2 * * *", "command": "cleanup"}
+        resp = client.post("/scheduler/jobs", json=body, headers=_headers(admin_token))
+        assert resp.status_code == 201, resp.text
+        job_id = resp.json()["job_id"]
+        try:
+            dup = dict(body, cron="*/5 * * * *")
+            resp = client.post("/scheduler/jobs", json=dup, headers=_headers(admin_token))
+            assert resp.status_code == 409
+            assert "different config" in resp.text
+
+            same = client.post("/scheduler/jobs", json=body, headers=_headers(admin_token))
+            assert same.status_code == 201
+            assert same.json()["job_id"] == job_id
+        finally:
+            scheduler.remove_job(job_id)
+
+
+class TestOrgCreateErrorMapping:
+    """WO5.0.0-027 rider: slug-taken is 409; internal failure is a logged 500."""
+
+    def test_slug_taken_maps_to_409(self, client, viewer_token, monkeypatch):
+        from picosentry.serve.api.routers import orgs as orgs_router
+
+        monkeypatch.setattr(orgs_router.Organization, "create", staticmethod(lambda **kwargs: {}))
+        resp = client.post("/orgs", json={"name": "Acme", "slug": "acme"}, headers=_headers(viewer_token))
+        assert resp.status_code == 409
+        assert "already exists" in resp.text
+
+    def test_internal_failure_maps_to_500(self, client, viewer_token, monkeypatch, caplog):
+        import logging
+
+        from picosentry.serve.api.routers import orgs as orgs_router
+
+        monkeypatch.setattr(orgs_router.Organization, "create", staticmethod(lambda **kwargs: None))
+        with caplog.at_level(logging.ERROR, logger="picoshogun.orgs"):
+            resp = client.post("/orgs", json={"name": "Acme", "slug": "acme"}, headers=_headers(viewer_token))
+        assert resp.status_code == 500
+        assert "creation failed" in resp.text
+        assert any("Organization creation failed internally" in r.message for r in caplog.records)

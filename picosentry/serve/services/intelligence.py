@@ -362,9 +362,33 @@ class IntelligenceEngine:
         level = _threat_level(total)
         logger.info("Aggregate threat: %.1f [%s] (%s sources)", total, level, len(self.threat_scores))
 
-    def get_aggregate_score(self) -> float:
-        with self._lock:
-            return sum(self.threat_scores.values())
+    def get_aggregate_score(self, org_id: int | None = None) -> float:
+        """Aggregate threat score.
+
+        org_id=None returns the decayed in-memory global sum. With an org,
+        the score is computed from the intelligence table (org_id column,
+        migration 10) using the same severity weights and 7-day window as
+        _load_historical — the in-memory dict is keyed by project only and
+        would blend every tenant into org views.
+
+        Semantics note vs /intelligence/threat-score (routers/projects.py),
+        the reference org-scoped endpoint: that one is AVG(confidence) over
+        recent critical/high items; this one is a severity-weighted volume
+        score feeding /status and /dashboard/summary. Both are org-scoped;
+        they answer different questions.
+        """
+        if org_id is None:
+            with self._lock:
+                return sum(self.threat_scores.values())
+        rows = db.execute(
+            f"""
+            SELECT severity, COUNT(*) as count FROM intelligence
+            WHERE org_id = ? AND created_at > {db.dialect.date_add_hours("now", -7 * 24)}
+            GROUP BY severity
+        """,
+            (org_id,),
+        )
+        return sum(self._severity_weight(row["severity"]) * row["count"] for row in rows)
 
     def find_correlations(self, time_window_hours: int = 24) -> list[dict[str, Any]]:
         time_window_hours = int(time_window_hours)

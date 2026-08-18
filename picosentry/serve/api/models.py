@@ -119,7 +119,10 @@ class RegisterRequest(BaseModel):
 
 class WebhookCreateRequest(BaseModel):
     url: str = Field(..., description="Webhook callback URL (HTTPS recommended)")
-    events: list[str] = Field(default=["*"], description="Event types to subscribe to")
+    events: list[str] = Field(
+        default=["*"],
+        description='Event types to subscribe to; "*" matches all dispatchable events, explicit lists match exactly',
+    )
     name: str = Field(..., min_length=1, max_length=100, description="Webhook name")
     secret: str | None = Field(default=None, min_length=16, max_length=128, description="HMAC signing secret")
 

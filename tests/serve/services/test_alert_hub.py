@@ -142,3 +142,27 @@ class TestChannelDeliveryTruthfulness:
         row = hub_db.execute_one("SELECT sent, retry_count FROM alerts WHERE channel = 'discord'")
         assert row["sent"] == 1
         assert row["retry_count"] == 0
+
+
+class TestWebhookUrlEnvPrefix:
+    """WO5.0.0-027 rider: PICOSHOGUN_-prefixed webhook URLs are canonical;
+    the unprefixed legacy names still work with a deprecation log."""
+
+    def test_prefixed_canonical_and_legacy_fallback(self, monkeypatch, caplog):
+        import logging
+
+        import picosentry.serve.config.settings as settings_mod
+
+        monkeypatch.delenv("DISCORD_WEBHOOK_URL", raising=False)
+        monkeypatch.delenv("PICOSHOGUN_DISCORD_WEBHOOK_URL", raising=False)
+
+        assert settings_mod.AlertConfig().discord_webhook is None
+
+        monkeypatch.setenv("PICOSHOGUN_DISCORD_WEBHOOK_URL", "https://canonical.example/hook")
+        assert settings_mod.AlertConfig().discord_webhook == "https://canonical.example/hook"
+
+        monkeypatch.delenv("PICOSHOGUN_DISCORD_WEBHOOK_URL")
+        monkeypatch.setenv("DISCORD_WEBHOOK_URL", "https://legacy.example/hook")
+        with caplog.at_level(logging.WARNING, logger="picoshogun.config"):
+            assert settings_mod.AlertConfig().discord_webhook == "https://legacy.example/hook"
+        assert any("deprecated" in r.message for r in caplog.records)

@@ -123,27 +123,9 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
         }
     )
 
-    for check in checks:
-        db.execute_insert(
-            """
-            INSERT INTO health_checks (component, status, message, latency_ms)
-            VALUES (?, ?, ?, ?)
-        """,
-            (check["component"], check["status"], check["message"], check["latency_ms"]),
-        )
-
-    try:
-        db.execute(
-            f"""
-            DELETE FROM health_checks WHERE id NOT IN (
-                SELECT id FROM health_checks ORDER BY created_at DESC, id DESC LIMIT {_HEALTH_RETENTION_ROWS}
-            )
-        """
-        )
-    except _HEALTH_PROBE_ERRORS:
-        # Retention trim must never fail the probe itself.
-        logger.debug("health_checks retention trim skipped", exc_info=True)
-
+    # SMTP runs BEFORE the persist loop: appended after it, its row never
+    # reached health_checks and the health_degraded anomaly rule stayed
+    # permanently blind to the one component that times out.
     start = time.time()
     try:
         if settings.alerts.email_smtp_host:
@@ -181,5 +163,26 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
                 "timestamp": datetime.now(timezone.utc).isoformat(),
             }
         )
+
+    for check in checks:
+        db.execute_insert(
+            """
+            INSERT INTO health_checks (component, status, message, latency_ms)
+            VALUES (?, ?, ?, ?)
+        """,
+            (check["component"], check["status"], check["message"], check["latency_ms"]),
+        )
+
+    try:
+        db.execute(
+            f"""
+            DELETE FROM health_checks WHERE id NOT IN (
+                SELECT id FROM health_checks ORDER BY created_at DESC, id DESC LIMIT {_HEALTH_RETENTION_ROWS}
+            )
+        """
+        )
+    except _HEALTH_PROBE_ERRORS:
+        # Retention trim must never fail the probe itself.
+        logger.debug("health_checks retention trim skipped", exc_info=True)
 
     return checks

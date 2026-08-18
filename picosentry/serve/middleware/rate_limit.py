@@ -1,3 +1,4 @@
+import asyncio
 import hashlib
 import logging
 import threading
@@ -240,9 +241,14 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         # No global lock here: Redis-backed checks are lock-free and the
         # in-memory path takes the lock only for dict mutation.
+        # The check runs in the threadpool: the sync redis-py roundtrip
+        # (1s connect/socket timeouts, up to 2 calls per request) must never
+        # stall the event loop — a configured-but-down Redis otherwise adds
+        # ~2s of loop stall to every request, unauthenticated ones included.
         org_api_key = request.headers.get("X-Org-API-Key", "")
         if org_api_key and isinstance(org_api_key, str) and (org_api_key.startswith(("sk_", "pk_"))):
-            rate_limited, retry_after = self._record_and_check(
+            rate_limited, retry_after = await asyncio.to_thread(
+                self._record_and_check,
                 "org",
                 hashlib.sha256(org_api_key.encode()).hexdigest(),
                 self.max_requests_per_org,
@@ -260,7 +266,8 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                     headers={"Retry-After": str(retry_after)},
                 )
 
-        rate_limited, retry_after = self._record_and_check(
+        rate_limited, retry_after = await asyncio.to_thread(
+            self._record_and_check,
             "ip",
             client_ip,
             self.max_requests_per_ip,

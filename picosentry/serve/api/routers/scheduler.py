@@ -11,7 +11,7 @@ from picosentry.serve.api.models import (
     SchedulerJobUpdateRequest,
 )
 from picosentry.serve.services.rbac import Permission
-from picosentry.serve.services.scheduler import scheduler
+from picosentry.serve.services.scheduler import SchedulerJobConflict, scheduler
 
 logger = logging.getLogger("picoshogun.scheduler")
 
@@ -49,6 +49,8 @@ async def create_scheduler_job(
             org_id=org["id"],
         )
         return {"job_id": job_id, "status": "scheduled"}
+    except SchedulerJobConflict as e:
+        raise HTTPException(status_code=409, detail=str(e)) from None
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e)) from None
 

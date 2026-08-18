@@ -52,6 +52,11 @@ async def create_org(
         owner_user_id=user["id"],
         tier=request.tier,
     )
+    if result is None:
+        # Organization.create logs the cause; a swallowed internal failure
+        # must not masquerade as "slug already exists" (pg-live lesson).
+        logger.error("Organization creation failed internally (slug=%r)", request.slug)
+        raise HTTPException(status_code=500, detail="Organization creation failed")
     if not result:
         raise HTTPException(status_code=409, detail="Organization slug already exists")
     return {

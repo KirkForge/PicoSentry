@@ -120,8 +120,8 @@ class MetricsCollector:
         self.counter("api_requests_total", 1, labels)
         self.histogram("api_request_duration_seconds", duration, {"method": method, "endpoint": endpoint})
 
-    def threat_level(self, score: float):
-        self.gauge("threat_score", score)
+    def threat_level(self, score: float, org_id: int | None = None):
+        self.gauge("threat_score", score, {"org_id": str(org_id)} if org_id is not None else None)
 
     def uptime_seconds(self) -> float:
         return time.time() - self._start_time

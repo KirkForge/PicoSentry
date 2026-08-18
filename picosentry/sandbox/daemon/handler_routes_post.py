@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
+from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE, sanitize_scan_timeout
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
@@ -156,11 +156,10 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.COMMAND_DENIED, detail=deny_error)
             return
 
-        try:
-            requested_timeout = float(data.get("timeout", 30.0))
-        except (TypeError, ValueError):
-            requested_timeout = 30.0
-        timeout = min(requested_timeout, _max_scan_timeout_seconds())
+        timeout = sanitize_scan_timeout(data.get("timeout", 30.0))
+        if timeout is None:
+            self._send_error(ErrorCodes.INVALID_TIMEOUT, detail="timeout must be a finite number")
+            return
 
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"

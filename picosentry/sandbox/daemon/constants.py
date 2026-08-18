@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import math
 import os
 from pathlib import Path
+from typing import Any
 
 
 API_VERSION = "v1"
@@ -146,6 +148,21 @@ def max_scan_timeout_seconds() -> float:
         return 300.0
 
 
+def sanitize_scan_timeout(raw: Any) -> float | None:
+    """Shared untrusted-timeout guard (WO5.0.0-002): numeric + finite check,
+    then clamp to the server cap. Returns None when the value is unusable —
+    callers must REJECT (a NaN/±Inf/garbage timeout is a bad request, never
+    a silent default; NaN reached subprocess backends as an unhandled
+    ValueError with an orphaned child)."""
+    try:
+        parsed = float(raw)
+    except (TypeError, ValueError):
+        return None
+    if not math.isfinite(parsed):
+        return None
+    return min(parsed, max_scan_timeout_seconds())
+
+
 def workspace_root() -> Path:
     """Server-side workspace root that caller-supplied scan cwd values are confined to."""
     return Path(os.environ.get("PICODOME_WORKSPACE_ROOT", str(Path.home() / ".picodome" / "workspace")))
@@ -181,6 +198,7 @@ __all__ = [
     "_ENTERPRISE_MODE",
     "confine_cwd",
     "max_scan_timeout_seconds",
+    "sanitize_scan_timeout",
     "validate_command",
     "workspace_root",
 ]

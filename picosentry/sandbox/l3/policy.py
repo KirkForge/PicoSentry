@@ -263,7 +263,7 @@ def load_policy(
 
     if path is not None:
         path = Path(path).resolve()
-    if name is not None and ("/" in name or "\\" in name or ".." in name):
+    if name is not None and ("/" in name or "\\" in name or ".." in name or name.strip(".") == ""):
         raise ValueError(f"Invalid policy name: {name!r}")
 
     if name is not None and name in NAMED_POLICIES:

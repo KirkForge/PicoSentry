@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import math
 import os
 import platform
 import threading
@@ -313,6 +314,12 @@ def sandbox_run(
     deterministic: bool = True,
     allow_degraded: bool | None = None,
 ) -> SandboxResult:
+    # WO5.0.0-002: NaN/±Inf timeouts reached the backends as unhandled
+    # ValueErrors from deep inside selectors/subprocess with an orphaned
+    # child — reject at the boundary, before anything spawns.
+    if timeout is not None and not math.isfinite(timeout):
+        raise ValueError(f"timeout must be a finite number, got {timeout!r}")
+
     if policy is None:
         policy = default_policy()
 

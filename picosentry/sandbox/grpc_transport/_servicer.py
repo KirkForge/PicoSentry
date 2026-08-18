@@ -35,9 +35,12 @@ class PicoDomeServicer:
 
             policy_name = request.policy if hasattr(request, "policy") else ""
             raw_timeout = request.timeout if hasattr(request, "timeout") and request.timeout else 30.0
-            from picosentry.sandbox.daemon.constants import max_scan_timeout_seconds
+            from picosentry.sandbox.daemon.constants import sanitize_scan_timeout
 
-            timeout = min(float(raw_timeout), max_scan_timeout_seconds())
+            timeout = sanitize_scan_timeout(raw_timeout)
+            if timeout is None:
+                self._audit_log("SCAN_ERROR", detail=f"invalid timeout: {raw_timeout!r}")
+                return self._reject(context, "INVALID_ARGUMENT", "timeout must be a finite number")
 
             cwd = request.cwd if hasattr(request, "cwd") and request.cwd else None
             if cwd:

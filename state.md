@@ -2,7 +2,21 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-17, WO4.0.0 009-023 round merged) ═══
+# ═══ CURRENT STATE (2026-08-18, dev CI GREEN after pg-live/3.14 debt burn-down) ═══
+
+**dev CI fully green at `95ef0b45`** — all 16 push jobs: matrix 3.10-3.14, postgres-live 15/16/17/18 (FIRST real green — the job had never actually executed before the WO-017 dbname fix), docker amd64+arm64, reproducible-build. Local gates at close: fast 5161 passed / ~130s, ruff/format/mypy clean.
+
+**v2.1.2 released 2026-08-17** (PyPI live, GH draft release with assets). WO4.0.0: 001-008 verified & shipped; 009-023 round merged (see history below). Series state: DONE 009/010/011/012/013/015/017/018/022/023(+024 pending check), PARTIAL 001 (real-exec landlock CI job + seccomp composition), 014 (1.33×, parallel measured worse), 016 (2.8×, <1s/MB needs fused pass), 019/020/021 (P2 remainders).
+
+**This round — red-CI root-cause burn-down (5 commits, one glossed-over debt class at a time):**
+1. psycopg2 literal-% DDL (params-present ⇒ interpolation, even `()`) → bare-execute when no params + strict-fake regression tests.
+2. 3.14: forkserver pickles Process args (module-level worker doubles, `new=`) + pathlib→os.path.isfile patch recursion.
+3. DDoSShield never reset between tests (walker returned early) → both limiters cleared, regression-pinned; the "flaky" 429s are gone.
+4. postgres BOOLEAN dialect: `= 1` comparisons translated in `_prepare_sql` (4 boolean cols); INSERT VALUES literals → bound bool params (webhooks, orgs — hidden by a silent `except: return None` that now logs, test seeds).
+5. PostgresPool leaked one live connection per dead thread (strong set) → WeakSet; regression-tested with injected fake psycopg2.
+Also: fast tier writes junit + PR uploads it (flakes must leave names); PICODOME_HAS_LANDLOCK/SECCOMP=1 in integration+nightly (backends self-gate via is_available(); landlock 68/68 + seccomp-trace 38/38 verified locally first).
+
+**Open follow-ups (next session):** WO-001 landlock real-exec CI job + seccomp composition · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side (firewall excludes it) · watch <1s/MB fused pass · 019/020/021 P2 remainder · pyproject `3.14` classifier shipped. GH draft release v2.1.2 still un-published (publish button).
 
 **v2.1.2 RELEASED 2026-08-17** — PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with assets. WO4.0.0-001..008 verified vs codebase (WO files updated, commit a591e4e4): 001 PARTIAL (real-execution landlock CI job + seccomp composition open), 003's pg-live CI bug FIXED by WO-017, rest DONE.
 
@@ -13,8 +27,6 @@
 - 012/013 DONE: health_check scheduler branch + anomaly rules fire end-to-end + threat_score= intel aggregate; /health TTL+single-flight+off-loop, ReadWriteLock replaces global DB mutex.
 - 014 PARTIAL (1.33× measured, parallel fan-out measured WORSE — GIL, documented; typo DP remains), 015 DONE (maven SBOM fires, CycloneDX 1.4-1.6, recursive ecosystem detect), 016 PARTIAL (2.8× to 8.8s/MB, <1s/MB needs fused pass — deferred), 022 DONE (version-scoped verdicts, streaming proxy, auth; typosquat short-name calibration flagged), 023 DONE-prototype (gateway shim, streaming honestly annotated).
 - 019/020/021 P2 PARTIALS per WO files (gossip rotation pending HMAC announcements; API_WORKERS>1 still unsupported; tier enforcement not built).
-
-**Open follow-ups (next session):** WO-001 landlock real-exec CI job + seccomp composition · L2-TYPO-001 short-name calibration (`pkg`→BLOCK) + firewall CLI knobs (noted in WO-022) · L2-LOCK-001 fires on every registry-metadata manifest (near-universal quarantine; firewall excludes it, scan-side still open) · watch <1s/MB fused pass · 020/021 remainder.
 
 ## Subsystem health (compiled from 5 read-only explorers, ~70 verified findings → 24 WOs)
 

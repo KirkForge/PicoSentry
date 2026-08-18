@@ -224,7 +224,7 @@ class TestScanMetadataIntegration:
                     "description": "clean",
                     "license": "MIT",
                     "scripts": {"test": "jest"},
-                    "dependencies": {"lodash": "^4.17.21"},
+                    "dependencies": {"chalk": "^5.0.0"},
                     "author": "Acme <dev@acme.example>",
                     "repository": {"type": "git", "url": "https://github.com/acme/clean-lib"},
                 }

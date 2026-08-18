@@ -174,6 +174,21 @@ class TestJsonlRuntimeCap:
         ids = {j["job_id"] for j in store.list_recent(limit=100)}
         assert "job-7" in ids and "job-0" not in ids
 
+    def test_add_only_workload_compacts_dead_weight(self, tmp_path):
+        """WO5.0.0-030: add() only appends, so evicted jobs pile up as dead
+        lines between full rewrites. Bounded compaction keeps the file within
+        ~2x the live set (max_jobs cap pattern)."""
+        store = PersistentScanJobStore(store_dir=tmp_path, max_jobs=4)
+        for i in range(20):
+            store.add(f"job-{i}", ["echo", str(i)], "tester")
+
+        lines = (tmp_path / "jobs.jsonl").read_text().splitlines()
+        assert len(lines) <= 2 * 4, f"unbounded growth: {len(lines)} lines for 4 live jobs"
+        live = {j["job_id"] for j in store.list_recent(limit=100)}
+        assert live == {f"job-{i}" for i in range(16, 20)}
+        for line in lines:
+            assert json.loads(line)["job_id"] in live, "compacted file kept a dead line"
+
 
 class TestDaemonRetentionScheduler:
     def test_interval_parsing(self, monkeypatch):

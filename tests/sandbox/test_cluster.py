@@ -1317,9 +1317,11 @@ class TestClusterTokenRotation:
         assert state.token_store.is_accepted("new-secret")
 
     def test_gossip_snapshots_do_not_adopt_or_leak_tokens(self):
-        """WO4.0.0-019 protocol change: snapshots carry digests, not secrets,
-        so gossip cannot adopt new token material (rotation now requires
-        config distribution until HMAC announcements exist)."""
+        """WO4.0.0-019 protocol change: snapshots carry digests, not secrets.
+        A bare digest snapshot never adopts tokens. (WO5.0.0-030 adds
+        HMAC-derived rotation announcements for auto-generated rotations; an
+        explicit-token rotation like this one ships no announcement and still
+        requires config distribution.)"""
         import json as _json
 
         local = _state_with_token("shared")

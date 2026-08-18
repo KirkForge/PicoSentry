@@ -1,7 +1,7 @@
 # WO4.0.0-021 — Serve: multi-tenant product completeness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** PARTIAL 2026-08-17 (worktree `wo/4.0.0/serve-p1`). DONE: unsigned bundled plugin no longer auto-loads (bundled dir requires signature; `test_discord_notifier` skipped with a warning — evidence `tests/serve/test_plugin_auto_load.py`); run-output bounding (`_bounded`, 100k + `...[truncated]` flag — evidence `tests/serve/services/test_orchestrator.py::TestRunOutputBounding`). NOT DONE: tier enforcement (runs/members/projects quotas), member invite/remove/role endpoints, org-switch header, offset pagination on org endpoints, plugin capability enforcement decision.
+**Status:** CLOSED-FOLDED (2026-08-18) — remainder (tier enforcement quotas, member mgmt endpoints, org-switch header, pagination, plugin capability decision) moved to **WO5.0.0-032**. Landed & shipped in v2.1.2: unsigned bundled plugin no longer auto-loads (bundled dir requires signature — `tests/serve/test_plugin_auto_load.py`); run-output bounding (`_bounded`, 100k + truncated flag — `tests/serve/services/test_orchestrator.py::TestRunOutputBounding`)
 **Owner:** worker subagent (worktree `wo/4.0.0/serve-p1`)
 **Priority:** P2 · Effort L · Risk M
 **Scope:** `picosentry/serve/services/{orgs.py,orchestrator.py}`, `picosentry/serve/api/{routers,models}.py`, `picosentry/serve/plugins/**` (phase-1 capability enforcement)

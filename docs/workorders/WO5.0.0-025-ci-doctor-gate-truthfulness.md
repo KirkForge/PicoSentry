@@ -1,6 +1,6 @@
 # WO5.0.0-025 — CI/doctor gate truthfulness (exit codes, gates that can't fail)
 
-**Series:** WO5.0.0 (exploration round 2026-08-18)
+**Series:** WO5.0.0 (exploration round 2026-08-18; folds WO4.0.0-024 remainder 2026-08-18)
 **Status:** OPEN
 **Owner:** (unassigned — worktree `wo/5.0.0/gate-truth`)
 **Priority:** P1 · Effort M · Risk L
@@ -25,3 +25,7 @@ Every gate that looks like it verifies something must be able to fail. (The syst
 2. Honor or remove the `format` input; SARIF parse failure hard-fails (both action and GitLab template).
 3. Attestation step fails on verification failure (keep explicit skip only for provable "not attested yet").
 4. Give the doctor tests real assertions.
+5. (Folded from WO4.0.0-024) Unified-CLI wrapper consolidation: `check` + `cluster` hand-duplicate inner argparse (the drift class that already bit once) — reuse inner `add_arguments` like `picosentry scan` does; `picosentry check --help` must equal `python -m picosentry.scan check --help`.
+6. (Folded from WO4.0.0-024) GitLab template exit-map: only exit 2 is treated as error — scan exits 3 (timeout)/4 (rule error)/5 (corpus age) pass silently with stale counts.
+7. (Folded from WO4.0.0-024) Doctor coverage: watch rules-corpus check (`load_errors`), optional-extras presence vs COMPONENT_STATUS (the pynacl-silent-degrade class), version-consistency adds `serve.config.version` + helm.
+8. (Folded from WO4.0.0-024) Riders: watch blocked-prompt exit-2 collision vs argparse convention (decision); serve falsy-zero flags ignored (serve.py:72-79); helm Chart.yaml stale URLs; GHA docker cache on push-tier jobs (bake hcl defines it, only release uses bake).

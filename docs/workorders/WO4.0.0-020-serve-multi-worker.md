@@ -1,7 +1,7 @@
 # WO4.0.0-020 — Serve: multi-worker / horizontal readiness
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** PARTIAL 2026-08-17 (worktree `wo/4.0.0/serve-p1`). DONE: atomic rate-limit persistence; boot migration race (per-migration transaction + `ON CONFLICT (version) DO NOTHING`, two-worker boot smoke test) — evidence `tests/serve/test_db_rwlock.py::TestRateLimitFlushAtomicity`, `TestMigrationBootRace`. NOT DONE (needs dedicated effort): redis/DB event-bus fanout, scheduler leader lock, redis-default rate limiting, metrics aggregation across workers, serve helm chart + support matrix. `API_WORKERS>1` remains unsupported.
+**Status:** CLOSED-FOLDED (2026-08-18) — remainder (event fanout, scheduler leader lock, redis-default rate limiting, metrics aggregation, serve helm chart + support matrix) moved to **WO5.0.0-031**. Landed & shipped in v2.1.2: atomic rate-limit persistence (`transaction(immediate=True)` around DELETE+INSERTs); boot migration race closed (per-migration transaction + `ON CONFLICT (version) DO NOTHING`, two-worker boot smoke test) — evidence `tests/serve/test_db_rwlock.py::TestRateLimitFlushAtomicity`, `TestMigrationBootRace`. `API_WORKERS>1` remains unsupported until WO5.0.0-031
 **Owner:** worker subagent (worktree `wo/4.0.0/serve-p1`)
 **Priority:** P2 · Effort L · Risk H
 **Scope:** `picosentry/serve/**` (event_bus, scheduler, rate_limit, metrics, anomaly, database boot), `deploy/helm/` (new serve chart)

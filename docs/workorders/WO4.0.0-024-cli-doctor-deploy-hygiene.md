@@ -1,7 +1,7 @@
 # WO4.0.0-024 — CLI/doctor/deploy hygiene (riders)
 
 **Series:** WO4.0.0 (exploration round 2026-08-17)
-**Status:** OPEN
+**Status:** CLOSED-FOLDED (2026-08-18, never dispatched as a unit) — unique items folded into **WO5.0.0-025** (wrapper consolidation, GitLab exit-map, doctor watch-corpus/extras/version checks, riders); overlapping items were already covered by WO5.0.0-025 (action.yml format input, doctor truthfulness) and WO5.0.0-027 (cruft: post_pr_comment.py, coverage `_cli_commands` typo)
 **Owner:** (unassigned — worktree `wo/4.0.0/cli-doctor-hygiene`)
 **Priority:** P2 · Effort S-M · Risk L
 **Scope:** `picosentry/cli_commands/{scan.py,sandbox.py,_common.py}`, `action.yml`, `ci-templates/gitlab-picosentry.yml`, `picosentry/_core/doctor.py`, `deploy/`, `pyproject.toml`, cruft files

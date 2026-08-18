@@ -37,39 +37,45 @@ Priorities: P0 = security/correctness, do first. Each WO names its verified evid
 | [WO5.0.0-025](WO5.0.0-025-ci-doctor-gate-truthfulness.md) | CI/doctor gate truthfulness (exit codes, gates that can't fail) | P1 | M |
 | [WO5.0.0-026](WO5.0.0-026-ci-path-filter-report.md) | CI: path-filter completion + REPORT.json gating + nightly cancellation | P2 | S |
 | [WO5.0.0-027](WO5.0.0-027-docs-tooling-sync.md) | Docs & tooling sync sweep (small truthfulness riders) | P2 | S |
+| [WO5.0.0-028](WO5.0.0-028-scan-typo-dp-calibration.md) | Scan: typosquat DP acceleration + short-name calibration (folds WO4-014) | P1 | M |
+| [WO5.0.0-029](WO5.0.0-029-watch-fused-perf.md) | Watch: fused-pass <1s/MB + perf-ceiling test robustness (folds WO4-016) | P2 | M-L |
+| [WO5.0.0-030](WO5.0.0-030-cluster-rotation-announcements.md) | Sandbox: cluster token rotation announcements + trust ceilings (folds WO4-019) | P2 | M |
+| [WO5.0.0-031](WO5.0.0-031-serve-multi-worker.md) | Serve: multi-worker / horizontal readiness (folds WO4-020) | P2 | L |
+| [WO5.0.0-032](WO5.0.0-032-serve-tenant-product.md) | Serve: tenant product completeness (folds WO4-021) | P2 | L |
+| [WO5.0.0-033](WO5.0.0-033-serve-webhook-wildcard.md) | Serve: webhook wildcard event matching broken (new, P0-wave flag) | P1 | S |
+| [WO5.0.0-034](WO5.0.0-034-scan-osv-cache-roundtrip.md) | Scan: OSV disk-cache round-trip decodes to empty (new, P0-wave flag) | P1 | S |
+| [WO5.0.0-035](WO5.0.0-035-test-infra-py314-races.md) | Test-infra: py3.14 forkserver spawn race + slow-tier drift (new, P0-wave flag) | P2 | S-M |
 
-Suggested batch shape: P0 security cluster as 3 parallel subagent worktrees (sandbox 001-004 / serve 005-008 / scan+watch+firewall 009-013), 014 solo before the next release; P1 next; P2 riders last.
+Suggested batch shape: P0 security cluster as 3 parallel subagent worktrees (sandbox 001-004 / serve 005-008 / scan+watch+firewall 009-013), 014 solo before the next release; P1 next (incl. new flags 033-034); P2 riders last.
 
-## WO4.0.0 — Fourth series (OPEN — seeded by the 2026-08-17 five-explorer round)
+## WO4.0.0 — Fourth series (CLOSED 2026-08-18 — shipped parts in v2.1.2; every remainder folded into WO5.0.0)
 
-Priorities: P0 = security/correctness, do first. Each WO names its verified evidence. Worktrees: `wo/4.0.0/<slug>` off `origin/dev`.
-
-| ID | Title | Pri | Effort |
-|----|-------|-----|--------|
-| [WO4.0.0-001](WO4.0.0-001-landlock-backend-truth.md) | Landlock backend: make it actually work (syscall numbers wrong on x86_64 — dead everywhere) | P0 | L |
-| [WO4.0.0-002](WO4.0.0-002-daemon-transport-security.md) | Sandbox daemon: gRPC auth bypass + single-thread blackout + signals + traversal write | P0 | M |
-| [WO4.0.0-003](WO4.0.0-003-serve-pg-tenancy.md) | Serve: postgres org-create/association broken | P0 | S-M |
-| [WO4.0.0-004](WO4.0.0-004-serve-audit-lifecycle.md) | Serve: retention permanently breaks the audit-chain verifier | P0 | M |
-| [WO4.0.0-005](WO4.0.0-005-serve-correlation-tenancy.md) | Serve: correlation/report/alert org=None leaks | P0 | M |
-| [WO4.0.0-006](WO4.0.0-006-scan-cache-correctness.md) | Scan: cache serves wrong results; OSV version-blind | P0 | M |
-| [WO4.0.0-007](WO4.0.0-007-watch-guard-integrity.md) | Watch: fail-closed corpus gap, Cyrillic blanket-block, decode-order bypass | P0 | M |
-| [WO4.0.0-008](WO4.0.0-008-scan-detection-quality.md) | Scan: recall recovery + metadata FP gating + honest card | P0 | L |
-| [WO4.0.0-009](WO4.0.0-009-release-mechanics.md) | Release mechanics (next release ships correct tags/versions) | P0 | M |
-| [WO4.0.0-010](WO4.0.0-010-sandbox-tenant-secrets.md) | Sandbox: tenant store unwired; exfil secrets returned to caller; env allowlist ADR | P1 | M |
-| [WO4.0.0-011](WO4.0.0-011-sandbox-containment.md) | Sandbox: killpg on timeout, RLIMIT_CPU/NPROC, subprocess-backend hang | P1 | M |
-| [WO4.0.0-012](WO4.0.0-012-serve-truthfulness.md) | Serve: scheduler/health/anomaly/status truthfulness | P1 | S-M |
-| [WO4.0.0-013](WO4.0.0-013-serve-concurrency.md) | Serve: event-loop hygiene + global DB mutex + /health cost | P1 | M-L |
-| [WO4.0.0-014](WO4.0.0-014-scan-perf.md) | Scan: parallel rules, shared walks, daemon responsiveness | P1 | L |
-| [WO4.0.0-015](WO4.0.0-015-scan-sbom-monorepo.md) | Scan: SBOM maven artifactId + CycloneDX versions + nested manifests | P1 | S-M |
-| [WO4.0.0-016](WO4.0.0-016-watch-perf-metrics.md) | Watch: 14–22s/MB scan cost + invalid /metrics exposition | P1 | M-L |
-| [WO4.0.0-017](WO4.0.0-017-ci-tiers-versions.md) | CI: path-filter hole, kind/pg matrices, py3.14, nightly dedupe | P1 | M |
-| [WO4.0.0-018](WO4.0.0-018-l4-evidence-fp.md) | Sandbox: L4 evidence blind on enforced backends + FP catalog | P1 | M |
-| [WO4.0.0-019](WO4.0.0-019-cluster-trust-healing.md) | Sandbox: cluster gossip ships secrets; partitions never heal | P2 | M |
-| [WO4.0.0-020](WO4.0.0-020-serve-multi-worker.md) | Serve: multi-worker/horizontal readiness | P2 | L |
-| [WO4.0.0-021](WO4.0.0-021-serve-tenant-product.md) | Serve: tier enforcement, member mgmt, plugin capability phase-1 | P2 | L |
-| [WO4.0.0-022](WO4.0.0-022-firewall-productization.md) | Firewall: version-scoped verdicts, tarball decision, surface doc | P2 | M-L |
-| [WO4.0.0-023](WO4.0.0-023-watch-gateway-shim.md) | Watch: API-compat gateway shim (prototype) | P2 | L |
-| [WO4.0.0-024](WO4.0.0-024-cli-doctor-deploy-hygiene.md) | CLI/doctor/deploy hygiene riders | P2 | S-M |
+| ID | Title | Final status |
+|----|-------|--------------|
+| [WO4.0.0-001](WO4.0.0-001-landlock-backend-truth.md) | Landlock backend: make it actually work | CLOSED-FOLDED → WO5.0.0-019 (real-exec CI job + seccomp composition); backend fixed & shipped |
+| [WO4.0.0-002](WO4.0.0-002-daemon-transport-security.md) | Sandbox daemon: gRPC auth + availability + signals + traversal | DONE — shipped v2.1.2 |
+| [WO4.0.0-003](WO4.0.0-003-serve-pg-tenancy.md) | Serve: postgres org-create/association | DONE — shipped v2.1.2 |
+| [WO4.0.0-004](WO4.0.0-004-serve-audit-lifecycle.md) | Serve: retention × audit-chain coexistence | DONE — shipped v2.1.2 |
+| [WO4.0.0-005](WO4.0.0-005-serve-correlation-tenancy.md) | Serve: correlation/report/alert tenancy | DONE — shipped v2.1.2 |
+| [WO4.0.0-006](WO4.0.0-006-scan-cache-correctness.md) | Scan: cache correctness; OSV versioning | DONE — shipped v2.1.2 |
+| [WO4.0.0-007](WO4.0.0-007-watch-guard-integrity.md) | Watch: guard integrity | DONE — shipped v2.1.2 |
+| [WO4.0.0-008](WO4.0.0-008-scan-detection-quality.md) | Scan: detection quality + honest card | DONE — shipped v2.1.2 |
+| [WO4.0.0-009](WO4.0.0-009-release-mechanics.md) | Release mechanics | DONE — shipped v2.1.2 |
+| [WO4.0.0-010](WO4.0.0-010-sandbox-tenant-secrets.md) | Sandbox: tenant store, env allowlist, redaction | DONE — shipped v2.1.2 (production wiring completed by WO5.0.0-001) |
+| [WO4.0.0-011](WO4.0.0-011-sandbox-containment.md) | Sandbox: killpg, RLIMIT_CPU/NPROC | DONE — shipped v2.1.2 |
+| [WO4.0.0-012](WO4.0.0-012-serve-truthfulness.md) | Serve: scheduler/health/anomaly truthfulness | DONE — shipped v2.1.2 |
+| [WO4.0.0-013](WO4.0.0-013-serve-concurrency.md) | Serve: event-loop + locks + /health | DONE — shipped v2.1.2 |
+| [WO4.0.0-014](WO4.0.0-014-scan-perf.md) | Scan: throughput + daemon responsiveness | CLOSED-FOLDED → WO5.0.0-028 (typo DP + calibration); 1.33× + caches shipped |
+| [WO4.0.0-015](WO4.0.0-015-scan-sbom-monorepo.md) | Scan: SBOM maven + CycloneDX + nested manifests | DONE — shipped v2.1.2 |
+| [WO4.0.0-016](WO4.0.0-016-watch-perf-metrics.md) | Watch: perf + Prometheus hygiene | CLOSED-FOLDED → WO5.0.0-029 (fused pass); 2.8× + metrics shipped |
+| [WO4.0.0-017](WO4.0.0-017-ci-tiers-versions.md) | CI: path-filter, matrices, 3.14, nightly | DONE — shipped v2.1.2 |
+| [WO4.0.0-018](WO4.0.0-018-l4-evidence-fp.md) | Sandbox: L4 evidence + FP recalibration | DONE — shipped v2.1.2 |
+| [WO4.0.0-019](WO4.0.0-019-cluster-trust-healing.md) | Sandbox: cluster trust + healing | CLOSED-FOLDED → WO5.0.0-030 (rotation announcements); digests + healing shipped |
+| [WO4.0.0-020](WO4.0.0-020-serve-multi-worker.md) | Serve: multi-worker readiness | CLOSED-FOLDED → WO5.0.0-031; atomic persistence + boot race shipped |
+| [WO4.0.0-021](WO4.0.0-021-serve-tenant-product.md) | Serve: tenant product completeness | CLOSED-FOLDED → WO5.0.0-032; plugin + output-bounding shipped |
+| [WO4.0.0-022](WO4.0.0-022-firewall-productization.md) | Firewall: version-scoped verdicts + surface | DONE — shipped v2.1.2 (typosquat calibration → WO5.0.0-028) |
+| [WO4.0.0-023](WO4.0.0-023-watch-gateway-shim.md) | Watch: gateway shim prototype | DONE-prototype — shipped v2.1.2 (hardening → WO5.0.0-023) |
+| [WO4.0.0-024](WO4.0.0-024-cli-doctor-deploy-hygiene.md) | CLI/doctor/deploy hygiene | CLOSED-FOLDED → WO5.0.0-025 + WO5.0.0-027 |
 
 ## WO3.0.0 — Third series (shipped; statuses verified against code 2026-08)
 

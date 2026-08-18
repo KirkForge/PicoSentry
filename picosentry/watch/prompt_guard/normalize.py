@@ -115,18 +115,18 @@ class Normalizer:
             "naq",
         }
     )
-    _ROT13_GATE_PHRASES: ClassVar[tuple[re.Pattern[str], ...]] = tuple(
-        re.compile(p, re.IGNORECASE)
-        for p in (
-            r"flfgrz\s+cebzcg",
-            r"gheavat\s+bss",
-            r"lbh\s+ner",
-            r"npg\s+nf",
-            r"sebz\s+abj\s+ba",
-            r"fgbc\s+orvat",
-            r"fubj\s+lbhe",
-            r"ghea\s+bss",
-            r"naq\s+gura",
+    _ROT13_GATE_PHRASES: ClassVar[tuple[tuple[tuple[str, ...], re.Pattern[str]], ...]] = tuple(
+        (words, re.compile(pattern, re.IGNORECASE))
+        for words, pattern in (
+            (("flfgrz", "cebzcg"), r"flfgrz\s+cebzcg"),
+            (("gheavat", "bss"), r"gheavat\s+bss"),
+            (("lbh", "ner"), r"lbh\s+ner"),
+            (("npg", "nf"), r"npg\s+nf"),
+            (("sebz", "abj", "ba"), r"sebz\s+abj\s+ba"),
+            (("fgbc", "orvat"), r"fgbc\s+orvat"),
+            (("fubj", "lbhe"), r"fubj\s+lbhe"),
+            (("ghea", "bss"), r"ghea\s+bss"),
+            (("naq", "gura"), r"naq\s+gura"),
         )
     )
 
@@ -135,11 +135,12 @@ class Normalizer:
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
 
     # Spaced-single-char collapse fused into one whole-text pass: the inner
-    # separator is an isolated whitespace char ((?<!\s)\s(?!\s)) because runs
-    # of 2+ whitespace act as segment boundaries in the original split-based
-    # implementation and must not collapse across. The multi-space squash
-    # runs afterwards, replacing the old split/join separator handling.
-    _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:(?<!\s)\s(?!\s)(\w)){2,}(?=\s|$|[,.;!?])")
+    # separator is a SINGLE whitespace char because runs of 2+ whitespace
+    # acted as segment boundaries in the original split-based implementation
+    # (a \s unit cannot step into a 2+ run — the next char would fail \w).
+    # The multi-space squash runs afterwards, replacing the old split/join
+    # separator handling.
+    _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s(\w)){2,}(?=\s|$|[,.;!?])")
 
     _SEPARATOR_PUNCT = re.compile(r"(?<=\w)[.\-_/](?=\w)")
 
@@ -263,7 +264,10 @@ class Normalizer:
         lowered = text.lower()
         if any(word in lowered for word in self._ROT13_GATE_WORDS):
             return True
-        return any(p.search(text) for p in self._ROT13_GATE_PHRASES)
+        for words, phrase in self._ROT13_GATE_PHRASES:
+            if all(w in lowered for w in words) and phrase.search(text):
+                return True
+        return False
 
     @staticmethod
     def _add_decoded(run: str, decoder, add) -> None:
@@ -408,6 +412,8 @@ class Normalizer:
         return payloads
 
     def has_zero_width(self, text: str) -> bool:
+        if text.isascii():  # every zero-width char is non-ASCII
+            return False
         return not self._ZERO_WIDTH.isdisjoint(text)
 
     def decode_rot13(self, text: str) -> str:

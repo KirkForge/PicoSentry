@@ -116,6 +116,11 @@ class Gateway:
         self._http_client = http_client  # injectable for tests (httpx.AsyncClient)
         self._output_guard = OutputGuard(config=self._config)
         self._guards: dict[str | None, PromptGuard] = {}
+        # Profiles are resolved at construction: a tenant whose category set
+        # matches zero rules is a configuration error (typo), not a silently
+        # rule-less guard — refuse startup instead (WO5.0.0-024).
+        for tenant_profile in self._tenants.values():
+            self._guard_for(tenant_profile)
 
     def _guard_for(self, profile: TenantProfile) -> PromptGuard:
         key = f"{profile.name}:{sorted(profile.allowed_categories or ())}:{profile.threshold_block}"
@@ -136,7 +141,13 @@ class Gateway:
             if profile.allowed_categories is not None:
                 from picosentry.watch.prompt_guard.rules import RuleEngine
 
-                guard._engine = RuleEngine(rules_dir=guard._rules_dir, allowed_categories=profile.allowed_categories)
+                engine = RuleEngine(rules_dir=guard._rules_dir, allowed_categories=profile.allowed_categories)
+                if engine.rules_loaded == 0:
+                    raise ValueError(
+                        f"tenant profile {profile.name!r} selects zero rules — "
+                        f"allowed_categories {sorted(profile.allowed_categories)} match nothing in the corpus (typo?)"
+                    )
+                guard._engine = engine
             self._guards[key] = guard
         return guard
 
@@ -279,6 +290,7 @@ def create_gateway_app(
                         "score": prompt_result.score,
                         "verdict": prompt_result.verdict.value,
                         "rules_matched": prompt_result.rules_matched,
+                        "rules_loaded": guard.rules_loaded,
                         "explanations": await asyncio.to_thread(_explanations, guard, prompt_text),
                         "corpus_hash": prompt_result.corpus_hash,
                     },
@@ -354,6 +366,7 @@ def create_gateway_app(
             "prompt_blocked": False,
             "prompt_score": prompt_result.score,
             "prompt_rules_matched": prompt_result.rules_matched,
+            "rules_loaded": guard.rules_loaded,
             "output_scanned": True,
             "output_fields_scanned": [
                 "choices[*].message.content",

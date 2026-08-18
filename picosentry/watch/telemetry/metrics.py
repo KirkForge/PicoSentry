@@ -34,6 +34,15 @@ class _HistogramState:
                 self.bucket_counts[i] += 1
 
 
+def _label_pairs(labels: dict[str, str]) -> str:
+    return ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
+
+
+def _sample_line(name: str, labels: dict[str, str] | None, value: float) -> str:
+    suffix = "{" + _label_pairs(labels) + "}" if labels else ""
+    return f"{name}{suffix} {value}"
+
+
 class PrometheusMetrics:
     def __init__(self) -> None:
         self._counters: dict[str, float] = {}
@@ -67,47 +76,44 @@ class PrometheusMetrics:
             histograms = {key: (list(s.bucket_counts), s.count, s.total) for key, s in self._histograms.items()}
         lines: list[str] = []
 
+        # HELP/TYPE are FAMILY-level metadata: emit once per family, then every
+        # series of that family. Per-series emission produced 3x HELP for one
+        # family as soon as a label appeared — Prometheus rejects the whole
+        # scrape (WO5.0.0-024).
+        emitted: set[str] = set()
+
+        def _family_header(name: str, kind: str) -> None:
+            if name not in emitted:
+                emitted.add(name)
+                lines.append(f"# HELP {name} {name}")
+                lines.append(f"# TYPE {name} {kind}")
+
         for key, value in sorted(counters.items()):
             name, labels = self._parse_key(key)
-            lines.append(f"# HELP {name} {name}")
-            lines.append(f"# TYPE {name} counter")
-            if labels:
-                label_str = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-                lines.append(f"{name}{{{label_str}}} {value}")
-            else:
-                lines.append(f"{name} {value}")
+            _family_header(name, "counter")
+            lines.append(_sample_line(name, labels, value))
 
         for key, value in sorted(gauges.items()):
             name, labels = self._parse_key(key)
-            lines.append(f"# HELP {name} {name}")
-            lines.append(f"# TYPE {name} gauge")
-            if labels:
-                label_str = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-                lines.append(f"{name}{{{label_str}}} {value}")
-            else:
-                lines.append(f"{name} {value}")
+            _family_header(name, "gauge")
+            lines.append(_sample_line(name, labels, value))
 
         for key, (bucket_counts, count, total) in sorted(histograms.items()):
             name, labels = self._parse_key(key)
-            lines.append(f"# HELP {name} {name}")
-            lines.append(f"# TYPE {name} histogram")
-            label_suffix = ""
-            if labels:
-                label_suffix = "{" + ",".join(f'{k}="{v}"' for k, v in sorted(labels.items())) + "}"
+            _family_header(name, "histogram")
+            label_suffix = "{" + _label_pairs(labels) + "}" if labels else ""
 
             lines.append(f"{name}_count{label_suffix} {count}")
             lines.append(f"{name}_sum{label_suffix} {total:.6f}")
 
             for bucket, bucket_count in zip(DEFAULT_BUCKETS, bucket_counts, strict=True):
                 if labels:
-                    label_extra = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-                    lines.append(f'{name}_bucket{{le="{bucket}",{label_extra}}} {bucket_count}')
+                    lines.append(f'{name}_bucket{{le="{bucket}",{_label_pairs(labels)}}} {bucket_count}')
                 else:
                     lines.append(f'{name}_bucket{{le="{bucket}"}} {bucket_count}')
 
             if labels:
-                label_extra = ",".join(f'{k}="{v}"' for k, v in sorted(labels.items()))
-                lines.append(f'{name}_bucket{{le="+Inf",{label_extra}}} {count}')
+                lines.append(f'{name}_bucket{{le="+Inf",{_label_pairs(labels)}}} {count}')
             else:
                 lines.append(f'{name}_bucket{{le="+Inf"}} {count}')
 

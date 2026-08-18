@@ -132,6 +132,17 @@ class TestTenantProfiles:
         # WO5.0.0-023: unknown keys are rejected, not silently defaulted.
         assert unknown.status_code == 401
 
+    def test_zero_matching_category_set_refuses_startup(self) -> None:
+        """WO5.0.0-024: a typo'd allowed_categories set is a configuration
+        error — the gateway refuses to start rather than silently running a
+        rule-less (pass-through) guard for that tenant."""
+        with pytest.raises(ValueError, match="zero rules"):
+            create_gateway_app(
+                PicoWatchConfig(),
+                upstream_base_url="https://upstream.test",
+                tenants={"key-typo": TenantProfile(name="typo", allowed_categories=frozenset({"nonexistent_cat"}))},
+            )
+
 
 class TestStreamingPassThrough:
     def test_stream_forwards_with_honest_metadata(self) -> None:

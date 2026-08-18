@@ -90,7 +90,7 @@ def shutdown_tracing() -> None:
         _initialized = False
 
 
-def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> None:
+def trace_prompt_scan(result: PromptScanResult, model: str | None = None, request_id: str | None = None) -> None:
     if not _initialized or _tracer is None:
         return
 
@@ -98,7 +98,7 @@ def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> Non
         from opentelemetry import trace
 
         with _tracer.start_as_current_span("picowatch.prompt_guard.scan") as span:
-            span.set_attribute("picowatch.request.id", result.details.get("request_id", ""))
+            span.set_attribute("picowatch.request.id", request_id or result.details.get("request_id", ""))
             span.set_attribute("picowatch.prompt.blocked", result.blocked)
             span.set_attribute("picowatch.prompt.score", result.score)
             span.set_attribute("picowatch.prompt.rules_matched", ",".join(result.rules_matched))
@@ -115,7 +115,7 @@ def trace_prompt_scan(result: PromptScanResult, model: str | None = None) -> Non
         logger.debug("Failed to record prompt scan span", exc_info=True)
 
 
-def trace_output_validation(result: ValidationResult, model: str | None = None) -> None:
+def trace_output_validation(result: ValidationResult, model: str | None = None, request_id: str | None = None) -> None:
     if not _initialized or _tracer is None:
         return
 
@@ -123,6 +123,7 @@ def trace_output_validation(result: ValidationResult, model: str | None = None) 
         from opentelemetry import trace
 
         with _tracer.start_as_current_span("picowatch.output_guard.validate") as span:
+            span.set_attribute("picowatch.request.id", request_id or (result.details or {}).get("request_id", ""))
             span.set_attribute("picowatch.output.valid", result.valid)
             span.set_attribute("picowatch.output.score", result.score)
             span.set_attribute("picowatch.output.violations", ",".join(result.violations))

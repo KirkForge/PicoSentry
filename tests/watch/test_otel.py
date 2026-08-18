@@ -431,6 +431,58 @@ class TestServerOtelIntegration:
         assert data["score"] > 0
         assert "request_id" in data
 
+    def test_scan_request_id_lands_on_span(self, clean_otel) -> None:
+        """WO5.0.0-024: the server passes request_id into the trace call —
+        the span carries picowatch.request.id instead of an always-empty
+        attribute."""
+        from fastapi.testclient import TestClient
+
+        from picosentry.watch.server import create_app
+
+        mock_modules = _make_mock_otel_modules()
+        with patch.dict(sys.modules, mock_modules):
+            import picosentry.watch.telemetry.otel as otel_mod
+
+            clean_otel._tracer = None
+            clean_otel._initialized = False
+            otel_mod.init_tracing(service_name="test-picowatch")
+
+            config = _make_config(api_key=None)
+            client = TestClient(create_app(config))
+            response = client.post(
+                "/v1/scan/prompt",
+                json={"text": "hello", "request_id": "req-span-42"},
+            )
+            assert response.status_code == 200
+
+            span = otel_mod._tracer.start_as_current_span.return_value
+            assert span.attributes["picowatch.request.id"] == "req-span-42"
+
+    def test_output_scan_request_id_lands_on_span(self, clean_otel) -> None:
+        """Output spans carry the request_id too (previously never set)."""
+        from fastapi.testclient import TestClient
+
+        from picosentry.watch.server import create_app
+
+        mock_modules = _make_mock_otel_modules()
+        with patch.dict(sys.modules, mock_modules):
+            import picosentry.watch.telemetry.otel as otel_mod
+
+            clean_otel._tracer = None
+            clean_otel._initialized = False
+            otel_mod.init_tracing(service_name="test-picowatch")
+
+            config = _make_config(api_key=None)
+            client = TestClient(create_app(config))
+            response = client.post(
+                "/v1/scan/output",
+                json={"output": "My SSN is 123-45-6789", "request_id": "req-out-7"},
+            )
+            assert response.status_code == 200
+
+            span = otel_mod._tracer.start_as_current_span.return_value
+            assert span.attributes["picowatch.request.id"] == "req-out-7"
+
     def test_output_scan_triggers_otel_trace(self) -> None:
         """POST /v1/scan/output calls trace_output_validation after recording."""
         from fastapi.testclient import TestClient

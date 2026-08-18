@@ -504,6 +504,35 @@ class TestRateLimiting:
         assert "Retry-After" in response.headers
         assert response.headers["Retry-After"] == "120"
 
+    def test_xff_rate_limit_keys_on_proxy_appended_entry(self, monkeypatch) -> None:
+        """WO5.0.0-024: with PICOWATCH_TRUST_PROXY=1 the rate-limit bucket is
+        keyed on the LAST XFF entry (appended by our own proxy). Rotating
+        client-forgeable earlier entries must not mint fresh buckets."""
+        monkeypatch.setenv("PICOWATCH_TRUST_PROXY", "1")
+        config = _make_config(rate_limit=2, rate_limit_window=60)
+        client = TestClient(create_app(config))
+
+        # Same proxy-appended tail, rotating forged prefixes -> one bucket.
+        for forged in ("1.2.3.4", "9.9.9.9", "5.5.5.5"):
+            response = client.post(
+                "/v1/scan/prompt",
+                json={"text": "hi"},
+                headers={"X-Forwarded-For": f"{forged}, 203.0.113.7"},
+            )
+        assert response.status_code == 429, "forged XFF prefixes must not rotate the rate-limit bucket"
+
+        # Rotating the LAST entry does rotate the bucket (distinct clients).
+        codes = []
+        for tail in ("198.51.100.1", "198.51.100.2", "198.51.100.3"):
+            codes.append(
+                client.post(
+                    "/v1/scan/prompt",
+                    json={"text": "hi"},
+                    headers={"X-Forwarded-For": f"1.2.3.4, {tail}"},
+                ).status_code
+            )
+        assert codes == [200, 200, 200]
+
 
 # ─── Request ID auto-generation tests ────────────────────────────────────
 
@@ -654,6 +683,27 @@ class TestInputSizeLimits:
         )
         assert response.status_code == 413
         assert "node count" in response.json()["detail"].lower()
+
+    def test_chunked_body_over_cap_returns_413(self) -> None:
+        """WO5.0.0-024: chunked transfer-encoding (no Content-Length) cannot
+        bypass the pre-parse body cap — bytes are counted as they stream."""
+        from picosentry.watch.server import _MAX_BODY_BYTES
+
+        app = create_app(_make_config(api_key=None))
+        client = TestClient(app)
+
+        def chunks():
+            yield b'{"text": "'
+            yield b"x" * (_MAX_BODY_BYTES + 1024)
+            yield b'"}'
+
+        response = client.post(
+            "/v1/scan/prompt",
+            content=chunks(),
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 413
+        assert response.json()["error"] == "Request body too large"
 
 
 class TestDocsEndpoints:

@@ -26,11 +26,7 @@ class Scorer:
 
         max_score = max(rule.weight for rule, _ in matches)
 
-        total_weight = sum(rule.weight for rule, _ in matches)
-        count = len(matches)
-        avg_score = total_weight / count if count > 0 else 0.0
-
-        final_score = round(max(max_score, avg_score), 6)
+        final_score = round(max_score, 6)
 
         matched_ids = sorted({rule.id for rule, _ in matches})
 

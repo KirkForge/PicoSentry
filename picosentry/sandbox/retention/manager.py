@@ -4,6 +4,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import threading
 import time
 from dataclasses import dataclass, field
@@ -16,6 +17,17 @@ logger = logging.getLogger("picodome.retention")
 
 _DEFAULT_DATA_DIR = Path.home() / ".picodome" / "data"
 _DEFAULT_SCAN_RESULTS_DIR = _DEFAULT_DATA_DIR / "scans"
+
+_UNSAFE_FILENAME_CHARS = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+def _package_slug(package_name: str) -> str:
+    """Confine a caller-controlled package name to a filename-safe slug
+    (WO5.0.0-002): command[0] reached here verbatim and '../../x' wrote
+    outside the scans dir."""
+    base = Path(package_name).name
+    slug = _UNSAFE_FILENAME_CHARS.sub("-", base).strip(".-")
+    return slug or "unknown"
 
 
 @dataclass(frozen=True)
@@ -109,7 +121,7 @@ class RetentionManager:
     ) -> Path:
         timestamp = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
         content_hash = hashlib.sha256(result_json.encode()).hexdigest()[:12]
-        filename = f"{package_name}_{timestamp}_{content_hash}.json"
+        filename = f"{_package_slug(package_name)}_{timestamp}_{content_hash}.json"
 
         path = self._scan_dir / filename
         path.write_text(result_json, encoding="utf-8")

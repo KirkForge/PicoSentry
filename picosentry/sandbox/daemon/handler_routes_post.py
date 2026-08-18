@@ -11,7 +11,7 @@ from typing import TYPE_CHECKING, Any
 from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
-from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE
+from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE, sanitize_scan_timeout
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
@@ -111,8 +111,10 @@ class PicoDomePostRoutesMixin:
             if token:
                 self._handle_create_policy(token)
         elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
-            token = self._require_permission("scan:write")
-            if token:
+            # Cluster peers authenticate with X-Cluster-Token only (WO5.0.0-004).
+            from picosentry.sandbox.daemon.handler_routes_get import _authorize_cluster_route
+
+            if _authorize_cluster_route(self, "scan:write"):
                 self._handle_cluster_merge_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
@@ -156,11 +158,10 @@ class PicoDomePostRoutesMixin:
             self._send_error(ErrorCodes.COMMAND_DENIED, detail=deny_error)
             return
 
-        try:
-            requested_timeout = float(data.get("timeout", 30.0))
-        except (TypeError, ValueError):
-            requested_timeout = 30.0
-        timeout = min(requested_timeout, _max_scan_timeout_seconds())
+        timeout = sanitize_scan_timeout(data.get("timeout", 30.0))
+        if timeout is None:
+            self._send_error(ErrorCodes.INVALID_TIMEOUT, detail="timeout must be a finite number")
+            return
 
         job_id = uuid.uuid4().hex
         actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16] if token else "unknown"
@@ -364,7 +365,11 @@ class PicoDomePostRoutesMixin:
                     actor=actor,
                     detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}",
                     target=command[0] if command else "",
-                    metadata={"job_id": job_id, "findings": len(analysis_result.findings)},
+                    metadata={
+                        "job_id": job_id,
+                        "findings": len(analysis_result.findings),
+                        "tenant_id": str(tenant_id) if tenant_id is not None else None,
+                    },
                 )
             except (OSError, RuntimeError):
                 logger.exception("Audit record failed")
@@ -431,7 +436,10 @@ class PicoDomePostRoutesMixin:
     def _handle_cluster_merge_snapshot(self: PicoDomeHandler) -> None:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
 
-        Called by cluster peers to gossip their state to this node.
+        Accepts a pushed snapshot authenticated by X-Cluster-Token (the same
+        token the gossip client uses for GET). The daemon's own gossip loop
+        pulls snapshots via GET and merges locally, so this endpoint serves
+        peers/operators that push instead of pull.
         Body must be a JSON snapshot as produced by GET /api/v1/cluster/snapshot.
         Merging follows last-writer-wins for nodes and status-priority for scans.
         """

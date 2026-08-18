@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 import uuid
 from typing import TYPE_CHECKING, Any, ClassVar
 
@@ -24,6 +25,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger("picodome.daemon")
 
+# WO5.0.0-002: reflected verbatim before — an obs-folded header value came
+# back as "legit\n\tEvil-Header: injected" (bare-LF header injection).
+_SAFE_REQUEST_ID = re.compile(r"[A-Za-z0-9_-]{1,128}")
+
 
 class PicoDomeResponseMixin:
     def log_message(self, format, *args):
@@ -31,7 +36,7 @@ class PicoDomeResponseMixin:
 
     def _generate_request_id(self: PicoDomeHandler) -> str:
         existing_id = self.headers.get("X-Request-ID", "")
-        if existing_id and len(existing_id) <= 128:
+        if existing_id and _SAFE_REQUEST_ID.fullmatch(existing_id):
             return existing_id
         return f"picodome-{uuid.uuid4().hex[:16]}"
 
@@ -139,6 +144,15 @@ class PicoDomeAuthMixin:
             token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
 
         return registry.resolve_tenant(token_hash, header_tenant=header_tenant)
+
+    def _is_tenant_operator(self: PicoDomeHandler, token: str | None) -> bool:
+        """Explicitly-designated operator tokens see all tenants (WO5.0.0-001)."""
+        from picosentry.sandbox.tenant import get_tenant_registry
+
+        if not token or token == "no-auth-dev-mode":
+            return False
+        token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+        return get_tenant_registry().is_operator_token(token_hash)
 
     def _require_auth(self: PicoDomeHandler) -> str | None:
         token = self._get_token()

@@ -263,7 +263,7 @@ def load_policy(
 
     if path is not None:
         path = Path(path).resolve()
-    if name is not None and ("/" in name or "\\" in name or ".." in name):
+    if name is not None and ("/" in name or "\\" in name or ".." in name or name.strip(".") == ""):
         raise ValueError(f"Invalid policy name: {name!r}")
 
     if name is not None and name in NAMED_POLICIES:
@@ -291,7 +291,11 @@ def load_policy(
             )
 
             content, result = load_policy_with_companion_verification(path)
-            if not content and result and not result.valid:
+            # WO5.0.0-003: reject whenever a verification attempt produced an
+            # invalid verdict — the old `not content and …` predicate missed
+            # the branch where content was non-empty (signed policy + no key
+            # on the verifier loaded the file, tampered or not).
+            if result is not None and not result.valid:
                 raise ValueError(f"Policy signature verification failed for {path}: {result.error}")
             data = json.loads(content)
         else:

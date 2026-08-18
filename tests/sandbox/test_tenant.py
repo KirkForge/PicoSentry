@@ -22,6 +22,7 @@ from picosentry.sandbox.tenant import (
     DEFAULT_TENANT,
     TenantContext,
     TenantId,
+    TenantMismatchError,
     TenantRegistry,
     get_tenant_registry,
     load_tenants_from_env,
@@ -184,12 +185,15 @@ class TestTenantRegistry:
         resolved = self.registry.resolve_tenant("abc123hash")
         assert resolved == TenantId("alpha")
 
-    def test_resolve_tenant_header_override(self):
+    def test_resolve_tenant_header_cannot_override(self):
+        """WO5.0.0-001: the header may only CONFIRM the token's tenant — a
+        cross-tenant header is rejected, never honored."""
         self.registry.register(TenantContext(tenant_id=TenantId("alpha")))
         self.registry.map_token("abc123hash", TenantId("beta"))
-        # Header takes precedence over token mapping
-        resolved = self.registry.resolve_tenant("abc123hash", header_tenant="alpha")
-        assert resolved == TenantId("alpha")
+        with pytest.raises(TenantMismatchError):
+            self.registry.resolve_tenant("abc123hash", header_tenant="alpha")
+        # Confirming the mapped tenant is allowed
+        assert self.registry.resolve_tenant("abc123hash", header_tenant="beta") == TenantId("beta")
 
     def test_resolve_tenant_token_mapping(self):
         self.registry.register(TenantContext(tenant_id=TenantId("alpha")))
@@ -209,10 +213,11 @@ class TestTenantRegistry:
         assert resolved == TenantId("alpha")
 
     def test_resolve_tenant_header_not_registered(self):
-        # Header with unregistered tenant falls back
+        # Header naming any tenant other than the token's effective tenant is
+        # rejected (WO5.0.0-001) — registered or not.
         self.registry.register(TenantContext(tenant_id=TenantId("alpha")))
-        resolved = self.registry.resolve_tenant("unknown", header_tenant="nonexistent")
-        assert resolved == DEFAULT_TENANT
+        with pytest.raises(TenantMismatchError):
+            self.registry.resolve_tenant("unknown", header_tenant="nonexistent")
 
     def test_unregister_removes_token_mapping(self):
         self.registry.register(TenantContext(tenant_id=TenantId("alpha")))

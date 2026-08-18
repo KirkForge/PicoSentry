@@ -15,6 +15,7 @@ class ErrorCodes:
     MISSING_COMMAND = ErrorCode(400, "MISSING_COMMAND", "Missing or invalid 'command' field")
     INVALID_BACKEND = ErrorCode(400, "INVALID_BACKEND", "Unknown backend name")
     INVALID_POLICY = ErrorCode(400, "INVALID_POLICY", "Invalid policy definition")
+    INVALID_TIMEOUT = ErrorCode(400, "INVALID_TIMEOUT", "Invalid timeout value")
 
     UNAUTHORIZED = ErrorCode(401, "UNAUTHORIZED", "Invalid or missing token")
 

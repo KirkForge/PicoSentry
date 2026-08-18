@@ -15,7 +15,9 @@ from picosentry.sandbox.daemon.handler_mixins import (
 )
 from picosentry.sandbox.daemon.handler_routes_get import PicoDomeGetRoutesMixin
 from picosentry.sandbox.daemon.handler_routes_post import PicoDomePostRoutesMixin
+from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.ratelimit import TokenBucketLimiter
+from picosentry.sandbox.tenant import TenantMismatchError
 from picosentry.sandbox.tracing import trace_daemon_request
 
 from picosentry.sandbox.daemon.store import PersistentScanJobStore
@@ -60,12 +62,18 @@ class PicoDomeHandler(
     def do_GET(self) -> None:
         self._request_id = self._generate_request_id()
         with trace_daemon_request(method="GET", path=self.path, request_id=self._request_id):
-            self._handle_get()
+            try:
+                self._handle_get()
+            except TenantMismatchError:
+                self._send_error(ErrorCodes.FORBIDDEN, detail="X-Tenant does not match token's tenant")
 
     def do_POST(self) -> None:
         self._request_id = self._generate_request_id()
         with trace_daemon_request(method="POST", path=self.path, request_id=self._request_id):
-            self._handle_post()
+            try:
+                self._handle_post()
+            except TenantMismatchError:
+                self._send_error(ErrorCodes.FORBIDDEN, detail="X-Tenant does not match token's tenant")
 
 
 __all__ = ["PicoDomeHandler"]

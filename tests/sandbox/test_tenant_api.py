@@ -11,10 +11,13 @@ from __future__ import annotations
 
 import hashlib
 
+import pytest
+
 from picosentry.sandbox.tenant import (
     DEFAULT_TENANT,
     TenantContext,
     TenantId,
+    TenantMismatchError,
     reset_tenant_registry,
     setup_tenant_registry,
 )
@@ -53,23 +56,28 @@ class TestTenantHeaderResolution:
         assert tenant == DEFAULT_TENANT
 
     def test_x_tenant_header_resolves(self):
-        setup_tenant_registry(
+        """WO5.0.0-001: a header confirming the token's mapped tenant resolves."""
+        registry = setup_tenant_registry(
             [
                 TenantContext(tenant_id=TenantId("alpha"), display_name="Team Alpha"),
             ]
         )
+        token = "my-secret-token"
+        registry.map_token(hashlib.sha256(token.encode("utf-8")).hexdigest(), TenantId("alpha"))
         handler = _TestHandler({"X-Tenant": "alpha"})
-        tenant = handler._resolve_tenant(None)
+        tenant = handler._resolve_tenant(token)
         assert tenant == TenantId("alpha")
 
     def test_x_tenant_header_case_insensitive(self):
-        setup_tenant_registry(
+        registry = setup_tenant_registry(
             [
                 TenantContext(tenant_id=TenantId("alpha")),
             ]
         )
+        token = "my-secret-token"
+        registry.map_token(hashlib.sha256(token.encode("utf-8")).hexdigest(), TenantId("alpha"))
         handler = _TestHandler({"X-Tenant": "Alpha"})
-        tenant = handler._resolve_tenant(None)
+        tenant = handler._resolve_tenant(token)
         assert tenant == TenantId("alpha")
 
     def test_token_mapping_resolves(self):
@@ -86,7 +94,8 @@ class TestTenantHeaderResolution:
         tenant = handler._resolve_tenant(token)
         assert tenant == TenantId("alpha")
 
-    def test_header_overrides_token_mapping(self):
+    def test_header_cannot_override_token_mapping(self):
+        """WO5.0.0-001: a cross-tenant header is rejected, never honored."""
         registry = setup_tenant_registry(
             [
                 TenantContext(tenant_id=TenantId("alpha")),
@@ -103,18 +112,18 @@ class TestTenantHeaderResolution:
                 "X-Tenant": "alpha",
             }
         )
-        tenant = handler._resolve_tenant(token)
-        assert tenant == TenantId("alpha")
+        with pytest.raises(TenantMismatchError):
+            handler._resolve_tenant(token)
 
-    def test_unregistered_header_falls_back(self):
+    def test_unregistered_header_rejected(self):
         setup_tenant_registry(
             [
                 TenantContext(tenant_id=TenantId("alpha")),
             ]
         )
         handler = _TestHandler({"X-Tenant": "nonexistent"})
-        tenant = handler._resolve_tenant(None)
-        assert tenant == DEFAULT_TENANT
+        with pytest.raises(TenantMismatchError):
+            handler._resolve_tenant(None)
 
 
 class TestTenantsEndpoint:
@@ -185,13 +194,14 @@ class TestTenantInAuditMetadata:
     def test_tenant_id_in_scan_metadata(self):
         """Verify that _resolve_tenant returns a TenantId that can be
         included in audit metadata."""
-        setup_tenant_registry(
+        registry = setup_tenant_registry(
             [
                 TenantContext(tenant_id=TenantId("alpha")),
             ]
         )
-        handler = _TestHandler({"X-Tenant": "alpha"})
         token = "test-token"
+        registry.map_token(hashlib.sha256(token.encode("utf-8")).hexdigest(), TenantId("alpha"))
+        handler = _TestHandler({"X-Tenant": "alpha"})
         tenant_id = handler._resolve_tenant(token)
 
         # This is what gets put in metadata

@@ -27,10 +27,12 @@ _DEFAULT_STORE_DIR = _default_store_dir()
 
 
 def _validate_policy_name(name: str) -> None:
-    """Reject path separators and traversal in policy names (same rule as
-    l3.policy.load_policy). The read path always validated; the write path
-    used to mkdir/write under caller-controlled paths (WO4.0.0-002)."""
-    if not name or "/" in name or "\\" in name or ".." in name:
+    """Reject path separators, traversal and all-dot names ("."/".."/"…") in
+    policy names (same rule as l3.policy.load_policy). The read path always
+    validated; the write path used to mkdir/write under caller-controlled
+    paths (WO4.0.0-002). All-dot names slipped both checks: `".." in "."`
+    is False, yet "." resolves to the store root itself (WO5.0.0-002)."""
+    if not name or name.strip(".") == "" or "/" in name or "\\" in name or ".." in name:
         raise ValueError(f"Invalid policy name: {name!r}")
 
 

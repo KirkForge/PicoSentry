@@ -11,6 +11,14 @@ if TYPE_CHECKING:
 logger = logging.getLogger("picodome.tenant.store")
 
 
+def _job_tenant(job: dict[str, Any]) -> str:
+    """Effective tenant of a stored job (WO5.0.0-001): sqlite pre-tenancy
+    rows carry tenant_id as NULL (key present, value None) — and empty-string
+    writes — so `.get(key, default)` never applies the default. Truthiness
+    check normalizes both to DEFAULT_TENANT."""
+    return job.get("tenant_id") or DEFAULT_TENANT.normalized
+
+
 class TenantAwareScanJobStore:
     def __init__(
         self,
@@ -44,7 +52,7 @@ class TenantAwareScanJobStore:
         if job is None:
             return None
 
-        job_tenant = job.get("tenant_id", DEFAULT_TENANT.normalized)
+        job_tenant = _job_tenant(job)
         if job_tenant != tid.normalized:
             logger.warning(
                 "Cross-tenant access denied: tenant=%s tried to access job %s (owner=%s)",
@@ -75,7 +83,7 @@ class TenantAwareScanJobStore:
     ) -> list[dict[str, Any]]:
         tid = tenant_id or self._default_tenant
         all_jobs = self._store.list_recent(limit=1000)  # get plenty, then filter
-        tenant_jobs = [j for j in all_jobs if j.get("tenant_id", DEFAULT_TENANT.normalized) == tid.normalized]
+        tenant_jobs = [j for j in all_jobs if _job_tenant(j) == tid.normalized]
         return tenant_jobs[:limit]
 
     @property

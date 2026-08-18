@@ -88,6 +88,14 @@ class PicoDomeDaemon:
         PicoDomeHandler.rbac = RBAC()
         PicoDomeHandler.auth = TokenAuth(rbac=PicoDomeHandler.rbac)
 
+        # Tenant registry from the CURRENT environment (WO5.0.0-001): the env
+        # loader existed but had zero production callers — every daemon resolved
+        # DEFAULT for all requests. Env vars: PICODOME_TENANTS,
+        # PICODOME_TENANT_TOKEN_MAP, PICODOME_TENANT_OPERATOR_TOKENS.
+        from picosentry.sandbox.tenant import load_tenants_from_env
+
+        load_tenants_from_env()
+
         # Scan worker pool: bounded concurrent scans with queued→running→completed
         # job states instead of blocking a server thread per scan.
         scan_workers = max(1, int(os.environ.get("PICODOME_SCAN_WORKERS", "4")))

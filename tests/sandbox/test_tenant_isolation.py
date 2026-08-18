@@ -26,6 +26,7 @@ from picosentry.sandbox.tenant import (
     DEFAULT_TENANT,
     TenantContext,
     TenantId,
+    TenantMismatchError,
     reset_tenant_registry,
     setup_tenant_registry,
     tenant_key,
@@ -254,6 +255,6 @@ class TestTenantRegistryIsolation:
             ]
         )
 
-        # "beta" is not registered, so header falls back
-        resolved = registry.resolve_tenant("some-hash", header_tenant="beta")
-        assert resolved == DEFAULT_TENANT
+        # "beta" is not the token's tenant — rejected outright (WO5.0.0-001)
+        with pytest.raises(TenantMismatchError):
+            registry.resolve_tenant("some-hash", header_tenant="beta")

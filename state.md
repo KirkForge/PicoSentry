@@ -2,21 +2,15 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, dev CI GREEN after pg-live/3.14 debt burn-down) ═══
+# ═══ CURRENT STATE (2026-08-18, v2.1.2 FULLY SHIPPED — release published, main = dev, CI green everywhere) ═══
 
-**dev CI fully green at `95ef0b45`** — all 16 push jobs: matrix 3.10-3.14, postgres-live 15/16/17/18 (FIRST real green — the job had never actually executed before the WO-017 dbname fix), docker amd64+arm64, reproducible-build. Local gates at close: fast 5161 passed / ~130s, ruff/format/mypy clean.
+**v2.1.2 complete and shipped**: PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH release **published** (was draft) with both assets, `main` ff'd to dev = **`506942cc`**. CI on main: **success, 13/13 jobs** (run 32088064603 — first fully green main run since v2.1.1; matrix 3.10-3.14, pg-live 15/16/17/18, docker amd64+arm64, reproducible-build) + Security Scan green. Local gates at close: fast 5161 passed / ~130s, ruff/format/mypy clean, tree clean.
 
-**v2.1.2 released 2026-08-17** (PyPI live, GH draft release with assets). WO4.0.0: 001-008 verified & shipped; 009-023 round merged (see history below). Series state: DONE 009/010/011/012/013/015/017/018/022/023(+024 pending check), PARTIAL 001 (real-exec landlock CI job + seccomp composition), 014 (1.33×, parallel measured worse), 016 (2.8×, <1s/MB needs fused pass), 019/020/021 (P2 remainders).
+**WO4.0.0 series state (24 WOs):** DONE — 002-009, 010-013, 015, 017, 018, 022, 023 (002-008 shipped in v2.1.2, verified vs codebase in commit a591e4e4). PARTIAL — 001 (real-exec landlock CI job + seccomp composition), 014 (scan 1.33×; parallel fan-out measured worse, documented), 016 (watch 2.8×; <1s/MB needs fused pass), 019/020/021 (P2 remainders: gossip rotation pending HMAC announcements; API_WORKERS>1 unsupported; tier enforcement not built). **OPEN — 024 (cli/doctor/deploy hygiene, P2: CLI wrappers duplicate inner argparse; doctor lacks watch-corpus/extras checks) — never dispatched, the only WO no worker touched.**
 
-**This round — red-CI root-cause burn-down (5 commits, one glossed-over debt class at a time):**
-1. psycopg2 literal-% DDL (params-present ⇒ interpolation, even `()`) → bare-execute when no params + strict-fake regression tests.
-2. 3.14: forkserver pickles Process args (module-level worker doubles, `new=`) + pathlib→os.path.isfile patch recursion.
-3. DDoSShield never reset between tests (walker returned early) → both limiters cleared, regression-pinned; the "flaky" 429s are gone.
-4. postgres BOOLEAN dialect: `= 1` comparisons translated in `_prepare_sql` (4 boolean cols); INSERT VALUES literals → bound bool params (webhooks, orgs — hidden by a silent `except: return None` that now logs, test seeds).
-5. PostgresPool leaked one live connection per dead thread (strong set) → WeakSet; regression-tested with injected fake psycopg2.
-Also: fast tier writes junit + PR uploads it (flakes must leave names); PICODOME_HAS_LANDLOCK/SECCOMP=1 in integration+nightly (backends self-gate via is_available(); landlock 68/68 + seccomp-trace 38/38 verified locally first).
+**Red-CI debt burn-down this round (62965a37..95ef0b45)** — the pg-live job had NEVER run before the WO-017 dbname fix; four latent postgres bug layers surfaced one push at a time, all root-fixed + regression-pinned: (1) psycopg2 %-interpolation on empty params vs literal-% DDL; (2) 3.14 forkserver pickling + pathlib patch recursion; (3) DDoSShield never reset between tests — the twice-dismissed "flaky" 429s were real; (4) postgres BOOLEAN dialect (comparison-literal translation in `_prepare_sql`, bound bool params for INSERTs — orgs create was hidden by a silent except-return-None that now logs); (5) PostgresPool per-dead-thread connection leak (WeakSet fix). Process: fast tier writes junit + PR uploads it; real-exec landlock/seccomp-trace tests enabled where kernels support them.
 
-**Open follow-ups (next session):** WO-001 landlock real-exec CI job + seccomp composition · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side (firewall excludes it) · watch <1s/MB fused pass · 019/020/021 P2 remainder · pyproject `3.14` classifier shipped. GH draft release v2.1.2 still un-published (publish button).
+**Open follow-ups (next session):** WO-024 (never dispatched) · WO-001 remainder (landlock real-exec CI job, seccomp composition) · L2-TYPO-001 short-name calibration + L2-LOCK-001 scan-side (firewall excludes it) · watch <1s/MB fused pass · 019/020/021 P2 remainder · docker image v2.1.2 to Docker Hub (bake TAG-var mechanics fixed in 009; run `TAG=v2.1.2 docker buildx bake --push` or let release.yml do it on next tag).
 
 **v2.1.2 RELEASED 2026-08-17** — PyPI live (wheel `233104c8…a01a7`, sdist `3ffd773d…1bc8`), GH **draft** release with assets. WO4.0.0-001..008 verified vs codebase (WO files updated, commit a591e4e4): 001 PARTIAL (real-execution landlock CI job + seccomp composition open), 003's pg-live CI bug FIXED by WO-017, rest DONE.
 

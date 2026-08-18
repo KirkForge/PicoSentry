@@ -7,6 +7,6 @@ implementation details and may change without notice; there is no stable
 programmatic public API today.
 """
 
-__version__ = "2.1.2"
+__version__ = "2.1.3"
 
 __all__ = ["__version__"]

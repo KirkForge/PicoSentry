@@ -1,7 +1,7 @@
 # WO5.0.0-031 — Serve: multi-worker / horizontal readiness (folds WO4.0.0-020 remainder)
 
 **Series:** WO5.0.0 (fold 2026-08-18 from WO4.0.0-020 PARTIAL)
-**Status:** OPEN
+**Status:** PARTIAL (2026-08-18, merge `87167aa0`, worker SA-AM cancelled @5h + orchestrator salvage) — CORE LANDED: DB event outbox + poller fanout, scheduler leader lease (BEGIN IMMEDIATE anchor, heartbeat, takeover + cross-worker job reload), rate-limit merge-sync cadence, WS per-client queues (delivered-on-return contract), sqlite busy_timeout=15s pragma (real locked-collision fix), transaction(immediate=True) default (cross-process deferred-upgrade deadlocks), migrations 21/22, 5 passing protocol tests (lease exclusivity/takeover, concurrent-boot add_job atomicity, outbox fanout, rate-limit sharing, WS isolation). NOT DONE: the two e2e gate tests (2-real-uvicorn-workers; 2-scheduler fire) pass solo but fail in sequence — global-DB state isolation + a real cross-process locked collision; deleted with rationale, isolation rework is the remainder. Metrics-across-workers = documented decision (per-worker /metrics, aggregation belongs to the scraper). Serve helm chart NOT built. API_WORKERS>1: core mechanisms in, e2e proof pending — keep calling it unsupported-with-core-landed.
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-multiworker`)
 **Priority:** P2 · Effort L · Risk H
 **Scope:** `picosentry/serve/**` (event_bus, scheduler, rate_limit, metrics, websocket_manager), `deploy/helm/` (new serve chart)

@@ -1,7 +1,7 @@
 # WO5.0.0-030 — Sandbox: cluster token rotation announcements + trust ceilings (folds WO4.0.0-019 remainder)
 
 **Series:** WO5.0.0 (fold 2026-08-18 from WO4.0.0-019 PARTIAL)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `c65cbe66`, worker SA-AL) — rotation derives NEW = HMAC(old_primary, label) so peers re-derive locally; announcement carries only HMAC(old,new) keyed digest (no secret bytes in snapshots — asserted). ANY-MEMBER adoption (ponytail: ceiling documented; cluster is BETA). Grace retirement works uniformly; NEW BUG fixed en route: set_primary kept the demoted token's original issued_at so long-lived tokens retired on the FIRST tick post-rotation (grace was a no-op on long-lived clusters). Hostname verify config-gated (PICODOME_CLUSTER_VERIFY_HOSTNAME). JSONL compaction. Rolling-upgrade compat (unknown snapshot fields ignored, tested). 3-node rotation gate test with fake clock + real-daemon HTTP checks.
 **Owner:** (unassigned — worktree `wo/5.0.0/cluster-rotation`)
 **Priority:** P2 · Effort M · Risk M (protocol change; cluster is BETA)
 **Scope:** `picosentry/sandbox/cluster/{orchestrator.py,state.py,token_store.py}`, `tests/sandbox/test_cluster*.py`

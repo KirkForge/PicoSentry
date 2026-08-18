@@ -1,7 +1,7 @@
 # WO5.0.0-028 — Scan: typosquat DP acceleration + short-name calibration (folds WO4.0.0-014 remainder)
 
 **Series:** WO5.0.0 (fold 2026-08-18 from WO4.0.0-014 PARTIAL + state.md carries)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `61d41f2b`, worker SA-AJ) — SymSpell delete-2 index for the no-keyboard dist<=2 path (exact by construction; keyboard path keeps the trie): DP 9.7s -> 0.15-0.21s (46-65x) on the 4.3k tree, incremental build + scan-start prewarm outside the timebox; findings byte-identical (6217-call replay 0 mismatches; full-validation cmp-identical; sha256-identical tree findings). NEW BUG fixed en route: dev silently DROPPED L2-TYPO-001 findings via the 5s rule timebox on dep-heavy trees (regression test test_typosquat_timebox.py). Short-name calibration: KNOWN_LEGITIMATE += {pkg,uid,num} + negative fixture (precision/recall unmoved: 1.0000/0.9087; floors intact). L2-LOCK-001: keep split as-is (lockfile rule structurally FP on registry metadata; exclusion comment already honest). Card regenerated (population +1 neg only). Slow tier: validation run 343s -> 190s (DP fixed; remaining 155s is other rules — next owner). Item 5 PARTIAL by scope.
 **Owner:** (unassigned — worktree `wo/5.0.0/typo-dp`)
 **Priority:** P1 · Effort M · Risk M (determinism + recall must hold)
 **Scope:** `picosentry/scan/rules/{corpus_index.py,_typosquat_corpus/**}`, `picosentry/scan/rules/__init__.py` (L2-TYPO-001 config), `tests/scan/`

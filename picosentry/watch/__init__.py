@@ -15,7 +15,7 @@ if TYPE_CHECKING:
         Verdict,
     )
 
-__version__ = "2.1.2"
+__version__ = "2.1.3"
 
 # ponytail: submodules are deferred so `from picosentry.watch import __version__`
 # (version/health commands, every CLI --version) stays cheap; attribute access

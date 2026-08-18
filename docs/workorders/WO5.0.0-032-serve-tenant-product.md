@@ -1,7 +1,7 @@
 # WO5.0.0-032 — Serve: tenant product completeness (folds WO4.0.0-021 remainder)
 
 **Series:** WO5.0.0 (fold 2026-08-18 from WO4.0.0-021 PARTIAL)
-**Status:** OPEN
+**Status:** DONE (2026-08-18, merge `8cd4be77`, worker SA-AN) — tier quotas enforced at invite/run/project (QuotaExceededError -> 402, scheduler-safe degradation); member lifecycle endpoints (migration 21: org_invites + unique org_users, dual-gate ADMIN_USERS + org-admin, owner lockout guards); X-Org-Id org-switch header (membership-validated, key-paths unaffected); offset pagination on projects/intelligence/alerts; plugin capability ADR-comment (declared-only phase 1, enforcement upgrade path named). NEW BUG fixed en route: GET /intelligence 500'd for any org WITH rows (data JSON never parsed — field_validator added). Seams flagged: ws.py multi-org first-org lock, rate_limit per-key bucketing.
 **Owner:** (unassigned — worktree `wo/5.0.0/serve-tenant-product`)
 **Priority:** P2 · Effort L · Risk M
 **Scope:** `picosentry/serve/services/{orgs.py,orchestrator.py}`, `picosentry/serve/api/{routers,models}.py`, `picosentry/serve/plugins/**`

@@ -75,6 +75,9 @@ jobs:
           done
 
   verify-docker:
+    # Skipped while the Hub image push is pending (WO5.0.0-014): the tag
+    # cannot be pulled until DOCKER_PUSH_ENABLED releases the docker job.
+    if: vars.DOCKER_PUSH_ENABLED == 'true'
     runs-on: ubuntu-latest
     needs: verify
     steps:

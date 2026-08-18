@@ -1,7 +1,7 @@
 # WO5.0.0-029 — Watch: fused-pass <1s/MB + perf-ceiling test robustness (folds WO4.0.0-016 remainder)
 
 **Series:** WO5.0.0 (fold 2026-08-18 from WO4.0.0-016 PARTIAL + P0-wave worker flags)
-**Status:** OPEN
+**Status:** PARTIAL (2026-08-18, merge `c78f3194`, worker SA-AK) — 2.8-2.9x landed via equivalence-preserving fusion (C-level textlike gate, rot13-gate fan-out, whole-text spaced-collapse, branch-conjunction prefilter + per-evaluate memo); benign 200KB 1.9s -> 0.64s CPU, b64-heavy 0.93 -> 0.36s. Byte-identical verdicts vs 5652-case golden differential; corpus hash unchanged; determinism green. <1s/MB NOT met on benign under load (~3.2 s/MB loaded / ~1.6 idle-equiv; residual = 2x normalize + morse regex + classifier fan-out, `ceiling:`-annotated at check()). Both perf ceilings CPU-time + load-verified. Remaining fused-pass work deferred — the target needs the normalize pipeline itself redesigned.
 **Owner:** (unassigned — worktree `wo/5.0.0/watch-fused`)
 **Priority:** P2 · Effort M-L · Risk M (corpus floors + determinism must hold; WO5.0.0-011's recursive decode adds work here)
 **Scope:** `picosentry/watch/prompt_guard/{__init__.py,normalize.py,classifier.py}`, `tests/watch/test_watch_perf_metrics.py`

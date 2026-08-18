@@ -111,13 +111,13 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
         status="Stable",
         notes=(
             "multi-arch (linux/amd64 + linux/arm64), non-root; latest published: "
-            "kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.2 push pending (WO5.0.0-014)"
+            "kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.3 push pending (WO5.0.0-014)"
         ),
     ),
     ComponentStatus(
         name="PyPI package",
         status="Stable",
-        notes="`pip install picosentry` — v2.1.2 published",
+        notes="`pip install picosentry` — v2.1.3 published",
     ),
 )
 

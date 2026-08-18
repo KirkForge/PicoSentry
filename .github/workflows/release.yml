@@ -97,6 +97,10 @@ jobs:
       #   uses: pypa/gh-action-pypi-publish@release/v1
 
   docker:
+    # Opt-in: requires DOCKERHUB_USERNAME/DOCKERHUB_TOKEN repo secrets AND
+    # the tooling; until vars.DOCKER_PUSH_ENABLED=true the job skips rather
+    # than failing red at login (WO5.0.0-014 audit: no secrets configured).
+    if: vars.DOCKER_PUSH_ENABLED == 'true'
     runs-on: ubuntu-latest
     needs: release
     permissions:

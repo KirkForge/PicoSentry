@@ -30,12 +30,67 @@ def validate_channels(channels: list[str]) -> list[str]:
 
 
 class ConnectionManager:
+    # Per-consumer outbound queue bound. A slow consumer's queue fills and
+    # NEW messages are dropped (audit-writer pattern) instead of letting
+    # one stalled send head-of-line-block every other client.
+    OUTBOUND_QUEUE_SIZE = 256
+    # broadcast() waits for enqueued messages to be SENT, capped: fast
+    # consumers deliver within one loop hop (callers keep the
+    # delivered-on-return contract); a slow consumer only delays its own
+    # delivery past this cap, never another client's.
+    BROADCAST_DRAIN_TIMEOUT = 1.0
+
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
         self.client_channels: dict[WebSocket, set[str]] = {}
         self.client_orgs: dict[WebSocket, str | None] = {}
         self._lock = asyncio.Lock()
         self.main_loop: asyncio.AbstractEventLoop | None = None
+        self._outbound: dict[WebSocket, asyncio.Queue[str]] = {}
+        self._pumps: dict[WebSocket, tuple[asyncio.Task, asyncio.AbstractEventLoop]] = {}
+        self.dropped = 0
+
+    def _dropped(self) -> None:
+        from picosentry.serve.services.metrics import metrics
+
+        self.dropped += 1
+        metrics.set_global_gauge("ws_dropped_messages", self.dropped)
+        logger.warning("WS outbound queue full — dropping message (dropped so far: %d)", self.dropped)
+
+    async def _pump(self, websocket: WebSocket, queue: asyncio.Queue[str]) -> None:
+        """Serial sender owned by ONE consumer; broadcast() never awaits sends."""
+        while True:
+            message = await queue.get()
+            try:
+                await websocket.send_text(message)
+            except Exception:
+                # Client is gone or the send failed; the receive loop in the
+                # ws router will notice and call disconnect(), which cancels
+                # this pump. Stop draining for a dead socket.
+                return
+            finally:
+                # Even on failure: keeps queue.join() sound for in-flight
+                # items so the drain barrier below cannot hang on them.
+                queue.task_done()
+
+    def _enqueue(self, websocket: WebSocket, message: str) -> asyncio.Queue[str] | None:
+        loop = asyncio.get_running_loop()
+        entry = self._pumps.get(websocket)
+        queue = self._outbound.get(websocket)
+        # Recreate when the pump is gone OR was created on a different
+        # event loop (tests drive the manager from fresh loops; a pump
+        # parked on a closed loop never resumes and would silently eat
+        # every future message for that socket).
+        if queue is None or entry is None or entry[1] is not loop or entry[0].done():
+            queue = asyncio.Queue(maxsize=self.OUTBOUND_QUEUE_SIZE)
+            self._outbound[websocket] = queue
+            self._pumps[websocket] = (asyncio.create_task(self._pump(websocket, queue)), loop)
+        try:
+            queue.put_nowait(message)
+        except asyncio.QueueFull:
+            self._dropped()
+            return None
+        return queue
 
     async def connect(self, websocket: WebSocket, channels: list[str] | None = None, org_id=None):
         await websocket.accept()
@@ -76,6 +131,15 @@ class ConnectionManager:
                     self._remove_from_channel(websocket, channel)
                 del self.client_channels[websocket]
             self.client_orgs.pop(websocket, None)
+            self._outbound.pop(websocket, None)
+            pump = self._pumps.pop(websocket, None)
+            if pump is not None:
+                # A pump bound to an already-closed loop (tests drive the
+                # manager from throwaway loops) cannot be cancelled — the
+                # task died with its loop; suppressing keeps disconnect
+                # idempotent.
+                with contextlib.suppress(RuntimeError):
+                    pump[0].cancel()
 
     async def broadcast(self, event_type: str, payload: dict, org_id=None):
         org = _normalize_org_id(org_id)
@@ -97,9 +161,18 @@ class ConnectionManager:
             else:
                 candidates = {ws for ws in candidates if ws in self.client_channels}
 
-        for ws in candidates:
-            with contextlib.suppress(Exception):
-                await ws.send_text(message)
+        # Non-blocking per-consumer enqueue: one slow client's full queue
+        # drops its own messages, never delays another client's delivery.
+        # The drain barrier below only WAITS (bounded) — it never sends, so
+        # a stalled consumer costs at most BROADCAST_DRAIN_TIMEOUT of
+        # broadcast()-return latency, not per-client serialization.
+        queues = [q for q in (self._enqueue(ws, message) for ws in candidates) if q is not None]
+        if queues:
+            drain = asyncio.gather(*(q.join() for q in queues))
+            try:
+                await asyncio.wait_for(drain, timeout=self.BROADCAST_DRAIN_TIMEOUT)
+            except (asyncio.TimeoutError, TimeoutError):
+                logger.debug("WS broadcast drain timed out; slow consumers keep their own pace")
 
 
 ws_manager = ConnectionManager()

@@ -232,6 +232,43 @@ class OrchestratorConfig:
         return cls()  # defaults already read from env via field default_factory
 
 
+@dataclass
+class MultiWorkerConfig:
+    """Multi-worker (API_WORKERS>1) posture knobs.
+
+    Enabled automatically when workers>1, or forced with
+    PICOSHOGUN_EVENT_OUTBOX=true (useful for running several single-worker
+    replicas against one database). The documented ceilings of multi-worker
+    mode live in the deploy/helm/picosentry README support matrix.
+    """
+
+    # auto | true | false — auto = enabled iff api.workers > 1
+    event_outbox: str = field(default_factory=lambda: _env("EVENT_OUTBOX", "auto"))
+    # Outbox poll cadence in seconds (cross-worker event fanout latency).
+    event_outbox_poll_seconds: float = field(default_factory=lambda: float(_env("EVENT_OUTBOX_POLL", "1.0")))
+    # Rows older than this are pruned; a worker down longer than this misses
+    # events it never polled (its in-process history will lack them).
+    event_outbox_retention_seconds: int = field(default_factory=lambda: int(_env("EVENT_OUTBOX_RETENTION", "3600")))
+    # Scheduler leader lease TTL; the leader heartbeats every tick and a
+    # standby takes over once the lease is this old.
+    scheduler_lease_ttl_seconds: int = field(default_factory=lambda: int(_env("SCHEDULER_LEASE_TTL", "15")))
+    # Rate-limit counter re-sync window. Residual race: within this window
+    # each worker undercounts the others' requests (limits enforced per
+    # worker-sync-lag, not globally atomic).
+    rate_limit_sync_seconds: float = field(default_factory=lambda: float(_env("RATE_LIMIT_SYNC_SECONDS", "5.0")))
+
+    def outbox_enabled(self, workers: int) -> bool:
+        if self.event_outbox.lower() in ("true", "1", "yes", "on"):
+            return True
+        if self.event_outbox.lower() in ("false", "0", "no", "off"):
+            return False
+        return workers > 1
+
+    @classmethod
+    def from_env(cls) -> "MultiWorkerConfig":
+        return cls()  # defaults already read from env via field default_factory
+
+
 def _env_plugin_dirs() -> list[Path]:
     """Parse PICOSHOGUN_PLUGIN_DIR (comma-separated) into a list of Path."""
     raw = _env("PLUGIN_DIR", "").strip()
@@ -314,6 +351,10 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
     alerts: AlertConfig = field(default_factory=AlertConfig)
     orchestrator: OrchestratorConfig = field(default_factory=OrchestratorConfig)
     plugins: PluginsConfig = field(default_factory=PluginsConfig)
+    multiworker: MultiWorkerConfig = field(default_factory=MultiWorkerConfig)
+
+    def multiworker_enabled(self) -> bool:
+        return self.multiworker.outbox_enabled(self.api.workers)
 
     def is_production(self) -> bool:
         return self.env == "production"

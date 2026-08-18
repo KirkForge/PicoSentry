@@ -50,11 +50,19 @@ class TestExpositionValidity:
 
         series = _parse_exposition(mc.to_prometheus())
 
-        x_counter = next(k for k in series if k.startswith("picoshogun_api_requests_total{") and 'endpoint="/api/v1/x"' in k)
-        y_counter = next(k for k in series if k.startswith("picoshogun_api_requests_total{") and 'endpoint="/api/v1/y"' in k)
+        x_counter = next(
+            k for k in series if k.startswith("picoshogun_api_requests_total{") and 'endpoint="/api/v1/x"' in k
+        )
+        y_counter = next(
+            k for k in series if k.startswith("picoshogun_api_requests_total{") and 'endpoint="/api/v1/y"' in k
+        )
         assert series[x_counter] == 5.0
         assert series[y_counter] == 3.0
-        x_hist = next(k for k in series if k.startswith("picoshogun_api_request_duration_seconds{") and 'endpoint="/api/v1/x"' in k)
+        x_hist = next(
+            k
+            for k in series
+            if k.startswith("picoshogun_api_request_duration_seconds{") and 'endpoint="/api/v1/x"' in k
+        )
         assert series[x_hist] == 0.5  # observations summed, single sample
 
     def test_decorated_path_injects_nothing(self):
@@ -70,8 +78,7 @@ class TestExpositionValidity:
         # series, no injected HELP/TYPE. (The hostile path survives only as a
         # sanitized, quoted label value — valid exposition.)
         lines = [ln.strip() for ln in text.splitlines()]
-        assert not any(ln.startswith("picoshogun_fake_total") for ln in lines)
-        assert not any(ln.startswith("# HELP injected") or ln.startswith("# TYPE injected") for ln in lines)
+        assert not any(ln.startswith(("picoshogun_fake_total", "# HELP injected", "# TYPE injected")) for ln in lines)
         assert not any("fake_total" in k.split("{")[0] for k in series)
         assert any(k.startswith("picoshogun_api_requests_total{") and 'endpoint="/api/v1/x' in k for k in series)
 

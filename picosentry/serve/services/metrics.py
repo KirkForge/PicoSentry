@@ -183,9 +183,7 @@ class MetricsCollector:
                 filtered = [
                     {"value": m.value, "labels": m.labels, "timestamp": m.timestamp, "type": m.metric_type}
                     for m in metrics_list[-100:]
-                    if org_id is None
-                    or m.name in _ORG_UNSTAMPED_FAMILIES
-                    or m.labels.get("org_id") == str(org_id)
+                    if org_id is None or m.name in _ORG_UNSTAMPED_FAMILIES or m.labels.get("org_id") == str(org_id)
                 ]
                 if filtered:
                     metrics_data[name] = filtered

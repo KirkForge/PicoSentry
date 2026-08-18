@@ -577,6 +577,14 @@ def _detect_npm_typosquat(
             "knex",
             "mobx",
             "zod",
+            # WO5.0.0-028 short-name calibration: real packages whose <=3-char
+            # names sit at edit distance 1 from corpus shorts (pkg->pg,
+            # uid->uuid, num->npm). Structurally indistinguishable from real
+            # short-name typosquats (nx1->next), so legitimacy lists are the
+            # only honest separator; grown per reported FP.
+            "pkg",
+            "uid",
+            "num",
         }
     )
 

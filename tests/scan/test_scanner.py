@@ -837,6 +837,26 @@ class TestPackageNameTyposquat:
         typo_findings = [f for f in result.findings if f.rule_id == "L2-TYPO-001"]
         assert len(typo_findings) == 0, f"Legitimate package 'lodash' should not be flagged: {typo_findings}"
 
+    def test_short_name_legitimates_not_flagged(self, tmp_path):
+        """WO5.0.0-028 short-name calibration: real packages whose <=3-char
+        names sit at edit distance 1 from corpus shorts (pkg->pg, uid->uuid,
+        num->npm) must not be flagged, while the guards still catch real
+        short-name typosquats like nx1->next."""
+        from picosentry.scan.engine import create_default_engine
+
+        engine = create_default_engine()
+        project = _make_project(
+            tmp_path,
+            {
+                "name": "short-name-consumer",
+                "version": "1.0.0",
+                "dependencies": {"pkg": "^5.8.1", "uid": "^2.0.2", "num": "^1.0.0"},
+            },
+        )
+        result = engine.scan(project)
+        typo_findings = [f for f in result.findings if f.rule_id == "L2-TYPO-001"]
+        assert len(typo_findings) == 0, f"Legitimate short names must not be flagged: {typo_findings}"
+
     def test_dependency_typosquat_still_works(self, tmp_path):
         """Dependencies that are typosquats should still be detected."""
         project = _make_project(

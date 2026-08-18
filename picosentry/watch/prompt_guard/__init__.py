@@ -77,7 +77,10 @@ class PromptGuard:
                 details={"error": "No rules loaded (corpus missing/empty/all failed); fail-closed mode is active"},
             )
 
-        if len(text) > self._config.max_prompt_size:
+        # Byte-based, not char-based: the budget is documented in bytes and
+        # astral-plane text is up to 4 bytes/char — len() let 4x the budget
+        # through (WO5.0.0-023).
+        if len(text.encode("utf-8", errors="replace")) > self._config.max_prompt_size:
             return PromptScanResult(
                 blocked=True,
                 score=1.0,

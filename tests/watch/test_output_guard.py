@@ -108,6 +108,35 @@ class TestOutputGuard:
         result = guard.validate("postgres://user:pass@127.0.0.1:5432/testdb")
         assert "out_exfil_database_url" in result.violations
 
+    def test_fullwidth_obfuscated_secret_detected_and_redacted(self) -> None:
+        """WO5.0.0-024: NFKC-foldable obfuscation is detected (rules evaluate
+        normalized text) AND redacted — the PII pass runs on the normalized
+        text too, so the redacted copy cannot keep the folded secret."""
+
+        def fullwidth(text: str) -> str:
+            return "".join(chr(ord(ch) + 0xFEE0) if 0x21 <= ord(ch) <= 0x7E else ch for ch in text)
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        result = guard.validate(f"the key is {fullwidth('AKIAIOSFODNN7EXAMPLE')} ok")
+        assert "out_pii_api_key" in result.violations
+        assert result.redacted is not None
+        assert "AKIAIOSFODNN7EXAMPLE" not in result.redacted
+        assert "[API-KEY-REDACTED]" in result.redacted
+
+    def test_fullwidth_obfuscated_database_url_flagged(self) -> None:
+        """The fold-revealed DB URL is at least flagged (its separators are
+        collapsed by normalization before detection, so redaction of such
+        URLs is partial — see the ceiling note in validate())."""
+
+        def fullwidth(text: str) -> str:
+            return "".join(chr(ord(ch) + 0xFEE0) if 0x21 <= ord(ch) <= 0x7E else ch for ch in text)
+
+        config = _make_config(RULES_DIR)
+        guard = OutputGuard(config=config)
+        result = guard.validate(f"conn string: {fullwidth('postgres://dbhost:5432/prod')} end")
+        assert "out_exfil_database_url" in result.violations
+
     def test_log4shell_detected(self) -> None:
         """Log4Shell JNDI string in output is detected."""
         config = _make_config(RULES_DIR)

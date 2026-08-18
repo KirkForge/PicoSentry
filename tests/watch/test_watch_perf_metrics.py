@@ -111,10 +111,37 @@ class TestMetricsExposition:
         for name in (
             "picowatch_requests_total",
             "picowatch_prompt_blocked_total",
-            "picowatch_scan_duration_ms_sum",
+            "picowatch_output_validated_total",
+            "picowatch_output_violations_total",
             "picowatch_dropped_audit_records",
         ):
             assert name in families, f"idle exposition missing {name}"
+
+    def test_labeled_scans_render_one_help_per_family(self, tmp_path) -> None:
+        """Two scans with different context.model labels must not duplicate
+        HELP/TYPE for a family — Prometheus rejects the whole scrape
+        (WO5.0.0-024; the blind spot: no prior test recorded labeled scans)."""
+        sink = TelemetrySink(config=TelemetryConfig(audit_db_path=tmp_path / "a.db"))
+        for model in ("gpt-4o", "claude-3"):
+            result = PromptScanResult(
+                blocked=True,
+                score=0.9,
+                rules_matched=["inj_test"],
+                corpus_hash="abc",
+                corpus_version="1.0",
+                duration_ms=3.0,
+                details={"model": model},
+            )
+            sink.record_prompt_scan(result)
+        text = sink.render_prometheus()
+        families = _parse_exposition(text)
+        assert families["picowatch_requests_total"] == "counter"
+        assert text.count("# HELP picowatch_requests_total ") == 1
+        assert text.count("# TYPE picowatch_requests_total ") == 1
+        assert 'picowatch_requests_total{model="gpt-4o"}' in text
+        assert 'picowatch_requests_total{model="claude-3"}' in text
+        # Histograms with labels (guard_type) share the same constraint.
+        assert text.count("# TYPE picowatch_scan_duration_seconds histogram") == 1
 
     def test_dropped_audit_records_gauge_increments(self, tmp_path, monkeypatch) -> None:
         import sqlite3
@@ -237,6 +264,16 @@ class TestByteCaps:
             payload = {"text": "😀" * 30_000}
             resp = client.post("/v1/scan/prompt", json=payload)
             assert resp.status_code == 413
+
+    def test_guard_level_cap_counts_bytes_not_chars(self) -> None:
+        # WO5.0.0-023: PromptGuard.check itself must be byte-based — callers
+        # that bypass the server pre-check (e.g. the gateway) get the same budget.
+        from picosentry.watch.prompt_guard import PromptGuard
+
+        guard = PromptGuard(config=_make_config(api_key=None, max_prompt_size=64 * 1024))
+        result = guard.check("😀" * 30_000)
+        assert result.blocked is True
+        assert result.rules_matched == ["input_oversized"]
 
     def test_body_size_limit_rejects_before_parse(self) -> None:
         config = _make_config(api_key=None, max_prompt_size=1024)

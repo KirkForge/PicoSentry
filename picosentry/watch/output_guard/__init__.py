@@ -125,6 +125,24 @@ class OutputGuard:
         for v in pii_violations:
             if v not in violations:
                 violations.append(v)
+        if normalized != output:
+            # Rules evaluate normalized text, so NFKC-foldable obfuscation
+            # (fullwidth-wrapped keys/URLs) is DETECTED while the raw-text PII
+            # pass cannot see it — merge those violations. When folding the
+            # already-redacted copy still lights a detector up, hand back that
+            # copy: it carries every raw redaction plus the folded ones.
+            # ponytail: ceiling — markers inserted by the raw pass resurface
+            # with separators collapsed ("[DB-URL-…]" -> "[DB URL …]"), and
+            # folded secrets containing separator punctuation (dotted URLs)
+            # are only partially redacted; content-safe beats marker-pretty.
+            # Upgrade path: placeholder-protect markers like normalize does
+            # for IP literals (WO5.0.0-024).
+            for v in self._detect_pii(normalized)[1]:
+                if v not in violations:
+                    violations.append(v)
+            folded_redacted, folded_violations = self._detect_pii(self._normalizer.normalize(redacted))
+            if folded_violations:
+                redacted = folded_redacted
 
         if prompt_result and prompt_result.score >= 0.4:
             total_score = min(1.0, total_score * 1.3)

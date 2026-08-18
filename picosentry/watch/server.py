@@ -73,7 +73,12 @@ def _get_client_ip(request: Request) -> str:
     if os.environ.get("PICOWATCH_TRUST_PROXY") == "1":
         forwarded = request.headers.get("x-forwarded-for")
         if forwarded:
-            return forwarded.split(",")[0].strip()
+            # Trust model: exactly ONE trusted reverse proxy in front of this
+            # server. It APPENDS the client IP it observed to XFF, so the LAST
+            # entry is proxy-observed; every earlier entry was client-supplied
+            # and forgeable. Reading the first entry let any caller mint fresh
+            # rate-limit buckets by rotating a fake IP (WO5.0.0-024).
+            return forwarded.split(",")[-1].strip()
     if request.client:
         return request.client.host
     return "unknown"
@@ -88,9 +93,12 @@ def _byte_size(text: str) -> int:
 async def _body_size_limit(request: Request, call_next: Any) -> Any:
     """Reject oversized bodies on write endpoints BEFORE the JSON parse.
 
-    Content-Length based (mirrors serve's RequestSizeLimitMiddleware pattern):
-    a 10MB hostile body is dropped at the header instead of being buffered and
-    parsed in full inside the event loop.
+    Content-Length bodies are dropped at the header (mirrors serve's
+    RequestSizeLimitMiddleware pattern); chunked transfer-encoding has no
+    Content-Length, so the receive channel is wrapped with a counting
+    receiver that stops handing the app real bytes at the cap and the
+    (would-be 4xx) downstream response is replaced with 413 — the cap
+    cannot be bypassed by omitting the header (WO5.0.0-024).
     """
     if request.method in ("POST", "PUT", "PATCH"):
         content_length = request.headers.get("content-length")
@@ -103,6 +111,32 @@ async def _body_size_limit(request: Request, call_next: Any) -> Any:
                     )
             except (ValueError, TypeError):
                 pass
+            return await call_next(request)
+
+        received = 0
+        truncated = False
+        original_receive = request._receive
+
+        async def counting_receive() -> Any:
+            nonlocal received, truncated
+            if truncated:
+                return {"type": "http.request", "body": b"", "more_body": False}
+            message = await original_receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > _MAX_BODY_BYTES:
+                    truncated = True
+                    return {"type": "http.request", "body": b"", "more_body": False}
+            return message
+
+        request._receive = counting_receive
+        response = await call_next(request)
+        if truncated:
+            return JSONResponse(
+                status_code=413,
+                content={"error": "Request body too large", "max_bytes": _MAX_BODY_BYTES},
+            )
+        return response
     return await call_next(request)
 
 
@@ -293,7 +327,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         sink.record_prompt_scan(result, request_id=request_id)
 
         model = body.context.get("model") if body.context else None
-        trace_prompt_scan(result, model=model)
+        trace_prompt_scan(result, model=model, request_id=request_id)
 
         response: dict[str, Any] = {
             "blocked": result.blocked,
@@ -357,7 +391,7 @@ def create_app(config: PicoWatchConfig | None = None, sink: TelemetrySink | None
         sink.record_validation(result, request_id=request_id)
 
         model = body.prompt_result.get("model") if body.prompt_result and isinstance(body.prompt_result, dict) else None
-        trace_output_validation(result, model=model)
+        trace_output_validation(result, model=model, request_id=request_id)
 
         response: dict[str, Any] = {
             "valid": result.valid,

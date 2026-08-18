@@ -40,14 +40,15 @@ class TelemetrySink:
         self._prometheus = PrometheusMetrics()
         # Pre-register the base families so an idle server still exposes them
         # at zero (Prometheus convention; also keeps /metrics scrapeable before
-        # the first request).
+        # the first request). Duration and prompt-score totals are NOT separate
+        # counters: picowatch_scan_duration_seconds / picowatch_prompt_score
+        # histograms already export _sum/_count for those quantities — parallel
+        # ms-unit counters were dual-unit confusion (WO5.0.0-024).
         for _name in (
             "picowatch_requests_total",
             "picowatch_prompt_blocked_total",
-            "picowatch_prompt_score_sum",
             "picowatch_output_validated_total",
             "picowatch_output_violations_total",
-            "picowatch_scan_duration_ms_sum",
         ):
             self._prometheus.inc_counter(_name, 0)
         self._prometheus.set_gauge("picowatch_dropped_audit_records", 0)
@@ -120,9 +121,6 @@ class TelemetrySink:
         return hmac.new(self._audit_key(), msg.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
     def record_prompt_scan(self, result: PromptScanResult, request_id: str | None = None) -> None:
-        self._prometheus.inc_counter("picowatch_prompt_score_sum", result.score)
-        self._prometheus.inc_counter("picowatch_scan_duration_ms_sum", result.duration_ms)
-
         model = result.details.get("model") if result.details else None
         labels = {"model": model} if model else None
         self._prometheus.inc_counter("picowatch_requests_total", labels=labels)
@@ -158,8 +156,6 @@ class TelemetrySink:
         )
 
     def record_validation(self, result: ValidationResult, request_id: str | None = None) -> None:
-        self._prometheus.inc_counter("picowatch_scan_duration_ms_sum", result.duration_ms)
-
         self._prometheus.inc_counter("picowatch_requests_total")
         if result.valid:
             self._prometheus.inc_counter("picowatch_output_validated_total")

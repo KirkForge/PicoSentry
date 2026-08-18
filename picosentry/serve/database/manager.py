@@ -254,6 +254,21 @@ class DatabaseManager:
                         conn.rollback()
             return value
 
+    def execute_update(self, sql: str, params: tuple = ()) -> int:
+        """Execute a write statement and return the affected-row count.
+
+        The lease acquire/release protocol is a single conditional UPDATE
+        whose rowcount IS the answer (1 = won the lease, 0 = someone else
+        holds it); execute() discards rowcount, so this sibling exists.
+        """
+        with self._lock.write():
+            conn = self._get_connection()
+            cursor = self._cursor(conn, sql, params)
+            count = cursor.rowcount if cursor.rowcount is not None else 0
+            if not isinstance(self._pool, SQLitePool) and not self._in_transaction():
+                conn.commit()
+            return count
+
     def _migrate_orgs_api_key_hash(self):
 
         try:

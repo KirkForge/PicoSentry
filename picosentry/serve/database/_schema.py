@@ -911,6 +911,63 @@ MIGRATIONS: list[Migration] = [
             ON webhooks(org_id, name) WHERE active;
     """,
     ),
+    Migration(
+        21,
+        "multiworker_outbox_and_scheduler_lease",
+        """
+        -- WO5.0.0-031: cross-worker primitives. event_outbox is the shared
+        -- event fanout channel (each worker polls seq > last_seen); the
+        -- seeded scheduler_leases row is the leader lease anchors. The seed
+        -- expiry predates the epoch so the first boot always acquires.
+        CREATE TABLE IF NOT EXISTS event_outbox (
+            seq INTEGER PRIMARY KEY AUTOINCREMENT,
+            id TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            org_id TEXT,
+            worker_id TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_outbox_created ON event_outbox(created_at);
+
+        CREATE TABLE IF NOT EXISTS scheduler_leases (
+            lease_key TEXT PRIMARY KEY,
+            holder TEXT,
+            expires_at TIMESTAMP
+        );
+
+        INSERT OR IGNORE INTO scheduler_leases (lease_key, holder, expires_at)
+            VALUES ('scheduler', NULL, '1970-01-01T00:00:00+00:00');
+    """,
+        postgres_sql="""
+        CREATE TABLE IF NOT EXISTS event_outbox (
+            seq BIGSERIAL PRIMARY KEY,
+            id TEXT NOT NULL UNIQUE,
+            type TEXT NOT NULL,
+            source TEXT NOT NULL,
+            payload TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'normal',
+            org_id TEXT,
+            worker_id TEXT NOT NULL,
+            created_at TIMESTAMP NOT NULL
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_event_outbox_created ON event_outbox(created_at);
+
+        CREATE TABLE IF NOT EXISTS scheduler_leases (
+            lease_key TEXT PRIMARY KEY,
+            holder TEXT,
+            expires_at TIMESTAMP
+        );
+
+        INSERT INTO scheduler_leases (lease_key, holder, expires_at)
+            VALUES ('scheduler', NULL, '1970-01-01T00:00:00+00:00')
+            ON CONFLICT (lease_key) DO NOTHING;
+    """,
+    ),
 ]
 
 __all__ = [

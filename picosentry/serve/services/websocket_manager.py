@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import json
 import logging
 import re
@@ -30,12 +29,51 @@ def validate_channels(channels: list[str]) -> list[str]:
 
 
 class ConnectionManager:
+    # Per-consumer outbound queue bound. A slow consumer's queue fills and
+    # NEW messages are dropped (audit-writer pattern) instead of letting
+    # one stalled send head-of-line-block every other client.
+    OUTBOUND_QUEUE_SIZE = 256
+
     def __init__(self):
         self.connections: dict[str, set[WebSocket]] = {}
         self.client_channels: dict[WebSocket, set[str]] = {}
         self.client_orgs: dict[WebSocket, str | None] = {}
         self._lock = asyncio.Lock()
         self.main_loop: asyncio.AbstractEventLoop | None = None
+        self._outbound: dict[WebSocket, asyncio.Queue[str]] = {}
+        self._pumps: dict[WebSocket, asyncio.Task] = {}
+        self.dropped = 0
+
+    def _dropped(self) -> None:
+        from picosentry.serve.services.metrics import metrics
+
+        self.dropped += 1
+        metrics.set_global_gauge("ws_dropped_messages", self.dropped)
+        logger.warning("WS outbound queue full — dropping message (dropped so far: %d)", self.dropped)
+
+    async def _pump(self, websocket: WebSocket, queue: asyncio.Queue[str]) -> None:
+        """Serial sender owned by ONE consumer; broadcast() never awaits sends."""
+        while True:
+            message = await queue.get()
+            try:
+                await websocket.send_text(message)
+            except Exception:
+                # Client is gone or the send failed; the receive loop in the
+                # ws router will notice and call disconnect(), which cancels
+                # this pump. Stop draining for a dead socket.
+                return
+
+    def _enqueue(self, websocket: WebSocket, message: str) -> None:
+        queue = self._outbound.get(websocket)
+        task = self._pumps.get(websocket)
+        if queue is None or task is None or task.done():
+            queue = asyncio.Queue(maxsize=self.OUTBOUND_QUEUE_SIZE)
+            self._outbound[websocket] = queue
+            self._pumps[websocket] = asyncio.create_task(self._pump(websocket, queue))
+        try:
+            queue.put_nowait(message)
+        except asyncio.QueueFull:
+            self._dropped()
 
     async def connect(self, websocket: WebSocket, channels: list[str] | None = None, org_id=None):
         await websocket.accept()
@@ -76,6 +114,10 @@ class ConnectionManager:
                     self._remove_from_channel(websocket, channel)
                 del self.client_channels[websocket]
             self.client_orgs.pop(websocket, None)
+            self._outbound.pop(websocket, None)
+            pump = self._pumps.pop(websocket, None)
+            if pump is not None:
+                pump.cancel()
 
     async def broadcast(self, event_type: str, payload: dict, org_id=None):
         org = _normalize_org_id(org_id)
@@ -97,9 +139,10 @@ class ConnectionManager:
             else:
                 candidates = {ws for ws in candidates if ws in self.client_channels}
 
+        # Non-blocking per-consumer enqueue: one slow client's full queue
+        # drops its own messages, never delays another client's delivery.
         for ws in candidates:
-            with contextlib.suppress(Exception):
-                await ws.send_text(message)
+            self._enqueue(ws, message)
 
 
 ws_manager = ConnectionManager()

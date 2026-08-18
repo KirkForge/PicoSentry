@@ -1,3 +1,20 @@
+"""Prometheus metrics collection.
+
+Multi-worker ceiling (WO5.0.0-031 DECISION, not code): every uvicorn worker
+owns a process-local MetricsCollector, and in-process scrape-time merging of
+counters across processes is not possible without a shared aggregation
+substrate (redis, push gateway, or DB-backed counters) — none of which the
+serve stack already shares cheaply enough to justify for metrics. Each
+worker therefore exposes its own /metrics. Aggregation is the scraper's
+job: scrape every worker (labeled instances — the Helm chart's Service
+headless variant or per-pod scrape annotations make each worker a distinct
+Prometheus target) and let PromQL sum() across the instance label. Counts
+are per-worker and additive; global sums are exact after scraping all
+workers. Anything that needs a single-process answer (e.g. "requests
+across the fleet, right now") is a query over the shared audit log, not a
+metrics problem.
+"""
+
 import json
 import re
 import threading

@@ -8,17 +8,38 @@ import subprocess
 import threading
 import time
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import ClassVar
 
+from picosentry.serve.config.settings import settings
 from picosentry.serve.database.manager import db
+from picosentry.serve.services.event_bus import worker_identity
 
 logger = logging.getLogger("picoshogun.Scheduler")
 
 # The batch job's script lives at the repo root, not the scheduler's CWD —
 # resolving module-relative keeps it working under uvicorn/systemd/any cwd.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
+
+try:
+    import psycopg2 as _psycopg2
+except ImportError:
+    _psycopg2 = None
+
+# DB failures the lease protocol tolerates per tick (stand down + retry).
+_DB_SOFT_ERRORS: tuple[type[BaseException], ...] = (OSError, RuntimeError, ValueError, sqlite3.Error) + (
+    (_psycopg2.Error,) if _psycopg2 is not None else ()
+)
+# Unique-violation shapes from racing INSERTs (see _insert_job_atomic).
+_INTEGRITY_ERRORS: tuple[type[BaseException], ...] = (sqlite3.IntegrityError,) + (
+    (_psycopg2.IntegrityError,) if _psycopg2 is not None else ()
+)
+
+
+def _utcnow() -> datetime:
+    """Single clock seam: tests patch this to move lease time deterministically."""
+    return datetime.now(timezone.utc)
 
 
 class SchedulerJobConflict(ValueError):
@@ -81,6 +102,13 @@ class JobScheduler:
         # job id -> its queued scheduler entries; _schedule_job
         # cancel-and-replaces so boot/toggle cycles can never double-fire.
         self._queued: dict[int, list[sched.Event]] = {}
+        # Cross-worker leader lease: only the lease holder runs the sched
+        # loop; standbys poll for takeover. Manual trigger_job() is explicit
+        # user intent and still dispatches on any worker.
+        self.worker_id = worker_identity()
+        self.lease_ttl = settings.multiworker.scheduler_lease_ttl_seconds
+        self._leader = False
+        self._tick_sleep = 1.0
         self._load_jobs()
 
     def _load_jobs(self):
@@ -140,13 +168,7 @@ class JobScheduler:
         else:
             if self._get_next_run(cron) is None:
                 raise ValueError(f"Invalid cron expression: {cron!r}")
-            job_id = db.execute_insert(
-                """
-                INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id)
-                VALUES (?, ?, ?, ?, ?, ?)
-            """,
-                (name, cron, command, params_json, enabled, org_id),
-            )
+            job_id = self._insert_job_atomic(name, cron, command, params_json, enabled, org_id)
 
         with self._lock:
             self._load_jobs()
@@ -155,6 +177,38 @@ class JobScheduler:
 
         logger.info("Job added: %s (%s)", name, cron)
         return job_id
+
+    def _insert_job_atomic(
+        self, name: str, cron: str, command: str, params_json: str, enabled: bool, org_id: int | None
+    ) -> int:
+        """SELECT+INSERT under BEGIN IMMEDIATE (WO5.0.0-031).
+
+        The boot-time lifespan add_job()s from two workers booting
+        simultaneously raced between the name SELECT and the INSERT, and the
+        loser died in lifespan startup on the name UNIQUE constraint
+        (verified with a real 2-worker uvicorn boot). BEGIN IMMEDIATE
+        serializes sqlite writers so the second boot's in-transaction SELECT
+        sees the winner's row; on postgres the loser's INSERT fails on the
+        unique index after the winner commits and is retried as a read.
+        """
+        try:
+            with db.transaction(immediate=True) as conn:
+                row = db.execute_on(conn, "SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+                if row:
+                    return row[0]["id"]
+                db.execute_on(
+                    conn,
+                    "INSERT INTO scheduled_jobs (name, cron_expression, command, params, enabled, org_id) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (name, cron, command, params_json, enabled, org_id),
+                )
+                row = db.execute_on(conn, "SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+                return row[0]["id"]
+        except _INTEGRITY_ERRORS:
+            existing = db.execute_one("SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+            if existing:
+                return existing["id"]
+            raise
 
     def remove_job(self, job_id: int) -> bool:
         with self._lock:
@@ -493,20 +547,90 @@ class JobScheduler:
 
         logger.info("Scheduler started with %s jobs", job_count)
 
+    def _try_acquire_lease(self) -> bool:
+        """Acquire-or-renew the cross-worker leader lease, atomically.
+
+        One conditional UPDATE: the rowcount IS the protocol answer. A
+        standby can take over once the holder's expiry passed (holder
+        crashed without releasing); the holder renews because its own id
+        satisfies the WHERE regardless of expiry.
+        # ponytail: expiry-based lease, not pg advisory locks — one SQL
+        # statement on both backends; advisory locks upgrade path if lease
+        # churn across many workers ever shows up in metrics.
+        """
+        now = _utcnow()
+        rows = db.execute_update(
+            "UPDATE scheduler_leases SET holder = ?, expires_at = ? "
+            "WHERE lease_key = ? AND (holder = ? OR expires_at < ?)",
+            (self.worker_id, now + timedelta(seconds=self.lease_ttl), "scheduler", self.worker_id, now),
+        )
+        return rows >= 1
+
+    def _release_lease(self) -> None:
+        try:
+            db.execute_update(
+                "UPDATE scheduler_leases SET holder = NULL, expires_at = ? WHERE lease_key = ? AND holder = ?",
+                (_utcnow() - timedelta(seconds=1), "scheduler", self.worker_id),
+            )
+        except _DB_SOFT_ERRORS:
+            logger.debug("Scheduler lease release failed (lease will expire)", exc_info=True)
+
+    def _reschedule_all(self) -> None:
+        """Drop every queued entry and recompute from cron.
+
+        Called on leadership transitions: the previous leader's in-memory
+        queue may hold overdue entries that a fresh next_run computation
+        must replace, or a takeover would double-fire the boundary job.
+        """
+        with self._lock:
+            for job_id in list(self._queued):
+                self._cancel_queued(job_id)
+            for job_id in list(self.jobs):
+                if self.jobs[job_id].enabled:
+                    self._schedule_job(job_id)
+
     def _run(self):
+        lease_failures = 0
         while True:
             with self._lock:
                 if not self.running:
                     break
-            self.scheduler.run(blocking=False)
-            time.sleep(1)
+            try:
+                leader = self._try_acquire_lease()
+            except _DB_SOFT_ERRORS:
+                # DB unavailable: stand down rather than guess; the lease
+                # expires and another worker takes over. Missed ticks are
+                # skipped, not fired-catch-up (documented ceiling).
+                leader = False
+                lease_failures += 1
+                if lease_failures == 1 or lease_failures % 30 == 0:
+                    logger.warning("Scheduler lease check failed; standing down", exc_info=True)
+            else:
+                lease_failures = 0
+            if leader != self._leader:
+                if leader:
+                    self._reschedule_all()
+                    logger.info("Scheduler leadership acquired by %s", self.worker_id)
+                else:
+                    for job_id in list(self._queued):
+                        self._cancel_queued(job_id)
+                    logger.info("Scheduler leadership lost by %s", self.worker_id)
+                self._leader = leader
+            if leader:
+                self.scheduler.run(blocking=False)
+            time.sleep(self._tick_sleep)
 
     def stop(self):
         with self._lock:
             self.running = False
         if self._thread:
             self._thread.join(timeout=5)
+        self._release_lease()
+        self._leader = False
         logger.info("Scheduler stopped")
+
+    def is_leader(self) -> bool:
+        return self._leader
 
     def get_status(self) -> list[dict]:
         with self._lock:
@@ -522,6 +646,7 @@ class JobScheduler:
                 "last_run": j.last_run.isoformat() if j.last_run else None,
                 "last_status": j.last_status,
                 "org_id": j.org_id,
+                "leader": self._leader,
             }
             for j in jobs
         ]

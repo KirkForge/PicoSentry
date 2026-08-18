@@ -1,4 +1,5 @@
 import asyncio
+import contextlib
 import hashlib
 import logging
 import threading
@@ -41,6 +42,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         redis_fail_closed: bool = False,
         exempt_paths: set[str] | None = None,
         trusted_proxies: list[str] | None = None,
+        sync_interval: float = 60.0,
     ):
         super().__init__(app)
         self.max_requests_per_ip = max_requests_per_ip
@@ -53,6 +55,12 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         self.redis_fail_closed = redis_fail_closed
         self.exempt_paths = exempt_paths or set()
         self.trusted_proxies = trusted_proxies or []
+        # How often counters flush to / re-sync from the shared table. The
+        # 60s default matches the historical single-instance persistence
+        # cadence; multi-worker deployments pass a few seconds instead
+        # (server.py wiring) — the residual cross-worker undercount window
+        # is this interval, a documented ceiling of the sqlite backend.
+        self.sync_interval = sync_interval
 
         self.ip_requests: dict[str, list] = defaultdict(list)
         self.org_requests: dict[str, list] = defaultdict(list)
@@ -132,33 +140,75 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
         db = self._get_db()
         now = time.time()
+        cutoff = now - self.window
 
         # Caller (_evict_if_needed) already holds self._lock; taking it
         # again here would deadlock on the non-reentrant Lock.
-        # The DELETE + re-INSERTs run in one BEGIN IMMEDIATE transaction:
-        # as separate statements a crash (or a reader) in between saw a
-        # window with no counters at all.
+        # MERGE-upsert, not DELETE+re-INSERT: with more than one worker
+        # persisting to the same table, a replace-all clobbered the other
+        # workers' counters (last writer wins). Each request is recorded by
+        # exactly one worker, so the union of timestamp sets is the true
+        # global set — idempotent under any interleaving.
         try:
             with db.transaction(immediate=True) as conn:
-                db.execute_on(conn, "DELETE FROM rate_limit_counters")
-
-                for key, timestamps in self.ip_requests.items():
-                    if timestamps and timestamps[-1] > now - self.window:
-                        db.execute_on(
+                for bucket_type, buckets in (("ip", self.ip_requests), ("org", self.org_requests)):
+                    for key, timestamps in buckets.items():
+                        if not (timestamps and timestamps[-1] > cutoff):
+                            continue
+                        row = db.execute_on(
                             conn,
-                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                            ("ip", key, ",".join(str(t) for t in timestamps)),
+                            "SELECT timestamps FROM rate_limit_counters WHERE bucket_type = ? AND bucket_key = ?",
+                            (bucket_type, key),
                         )
-
-                for key, timestamps in self.org_requests.items():
-                    if timestamps and timestamps[-1] > now - self.window:
-                        db.execute_on(
-                            conn,
-                            "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) VALUES (?, ?, ?)",
-                            ("org", key, ",".join(str(t) for t in timestamps)),
-                        )
+                        merged = set(timestamps)
+                        if row:
+                            # corrupt row → local counts win
+                            with contextlib.suppress(ValueError, TypeError):
+                                foreign = [float(x) for x in row[0]["timestamps"].split(",") if x]
+                                merged.update(t for t in foreign if t > cutoff)
+                        merged_ts = ",".join(str(t) for t in sorted(merged))
+                        if db.backend == "postgres":
+                            db.execute_on(
+                                conn,
+                                "INSERT INTO rate_limit_counters (bucket_type, bucket_key, timestamps) "
+                                "VALUES (?, ?, ?) ON CONFLICT (bucket_type, bucket_key) "
+                                "DO UPDATE SET timestamps = EXCLUDED.timestamps, updated_at = CURRENT_TIMESTAMP",
+                                (bucket_type, key, merged_ts),
+                            )
+                        else:
+                            db.execute_on(
+                                conn,
+                                "INSERT OR REPLACE INTO rate_limit_counters "
+                                "(bucket_type, bucket_key, timestamps, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
+                                (bucket_type, key, merged_ts),
+                            )
         except (OSError, ValueError) as exc:
             logger.warning("Rate limit persistence flush failed: %s", exc)
+
+    def _sync_from_db(self, now: float):
+        """Merge the shared table's counters into the local dicts.
+
+        The multi-worker half of the persistence protocol: flush pushes our
+        observations out, this pulls the other workers' in. Same union
+        semantics — a bucket key we have never seen locally (all our
+        traffic came via the other worker) is adopted from the row.
+        """
+        if not self.persist:
+            return
+
+        db = self._get_db()
+        cutoff = now - self.window
+        rows = db.execute("SELECT bucket_type, bucket_key, timestamps FROM rate_limit_counters")
+        for row in rows:
+            try:
+                foreign = [t for t in (float(x) for x in row["timestamps"].split(",") if x) if t > cutoff]
+            except (ValueError, TypeError):
+                continue
+            if not foreign:
+                continue
+            buckets = self.ip_requests if row["bucket_type"] == "ip" else self.org_requests
+            merged = sorted({*buckets.get(row["bucket_key"], []), *foreign})
+            buckets[row["bucket_key"]] = merged
 
     def _evict_if_needed(self, now: float):
         if now - self._last_eviction < 60:
@@ -186,9 +236,15 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             for k in sorted_keys[: len(self.org_requests) - self.max_buckets]:
                 del self.org_requests[k]
 
-        if self.persist and now - self._last_flush > 60:
+        if self.persist and now - self._last_flush > self.sync_interval:
             self._last_flush = now
             self._flush_to_db()
+            # Pull the other workers' counts in the same cadence; a worker
+            # with no local traffic would otherwise never re-sync.
+            try:
+                self._sync_from_db(now)
+            except (OSError, ValueError) as exc:
+                logger.warning("Rate limit persistence sync failed: %s", exc)
 
     def _clean_and_count(self, buckets: dict, key: str, now: float) -> int:
         buckets[key] = [t for t in buckets[key] if now - t < self.window]

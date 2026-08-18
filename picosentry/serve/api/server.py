@@ -1,3 +1,21 @@
+"""PicoShogun serve API.
+
+Deployment support matrix (WO5.0.0-031):
+
+| Mode            | Support                                                                  |
+|-----------------|--------------------------------------------------------------------------|
+| single worker   | fully supported (default; all state may be in-process)                   |
+| multi worker    | supported with documented ceilings: event fanout latency = the outbox    |
+| (API_WORKERS>1) | poll interval (default 1s); scheduler jobs may be skipped (never double- |
+|                 | fired) across a leader takeover, and a job running longer than the lease |
+|                 | TTL can overlap at takeover; rate limits sync every                       |
+|                 | RATE_LIMIT_SYNC_SECONDS (default 5s) so bursts can overshoot by the      |
+|                 | other workers' unsynced counts; /metrics is per-worker — aggregate via  |
+|                 | labeled instances in the scraper, not in-process.                        |
+
+The full matrix is also in deploy/helm/picosentry/README.md.
+"""
+
 import asyncio
 import logging
 import os
@@ -59,6 +77,41 @@ from picosentry.serve.services.scheduler import scheduler
 _correlation_imported = False
 _alert_hub_imported = False
 _webhook_manager_imported = False
+
+# Cross-worker event fanout poller (started when multi-worker posture is
+# on — API_WORKERS>1 or PICOSHOGUN_EVENT_OUTBOX=true). Module-level so
+# repeated TestClient lifespans cannot stack pollers.
+_outbox_poller = None
+
+
+def _ensure_outbox_poller():
+    global _outbox_poller
+
+    from picosentry.serve.services.event_bus import OutboxPoller, event_bus
+
+    if not settings.multiworker_enabled():
+        return
+    if _outbox_poller is not None and _outbox_poller.is_running():
+        return
+    event_bus.outbox_enabled = True
+    _outbox_poller = OutboxPoller(
+        event_bus,
+        interval=settings.multiworker.event_outbox_poll_seconds,
+        retention_seconds=settings.multiworker.event_outbox_retention_seconds,
+    )
+    _outbox_poller.start()
+    logger.info("Event outbox fanout enabled (poll=%.2fs)", settings.multiworker.event_outbox_poll_seconds)
+
+
+def _stop_outbox_poller():
+    global _outbox_poller
+
+    from picosentry.serve.services.event_bus import event_bus
+
+    if _outbox_poller is not None:
+        _outbox_poller.stop()
+        _outbox_poller = None
+    event_bus.outbox_enabled = False
 
 
 configure_logging(
@@ -171,6 +224,8 @@ async def lifespan(app: FastAPI):
     else:
         logger.info("Anomaly detector started (scheduler disabled by schedule_enabled=False)")
 
+    _ensure_outbox_poller()
+
     expired_count = auth_service.cleanup_expired_keys()
     if expired_count:
         logger.info("Startup: deactivated %d expired API key(s)", expired_count)
@@ -211,6 +266,7 @@ async def lifespan(app: FastAPI):
 
     logger.info("PicoShogun shutting down — stopping background services")
     ws_manager.main_loop = None
+    _stop_outbox_poller()
     anomaly_detector.stop()
     scheduler.stop()
     event_bus.shutdown()
@@ -287,12 +343,19 @@ app.add_middleware(
     max_requests_per_ip=100,
     max_requests_per_org=1000,
     window=60,
-    persist=settings.is_production(),
+    # Multi-worker: the memory backend alone enforces limits x workers, so
+    # persistence goes on and counters re-sync on a short window. Residual
+    # ceiling: within the sync window each worker undercounts the others
+    # (see middleware/rate_limit.py). Redis, when configured, stays the
+    # globally-atomic backend and needs none of this.
+    persist=(settings.is_production() or settings.multiworker_enabled())
+    and settings.security.rate_limit_backend != "redis",
     backend=settings.security.rate_limit_backend,
     backend_url=settings.security.redis_url,
     redis_fail_closed=settings.security.ratelimit_redis_fail_closed,
     exempt_paths={"/health", "/health/live", "/health/ready"},
     trusted_proxies=settings.security.trusted_proxies,
+    sync_interval=(settings.multiworker.rate_limit_sync_seconds if settings.multiworker_enabled() else 60.0),
 )
 app.add_middleware(
     CORSMiddleware,

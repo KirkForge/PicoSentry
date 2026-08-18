@@ -67,6 +67,27 @@ def _max_list_limit() -> int:
         return 1000
 
 
+def _authorize_cluster_route(self: PicoDomeHandler, permission: str) -> bool:
+    """Cluster gossip routes accept EITHER a valid X-Cluster-Token (peers)
+    or a normal API token (WO5.0.0-004).
+
+    The gossip client sends Accept + X-Cluster-Token only — never an
+    Authorization header — so requiring API auth as well 401'd every peer
+    request the moment PICODOME_API_TOKENS was set. The bypass is narrow:
+    it applies only when a cluster manager is running AND the cluster-token
+    check passes; every other path falls through to normal API-token auth.
+    An error response is sent exactly once.
+    """
+    if self.headers.get("X-Cluster-Token"):
+        from picosentry.sandbox.cluster.manager import get_cluster_manager
+
+        mgr = get_cluster_manager()
+        if mgr.is_running:
+            return _check_cluster_token(self, mgr)
+    token = self._require_permission(permission)
+    return token is not None
+
+
 def _clamped_limit(query: dict, key: str = "limit", default: int = 50) -> int:
     """Parse and clamp a query limit parameter."""
     try:
@@ -145,8 +166,7 @@ class PicoDomeGetRoutesMixin:
             if token:
                 self._handle_stats()
         elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
-            token = self._require_permission("scan:read")
-            if token:
+            if _authorize_cluster_route(self, "scan:read"):
                 self._handle_cluster_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)

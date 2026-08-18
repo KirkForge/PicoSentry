@@ -111,8 +111,10 @@ class PicoDomePostRoutesMixin:
             if token:
                 self._handle_create_policy(token)
         elif path == f"/api/{self.API_VERSION}/cluster/snapshot":
-            token = self._require_permission("scan:write")
-            if token:
+            # Cluster peers authenticate with X-Cluster-Token only (WO5.0.0-004).
+            from picosentry.sandbox.daemon.handler_routes_get import _authorize_cluster_route
+
+            if _authorize_cluster_route(self, "scan:write"):
                 self._handle_cluster_merge_snapshot()
         else:
             self._send_error(ErrorCodes.NOT_FOUND, detail=path)
@@ -434,7 +436,10 @@ class PicoDomePostRoutesMixin:
     def _handle_cluster_merge_snapshot(self: PicoDomeHandler) -> None:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
 
-        Called by cluster peers to gossip their state to this node.
+        Accepts a pushed snapshot authenticated by X-Cluster-Token (the same
+        token the gossip client uses for GET). The daemon's own gossip loop
+        pulls snapshots via GET and merges locally, so this endpoint serves
+        peers/operators that push instead of pull.
         Body must be a JSON snapshot as produced by GET /api/v1/cluster/snapshot.
         Merging follows last-writer-wins for nodes and status-priority for scans.
         """

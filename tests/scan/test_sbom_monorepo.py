@@ -40,13 +40,15 @@ def _cdx_maven_json(group: str = "org.apache.logging.log4j", name: str = "log4j-
 
 
 def _write_advisory_db(path: Path) -> None:
+    # Realistically-keyed OSV maven record: real OSV data names maven
+    # packages "group:artifact" (WO5.0.0-009).
     osv = {
         "id": "GHSA-test-maven",
         "summary": "Test maven advisory",
         "published": "2024-01-01",
         "affected": [
             {
-                "package": {"ecosystem": "Maven", "name": "log4j-core"},
+                "package": {"ecosystem": "Maven", "name": "org.apache.logging.log4j:log4j-core"},
                 "ranges": [{"type": "SEMVER", "events": [{"introduced": "2.0.0"}, {"fixed": "2.15.0"}]}],
             }
         ],
@@ -105,6 +107,65 @@ class TestMavenSbomCoordinates:
             f"got rules: {sorted({f.rule_id for f in result.findings})}"
         )
         assert adv_findings[0].package.startswith("org.apache.logging.log4j:log4j-core")
+
+
+class TestPomAdvisoryKeying:
+    """WO5.0.0-009 — pom lookups must hit real OSV records keyed 'group:artifact'."""
+
+    def test_pom_with_real_keyed_osv_record_fires(self, tmp_path: Path) -> None:
+        adv_dir = tmp_path / "advisories"
+        adv_dir.mkdir()
+        _write_advisory_db(adv_dir / "log4j.json")
+
+        target = tmp_path / "proj"
+        target.mkdir()
+        (target / "pom.xml").write_text(
+            '<?xml version="1.0"?>\n<project><dependencies>'
+            "<dependency><groupId>org.apache.logging.log4j</groupId>"
+            "<artifactId>log4j-core</artifactId><version>2.14.0</version></dependency>"
+            "</dependencies></project>"
+        )
+
+        engine = create_default_engine(advisory_db_path=str(adv_dir))
+        result = engine.scan(target)
+        fired = [f for f in result.findings if f.rule_id == "L2-MAVEN-ADV-001"]
+        assert fired, (
+            f"pom dependency must match OSV records keyed 'group:artifact' "
+            f"(log4shell-class miss); got rules: {sorted({f.rule_id for f in result.findings})}"
+        )
+        assert fired[0].package.startswith("org.apache.logging.log4j:log4j-core")
+
+    def test_pom_dual_keyed_db_does_not_double_fire(self, tmp_path: Path) -> None:
+        osv_group = {
+            "id": "GHSA-dual",
+            "summary": "same advisory under both key forms",
+            "affected": [
+                {
+                    "package": {"ecosystem": "Maven", "name": "org.apache.logging.log4j:log4j-core"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "2.0.0"}, {"fixed": "2.15.0"}]}],
+                },
+                {
+                    "package": {"ecosystem": "Maven", "name": "log4j-core"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "2.0.0"}, {"fixed": "2.15.0"}]}],
+                },
+            ],
+        }
+        adv_dir = tmp_path / "advisories"
+        adv_dir.mkdir()
+        (adv_dir / "dual.json").write_text(json.dumps([osv_group]))
+
+        target = tmp_path / "proj"
+        target.mkdir()
+        (target / "pom.xml").write_text(
+            '<?xml version="1.0"?>\n<project><dependencies>'
+            "<dependency><groupId>org.apache.logging.log4j</groupId>"
+            "<artifactId>log4j-core</artifactId><version>2.14.0</version></dependency>"
+            "</dependencies></project>"
+        )
+
+        result = create_default_engine(advisory_db_path=str(adv_dir)).scan(target)
+        fired = [f for f in result.findings if f.rule_id == "L2-MAVEN-ADV-001"]
+        assert len(fired) == 1, f"dual-keyed DB must fire once, got {len(fired)}"
 
 
 class TestCycloneDXXmlVersions:

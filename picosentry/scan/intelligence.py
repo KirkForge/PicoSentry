@@ -144,9 +144,7 @@ class OSVClient:
             return None
         results = []
         for vuln in data.get("vulns", []):
-            adv = Advisory.from_osv(vuln)
-            if adv is not None:
-                results.append(adv)
+            results.extend(Advisory.from_osv(vuln))
         return results
 
     def query(self, ecosystem: str, package_name: str, version: str | None = None) -> list[Advisory]:
@@ -155,9 +153,7 @@ class OSVClient:
         if cached is not None:
             results = []
             for entry in cached:
-                adv = Advisory.from_osv(entry)
-                if adv is not None:
-                    results.append(adv)
+                results.extend(Advisory.from_osv(entry))
             return results
 
         payload: dict = {"package": {"name": package_name, "ecosystem": ecosystem}}

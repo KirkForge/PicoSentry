@@ -13,6 +13,9 @@ _SEMVER_RE = re.compile(r"(\d+)\.(\d+)\.(\d+)(?:[-.]([a-zA-Z0-9._-]+))?")
 _PRE_RELEASE_RE = re.compile(r"^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$")
 
 
+_KNOWN_ECOSYSTEMS = frozenset(("npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"))
+
+
 @dataclass
 class Advisory:
     id: str = ""  # CVE-2024-xxxx, GHSA-xxxx-xxxx, etc.
@@ -42,21 +45,39 @@ class Advisory:
         }
 
     @staticmethod
-    def from_osv(data: dict) -> Advisory | None:
+    def from_osv(data: dict) -> list[Advisory]:
+        """Parse an OSV record into one Advisory per affected package entry.
+
+        Multi-package records (one advisory naming several packages) yield one
+        Advisory each, carrying only that entry's ranges/versions — a single
+        flattened Advisory would index just the last package while inheriting
+        every other package's ranges (WO5.0.0-009).
+        """
         adv_id = data.get("id", "")
         summary = data.get("summary", "")
         details = data.get("details", "")
         if not summary and details:
             summary = details[:200]
 
-        pkg_name = ""
-        affected_versions: list[str] = []
-        affected_ranges: list[tuple[str, str, bool]] = []
+        severity = "MEDIUM"
+        db_specific = data.get("database_specific", {})
+        if isinstance(db_specific, dict):
+            sev = db_specific.get("severity", "").upper()
+            if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
+                severity = sev
+
+        advisories: list[Advisory] = []
         for affected in data.get("affected", []):
             pkg = affected.get("package", {})
-            ecosystem = pkg.get("ecosystem", "")
-            if ecosystem.lower() in ("npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"):
-                pkg_name = pkg.get("name", "")
+            if pkg.get("ecosystem", "").lower() not in _KNOWN_ECOSYSTEMS:
+                continue
+            pkg_name = pkg.get("name", "")
+            if not pkg_name:
+                continue
+
+            affected_versions: list[str] = []
+            affected_ranges: list[tuple[str, str, bool]] = []
+            fixed_version = ""
             for r in affected.get("ranges", []):
                 introduced = ""
                 fixed = ""
@@ -75,57 +96,29 @@ class Advisory:
                         affected_ranges.append((introduced, last_affected, True))
                     else:
                         affected_ranges.append((introduced, "", False))
+                if fixed and not fixed_version:
+                    fixed_version = fixed
             for ver in affected.get("versions", []):
                 if ver not in affected_versions:
                     affected_versions.append(ver)
 
-        if not pkg_name:
-            return None
+            advisories.append(
+                Advisory(
+                    id=adv_id,
+                    package_name=pkg_name,
+                    summary=summary,
+                    severity=severity,
+                    fixed_version=fixed_version,
+                    affected_versions=affected_versions,
+                    affected_ranges=affected_ranges,
+                    cwe_ids=db_specific.get("cwe_ids", []) if isinstance(db_specific, dict) else [],
+                    references=[ref.get("url", "") for ref in data.get("references", [])],
+                    published=data.get("published", ""),
+                    database_specific=db_specific if isinstance(db_specific, dict) else {},
+                )
+            )
 
-        severity = "MEDIUM"
-        db_specific = data.get("database_specific", {})
-        if isinstance(db_specific, dict):
-            sev = db_specific.get("severity", "").upper()
-            if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
-                severity = sev
-
-        fixed_version = ""
-        for affected in data.get("affected", []):
-            for r in affected.get("ranges", []):
-                for event in r.get("events", []):
-                    if "fixed" in event:
-                        fixed_version = event["fixed"]
-
-        return Advisory(
-            id=adv_id,
-            package_name=pkg_name,
-            summary=summary,
-            severity=severity,
-            fixed_version=fixed_version,
-            affected_versions=affected_versions,
-            affected_ranges=affected_ranges,
-            cwe_ids=data.get("database_specific", {}).get("cwe_ids", [])
-            if isinstance(data.get("database_specific"), dict)
-            else [],
-            references=[ref.get("url", "") for ref in data.get("references", [])],
-            published=data.get("published", ""),
-            database_specific=db_specific if isinstance(db_specific, dict) else {},
-        )
-
-    @staticmethod
-    def from_ghsa(data: dict) -> Advisory | None:
-        adv_id = data.get("ghsa_id", data.get("id", ""))
-        return Advisory(
-            id=adv_id,
-            package_name=data.get("package", {}).get("name", ""),
-            summary=data.get("summary", ""),
-            severity=data.get("severity", "MEDIUM").upper(),
-            fixed_version=data.get("first_patched_version", {}).get("identifier", ""),
-            affected_versions=[data.get("vulnerable_version_range", "")],
-            cwe_ids=[c.get("cwe_id", "") for c in data.get("cwes", [])],
-            references=data.get("references", []),
-            published=data.get("published_at", ""),
-        )
+        return advisories
 
 
 class AdvisoryDB:
@@ -150,14 +143,21 @@ class AdvisoryDB:
                 logger.debug("Failed to read advisory file: %s", json_file)
                 continue
 
-            entries = data if isinstance(data, list) else [data]
+            if isinstance(data, list):
+                entries = data
+            elif isinstance(data.get("advisories"), list):
+                # Bundled-snapshot envelope {"metadata": ..., "advisories": [...]}
+                # (corpus/advisories/*.json) — parsing it as a raw OSV record
+                # yielded 0 advisories and a silent no-op default check
+                # (WO5.0.0-009).
+                entries = data["advisories"]
+            else:
+                entries = [data]
 
             for entry in entries:
-                adv = Advisory.from_osv(entry)
-                if adv is None:
-                    continue
-                self._advisories.setdefault(adv.package_name, []).append(adv)
-                count += 1
+                for adv in Advisory.from_osv(entry):
+                    self._advisories.setdefault(adv.package_name, []).append(adv)
+                    count += 1
 
         self._loaded = True
         self._loaded_at = time.monotonic()
@@ -275,36 +275,10 @@ class AdvisoryDB:
 
 
 def load_bundled_advisories() -> AdvisoryDB:
-    bundled_path = Path(__file__).parent / "corpus" / "advisories" / "npm-critical-advisories.json"
-    db = AdvisoryDB()
-    if not bundled_path.is_file():
-        logger.warning("Bundled advisory file not found: %s", bundled_path)
-        return db
-
-    try:
-        data = json.loads(bundled_path.read_text(encoding="utf-8"))
-        advisory_list = data.get("advisories", [])
-        if not advisory_list:
-            logger.info("Bundled advisory snapshot is empty — run scripts/bundle-advisories.py to populate")
-            return db
-
-        for entry in advisory_list:
-            adv = Advisory.from_osv(entry)
-            if adv is None:
-                continue
-            db._advisories.setdefault(adv.package_name, []).append(adv)
-
-        db._loaded = True
-        meta = data.get("metadata", {})
-        logger.info(
-            "Loaded %d bundled advisories for %d packages (source: %s)",
-            len(advisory_list),
-            len(db._advisories),
-            meta.get("source", "unknown"),
-        )
-    except (json.JSONDecodeError, OSError) as e:
-        logger.warning("Failed to load bundled advisories: %s", e)
-
+    bundled_dir = Path(__file__).parent / "corpus" / "advisories"
+    db = AdvisoryDB(bundled_dir if bundled_dir.is_dir() else None)
+    if db.advisory_count == 0:
+        logger.warning("Bundled advisory snapshot is empty — run scripts/bundle-advisories.py to populate")
     return db
 
 

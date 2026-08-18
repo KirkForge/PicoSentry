@@ -29,6 +29,20 @@ def _env_bool(key: str, default: str = "false") -> bool:
     return _env(key, default).lower() == "true"
 
 
+def _env_webhook_url(key: str) -> str | None:
+    """Alert webhook URLs: canonical PICOSHOGUN_-prefixed knob with the legacy
+    unprefixed name (DISCORD_WEBHOOK_URL / SLACK_WEBHOOK_URL) kept as a
+    deprecation-logged fallback so existing deployments keep working."""
+    canonical = os.environ.get(f"PICOSHOGUN_{key}")
+    if canonical is not None:
+        return canonical
+    legacy = os.environ.get(key)
+    if legacy is not None:
+        logger.warning("CONFIG: %s is deprecated; set PICOSHOGUN_%s instead", key, key)
+        return legacy
+    return None
+
+
 def _parse_cors_origins() -> list[str]:
     raw = _env("CORS_ORIGINS", "").strip()
     if not raw:
@@ -171,8 +185,11 @@ class LoggingConfig:
 
 @dataclass
 class AlertConfig:
-    discord_webhook: str | None = field(default_factory=lambda: os.environ.get("DISCORD_WEBHOOK_URL"))
-    slack_webhook: str | None = field(default_factory=lambda: os.environ.get("SLACK_WEBHOOK_URL"))
+    # Canonical env: PICOSHOGUN_DISCORD_WEBHOOK_URL / PICOSHOGUN_SLACK_WEBHOOK_URL
+    # (legacy unprefixed DISCORD_WEBHOOK_URL / SLACK_WEBHOOK_URL still honored,
+    # deprecation-logged — see _env_webhook_url).
+    discord_webhook: str | None = field(default_factory=lambda: _env_webhook_url("DISCORD_WEBHOOK_URL"))
+    slack_webhook: str | None = field(default_factory=lambda: _env_webhook_url("SLACK_WEBHOOK_URL"))
 
     def validate(self) -> list[str]:
         issues = []

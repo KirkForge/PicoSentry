@@ -510,3 +510,26 @@ class TestSchedulerJobNameConflict:
         finally:
             scheduler.remove_job(job_id)
 
+
+class TestOrgCreateErrorMapping:
+    """WO5.0.0-027 rider: slug-taken is 409; internal failure is a logged 500."""
+
+    def test_slug_taken_maps_to_409(self, client, viewer_token, monkeypatch):
+        from picosentry.serve.api.routers import orgs as orgs_router
+
+        monkeypatch.setattr(orgs_router.Organization, "create", staticmethod(lambda **kwargs: {}))
+        resp = client.post("/orgs", json={"name": "Acme", "slug": "acme"}, headers=_headers(viewer_token))
+        assert resp.status_code == 409
+        assert "already exists" in resp.text
+
+    def test_internal_failure_maps_to_500(self, client, viewer_token, monkeypatch, caplog):
+        import logging
+
+        from picosentry.serve.api.routers import orgs as orgs_router
+
+        monkeypatch.setattr(orgs_router.Organization, "create", staticmethod(lambda **kwargs: None))
+        with caplog.at_level(logging.ERROR, logger="picoshogun.orgs"):
+            resp = client.post("/orgs", json={"name": "Acme", "slug": "acme"}, headers=_headers(viewer_token))
+        assert resp.status_code == 500
+        assert "creation failed" in resp.text
+        assert any("Organization creation failed internally" in r.message for r in caplog.records)

@@ -59,6 +59,14 @@ class PromptGuard:
         return self._engine.rules_expected
 
     def check(self, text: str, context: dict[str, Any] | None = None) -> PromptScanResult:
+        # ceiling: residual cost structure on 200KB input (WO5.0.0-029 fused
+        # passes landed): ~2x normalize (6 class-led regex/translate passes
+        # each, incl. the marker-neutralize re-run) + decode scan set x2
+        # (b64 std/urlsafe finditer) + evaluate (morse regex ~30ms — its
+        # ('.', '-') class prefilter is sound but weak on prose) + classifier
+        # token fan-out (~110 substring checks). Next upgrade step: fuse the
+        # two normalize walks (marker variant shares all but comment spans)
+        # or move the class-led scans to one alternation walk.
         start = time.perf_counter()
 
         # Fail-closed: a guard with zero rules is never healthy — whether the

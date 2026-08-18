@@ -19,84 +19,115 @@ try:  # Python 3.11+
 except ImportError:  # Python 3.10
     import sre_parse as _sre_parse
 
-_MIN_PREFILTER_LITERAL = 3
+_MIN_PREFILTER_LITERAL = 2
+_MAX_PREFILTER_BRANCHES = 64
+_MAX_CLASS_ALTERNATIVES = 32
 
 
-def _extract_required_literals(parsed: list) -> tuple[tuple[str, ...], ...]:
-    """Derive necessary-condition literal groups from a parsed regex (WO4.0.0-016).
+def _class_alternatives(av) -> tuple[str, ...] | None:
+    """Case-folded alternatives for a finite positive IN char class, else None.
 
-    Returns groups where EVERY group must have at least one alternative present
-    (case-insensitively) for the pattern to possibly match — a cheap substring
-    prefilter that lets ``evaluate`` skip the full regex for most rules on most
-    text. Conservative by construction:
+    av is sre_parse's flat item list; a NEGATE or CATEGORY item (negated
+    class, \\d, \\s) contributes no constraint. Sound only for explicit
+    literals and small ranges. Alternatives are the lowercased char plus the
+    lowercase of its uppercase (covers re.IGNORECASE matching of either case
+    in lowered text).
+    """
+    chars: list[str] = []
+    for op, arg in av:
+        if op is _sre_parse.LITERAL:
+            chars.append(chr(arg))
+        elif op is _sre_parse.RANGE:
+            chars.extend(chr(c) for c in range(arg[0], arg[1] + 1))
+        else:
+            return None
+    if not 1 <= len(chars) <= _MAX_CLASS_ALTERNATIVES:
+        return None
+    alts = {c.lower() for c in chars} | {c.upper().lower() for c in chars}
+    return tuple(sorted(alts))
 
-    - Only ASCII literal runs of length >= 3 are used; everything else
+
+def _extract_required_literals(parsed: list) -> tuple[tuple[tuple[str, ...], ...], ...]:
+    """Derive necessary-condition branch conjunctions from a parsed regex.
+
+    Returns a tuple of branches; each branch is a tuple of any-of groups;
+    the pattern can only match if SOME branch has EVERY group satisfied
+    (each group needs at least one alternative present, case-insensitively).
+    A rule whose pattern is a plain sequence yields a single branch — the
+    previous AND-of-union-groups shape. Splitting top-level alternations
+    into OR-of-branch-ANDs is strictly stronger and still sound: any match
+    realizes ALL literals of exactly one branch (WO5.0.0-029).
+
+    Conservative by construction:
+
+    - Only ASCII literal runs of length >= 2 are used; everything else
       (char classes, ``.``, backrefs, optional repeats, ...) contributes NO
-      constraint, so an unanalyzable rule simply always runs.
+      constraint, so an unanalyzable rule simply always runs — except
+      finite positive char classes, which contribute their (folded) chars.
     - Literal runs never span non-literal gaps: ``you\\s+are`` yields two
       literals (``you``, ``are``), never the false ``youare``.
     - A mandatory repeat (``{1,}``-style) recurses into its subpattern; an
       optional one contributes nothing.
-    - An alternation contributes ONE any-of group: the union of every literal
-      of every branch. Sound because any match realizes ALL literals of one
-      branch, so at least one union literal must be present. If any branch
-      extracts no literal at all, the alternation contributes nothing.
+    - An alternation contributes alternatives covering every branch
+      realization; if any branch extracts no constraint at all, that
+      branch imposes nothing on the disjunction.
     """
-    groups: list[tuple[str, ...]] = []
 
-    def _usable_literals(seq: list) -> list[str]:
-        """All >=3-char ASCII literals in seq's own structure (no recursing
-        into nested constructs that may be optional)."""
-        run: list[str] = []
-        found: list[str] = []
-        for op, av in seq:
-            if op is _sre_parse.LITERAL:
-                run.append(chr(av))
-                continue
-            if run:
-                found.append("".join(run))
-                run = []
-        if run:
-            found.append("".join(run))
-        return [lit for lit in found if len(lit) >= _MIN_PREFILTER_LITERAL and lit.isascii()]
+    def _merge(branches: list[list[tuple[str, ...]]], variants: list[tuple[tuple[str, ...], ...]]) -> None:
+        """Fold one nested construct's realization variants into every branch
+        (cartesian); degrades to a single union group if the split explodes."""
+        if not variants:
+            return
+        if len(branches) * len(variants) > _MAX_PREFILTER_BRANCHES:
+            union = sorted({alt for variant in variants for group in variant for alt in group})
+            for branch in branches:
+                branch.append(tuple(union))
+            return
+        combined: list[list[tuple[str, ...]]] = []
+        for branch in branches:
+            for variant in variants:
+                combined.append(branch + list(variant))
+        branches[:] = combined
 
-    def _walk_sequence(seq: list) -> None:
-        run: list[str] = []
+    def _walk_sequence(seq: list) -> list[tuple[tuple[str, ...], ...]]:
+        """Conjunction-branch variants realizable by this sequence."""
+        branches: list[list[tuple[str, ...]]] = [[]]
 
-        def _flush() -> None:
+        def _flush(run: list[str]) -> None:
             if run:
                 literal = "".join(run)
                 if len(literal) >= _MIN_PREFILTER_LITERAL and literal.isascii():
-                    groups.append((literal.lower(),))
-                run.clear()
+                    for branch in branches:
+                        branch.append((literal.lower(),))
 
+        run: list[str] = []
         for op, av in seq:
             if op is _sre_parse.LITERAL:
                 run.append(chr(av))
                 continue
-            _flush()
+            _flush(run)
+            run = []
             if op is _sre_parse.BRANCH:
-                branches = av[1]
-                union: set[str] = set()
-                usable = bool(branches)
-                for branch in branches:
-                    branch_literals = _usable_literals(branch)
-                    if not branch_literals:
-                        usable = False  # a branch with no literals -> OR unconstrained
-                        break
-                    union.update(lit.lower() for lit in branch_literals)
-                if usable and union:
-                    groups.append(tuple(sorted(union)))
+                variants = [v for branch in av[1] for v in _walk_sequence(branch) if v]
+                _merge(branches, variants)
             elif op in (_sre_parse.MAX_REPEAT, _sre_parse.MIN_REPEAT):
                 if av[0] >= 1:  # mandatory occurrence
-                    _walk_sequence(av[2])
+                    _merge(branches, [v for v in _walk_sequence(av[2]) if v])
             elif op is _sre_parse.SUBPATTERN:
-                _walk_sequence(av[-1])
-            # IN, ANY, AT, CATEGORY, GROUPREF, ASSERT, ...: no constraint.
-        _flush()
+                _merge(branches, [v for v in _walk_sequence(av[-1]) if v])
+            elif op is _sre_parse.IN:
+                alts = _class_alternatives(av)
+                if alts is not None:
+                    for branch in branches:
+                        branch.append(alts)
+            # ANY, AT, CATEGORY, GROUPREF, ASSERT, ...: no constraint.
+        _flush(run)
+        return [tuple(branch) for branch in branches]
 
-    _walk_sequence(parsed)
-    return tuple(groups)
+    result = [branch for branch in _walk_sequence(parsed) if branch]
+    if not result:
+        return ()
+    return tuple(result)
 
 
 class RuleEngine:
@@ -104,7 +135,7 @@ class RuleEngine:
         self._rules_dir = rules_dir
         self._rules: list[Rule] = []
         self._compiled: dict[str, re.Pattern[str]] = {}
-        self._prefilter: dict[str, tuple[tuple[str, ...], ...]] = {}
+        self._prefilter: dict[str, tuple[tuple[tuple[str, ...], ...], ...]] = {}
         self._corpus_hash = "no-rules-loaded"
         self._rules_expected: int = 0
         self._load_errors: list[str] = []
@@ -237,20 +268,34 @@ class RuleEngine:
     def evaluate(self, text: str) -> list[tuple[Rule, re.Match[str]]]:
         matches: list[tuple[Rule, re.Match[str]]] = []
         lowered = text.lower()
+        found: dict[str, bool] = {}
+
+        def _present(alt: str) -> bool:
+            hit = found.get(alt)
+            if hit is None:
+                hit = found[alt] = alt in lowered
+            return hit
 
         for rule in self._rules:
             compiled = self._compiled.get(rule.id)
             if compiled is None:
                 continue
-            groups = self._prefilter.get(rule.id)
-            if groups:
-                # Necessary-condition prefilter: every group must have at least
-                # one alternative present or the regex cannot match — skip the
-                # (much more expensive) full scan (WO4.0.0-016).
-                passed = True
-                for alternatives in groups:
-                    if not any(alt in lowered for alt in alternatives):
-                        passed = False
+            branches = self._prefilter.get(rule.id)
+            if branches:
+                # Necessary-condition prefilter: some branch must have every
+                # any-of group satisfied or the regex cannot match — skip the
+                # (much more expensive) full scan (WO4.0.0-016, WO5.0.0-029).
+                # Alternatives are shared across rules, so each distinct
+                # substring is scanned once per evaluate call.
+                passed = False
+                for branch in branches:
+                    group_ok = True
+                    for group in branch:
+                        if not any(_present(alt) for alt in group):
+                            group_ok = False
+                            break
+                    if group_ok:
+                        passed = True
                         break
                 if not passed:
                     continue

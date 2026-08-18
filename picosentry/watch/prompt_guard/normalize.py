@@ -13,6 +13,20 @@ from typing import ClassVar
 # full-size base64 decodes on base64-heavy input.
 MAX_DECODE_BYTES = 256 * 1024
 
+# Every str.isspace() codepoint except "\n" (WS_EXCEPT_NL_EQUIVALENCE test
+# pins this tuple against the live isspace() set). collapse_spaced_text
+# squashes all 2+ whitespace runs before the whitespace stage runs, so the
+# remaining ws chars are isolated and a per-char translate is equivalent to
+# the run-replacing sub — one C pass instead of a per-match re.sub.
+_WS_EXCEPT_NL = (
+    "\t\x0b\x0c\r\x1c\x1d\x1e\x1f \x85\xa0\u1680"
+    "\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a"
+    "\u2028\u2029\u202f\u205f\u3000"
+)
+_WS_TO_SPACE = str.maketrans(_WS_EXCEPT_NL, " " * len(_WS_EXCEPT_NL))
+
+_DIGIT_DOT_DIGIT = re.compile(r"\d\.\d")
+
 
 class Normalizer:
     _ZWNJ = "\u200c"  # zero-width non-joiner
@@ -71,20 +85,62 @@ class Normalizer:
     # previous pattern misspelled five entries (qvfrertnq/cezcg/sbez/fgbp/bff)
     # so real rot13 "disregard"/"system prompt"/"from now on"/"stop being"/
     # "turn off" never matched.
-    _ROT13_GATE = re.compile(
-        r"vtaber|sbetrg|qvfertneq|bireevqr|flfgrz\s+cebzcg|"
-        r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sebz\s+abj\s+ba|"
-        r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
-        r"cebzcg|rkgenpx|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bss|"
-        r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
-        re.IGNORECASE,
+    # ceiling: the gate is decomposed into per-word `in` checks plus tiny
+    # first-char-skippable phrase regexes — one big-alternation re.search cost
+    # ~230ms/200KB because every branch was retried at every position.
+    # _ROT13_GATE_PHRASES must stay an exact branch-for-branch decomposition
+    # of the original alternation (WO5.0.0-029).
+    _ROT13_GATE_WORDS: ClassVar[frozenset[str]] = frozenset(
+        {
+            "vtaber",
+            "sbetrg",
+            "qvfertneq",
+            "bireevqr",
+            "qvfnoyr",
+            "ercnpg",
+            "rivy",
+            "znyvpvbhf",
+            "unpxre",
+            "pbafrag",
+            "cebzcg",
+            "rkgenpx",
+            "erfbyhgr",
+            "qroht",
+            "hfre",
+            "vachg",
+            "grkg",
+            "genafsre",
+            "erdhrfg",
+            "dhrel",
+            "naq",
+        }
+    )
+    _ROT13_GATE_PHRASES: ClassVar[tuple[tuple[tuple[str, ...], re.Pattern[str]], ...]] = tuple(
+        (words, re.compile(pattern, re.IGNORECASE))
+        for words, pattern in (
+            (("flfgrz", "cebzcg"), r"flfgrz\s+cebzcg"),
+            (("gheavat", "bss"), r"gheavat\s+bss"),
+            (("lbh", "ner"), r"lbh\s+ner"),
+            (("npg", "nf"), r"npg\s+nf"),
+            (("sebz", "abj", "ba"), r"sebz\s+abj\s+ba"),
+            (("fgbc", "orvat"), r"fgbc\s+orvat"),
+            (("fubj", "lbhe"), r"fubj\s+lbhe"),
+            (("ghea", "bss"), r"ghea\s+bss"),
+            (("naq", "gura"), r"naq\s+gura"),
+        )
     )
 
     _HTML_ENTITY = re.compile(r"&#?[0-9a-zA-Z]{2,8};")
 
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
 
-    _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s+(\w)){2,}(?=\s|$|[,.;!?])")
+    # Spaced-single-char collapse fused into one whole-text pass: the inner
+    # separator is a SINGLE whitespace char because runs of 2+ whitespace
+    # acted as segment boundaries in the original split-based implementation
+    # (a \s unit cannot step into a 2+ run — the next char would fail \w).
+    # The multi-space squash runs afterwards, replacing the old split/join
+    # separator handling.
+    _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s(\w)){2,}(?=\s|$|[,.;!?])")
 
     _SEPARATOR_PUNCT = re.compile(r"(?<=\w)[.\-_/](?=\w)")
 
@@ -95,11 +151,19 @@ class Normalizer:
     _URL_SCHEME = re.compile(r"(?:https?|ftp|postgres|mysql|mongodb|redis|mssql)://")
 
     def normalize(self, text: str) -> str:
+        # ceiling: fused pipeline — collapse_spaced_text has already squashed
+        # every 2+ whitespace run, so \r\n pairs and \n{3,} runs cannot exist
+        # here and the whitespace stage reduces to one \r->\n replace, one
+        # per-char ws translate (isolated chars only) and strip. The
+        # standalone normalize_whitespace keeps its run-replacing semantics
+        # for direct callers (WO5.0.0-029).
         result = text
         result = self.normalize_unicode(result)
         result = self.collapse_spaced_text(result)
         result = self.collapse_separator_punctuation(result)
-        result = self.normalize_whitespace(result)
+        result = result.replace("\r", "\n")
+        result = result.translate(_WS_TO_SPACE)
+        result = result.strip()
         result = self.strip_comments(result)
         return self.deobfuscate_markdown(result)
 
@@ -154,6 +218,12 @@ class Normalizer:
         Kept uncapped here — the caller's byte budget is the bound; the old
         per-collection variant cap consumed in document order was an attacker
         dial (32 benign fillers pushed the payload out of the window).
+
+        ceiling: b64 runs are found once per alphabet and hex runs are sub-
+        scanned inside the standard-alphabet runs (every hex run uses a subset
+        of the b64 charset and is >= its length threshold, so it is always
+        contained in one) — three independent full-text scans per layer became
+        two plus bounded sub-scans (WO5.0.0-029).
         """
         out: list[str] = []
         seen: set[str] = set()
@@ -163,22 +233,51 @@ class Normalizer:
                 seen.add(cand)
                 out.append(cand)
 
-        for payload in self._b64_payloads(text):
-            add(payload)
+        std_runs = [m.group() for m in self._BASE64.finditer(text)]
+        for run in std_runs:
+            self._add_decoded(run, base64.b64decode, add)
+        for m in self._BASE64_URLSAFE.finditer(text):
+            self._add_decoded(m.group(), base64.urlsafe_b64decode, add)
 
-        if self._ROT13_GATE.search(text):
+        if self._rot13_gate_hits(text):
             add(self.decode_rot13(text))
 
         if self._URL_ENC.search(text):
             add(self.decode_url(text))
 
-        for payload in self._hex_payloads(text):
-            add(payload)
+        for run in std_runs:
+            for match in self._HEX.finditer(run):
+                try:
+                    raw = bytes.fromhex(match.group().removeprefix("0x"))
+                except ValueError:
+                    continue
+                payload = raw.decode("utf-8", errors="ignore")
+                if self._is_textlike(raw, payload):
+                    add(payload)
 
         if self._HTML_ENTITY.search(text):
             add(html.unescape(text))
 
         return out
+
+    def _rot13_gate_hits(self, text: str) -> bool:
+        lowered = text.lower()
+        if any(word in lowered for word in self._ROT13_GATE_WORDS):
+            return True
+        for words, phrase in self._ROT13_GATE_PHRASES:
+            if all(w in lowered for w in words) and phrase.search(text):
+                return True
+        return False
+
+    @staticmethod
+    def _add_decoded(run: str, decoder, add) -> None:
+        try:
+            raw = decoder(run)
+        except (ValueError, UnicodeDecodeError):
+            return
+        payload = raw.decode("utf-8", errors="ignore")
+        if Normalizer._is_textlike(raw, payload):
+            add(payload)
 
     def normalize_unicode(self, text: str) -> str:
         return unicodedata.normalize("NFKC", text)
@@ -193,44 +292,43 @@ class Normalizer:
         return result.strip()
 
     def collapse_spaced_text(self, text: str) -> str:
+        # ceiling: two whole-text passes; the previous split-on-\s{2,} walk
+        # issued per-segment re.match+re.sub calls (~3.7k subs per 200KB)
+        # (WO5.0.0-029). _rejoin is unchanged and sees the same spans.
+        def _rejoin(match: re.Match[str]) -> str:
+            raw = match.group(0)
+            collapsed = re.sub(r"(\w)\s+(?=\w)", r"\1", raw)
 
-        segments = re.split(r"(\s{2,})", text)
-        result_parts = []
-        for segment in segments:
-            if re.match(r"^\s{2,}$", segment):
-                result_parts.append(" ")
-            else:
+            word_len = len(collapsed)
+            if word_len < 3:
+                return raw
 
-                def _rejoin(match: re.Match[str]) -> str:
-                    raw = match.group(0)
-                    collapsed = re.sub(r"(\w)\s+(?=\w)", r"\1", raw)
+            if raw[0].isupper() and all(c.islower() or c.isspace() for c in raw[1:]):
+                return collapsed[0] + collapsed[1:].lower()
+            return collapsed
 
-                    word_len = len(collapsed)
-                    if word_len < 3:
-                        return raw
-
-                    if raw[0].isupper() and all(c.islower() or c.isspace() for c in raw[1:]):
-                        return collapsed[0] + collapsed[1:].lower()
-                    return collapsed
-
-                result_parts.append(self._SPACED_SINGLE_CHAR.sub(_rejoin, segment))
-
-        return "".join(result_parts)
+        result = self._SPACED_SINGLE_CHAR.sub(_rejoin, text)
+        return re.sub(r"\s{2,}", " ", result)
 
     def collapse_separator_punctuation(self, text: str) -> str:
 
         placeholders: dict[str, str] = {}
-        for idx, match in enumerate(self._LLM_TOKEN_MARKER.finditer(text)):
-            placeholder = f"\x00LLMTOKEN{idx}\x00"
-            placeholders[placeholder] = match.group()
+        # Necessary-condition gates: each protection scan runs only when a
+        # literal core of its pattern could be present (WO5.0.0-029).
+        if "<|" in text:
+            for idx, match in enumerate(self._LLM_TOKEN_MARKER.finditer(text)):
+                placeholder = f"\x00LLMTOKEN{idx}\x00"
+                placeholders[placeholder] = match.group()
 
-        for idx, match in enumerate(self._IP_ADDRESS.finditer(text)):
-            placeholder = f"\x00IPADDR{idx}\x00"
-            placeholders[placeholder] = match.group()
+        if _DIGIT_DOT_DIGIT.search(text) is not None:
+            for idx, match in enumerate(self._IP_ADDRESS.finditer(text)):
+                placeholder = f"\x00IPADDR{idx}\x00"
+                placeholders[placeholder] = match.group()
 
-        for idx, match in enumerate(self._URL_SCHEME.finditer(text)):
-            placeholder = f"\x00URLSCHEME{idx}\x00"
-            placeholders[placeholder] = match.group()
+        if "://" in text:
+            for idx, match in enumerate(self._URL_SCHEME.finditer(text)):
+                placeholder = f"\x00URLSCHEME{idx}\x00"
+                placeholders[placeholder] = match.group()
 
         result = text
         for placeholder, original in placeholders.items():
@@ -269,6 +367,11 @@ class Normalizer:
                     payloads.append(payload)
         return payloads
 
+    # Non-printable ASCII (Cc + DEL): for pure-ASCII payloads this is exactly
+    # the complement of str.isprintable, countable with one C-level translate.
+    _NONPRINTABLE_ASCII_DEL: ClassVar[dict[int, None]] = dict.fromkeys(range(32))
+    _NONPRINTABLE_ASCII_DEL[0x7F] = None
+
     @staticmethod
     def _is_textlike(raw: bytes, payload: str) -> bool:
         """Text gate for decoded runs.
@@ -282,6 +385,12 @@ class Normalizer:
         """
         if len(payload) < 6 or len(payload) * 2 < len(raw):
             return False
+        # ceiling: per-char isprintable genexpr cost ~3us/char dominated
+        # base64-heavy scans (WO5.0.0-029); ASCII payloads count non-printables
+        # via one C translate instead. Non-ASCII takes the exact slow path.
+        if payload.isascii():
+            printable = len(payload.translate(Normalizer._NONPRINTABLE_ASCII_DEL))
+            return printable / len(payload) >= 0.95
         return sum(ch.isprintable() for ch in payload) / len(payload) >= 0.95
 
     def decode_hex(self, text: str) -> list[str]:
@@ -303,6 +412,8 @@ class Normalizer:
         return payloads
 
     def has_zero_width(self, text: str) -> bool:
+        if text.isascii():  # every zero-width char is non-ASCII
+            return False
         return not self._ZERO_WIDTH.isdisjoint(text)
 
     def decode_rot13(self, text: str) -> str:

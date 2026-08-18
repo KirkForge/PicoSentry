@@ -250,8 +250,6 @@ class CorpusIndex:
         end = len(names) if cursor is None else min(len(names), cursor + step)
         for name in names[cursor:end]:
             n = len(name)
-            if n == 0:
-                continue
             for variant in [name] + [name[:i] + name[i + 1 :] for i in range(n)]:
                 current = get(variant)
                 if current is None:

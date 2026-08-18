@@ -1,6 +1,9 @@
 from datetime import datetime
 from typing import Any
 
+import contextlib
+import json
+
 import pydantic
 from pydantic import BaseModel, Field, field_validator
 
@@ -67,6 +70,16 @@ class IntelligenceItem(BaseModel):
     data: dict
     confidence: float
     created_at: datetime
+
+    # The writer (IntelligenceEngine.ingest) stores data as a JSON string;
+    # parse it back so orgs with actual rows get a response, not a 500.
+    @field_validator("data", mode="before")
+    @classmethod
+    def _parse_json_data(cls, v):
+        if isinstance(v, str):
+            with contextlib.suppress(ValueError, TypeError):
+                return json.loads(v)
+        return v
 
 
 class SystemStatus(BaseModel):
@@ -200,7 +213,18 @@ class OrgCreateRequest(BaseModel):
 
 class OrgMemberInviteRequest(BaseModel):
     user_id: int = Field(..., gt=0)
-    role: str = Field("member", pattern="^(admin|member|viewer)$")
+    role: str = Field("viewer", pattern="^(viewer|operator|admin)$")
+
+    if pydantic.VERSION.startswith("1."):
+
+        class Config:
+            extra = Extra.forbid
+    else:
+        model_config = {"extra": "forbid"}
+
+
+class OrgMemberRoleUpdateRequest(BaseModel):
+    role: str = Field(..., pattern="^(viewer|operator|admin)$")
 
     if pydantic.VERSION.startswith("1."):
 
@@ -667,6 +691,22 @@ class OrgMemberItem(BaseModel):
 class OrgMemberListResponse(BaseModel):
     members: list[OrgMemberItem]
     count: int
+
+
+class OrgMemberInviteResponse(BaseModel):
+    user_id: int
+    role: str
+    invite_token: str
+
+
+class OrgMemberRoleResponse(BaseModel):
+    user_id: int
+    role: str
+
+
+class OrgMemberRemoveResponse(BaseModel):
+    user_id: int
+    removed: bool
 
 
 class OrgUsageBucket(BaseModel):

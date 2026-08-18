@@ -2,18 +2,24 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException
 
-from picosentry.serve.api.deps import get_current_user, require_org_membership, require_role
+from picosentry.serve.api.deps import get_current_user, require_org_membership, require_permission, require_role
 from picosentry.serve.api.models import (
     OrgCreateRequest,
     OrgCreateResponse,
     OrgDetailResponse,
     OrgListResponse,
+    OrgMemberInviteRequest,
+    OrgMemberInviteResponse,
     OrgMemberListResponse,
+    OrgMemberRemoveResponse,
+    OrgMemberRoleResponse,
+    OrgMemberRoleUpdateRequest,
     OrgTierUpgradeRequest,
     OrgUpgradeResponse,
     OrgUsageResponse,
 )
 from picosentry.serve.services.orgs import Organization
+from picosentry.serve.services.rbac import Permission
 
 logger = logging.getLogger("picoshogun.orgs")
 
@@ -75,6 +81,68 @@ async def list_org_members(
 ):
     members = Organization.get_members(org_id)
     return {"members": members, "count": len(members)}
+
+
+def _require_org_admin(org: dict) -> None:
+    """Member management is org-admin work: the ADMIN_USERS permission
+    (global role) AND org-level admin membership — the same dual gate the
+    tier-upgrade endpoint uses. A user who is merely a member of org B
+    cannot touch it even with a global admin role."""
+    if org.get("user_role") != "admin":
+        raise HTTPException(status_code=403, detail="Only organization admins can manage members")
+
+
+@router.post(
+    "/{org_id}/members",
+    response_model=OrgMemberInviteResponse,
+    tags=["Organizations"],
+    status_code=201,
+)
+async def invite_org_member(
+    org_id: int,
+    request: OrgMemberInviteRequest,
+    org: dict = Depends(require_org_membership),
+    user: dict = Depends(require_permission(Permission.ADMIN_USERS)),
+):
+    _require_org_admin(org)
+    return Organization.add_member(org_id, request.user_id, request.role)
+
+
+@router.patch(
+    "/{org_id}/members/{user_id}",
+    response_model=OrgMemberRoleResponse,
+    tags=["Organizations"],
+)
+async def change_org_member_role(
+    org_id: int,
+    user_id: int,
+    request: OrgMemberRoleUpdateRequest,
+    org: dict = Depends(require_org_membership),
+    user: dict = Depends(require_permission(Permission.ADMIN_USERS)),
+):
+    _require_org_admin(org)
+    changed = Organization.update_member_role(org_id, user_id, request.role)
+    if not changed:
+        raise HTTPException(status_code=404, detail=f"User {user_id} is not a member of this organization")
+    return {"user_id": user_id, "role": request.role}
+
+
+@router.delete(
+    "/{org_id}/members/{user_id}",
+    response_model=OrgMemberRemoveResponse,
+    tags=["Organizations"],
+)
+async def remove_org_member(
+    org_id: int,
+    user_id: int,
+    org: dict = Depends(require_org_membership),
+    user: dict = Depends(require_permission(Permission.ADMIN_USERS)),
+):
+    _require_org_admin(org)
+    removed = Organization.remove_member(org_id, user_id)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"User {user_id} is not a member of this organization")
+    return {"user_id": user_id, "removed": True}
 
 
 @router.get("/{org_id}/usage", response_model=OrgUsageResponse, tags=["Organizations"])

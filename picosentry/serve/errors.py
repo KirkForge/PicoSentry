@@ -23,6 +23,10 @@ class ConflictError(PicoSentryError):
     """Request conflicts with current resource state (HTTP 409)."""
 
 
+class QuotaExceededError(PicoSentryError):
+    """Tier quota exhausted (HTTP 402). Raise the tier or remove usage."""
+
+
 class ServiceError(PicoSentryError):
     """Unexpected service failure (HTTP 500)."""
 

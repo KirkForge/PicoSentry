@@ -29,15 +29,26 @@ logger = logging.getLogger("picoshogun.projects")
 router = APIRouter()
 
 
+def _run_error_status(result: dict) -> int:
+    return 402 if result.get("quota_exceeded") else 400
+
+
 @router.get("/projects", response_model=list[ProjectStatus], tags=["Projects"])
 async def list_projects(
     category: str | None = Query(None),
     status: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_PROJECTS)),
 ):
     projects = await asyncio.to_thread(
-        orchestrator.list_projects, category=category, status_filter=status, org_id=org["id"]
+        orchestrator.list_projects,
+        category=category,
+        status_filter=status,
+        limit=limit,
+        offset=offset,
+        org_id=org["id"],
     )
     return projects
 
@@ -64,7 +75,7 @@ async def run_project(
     timeout = request.timeout if request else 300
     result = await asyncio.to_thread(orchestrator.run_project, project_id, timeout=timeout, org_id=org["id"])
     if "error" in result:
-        raise HTTPException(status_code=400, detail=result["error"])
+        raise HTTPException(status_code=_run_error_status(result), detail=result["error"])
     return result
 
 
@@ -117,6 +128,7 @@ async def list_intelligence(
     intel_type: str | None = Query(None),
     severity: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_INTELLIGENCE)),
 ):
@@ -125,6 +137,7 @@ async def list_intelligence(
         org["id"],
         {"source_project": source_project, "intel_type": intel_type, "severity": severity},
         limit,
+        offset=offset,
     )
 
     rows = await asyncio.to_thread(db.execute, query, params)
@@ -168,6 +181,7 @@ async def list_alerts(
     severity: str | None = Query(None),
     project_id: str | None = Query(None),
     limit: int = Query(50, ge=1, le=200),
+    offset: int = Query(0, ge=0),
     org: dict = Depends(get_current_org),
     user: dict = Depends(require_permission(Permission.READ_ALERTS)),
 ):
@@ -176,6 +190,7 @@ async def list_alerts(
         org["id"],
         {"severity": severity, "project_id": project_id},
         limit,
+        offset=offset,
     )
 
     rows = await asyncio.to_thread(db.execute, query, params)

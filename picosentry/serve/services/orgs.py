@@ -6,6 +6,7 @@ from typing import Any, ClassVar
 
 from picosentry._core.security import constant_time_compare
 from picosentry.serve.database.manager import db
+from picosentry.serve.errors import ConflictError, NotFoundError, QuotaExceededError
 
 logger = logging.getLogger("picoshogun.Orgs")
 
@@ -86,6 +87,149 @@ class Organization:
         )
         return [dict(r) for r in rows]
 
+    MEMBER_ROLES = ("viewer", "operator", "admin")
+
+    @staticmethod
+    def add_member(org_id: int, user_id: int, role: str = "viewer") -> dict[str, Any]:
+        """Invite a user: creates the membership row plus a recorded invite
+        token (sha256-hashed; the raw token is returned exactly once).
+
+        ponytail: membership is effective immediately — the invite row is the
+        audit/verification artifact, not a two-step accept flow. Add an
+        accept endpoint (validating the raw token against token_hash, flipping
+        status/accepted_at) if out-of-band invites are ever needed.
+        """
+        if role not in Organization.MEMBER_ROLES:
+            raise ValueError(f"Unknown member role: {role}")
+        org, _ = Organization._limits_for(org_id)
+        if not db.execute_one("SELECT id FROM users WHERE id = ?", (user_id,)):
+            raise NotFoundError(f"User {user_id} does not exist")
+        if db.execute_one("SELECT id FROM org_users WHERE org_id = ? AND user_id = ?", (org_id, user_id)):
+            raise ConflictError(f"User {user_id} is already a member of this organization")
+
+        Organization.check_member_quota(org_id)
+
+        token = f"inv_{secrets.token_urlsafe(24)}"
+        token_hash = hashlib.sha256(token.encode()).hexdigest()
+        now = datetime.now(timezone.utc)
+        try:
+            with db.transaction() as conn:
+                db.execute_on(
+                    conn,
+                    """
+                    INSERT INTO org_users (org_id, user_id, role, invited_at, joined_at)
+                    VALUES (?, ?, ?, ?, ?)
+                """,
+                    (org_id, user_id, role, now, now),
+                )
+                db.execute_on(
+                    conn,
+                    """
+                    INSERT INTO org_invites (org_id, user_id, role, token_hash, status, created_at)
+                    VALUES (?, ?, ?, ?, 'accepted', ?)
+                """,
+                    (org_id, user_id, role, token_hash, now),
+                )
+        except Exception:
+            logger.warning("member add failed (org=%r user=%r)", org_id, user_id, exc_info=True)
+            raise
+
+        return {"user_id": user_id, "role": role, "invite_token": token, "invited_by_org": org["slug"]}
+
+    @staticmethod
+    def update_member_role(org_id: int, user_id: int, role: str) -> bool:
+        if role not in Organization.MEMBER_ROLES:
+            return False
+        org, _ = Organization._limits_for(org_id)
+        if user_id == org.get("owner_id"):
+            # Owner lockout guard: demoting the owning member can brick the
+            # org (no admin left to manage members or tier).
+            raise ConflictError("The organization owner's role cannot be changed")
+        if not db.execute_one("SELECT id FROM org_users WHERE org_id = ? AND user_id = ?", (org_id, user_id)):
+            return False
+        db.execute_insert("UPDATE org_users SET role = ? WHERE org_id = ? AND user_id = ?", (role, org_id, user_id))
+        return True
+
+    @staticmethod
+    def remove_member(org_id: int, user_id: int) -> bool:
+        org, _ = Organization._limits_for(org_id)
+        if user_id == org.get("owner_id"):
+            raise ConflictError("The organization owner cannot be removed")
+        if not db.execute_one("SELECT id FROM org_users WHERE org_id = ? AND user_id = ?", (org_id, user_id)):
+            return False
+        db.execute_insert("DELETE FROM org_users WHERE org_id = ? AND user_id = ?", (org_id, user_id))
+        return True
+
+    @staticmethod
+    def _limits_for(org_id: int) -> tuple[dict[str, Any], dict[str, Any]]:
+        """(org row, tier limits) — raises KeyError-free defaults for unknown tiers."""
+        org = db.execute_one("SELECT * FROM orgs WHERE id = ?", (org_id,))
+        if not org:
+            raise LookupError(f"org {org_id} not found")
+        limits = Organization.TIERS.get(org["tier"], Organization.TIERS["free"])
+        return dict(org), limits
+
+    @staticmethod
+    def _count(sql: str, params: tuple) -> int:
+        row = db.execute_one(sql, params)
+        return (row or {}).get("c") or 0
+
+    @staticmethod
+    def _member_count(org_id: int) -> int:
+        return Organization._count("SELECT COUNT(*) as c FROM org_users WHERE org_id = ?", (org_id,))
+
+    @staticmethod
+    def _project_count(org_id: int) -> int:
+        return Organization._count("SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?", (org_id,))
+
+    @staticmethod
+    def _runs_today_count(org_id: int) -> int:
+        today_col = db.dialect.date_column("run_start")
+        return Organization._count(
+            f"SELECT COUNT(*) as c FROM project_runs WHERE org_id = ? AND {today_col} = {db.dialect.date_now()}",
+            (org_id,),
+        )
+
+    # Tier enforcement. get_usage reports the same counters — a rejected
+    # request and the usage endpoint must never disagree.
+    # ponytail: check-then-act races between concurrent requests can admit a
+    # row or two over the limit (counted, not hidden — get_usage shows the
+    # overshoot). Exact admission would need a count-guarded transaction per
+    # insert; add if a tier is ever billed per-row.
+    @staticmethod
+    def check_member_quota(org_id: int) -> None:
+        org, limits = Organization._limits_for(org_id)
+        used = Organization._member_count(org_id)
+        if used >= limits["users"]:
+            raise QuotaExceededError(
+                f"Tier '{org['tier']}' allows {limits['users']} members (in use: {used}). "
+                "Upgrade the org tier to add more."
+            )
+
+    @staticmethod
+    def check_run_quota(org_id: int) -> None:
+        org, limits = Organization._limits_for(org_id)
+        used = Organization._runs_today_count(org_id)
+        if used >= limits["runs_per_day"]:
+            raise QuotaExceededError(
+                f"Tier '{org['tier']}' allows {limits['runs_per_day']} runs/day (used today: {used}). "
+                "Upgrade the org tier or retry tomorrow."
+            )
+
+    @staticmethod
+    def check_project_quota(org_id: int, project_id: str) -> None:
+        """Reject only NEW associations: re-running an already-associated
+        project never hits the project cap."""
+        if Organization.has_project(org_id, project_id):
+            return
+        org, limits = Organization._limits_for(org_id)
+        used = Organization._project_count(org_id)
+        if used >= limits["projects"]:
+            raise QuotaExceededError(
+                f"Tier '{org['tier']}' allows {limits['projects']} projects (in use: {used}). "
+                "Upgrade the org tier to register more."
+            )
+
     @staticmethod
     def get_usage(org_id: int) -> dict[str, Any]:
         org = db.execute_one("SELECT * FROM orgs WHERE id = ?", (org_id,))
@@ -95,21 +239,9 @@ class Organization:
         tier = org["tier"]
         limits = Organization.TIERS.get(tier, Organization.TIERS["free"])
 
-        user_row = db.execute_one("SELECT COUNT(*) as c FROM org_users WHERE org_id = ?", (org_id,))
-        users = (user_row or {}).get("c") or 0
-
-        project_row = db.execute_one("SELECT COUNT(*) as c FROM org_projects WHERE org_id = ?", (org_id,))
-        projects = (project_row or {}).get("c") or 0
-
-        today_col = db.dialect.date_column("run_start")
-        runs_today_row = db.execute_one(
-            f"""
-            SELECT COUNT(*) as c FROM project_runs
-            WHERE org_id = ? AND {today_col} = {db.dialect.date_now()}
-        """,
-            (org_id,),
-        )
-        runs_today = runs_today_row["c"] if runs_today_row else 0
+        users = Organization._member_count(org_id)
+        projects = Organization._project_count(org_id)
+        runs_today = Organization._runs_today_count(org_id)
 
         def _pct(used: int, limit: int) -> float:
             return used / limit * 100 if limit > 0 else 0.0

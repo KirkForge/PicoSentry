@@ -32,9 +32,15 @@ class TestExecuteProjectExceptionHandling:
     def test_runtime_error_is_sanitized(self, orchestrator, monkeypatch, caplog):
         from picosentry.serve.services import orchestrator as orch_mod
 
+        publish_mock = MagicMock()
         orchestrator.alerts.send = MagicMock()
-        orch_mod.plugin_manager.dispatch = MagicMock()
-        orch_mod.event_bus.publish = MagicMock()
+        # monkeypatch, never raw assignment: these are process-global singletons
+        # (plugin_manager, event_bus). A raw MagicMock on event_bus.publish
+        # shadows the class method for every later test in the worker — the
+        # killchain tenancy test then publishes into the mock and sees zero
+        # escalations (CI flake, run 32133510156 py3.13 leg).
+        monkeypatch.setattr(orch_mod.plugin_manager, "dispatch", MagicMock())
+        monkeypatch.setattr(orch_mod.event_bus, "publish", publish_mock)
 
         def _boom(*args, **kwargs):
             raise RuntimeError("internal secret details")
@@ -52,7 +58,7 @@ class TestExecuteProjectExceptionHandling:
         alert_message = orchestrator.alerts.send.call_args[1].get("message", "")
         assert "internal secret details" not in alert_message
 
-        failed_calls = [c for c in orch_mod.event_bus.publish.call_args_list if c.args[0] == "project.run.failed"]
+        failed_calls = [c for c in publish_mock.call_args_list if c.args[0] == "project.run.failed"]
         assert len(failed_calls) == 1
         payload = failed_calls[0].args[1]
         assert payload.get("error") == "project execution failed"

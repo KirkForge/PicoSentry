@@ -2,9 +2,9 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18, v2.1.3 RELEASED — WO5.0.0 series complete: 33 DONE / 2 PARTIAL) ═══
+# ═══ CURRENT STATE (2026-08-18, v2.1.3 RELEASED — WO5.0.0 series complete: 32 DONE / 3 PARTIAL) ═══
 
-**v2.1.3 published and verified**: PyPI live (wheel `55cecc7b…`, sdist `e52bad87…`, digests byte-verified), reproducible (two builds identical incl. normalized sdist), tag `v2.1.3` pushed, `main` ff'd = `86b94c4b`. Main push CI green (32185985387). Post-tag: release.yml's integration tier (not run by push CI) caught 2 test-tier items — SARIF fixture hardcoded 2.1.2 (the 2.1.1 incident class; artifact cosmetic metadata) + gateway starvation test's fixed time margin collapsing under GIL contention on small runners — both root-fixed on dev (`5af027ca`, bump-proof fixture + ordering-only assertion), 5489 fast green. The tag's release run stays red on those two; every later commit is clean.
+**v2.1.3 published and verified on PyPI** (wheel `55cecc7b…`, sdist `e52bad87…`, digests byte-verified, reproducible two-build). **Honest CI record**: the tag push left MAIN RED — PicoSentry CI at `86b94c4b` failed (run 32185985601, 3.13 leg: 3× SARIF fixture asserting the hardcoded 2.1.2 + gateway starvation test's fixed 50ms margin under GIL contention; other legs cancelled by fail-fast). Root-caused same session: the SARIF test fixture hardcoded `engine_version="2.1.2"` (the 2.1.1 incident class — now defaults to the live `__version__`, bump-proof) and the gateway test now asserts ordering only (a sync guard makes the concurrent request strictly later — full teeth, no free-core assumption). Fixes landed on dev `5af027ca`; **dev push CI green at exactly that commit (32187246990, full push tier incl. integration)**; main ff'd to dev tip and verified green (run below in session (j)). Process failure recorded in lessons: the release commit was never run through the integration tier locally BEFORE tagging, and the orchestrator misread the run list (called Security-Scan green while PicoSentry CI was red).
 
 **WO5.0.0 series final: 35 WOs — 33 DONE, 2 honest PARTIALs** (014 docker push: tooling+credentials blocked, runbook in the WO, docker/verify-docker CI jobs opt-in via `vars.DOCKER_PUSH_ENABLED` until Hub secrets exist; 031 multi-worker e2e: core landed (outbox, leader lease, rate-limit sync, WS queues, sqlite busy_timeout, migrations 21/22) but the 2-real-worker e2e tests need isolation rework — the 5h agent was cancelled, core salvaged). WO4 series fully closed earlier (17 DONE + 7 folded). L2-TYPO-001 DP 46-65× + short-name calibration landed (WO-028); the silent timebox-drop of typosquat findings on dep-heavy trees was a real bug fixed en route.
 
@@ -24,7 +24,7 @@
 5 workers on the P2 tail (scan-typo/watch-fused/cluster-rot/serve-multi/serve-tenant) + 1 read-only explorer auditing WO-014. WO-031's worker ran 5h and was CANCELLED by the owner; orchestrator salvaged its core (2 commits + coherent WIP), root-caused what it was circling in bounded time (leaked fake-clock lease; real sqlite cross-process locked collision → busy_timeout=15s pragma + transaction immediate-default), dropped the 2 isolation-broken e2e tests with rationale, merged as PARTIAL. Merge conflicts resolved centrally: migration same-number collision (21+21 → 21+22), stray uncommitted edit from the cancelled agent in the main checkout (discarded, superseded by its own branch commit).
 
 ### Release (v2.1.3)
-Lockstep bump (pyproject, 6 __init__s, uv.lock, README/experimental/docker claims with honest v2.1.3-push-pending wording, k8s manifest, helm appVersion, manual) → gates green (fast 5489) → ff main → reproducible build (wheel + normalized sdist, two builds hash-identical) → PyPI publish via Lockdown token → digests verified → tag + push. Docker jobs gated opt-in (no Hub secrets exist — SA-AO audit). Post-tag integration-tier failures root-fixed on dev same session.
+Lockstep bump (pyproject, 6 __init__s, uv.lock, README/experimental/docker claims with honest v2.1.3-push-pending wording, k8s manifest, helm appVersion, manual) → LOCAL fast tier green (5489) → ff main → reproducible build (wheel + normalized sdist, two builds hash-identical) → PyPI publish via Lockdown token → digests verified → tag + push. **PROCESS FAILURE: dev push CI for `86b94c4b` was failing (32185735733) when I ff'd/tagged main — only the FAST tier had run locally; the integration tier (which push CI runs) held the 4 failures. Main went red at the release commit (32185985601).** Root causes fixed on dev `5af027ca` (SARIF fixture → live `__version__`; gateway test → ordering-only assertion), dev push CI green at that SHA (32187246990), main ff'd to dev and re-verified (see Gate). Docker jobs gated opt-in (no Hub secrets exist — SA-AO audit).
 
 ### Notable
 - SA-AJ found dev SILENTLY DROPPING L2-TYPO-001 findings via the rule timebox on dep-heavy trees (fixed + regression-pinned) — the "reports success while failing" class again, this time as a perf cliff.
@@ -32,8 +32,8 @@ Lockstep bump (pyproject, 6 __init__s, uv.lock, README/experimental/docker claim
 - SA-AN found GET /intelligence 500'd for any org WITH rows (latent since forever; zero-row orgs masked it).
 - 5h-runaway lesson recorded in lessons.md (kill criteria for workers were missing from the dispatch).
 
-### Gate (head dev @ 5af027ca; release artifacts verified on PyPI)
-- ruff/format/mypy clean · fast **5489 passed / 0 failed** · release lockstep 34 passed · PyPI digests = local build.
+### Gate (dev tip after docs fixes; release artifacts verified on PyPI)
+- ruff/format/mypy clean · fast **5489 passed / 0 failed** · release lockstep 34 passed · PyPI digests = local build · **dev push CI green at fix SHA `5af027ca` (32187246990, full push tier incl. integration)** · main ff'd to dev tip — run ID recorded below once watched to completion.
 
 ### Blocked
 - Docker Hub push (tooling + credentials) — WO5.0.0-014, runbook recorded.

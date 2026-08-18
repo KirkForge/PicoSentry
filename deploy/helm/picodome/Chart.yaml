@@ -4,9 +4,9 @@ description: PicoDome — deterministic runtime sandbox and behavioral analysis 
 type: application
 version: 0.5.0
 appVersion: "v2.1.2"
-home: https://github.com/KirkForge/PicoDome
+home: https://github.com/KirkForge/PicoSentry
 sources:
-  - https://github.com/KirkForge/PicoDome
+  - https://github.com/KirkForge/PicoSentry
 maintainers:
   - name: KirkForge
     email: kirk@kirkforge.dev

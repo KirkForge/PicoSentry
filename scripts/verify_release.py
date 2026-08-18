@@ -12,7 +12,7 @@ For full cryptographic verification of SLSA provenance and Sigstore signatures,
 use the GitHub CLI:
 
     gh attestation verify dist/picosentry-*.whl \
-        --owner KirkForge --predicate-type slsaprovenance
+        --owner KirkForge --predicate-type https://slsa.dev/provenance/v1
 
 Usage:
     python scripts/verify_release.py v2.0.17

@@ -131,12 +131,62 @@ def _check_detector_implementations() -> CheckResult:
 
 
 def _check_fixture_count() -> CheckResult:
+    """Fixture population: validation dirs (positive + negative) + tricky dirs.
+
+    One definition, three surfaces that must agree: the on-disk fixture
+    directories, the validation REPORT.json totals, and the fixture-count
+    claims in picosentry.experimental.COMPONENT_STATUS.
+    """
+    from picosentry.experimental import COMPONENT_STATUS
+
     fixtures_dir = _ROOT / "tests" / "scan" / "fixtures" / "validation"
     if not fixtures_dir.exists():
         return CheckResult("fixture_count", "fail", f"Fixtures directory not found: {fixtures_dir}")
-    subdirs = [d for d in fixtures_dir.iterdir() if d.is_dir()]
-    total = len(subdirs)
-    return CheckResult("fixture_count", "pass", f"{total} validation fixture directories")
+    problems: list[str] = []
+    counts: dict[str, int] = {}
+    for name in ("positive", "negative", "_tricky"):
+        sub = fixtures_dir / name
+        if not sub.is_dir():
+            problems.append(f"missing fixture directory: {name}/")
+            counts[name] = 0
+        else:
+            counts[name] = sum(1 for e in sub.iterdir() if e.is_dir())
+    pos, neg, tricky = counts["positive"], counts["negative"], counts["_tricky"]
+    total = pos + neg + tricky
+
+    report_path = fixtures_dir / "REPORT.json"
+    if not report_path.exists():
+        problems.append("REPORT.json not found")
+    else:
+        try:
+            data = json.loads(report_path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            problems.append(f"REPORT.json unparseable: {exc}")
+            data = {}
+        if data.get("total_fixtures") != pos + neg:
+            problems.append(f"REPORT.json total_fixtures={data.get('total_fixtures')} != {pos}+{neg} fixture dirs")
+        if data.get("total_positive") != pos:
+            problems.append(f"REPORT.json total_positive={data.get('total_positive')} != {pos} positive dirs")
+        if data.get("total_negative") != neg:
+            problems.append(f"REPORT.json total_negative={data.get('total_negative')} != {neg} negative dirs")
+        if len(data.get("fixture_results", [])) != data.get("total_fixtures"):
+            problems.append("REPORT.json fixture_results length != total_fixtures")
+
+    for cs in COMPONENT_STATUS:
+        m = re.search(r"(\d+) fixtures \((\d+) pos / (\d+) neg", cs.notes)
+        if m and (int(m.group(1)), int(m.group(2)), int(m.group(3))) != (total, pos, neg):
+            problems.append(
+                f"{cs.name}: claims {m.group(1)} fixtures ({m.group(2)} pos / {m.group(3)} neg), "
+                f"actual {total} ({pos} pos / {neg} neg / {tricky} tricky)"
+            )
+        m = re.search(r"(\d+) rules, (\d+) fixtures", cs.notes)
+        if m and int(m.group(2)) != total:
+            problems.append(f"{cs.name}: claims {m.group(2)} fixtures, actual {total}")
+
+    if problems:
+        return CheckResult("fixture_count", "fail", "; ".join(problems))
+    detail = f"{total} fixtures ({pos} pos / {neg} neg / {tricky} tricky); matches REPORT.json and claims"
+    return CheckResult("fixture_count", "pass", detail)
 
 
 def _check_corpus_files() -> CheckResult:
@@ -240,40 +290,121 @@ def _check_experimental_claims() -> CheckResult:
     return CheckResult("experimental_claims", "pass", f"All rule-count claims match actual ({actual_rule_count})")
 
 
-def _check_version_consistency() -> CheckResult:
-    top_version: str | None = None
-    core_version: str | None = None
-    pyproject_version: str | None = None
+def _check_watch_rules() -> CheckResult:
+    """The watch rule corpora must load through the REAL loader with zero errors."""
+    from picosentry.watch.config import DEFAULT_RULES_DIR
+    from picosentry.watch.prompt_guard.rules import RuleEngine
 
-    top_init = _SRC / "__init__.py"
-    if top_init.exists():
-        m = re.search(r'__version__\s*=\s*["\']([^"\']+)', top_init.read_text())
-        if m:
-            top_version = m.group(1)
+    problems: list[str] = []
+    loaded = 0
+    for sub in ("prompt_injection", "output_policy"):
+        engine = RuleEngine(rules_dir=DEFAULT_RULES_DIR / sub)
+        loaded += engine.rules_loaded
+        errors = engine.load_errors
+        if errors:
+            problems.append(f"{sub}: {errors[0]}" + (f" (+{len(errors) - 1} more)" if len(errors) > 1 else ""))
+        if engine.rules_loaded == 0:
+            problems.append(f"{sub}: no rules loaded")
+    if problems:
+        return CheckResult("watch_rules", "fail", "; ".join(problems))
+    return CheckResult("watch_rules", "pass", f"{loaded} watch rules loaded cleanly (prompt_injection + output_policy)")
 
-    core_init = _SRC / "_core" / "__init__.py"
-    if core_init.exists():
-        m = re.search(r'__version__\s*=\s*["\']([^"\']+)', core_init.read_text())
-        if m:
-            core_version = m.group(1)
 
+# Import names used to verify each runtime extra is actually installable in
+# the current environment. Meta-extras (`all`, `dev`) only reference others.
+_EXTRA_IMPORTS: dict[str, tuple[str, ...]] = {
+    "scan": ("requests",),
+    "watch-server": ("fastapi", "uvicorn"),
+    "serve": (
+        "fastapi",
+        "uvicorn",
+        "pydantic",
+        "jwt",
+        "cryptography",
+        "bcrypt",
+        "pyotp",
+        "multipart",
+        "croniter",
+        "webauthn",
+        "nacl",
+    ),
+    "otel": ("opentelemetry",),
+    "sigstore": ("sigstore",),
+    "grpc": ("grpc", "google.protobuf"),
+}
+_META_EXTRAS = {"all", "dev"}
+
+
+def _declared_extras() -> set[str]:
     pyproject = _ROOT / "pyproject.toml"
-    if pyproject.exists():
-        m = re.search(r'^version\s*=\s*"([^"]+)"', pyproject.read_text(), re.MULTILINE)
-        if m:
-            pyproject_version = m.group(1)
+    if not pyproject.exists():
+        return set()
+    text = pyproject.read_text(encoding="utf-8")
+    section = re.search(r"^\[project\.optional-dependencies\](.*?)(?=^\[)", text, re.MULTILINE | re.DOTALL)
+    if not section:
+        return set()
+    return set(re.findall(r"^([A-Za-z0-9_.-]+)\s*=\s*\[", section.group(1), re.MULTILINE))
 
-    versions = {
-        "picosentry/__init__.py": top_version,
-        "picosentry/_core/__init__.py": core_version,
-        "pyproject.toml": pyproject_version,
-    }
+
+def _check_optional_extras() -> CheckResult:
+    """Declared extras must be mapped here and importable in this environment.
+
+    Catches the silent-degrade class (e.g. pynacl missing makes Ed25519 plugin
+    signature verification quietly skip) and pyproject/doctor drift on renames.
+    """
+    declared = _declared_extras() - _META_EXTRAS
+    problems: list[str] = []
+    for extra in sorted(declared):
+        mods = _EXTRA_IMPORTS.get(extra)
+        if mods is None:
+            problems.append(f"{extra}: declared in pyproject but unmapped in doctor._EXTRA_IMPORTS")
+            continue
+        for mod in mods:
+            try:
+                importlib.import_module(mod)
+            except ImportError as exc:
+                problems.append(f"{extra}: '{mod}' not importable ({exc})")
+    for extra in sorted(set(_EXTRA_IMPORTS) - declared):
+        problems.append(f"{extra}: mapped in doctor._EXTRA_IMPORTS but not declared in pyproject")
+    if problems:
+        return CheckResult("optional_extras", "fail", "; ".join(problems))
+    return CheckResult("optional_extras", "pass", f"all {len(declared)} runtime extras importable")
+
+
+def _check_version_consistency() -> CheckResult:
+    versions: dict[str, str | None] = {}
+
+    _version_re = r'__version__\s*=\s*["\']([^"\']+)'
+    for label, path, pattern in (
+        ("picosentry/__init__.py", _SRC / "__init__.py", _version_re),
+        ("picosentry/_core/__init__.py", _SRC / "_core" / "__init__.py", _version_re),
+        ("picosentry/serve/config/version.py", _SRC / "serve" / "config" / "version.py", _version_re),
+        ("pyproject.toml", _ROOT / "pyproject.toml", r'^version\s*=\s*"([^"]+)"'),
+    ):
+        if path.exists():
+            m = re.search(pattern, path.read_text(), re.MULTILINE)
+            if m:
+                versions[label] = m.group(1)
+
+    helm_chart = _ROOT / "deploy" / "helm" / "picodome" / "Chart.yaml"
+    helm_version: str | None = None
+    if helm_chart.exists():
+        m = re.search(r'^appVersion:\s*"([^"]+)"', helm_chart.read_text(), re.MULTILINE)
+        if m:
+            helm_version = m.group(1)
+            versions["deploy/helm/picodome/Chart.yaml appVersion"] = helm_version.removeprefix("v")
+
     non_none = {k: v for k, v in versions.items() if v is not None}
     unique = set(non_none.values())
+    problems: list[str] = []
     if len(unique) > 1:
-        return CheckResult("version_consistency", "fail", f"Version mismatch: {non_none}")
+        problems.append(f"Version mismatch: {non_none}")
     if not unique:
         return CheckResult("version_consistency", "warn", "No version strings found")
+    if helm_version is not None and not helm_version.startswith("v"):
+        problems.append(f"helm appVersion {helm_version!r} must be v-prefixed")
+    if problems:
+        return CheckResult("version_consistency", "fail", "; ".join(problems))
     return CheckResult("version_consistency", "pass", f"All versions match: {unique.pop()}")
 
 
@@ -324,6 +455,8 @@ def verify(repair: bool = False) -> DoctorReport:
         _check_no_secrets_in_source,
         _check_experimental_claims,
         _check_version_consistency,
+        _check_watch_rules,
+        _check_optional_extras,
     ]
     for fn in check_fns:
         try:

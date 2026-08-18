@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import importlib.util
 
 from picosentry.cli_commands import register
 
@@ -18,10 +17,12 @@ def cmd(_args: argparse.Namespace) -> int:
 
     checks = []
 
-    if importlib.util.find_spec("picosentry.scan.engine") is not None:
+    try:
+        import picosentry.scan.engine  # noqa: F401
+
         checks.append(("scan", "ok", "engine importable"))
-    else:
-        checks.append(("scan", "FAIL", "picosentry.scan.engine not available"))
+    except ImportError as e:
+        checks.append(("scan", "FAIL", str(e)))
 
     try:
         from picosentry.sandbox import __version__

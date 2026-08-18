@@ -117,7 +117,7 @@ Offline + deterministic + malicious-behavior rules in one package.
 | `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
 | Cross-layer correlation | **Stable** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested in CI |
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
-| Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI |
+| Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16/17/18 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 5673 fixtures (3431 pos / 2235 neg), 53 rules, 100.00% prec, 90.87% recall — see docs/model-card.md |
 | Docker image | **Stable** | multi-arch (linux/amd64 + linux/arm64), non-root; latest published: kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.2 push pending (WO5.0.0-014) |

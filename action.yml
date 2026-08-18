@@ -14,7 +14,7 @@ inputs:
     required: false
     default: 'true'
   format:
-    description: 'Output format (json, sarif, cyclonedx)'
+    description: 'Output format (json, sarif, cyclonedx, table, ml-context, github, markdown)'
     required: false
     default: 'sarif'
   severity-threshold:
@@ -39,7 +39,15 @@ runs:
       id: scan
       shell: bash
       run: |
-        ARGS=(scan "${{ inputs.path }}" --format sarif --output "${{ inputs.sarif-file }}")
+        case "${{ inputs.format }}" in
+          json|sarif|cyclonedx|table|ml-context|github|markdown) ;;
+          *)
+            echo "::error::Invalid format '${{ inputs.format }}' (accepted: json, sarif, cyclonedx, table, ml-context, github, markdown)"
+            exit 2
+            ;;
+        esac
+
+        ARGS=(scan "${{ inputs.path }}" --format "${{ inputs.format }}" --output "${{ inputs.sarif-file }}")
         if [ -n "${{ inputs.severity-threshold }}" ]; then
           ARGS+=(--severity-threshold "${{ inputs.severity-threshold }}")
         fi
@@ -52,11 +60,32 @@ runs:
         fi
 
         if [ ! -f "${{ inputs.sarif-file }}" ]; then
-          echo "::error::PicoSentry scan produced no SARIF file at '${{ inputs.sarif-file }}'"
+          echo "::error::PicoSentry scan produced no output file at '${{ inputs.sarif-file }}'"
           exit 2
         fi
 
-        FINDINGS_COUNT=$(python3 -c "import json; d=json.load(open('${{ inputs.sarif-file }}')); print(len(d.get('runs',[{}])[0].get('results',[])))" 2>/dev/null || echo "0")
+        case "${{ inputs.format }}" in
+          sarif|github)
+            if [ "${{ inputs.format }}" = "github" ]; then COUNT_FILE="sarif.json"; else COUNT_FILE="${{ inputs.sarif-file }}"; fi
+            FINDINGS_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('runs',[{}])[0].get('results',[])))" "$COUNT_FILE") || {
+              echo "::error::Failed to parse '$COUNT_FILE' as SARIF — refusing to report 0 findings"
+              exit 2
+            }
+            ;;
+          json)
+            FINDINGS_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('findings',[])))" "${{ inputs.sarif-file }}") || {
+              echo "::error::Failed to parse '${{ inputs.sarif-file }}' as a JSON scan report — refusing to report 0 findings"
+              exit 2
+            }
+            ;;
+          *)
+            if [ "${{ inputs.fail-on-findings }}" = "true" ]; then
+              echo "::error::fail-on-findings requires a findings-bearing format (sarif, github or json); '${{ inputs.format }}' cannot trip it"
+              exit 2
+            fi
+            FINDINGS_COUNT=0
+            ;;
+        esac
 
         echo "findings_count=$FINDINGS_COUNT" >> "$GITHUB_OUTPUT"
         echo "sarif_file=${{ inputs.sarif-file }}" >> "$GITHUB_OUTPUT"

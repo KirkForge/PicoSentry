@@ -196,7 +196,6 @@ asyncio_default_fixture_loop_scope = "function"
 branch = true
 source = ["picosentry"]
 omit = [
-    "picosentry/_cli_commands/*",
     "picosentry/*/__main__.py",
     "picosentry/scan/daemon/*",
     "picosentry/sandbox/daemon/*",

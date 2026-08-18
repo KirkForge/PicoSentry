@@ -104,15 +104,23 @@ jobs:
           TAG="${{ steps.tag.outputs.TAG }}"
           TAG="${TAG#v}"
           IMAGE="docker.io/kirkforge/picodome:v${TAG}"
-          DIGEST=$(docker buildx imagetools inspect "${IMAGE}" --format '{{.Manifest.Digest}}' 2>/dev/null || echo "")
-          if [ -n "${DIGEST}" ]; then
-            gh attestation verify "${IMAGE}" \
-              --repo "${{ github.repository }}" \
-              --predicate-type https://slsa.dev/provenance/v1 || \
-              echo "ceiling: Docker image attestation not yet available; image pushed but not attested"
-          else
-            echo "ceiling: Could not extract image digest; skipping attestation verification"
+          DIGEST=$(docker buildx imagetools inspect "${IMAGE}" --format '{{.Manifest.Digest}}' 2>/dev/null)
+          if [ -z "${DIGEST}" ]; then
+            echo "::error::Could not extract manifest digest for ${IMAGE} — cannot verify attestation"
+            exit 1
           fi
+          ATTESTATION_COUNT=$(gh api "repos/${{ github.repository }}/attestations/${DIGEST}" --jq '.attestations | length' 2>/dev/null)
+          if [ "${ATTESTATION_COUNT}" = "0" ]; then
+            echo "ceiling: image pushed but not attested yet (no attestations for digest ${DIGEST}); skipping"
+            exit 0
+          fi
+          if [ -z "${ATTESTATION_COUNT}" ]; then
+            echo "::error::Could not query attestations for digest ${DIGEST} — cannot verify"
+            exit 1
+          fi
+          gh attestation verify "${IMAGE}" \
+            --repo "${{ github.repository }}" \
+            --predicate-type https://slsa.dev/provenance/v1
 
       - name: Verify Docker image runs
         run: |

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""PicoSentry test doctor — run all CI-quality checks concurrently.
+"""PicoSentry test doctor — run CI-quality checks concurrently.
 
-This is the local equivalent of the GitHub Actions matrix. It executes lint,
-type-check and pytest suites concurrently, streams output as checks finish,
-and fails fast so regressions surface immediately.
+Local parallel runner for lint, type-check and pytest. CI itself runs the
+``scripts/test.sh`` profiles (see AGENTS.md §3); this script is a
+convenience wrapper, not a byte-for-byte CI mirror.
 
 Usage:
     python scripts/test_doctor.py              # lint + type + full pytest umbrella
@@ -144,11 +144,10 @@ def _pytest_common_args(_config: DoctorConfig, xdist: str) -> list[str]:
 
 
 def _full_pytest_args(_config: DoctorConfig) -> list[str]:
-    """Command that mirrors the CI test-core / test-matrix job.
-
-    The CI matrix runs this serially (no xdist) so the doctor's full
-    umbrella matches that exactly. xdist can expose test-isolation bugs
-    that are not CI failures; per-area mode still offers xdist for speed.
+    """Single umbrella pytest run (CI runs the scripts/test.sh profiles
+    instead — prefer those for CI-faithful results). xdist can expose
+    test-isolation bugs that profile runs do not; per-area mode still offers
+    xdist for speed.
     """
     return [_python(), "-m", "pytest", "tests/", "-x", "--tb=short", "-q"]
 

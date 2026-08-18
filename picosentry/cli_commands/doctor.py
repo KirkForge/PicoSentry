@@ -20,6 +20,8 @@ def cmd(args: argparse.Namespace) -> int:
 
     if args.output_json:
         print(report.to_json())
+        if not report.all_passed():
+            return 1
         return 0
 
     icon = {"pass": "\u2713", "fail": "\u2717", "warn": "\u2605"}

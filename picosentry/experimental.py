@@ -89,7 +89,8 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
         name="Postgres backend",
         status="Stable",
         notes=(
-            "psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16 CI"
+            "psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; "
+            "live PG 15/16/17/18 CI"
         ),
     ),
     ComponentStatus(

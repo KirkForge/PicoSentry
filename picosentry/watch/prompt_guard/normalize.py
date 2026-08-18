@@ -2,9 +2,16 @@ from __future__ import annotations
 
 import base64
 import codecs
+import html
 import re
 import unicodedata
 from typing import ClassVar
+
+# Total decoded payload bytes re-scanned per request (WO4.0.0-016). Shared by
+# the prompt guard and the output guard's decode-and-rescan pass. Generous
+# against legitimate small embeds; bounds normalize+evaluate over many
+# full-size base64 decodes on base64-heavy input.
+MAX_DECODE_BYTES = 256 * 1024
 
 
 class Normalizer:
@@ -36,6 +43,45 @@ class Normalizer:
     # produce ~80k decodes per scan. Raise if legitimate traffic needs more.
     _MAX_DECODE_VARIANTS = 32
 
+    # Decoded candidates containing any of these literals bypass the benign
+    # variant cap: flooding benign decodes cannot starve the real payload out
+    # of the re-scan window (WO5.0.0-011 decode-budget dial). Hints only
+    # prioritize keeping — the rule engine still decides the verdict.
+    _DECODE_HINTS = (
+        "ignore",
+        "disregard",
+        "override",
+        "forget",
+        "instruction",
+        "system prompt",
+        "reveal",
+        "secret",
+        "password",
+        "private key",
+        "aws_",
+        "api_key",
+        "api key",
+        "credential",
+        "token",
+    )
+
+    # ROT13 of the common injection vocabulary from the rule corpus. Gated so
+    # benign English is never rot13-decoded (an FP source); the gate runs on
+    # every decode layer, not just the original text (WO5.0.0-011). The
+    # previous pattern misspelled five entries (qvfrertnq/cezcg/sbez/fgbp/bff)
+    # so real rot13 "disregard"/"system prompt"/"from now on"/"stop being"/
+    # "turn off" never matched.
+    _ROT13_GATE = re.compile(
+        r"vtaber|sbetrg|qvfertneq|bireevqr|flfgrz\s+cebzcg|"
+        r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sebz\s+abj\s+ba|"
+        r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
+        r"cebzcg|rkgenpx|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bss|"
+        r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
+        re.IGNORECASE,
+    )
+
+    _HTML_ENTITY = re.compile(r"&#?[0-9a-zA-Z]{2,8};")
+
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
 
     _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s+(\w)){2,}(?=\s|$|[,.;!?])")
@@ -58,52 +104,81 @@ class Normalizer:
         return self.deobfuscate_markdown(result)
 
     def decode_and_rescan(self, text: str, *, byte_budget: int | None = None) -> list[str]:
-        candidates: list[str] = list(self.decode_base64(text))
+        return self._decode_candidates(text, byte_budget=byte_budget)[0]
 
-        # ROT13 is self-inverting and commonly used to hide injection words.
-        # The original keyword gate was too narrow (only five strings), so
-        # non-keyword ROT13 payloads bypassed decoding. The expanded list
-        # below covers the common injection vocabulary from the PicoWatch
-        # rule corpus while still avoiding a full always-decode path that
-        # would false-positive on benign English containing "ignore" etc.
-        rot13_pattern = re.compile(
-            r"vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz\s+cezcg|"
-            r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sbez\s+abj\s+ba|"
-            r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
-            r"cebzcg|rkgenpg|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bff|"
-            r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
-            re.IGNORECASE,
-        )
-        if rot13_pattern.search(text):
-            rot13 = self.decode_rot13(text)
-            if rot13 != text:
-                candidates.append(rot13)
-                # Recursively consider nested encoding layers from the decoded text.
-                candidates.extend(self.decode_base64(rot13, max_depth=2))
+    def _decode_candidates(self, text: str, *, byte_budget: int | None = None) -> tuple[list[str], bool]:
+        """Breadth-first decode over at most two layers (WO5.0.0-011).
+
+        Layer-N candidates are re-decoded at layer N+1 so composed encodings
+        (b64-of-urlencode, b64-of-rot13, b64-of-entities, url-of-b64) are
+        peeled — the single-pass decode only ever saw the original text.
+        Returns ``(candidates, budget_exhausted)``; the flag is true when a
+        decodable candidate was dropped (variant cap or byte budget), so a
+        clean/WARN verdict can admit it may have missed encoded content.
+        """
+        budget = byte_budget if byte_budget is not None else self._MAX_DECODE_VARIANTS * 64_000
+        seen = {text}
+        kept: list[str] = []
+        benign_slots = self._MAX_DECODE_VARIANTS
+        exhausted = False
+        frontier = [text]
+        for _layer in range(3):
+            next_frontier: list[str] = []
+            for item in frontier:
+                for cand in self._decode_pass(item):
+                    if cand in seen:
+                        continue
+                    seen.add(cand)
+                    budget -= len(cand)
+                    if budget <= 0:
+                        return kept, True
+                    next_frontier.append(cand)
+                    if self._hints_hit(cand):
+                        kept.append(cand)
+                    elif benign_slots > 0:
+                        benign_slots -= 1
+                        kept.append(cand)
+                    else:
+                        exhausted = True
+            frontier = next_frontier
+        return kept, exhausted
+
+    @classmethod
+    def _hints_hit(cls, text: str) -> bool:
+        lowered = text.lower()
+        return any(hint in lowered for hint in cls._DECODE_HINTS)
+
+    def _decode_pass(self, text: str) -> list[str]:
+        """One decode layer: single-level b64, gated rot13/url, hex, entities.
+
+        Kept uncapped here — the caller's byte budget is the bound; the old
+        per-collection variant cap consumed in document order was an attacker
+        dial (32 benign fillers pushed the payload out of the window).
+        """
+        out: list[str] = []
+        seen: set[str] = set()
+
+        def add(cand: str) -> None:
+            if cand and cand != text and cand not in seen:
+                seen.add(cand)
+                out.append(cand)
+
+        for payload in self._b64_payloads(text):
+            add(payload)
+
+        if self._ROT13_GATE.search(text):
+            add(self.decode_rot13(text))
 
         if self._URL_ENC.search(text):
-            url_decoded = self.decode_url(text)
-            if url_decoded != text:
-                candidates.append(url_decoded)
+            add(self.decode_url(text))
 
-        candidates.extend(self.decode_hex(text))
+        for payload in self._hex_payloads(text):
+            add(payload)
 
-        # Dedupe (standard and urlsafe alphabets overlap) and bound the budget.
-        # byte_budget bounds the TOTAL decoded payload kept for re-scanning —
-        # base64-heavy documents otherwise re-run the full normalize+evaluate
-        # pipeline over many full-size decodes (WO4.0.0-016: 22s/MB case).
-        budget = byte_budget if byte_budget is not None else self._MAX_DECODE_VARIANTS * 64_000
-        seen: set[str] = set()
-        decoded_texts: list[str] = []
-        for item in candidates:
-            if item in seen:
-                continue
-            seen.add(item)
-            decoded_texts.append(item)
-            budget -= len(item)
-            if budget <= 0 or len(decoded_texts) >= self._MAX_DECODE_VARIANTS:
-                break
-        return decoded_texts
+        if self._HTML_ENTITY.search(text):
+            add(html.unescape(text))
+
+        return out
 
     def normalize_unicode(self, text: str) -> str:
         return unicodedata.normalize("NFKC", text)
@@ -170,43 +245,46 @@ class Normalizer:
 
         return result
 
-    def decode_base64(self, text: str, max_depth: int = 3, _depth: int = 0) -> list[str]:
-        if _depth >= max_depth:
-            return []
+    def decode_base64(self, text: str) -> list[str]:
+        """Single-level base64 decode; composed layers are peeled by _decode_candidates."""
+        return self._b64_payloads(text)[: self._MAX_DECODE_VARIANTS]
 
-        decoded: list[str] = []
+    def _b64_payloads(self, text: str) -> list[str]:
         # Standard and URL-safe alphabets overlap on [A-Za-z0-9]; runs without
         # +//-_/_ match both patterns and dedupe to one entry downstream.
+        payloads: list[str] = []
+        seen: set[str] = set()
         for pattern, decoder in (
             (self._BASE64, base64.b64decode),
             (self._BASE64_URLSAFE, base64.urlsafe_b64decode),
         ):
             for match in pattern.finditer(text):
-                if len(decoded) >= self._MAX_DECODE_VARIANTS:
-                    return decoded
                 try:
                     payload = decoder(match.group()).decode("utf-8", errors="ignore")
-                    if len(payload) > 5 and self._is_mostly_printable(payload):  # skip trivial/garbage decodes
-                        decoded.append(payload)
-                        # Recursively decode nested base64 layers.
-                        decoded.extend(self.decode_base64(payload, max_depth=max_depth, _depth=_depth + 1))
                 except (ValueError, UnicodeDecodeError):
                     continue
-        return decoded
+                if len(payload) > 5 and self._is_mostly_printable(payload) and payload not in seen:
+                    # skip trivial/garbage decodes
+                    seen.add(payload)
+                    payloads.append(payload)
+        return payloads
 
     def decode_hex(self, text: str) -> list[str]:
         """Decode long hex runs; non-printable results (hashes, IDs) are dropped."""
-        decoded: list[str] = []
+        return self._hex_payloads(text)[: self._MAX_DECODE_VARIANTS]
+
+    def _hex_payloads(self, text: str) -> list[str]:
+        payloads: list[str] = []
+        seen: set[str] = set()
         for match in self._HEX.finditer(text):
-            if len(decoded) >= self._MAX_DECODE_VARIANTS:
-                break
             try:
                 payload = bytes.fromhex(match.group().removeprefix("0x")).decode("utf-8", errors="ignore")
             except ValueError:
                 continue
-            if len(payload) > 5 and self._is_mostly_printable(payload):
-                decoded.append(payload)
-        return decoded
+            if len(payload) > 5 and self._is_mostly_printable(payload) and payload not in seen:
+                seen.add(payload)
+                payloads.append(payload)
+        return payloads
 
     @staticmethod
     def _is_mostly_printable(text: str) -> bool:

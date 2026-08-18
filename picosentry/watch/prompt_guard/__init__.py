@@ -8,7 +8,7 @@ from typing import Any
 
 from picosentry.watch.config import PicoWatchConfig
 from picosentry.watch.prompt_guard.classifier import PromptClassifier
-from picosentry.watch.prompt_guard.normalize import Normalizer
+from picosentry.watch.prompt_guard.normalize import MAX_DECODE_BYTES, Normalizer
 from picosentry.watch.prompt_guard.rules import RuleEngine
 from picosentry.watch.prompt_guard.scorer import Scorer
 from picosentry.watch.types import PromptScanResult, Rule
@@ -16,11 +16,6 @@ from picosentry.watch.types import PromptScanResult, Rule
 logger = logging.getLogger("picowatch.guard")
 
 __all__ = ["Normalizer", "PromptClassifier", "PromptGuard", "RuleEngine", "Scorer"]
-
-# Total decoded payload bytes re-scanned per request (WO4.0.0-016). Generous
-# against legitimate small embeds; bounds normalize+evaluate over many
-# full-size base64 decodes on base64-heavy input.
-_MAX_DECODE_BYTES = 256 * 1024
 
 
 class PromptGuard:
@@ -118,11 +113,13 @@ class PromptGuard:
 
             # Decode the raw text AND the NFKC-normalized variant: fullwidth-
             # or zero-width-wrapped base64/hex only becomes decodable after
-            # normalization. The decoded-payload byte budget bounds the
-            # re-scan cost on base64-heavy documents.
-            decoded_texts = self._normalizer.decode_and_rescan(text, byte_budget=_MAX_DECODE_BYTES)
+            # normalization. The layered pass re-decodes candidates (depth 2)
+            # so composed encodings are peeled; the decoded-payload byte
+            # budget bounds the re-scan cost on base64-heavy documents.
+            decoded_texts, decode_exhausted = self._normalizer._decode_candidates(text, byte_budget=MAX_DECODE_BYTES)
             if normalized != text:
-                more = self._normalizer.decode_and_rescan(normalized, byte_budget=_MAX_DECODE_BYTES)
+                more, more_exhausted = self._normalizer._decode_candidates(normalized, byte_budget=MAX_DECODE_BYTES)
+                decode_exhausted = decode_exhausted or more_exhausted
                 decoded_texts.extend(more)
                 decoded_texts = list(dict.fromkeys(decoded_texts))
             for decoded in decoded_texts:
@@ -165,6 +162,11 @@ class PromptGuard:
                 details["regex_score"] = regex_score
                 details["classifier_score"] = classifier_score
                 details["classifier_features"] = classifier_features
+            if decode_exhausted:
+                # Honest omission signal: some decodable candidate was dropped
+                # by the variant/byte budget, so this verdict may have missed
+                # encoded content (WO5.0.0-011).
+                details["decode_budget_exhausted"] = True
 
             return PromptScanResult(
                 blocked=final_score >= self._config.threshold_block,

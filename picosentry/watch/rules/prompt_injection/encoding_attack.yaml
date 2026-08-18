@@ -9,7 +9,7 @@
 - id: inj_encode_rot13
   category: encoding_attack
   weight: 0.7
-  pattern: "(?:vtaber|sbetrg|qvfrertnq|bireevqr|flfgrz cezcg)"
+  pattern: "(?:vtaber|sbetrg|qvfertneq|bireevqr|flfgrz cebzcg)"
   description: "ROT13-encoded injection words (ignore/forget/disregard/override/system prompt)"
 
 - id: inj_encode_url

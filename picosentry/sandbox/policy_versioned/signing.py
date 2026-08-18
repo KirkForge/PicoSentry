@@ -229,10 +229,10 @@ def load_policy_with_verification(
 
     if effective_key is None:
         logger.warning(
-            "Policy %s is signed but no verification key (PICODOME_POLICY_KEY) is configured — cannot verify",
+            "Policy %s is signed but no verification key (PICODOME_POLICY_KEY) is configured — refusing (fail-closed)",
             path,
         )
-        return strip_signature(content), VerifyResult(
+        return "", VerifyResult(
             valid=False,
             error="no verification key configured for signed policy",
         )
@@ -332,9 +332,11 @@ def load_policy_with_companion_verification(
         return "", VerifyResult(valid=False, error="policy is unsigned but key is configured")
 
     if has_sig and effective_key is None:
-        logger.warning("Policy %s is signed but no verification key configured — loading without verification", path)
-        content = path.read_text(encoding="utf-8")
-        return content, VerifyResult(valid=False, error="no verification key configured for signed policy")
+        logger.warning(
+            "Policy %s is signed but no verification key configured — refusing (fail-closed, WO5.0.0-003)",
+            path,
+        )
+        return "", VerifyResult(valid=False, error="no verification key configured for signed policy")
 
     if effective_key is None:
         raise RuntimeError("Internal error: effective_key must not be None when signature exists")

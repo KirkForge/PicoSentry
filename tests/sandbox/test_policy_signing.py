@@ -18,6 +18,8 @@ import json
 import os
 from unittest import mock
 
+import pytest
+
 from picosentry.sandbox.policy_versioned.signing import (
     SIGNATURE_MARKER,
     generate_key,
@@ -430,7 +432,41 @@ class TestLoadPolicyWithCompanionVerification:
         policy_file.write_text('{"rules": []}')
         sign_policy_companion(policy_file, key)
 
-        # No key provided, no env key — load with warning
+        # No key provided, no env key — fail-closed (WO5.0.0-003): a signed
+        # policy that cannot be verified is refused, content never returned.
         content, result = load_policy_with_companion_verification(policy_file, key=None)
-        assert "rules" in content  # loaded without verification
-        assert not result.valid  # but result notes it couldn't verify
+        assert content == ""
+        assert result is not None
+        assert not result.valid
+        assert "no verification key" in result.error
+
+    def test_signed_tampered_key_absent_load_policy_raises(self, tmp_path):
+        """WO5.0.0-003 gate: signed + tampered on disk + key absent on the
+        verifier → load_policy(verify_signature=True) raises (fail-closed).
+        This exact case used to LOAD the tampered policy."""
+        from picosentry.sandbox.l3.policy import load_policy
+        from picosentry.sandbox.policy_versioned.signing import _load_key
+
+        policy_json = json.dumps(
+            {
+                "name": "test-policy",
+                "version": "1.0",
+                "default_action": "deny",
+                "rules": [
+                    {"rule_id": "NET-1", "target": "network_out", "action": "deny"},
+                ],
+            }
+        )
+        key = generate_key()
+        policy_file = tmp_path / "policy.json"
+        policy_file.write_text(policy_json)
+        sign_policy_companion(policy_file, key)
+
+        tampered = json.loads(policy_json)
+        tampered["rules"][0]["action"] = "allow"
+        policy_file.write_text(json.dumps(tampered))
+
+        with mock.patch.dict(os.environ, {"PICODOME_POLICY_KEY": ""}, clear=True):
+            assert _load_key() is None
+            with pytest.raises(ValueError, match="signature verification failed"):
+                load_policy(path=policy_file, verify_signature=True)

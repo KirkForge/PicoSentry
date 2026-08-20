@@ -21,8 +21,8 @@
 - id: out_fmt_xml_injection
   category: format_violation
   weight: 0.65
-  pattern: "(?:<!ENTITY|<!DOCTYPE|<?xml|<\\?xml-stylesheet|SYSTEM\\s+|PUBLIC\\s+)"
-  description: "XML injection — XXE or entity expansion attack"
+  pattern: "(?:<!ENTITY|<!DOCTYPE|<\\?xml|<\\?xml-stylesheet|(?:SYSTEM|PUBLIC)\\s+[\"'])"
+  description: "XML injection — XXE or entity expansion attack (DTD context required for SYSTEM/PUBLIC)"
 
 - id: out_fmt_sql_injection
   category: format_violation

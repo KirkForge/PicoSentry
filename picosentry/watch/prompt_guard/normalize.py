@@ -89,7 +89,9 @@ class Normalizer:
     # first-char-skippable phrase regexes — one big-alternation re.search cost
     # ~230ms/200KB because every branch was retried at every position.
     # _ROT13_GATE_PHRASES must stay an exact branch-for-branch decomposition
-    # of the original alternation (WO5.0.0-029).
+    # of the original alternation (WO5.0.0-029). WO6.0.0-002 restored three
+    # misspelled entries (ercnpg->ercrng, rkgenpx->rkgenpg, erfbyhgr->erfbyir)
+    # reintroduced by the WO5-029 gate fan-out.
     _ROT13_GATE_WORDS: ClassVar[frozenset[str]] = frozenset(
         {
             "vtaber",
@@ -97,14 +99,14 @@ class Normalizer:
             "qvfertneq",
             "bireevqr",
             "qvfnoyr",
-            "ercnpg",
+            "ercrng",
             "rivy",
             "znyvpvbhf",
             "unpxre",
             "pbafrag",
             "cebzcg",
-            "rkgenpx",
-            "erfbyhgr",
+            "rkgenpg",
+            "erfbyir",
             "qroht",
             "hfre",
             "vachg",
@@ -130,7 +132,11 @@ class Normalizer:
         )
     )
 
-    _HTML_ENTITY = re.compile(r"&#?[0-9a-zA-Z]{2,8};")
+    # HTML entity gate: Python's html.unescape decodes semicolon-less numeric
+    # refs (&#111 / &#x6f) too, so the gate must match them or an entity-
+    # encoded payload slips past the decode activation (WO6.0.0-002). Named
+    # entities still require the semicolon — unescape does too.
+    _HTML_ENTITY = re.compile(r"&#(?:[0-9]{2,}|x[0-9a-fA-F]{2,});?|&[a-zA-Z]{2,8};")
 
     _URL_ENC = re.compile(r"%[0-9a-fA-F]{2}")
 
@@ -143,6 +149,15 @@ class Normalizer:
     _SPACED_SINGLE_CHAR = re.compile(r"(?:^|(?<=\s))(\w)(?:\s(\w)){2,}(?=\s|$|[,.;!?])")
 
     _SEPARATOR_PUNCT = re.compile(r"(?<=\w)[.\-_/](?=\w)")
+
+    # ponytail: separator REMOVAL (not →space) rejoins multi-char fragments
+    # split by a single separator — `orig.inal` → `original`. The spaced
+    # substitution handles the `ignore-all-previous` case (separate words);
+    # removal handles the `orig.inal` obfuscation (one word split). Both
+    # variants are scanned (WO6.0.0-002). Ceiling: this is a second full
+    # normalize+evaluate pass when separators are present — gated on
+    # `_SEPARATOR_PUNCT.search` so clean text pays nothing.
+    _SEPARATOR_REMOVED = re.compile(r"(?<=\w)[.\-_/](?=\w)")
 
     _LLM_TOKEN_MARKER = re.compile(r"<\|[^|]+\|>")
 
@@ -179,6 +194,11 @@ class Normalizer:
         Returns ``(candidates, budget_exhausted)``; the flag is true when a
         decodable candidate was dropped (variant cap or byte budget), so a
         clean/WARN verdict can admit it may have missed encoded content.
+
+        WO6.0.0-016: hint-carrying candidates are processed BEFORE benign
+        ones within each layer so a flood of benign b64 fillers cannot
+        starve the real payload out of the byte budget. The variant cap
+        bypass already existed; the byte budget did not.
         """
         budget = byte_budget if byte_budget is not None else self._MAX_DECODE_VARIANTS * 64_000
         seen = {text}
@@ -189,7 +209,12 @@ class Normalizer:
         for _layer in range(3):
             next_frontier: list[str] = []
             for item in frontier:
-                for cand in self._decode_pass(item):
+                cands = self._decode_pass(item)
+                # Hint-first ordering: hint-carrying candidates consume the
+                # byte budget before benign ones so a benign filler flood
+                # cannot starve the payload (WO6.0.0-016).
+                cands.sort(key=lambda c: not self._hints_hit(c))
+                for cand in cands:
                     if cand in seen:
                         continue
                     seen.add(cand)
@@ -253,7 +278,7 @@ class Normalizer:
                     continue
                 payload = raw.decode("utf-8", errors="ignore")
                 if self._is_textlike(raw, payload):
-                    add(payload)
+                    add(self._strip_control_chars(payload))
 
         if self._HTML_ENTITY.search(text):
             add(html.unescape(text))
@@ -277,7 +302,7 @@ class Normalizer:
             return
         payload = raw.decode("utf-8", errors="ignore")
         if Normalizer._is_textlike(raw, payload):
-            add(payload)
+            add(Normalizer._strip_control_chars(payload))
 
     def normalize_unicode(self, text: str) -> str:
         return unicodedata.normalize("NFKC", text)
@@ -362,13 +387,18 @@ class Normalizer:
                 except (ValueError, UnicodeDecodeError):
                     continue
                 payload = raw.decode("utf-8", errors="ignore")
-                if self._is_textlike(raw, payload) and payload not in seen:
-                    seen.add(payload)
-                    payloads.append(payload)
+                if self._is_textlike(raw, payload):
+                    cleaned = self._strip_control_chars(payload)
+                    if cleaned not in seen:
+                        seen.add(cleaned)
+                        payloads.append(cleaned)
         return payloads
 
     # Non-printable ASCII (Cc + DEL): for pure-ASCII payloads this is exactly
     # the complement of str.isprintable, countable with one C-level translate.
+    # Used both to count the printable ratio and to strip control chars from
+    # decoded payloads so diluted b64 (control chars every Nth byte) still
+    # reaches the rule engine as clean text (WO6.0.0-002).
     _NONPRINTABLE_ASCII_DEL: ClassVar[dict[int, None]] = dict.fromkeys(range(32))
     _NONPRINTABLE_ASCII_DEL[0x7F] = None
 
@@ -382,16 +412,33 @@ class Normalizer:
         are printable text surviving the decode intact. Ceiling: non-ASCII
         multibyte payloads (survival ~1/3) are dropped — the rule corpus is
         ASCII-pattern based regardless.
+
+        WO6.0.0-002: the ratio floor was 0.95 — a diluted payload with one
+        control char every 16th byte (93% printable) was dropped, evading
+        the decode path. Lowered to 0.6 with the rule engine as the FP gate:
+        random binary noise that crosses 60% printable does not match the
+        injection rule corpus. Control chars are stripped from the returned
+        payload by the caller so \\x01 between words doesn't break \\s+ gaps.
+        Binary rejection uses a 0.7 survival floor (raw bytes that decode to
+        < 70% of their length are binary blobs like PNG/image data, not
+        diluted text — diluted text survives at ~1.0 because control chars
+        are valid single-byte UTF-8).
         """
-        if len(payload) < 6 or len(payload) * 2 < len(raw):
+        if len(payload) < 6 or len(payload) / len(raw) < 0.7:
             return False
         # ceiling: per-char isprintable genexpr cost ~3us/char dominated
         # base64-heavy scans (WO5.0.0-029); ASCII payloads count non-printables
         # via one C translate instead. Non-ASCII takes the exact slow path.
         if payload.isascii():
             printable = len(payload.translate(Normalizer._NONPRINTABLE_ASCII_DEL))
-            return printable / len(payload) >= 0.95
-        return sum(ch.isprintable() for ch in payload) / len(payload) >= 0.95
+            return printable / len(payload) >= 0.6
+        return sum(ch.isprintable() for ch in payload) / len(payload) >= 0.6
+
+    @staticmethod
+    def _strip_control_chars(payload: str) -> str:
+        """Remove non-printable ASCII from a decoded payload so control-char
+        dilution between words doesn't break rule patterns (WO6.0.0-002)."""
+        return payload.translate(Normalizer._NONPRINTABLE_ASCII_DEL)
 
     def decode_hex(self, text: str) -> list[str]:
         """Decode long hex runs; non-printable results (hashes, IDs) are dropped."""
@@ -406,9 +453,11 @@ class Normalizer:
             except ValueError:
                 continue
             payload = raw.decode("utf-8", errors="ignore")
-            if self._is_textlike(raw, payload) and payload not in seen:
-                seen.add(payload)
-                payloads.append(payload)
+            if self._is_textlike(raw, payload):
+                cleaned = self._strip_control_chars(payload)
+                if cleaned not in seen:
+                    seen.add(cleaned)
+                    payloads.append(cleaned)
         return payloads
 
     def has_zero_width(self, text: str) -> bool:
@@ -453,6 +502,45 @@ class Normalizer:
         result = text.replace("<!--", " ").replace("-->", " ")
         result = result.replace("/*", " ").replace("*/", " ")
         return self._LINE_COMMENT_MARK.sub("  ", result)
+
+    def has_separator_punct(self, text: str) -> bool:
+        """Necessary-condition gate for the separator-removed variant (WO6.0.0-002)."""
+        return self._SEPARATOR_REMOVED.search(text) is not None
+
+    def normalize_separator_removed(self, text: str) -> str:
+        """Normalize with separators REMOVED instead of spaced (WO6.0.0-002).
+
+        `orig.inal` → `original` (rejoined); the standard normalize path
+        spaces it to `orig inal` which breaks word-anchored rules. This
+        variant is scanned alongside the standard normalized text so both
+        obfuscation shapes (separate-words-joined and one-word-split) are
+        caught.
+        """
+        placeholders: dict[str, str] = {}
+        if "<|" in text:
+            for idx, match in enumerate(self._LLM_TOKEN_MARKER.finditer(text)):
+                placeholder = f"\x00LLMTOKEN{idx}\x00"
+                placeholders[placeholder] = match.group()
+        if _DIGIT_DOT_DIGIT.search(text) is not None:
+            for idx, match in enumerate(self._IP_ADDRESS.finditer(text)):
+                placeholder = f"\x00IPADDR{idx}\x00"
+                placeholders[placeholder] = match.group()
+        if "://" in text:
+            for idx, match in enumerate(self._URL_SCHEME.finditer(text)):
+                placeholder = f"\x00URLSCHEME{idx}\x00"
+                placeholders[placeholder] = match.group()
+
+        result = text
+        for placeholder, original in placeholders.items():
+            result = result.replace(original, placeholder)
+
+        result = self._SEPARATOR_REMOVED.sub("", result)
+        result = self.collapse_spaced_text(result)
+
+        for placeholder, original in placeholders.items():
+            result = result.replace(placeholder, original)
+
+        return self.normalize(result)
 
     def deobfuscate_markdown(self, text: str) -> str:
 

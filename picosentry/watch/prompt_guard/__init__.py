@@ -122,6 +122,15 @@ class PromptGuard:
                     marker_normalized = candidate
                     matches.extend(self._engine.evaluate(marker_normalized))
 
+            # Separator-removed variant (WO6.0.0-002): `orig.inal` → spaced
+            # to `orig inal` by the standard path breaks word-anchored rules;
+            # removing the separator rejoins it to `original`. Gated on
+            # separator presence so clean text pays nothing.
+            if self._normalizer.has_separator_punct(text):
+                sep_removed = self._normalizer.normalize_separator_removed(text)
+                if sep_removed != normalized:
+                    matches.extend(self._engine.evaluate(sep_removed))
+
             # Decode the raw text AND the NFKC-normalized variant: fullwidth-
             # or zero-width-wrapped base64/hex only becomes decodable after
             # normalization. The layered pass re-decodes candidates (depth 2)

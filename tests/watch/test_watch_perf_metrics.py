@@ -356,8 +356,8 @@ class TestFusedPassEquivalence:
         gate = __import__("re").compile(
             r"vtaber|sbetrg|qvfertneq|bireevqr|flfgrz\s+cebzcg|"
             r"gheavat\s+bss|qvfnoyr|lbh\s+ner|npg\s+nf|sebz\s+abj\s+ba|"
-            r"fgbc\s+orvat|ercnpg|rivy|znyvpvbhf|unpxre|pbafrag|"
-            r"cebzcg|rkgenpx|erfbyhgr|fubj\s+lbhe|qroht|ghea\s+bss|"
+            r"fgbc\s+orvat|ercrng|rivy|znyvpvbhf|unpxre|pbafrag|"
+            r"cebzcg|rkgenpg|erfbyir|fubj\s+lbhe|qroht|ghea\s+bss|"
             r"hfre|vachg|grkg|genafsre|erdhrfg|dhrel|naq|naq\s+gura",
             __import__("re").IGNORECASE,
         )
@@ -375,6 +375,9 @@ class TestFusedPassEquivalence:
             "ghea bss",
             "nothing to see here and there",
             "qvfnoyr",
+            "ercrng",
+            "rkgenpg",
+            "erfbyir",
         ]
         for p in probes:
             assert n._rot13_gate_hits(p) == bool(gate.search(p)), p

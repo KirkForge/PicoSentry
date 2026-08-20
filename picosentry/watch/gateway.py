@@ -268,8 +268,11 @@ def create_gateway_app(
         profile = gateway._profile_for_key(api_key)
         guard = gateway._guard_for(profile)
 
+        # WO6.0.0-003: non-dict messages (plain strings) and dict messages
+        # with content must both be scanned — the old join skipped non-dict
+        # messages entirely, forwarding a string-message injection unscanned.
         prompt_text = "\n".join(
-            str(m.get("content", "")) for m in body["messages"] if isinstance(m, dict) and m.get("content")
+            str(m.get("content", "")) if isinstance(m, dict) else str(m) for m in body["messages"] if m
         )
         # to_thread: the guards are CPU-bound regex engines — a direct sync
         # call freezes the loop (and every concurrent request) for the whole
@@ -320,11 +323,27 @@ def create_gateway_app(
         try:
             completion = _json.loads(bytes(forwarded.body))
         except ValueError:
+            # WO6.0.0-003: a 200 with non-JSON body is returned unscanned —
+            # honest under default mode, but under block_on_output_violation
+            # an unscannable response is a policy violation, not a passthrough.
+            if gateway._block_on_output_violation:
+                return JSONResponse(
+                    status_code=400,
+                    content={
+                        "error": {
+                            "message": "Upstream returned non-JSON 200 — output unscannable under block mode",
+                            "type": "picowatch_blocked",
+                            "code": "output_unscannable",
+                        },
+                        "picowatch": {"profile": profile.name, "output_scanned": False},
+                    },
+                )
             return forwarded
         # Every delivered token must be validated (WO5.0.0-013): n>1
         # completions and tool-call arguments are part of what the client
         # executes — scanning only choices[0].message.content attested
-        # unscanned output as output_valid.
+        # unscanned output as output_valid. WO6.0.0-003: legacy
+        # `function_call.arguments` (pre-tool_calls API) is also scanned.
         choices = completion.get("choices") or []
         output_parts: list[str] = []
         for choice in choices:
@@ -344,6 +363,10 @@ def create_gateway_app(
                     function = tool_call.get("function") or {}
                     if isinstance(function, dict) and function.get("arguments"):
                         output_parts.append(str(function["arguments"]))
+            # Legacy function_call (OpenAI pre-2023 API shape).
+            legacy_fc = message.get("function_call")
+            if isinstance(legacy_fc, dict) and legacy_fc.get("arguments"):
+                output_parts.append(str(legacy_fc["arguments"]))
         output_text = "\n".join(output_parts)
 
         output_result = await asyncio.to_thread(gateway._output_guard.validate, output_text)
@@ -371,9 +394,14 @@ def create_gateway_app(
             "output_fields_scanned": [
                 "choices[*].message.content",
                 "choices[*].message.tool_calls[*].function.arguments",
+                "choices[*].message.function_call.arguments",
             ],
             "output_valid": output_result.valid,
             "output_violations": violations,
+            # WO6.0.0-016: surface decode budget exhaustion from both sides
+            # so a starved decode is visible, not a silent clean verdict.
+            "prompt_decode_budget_exhausted": prompt_result.details.get("decode_budget_exhausted", False),
+            "output_decode_budget_exhausted": output_result.details.get("decode_budget_exhausted", False),
         }
         return JSONResponse(content=completion)
 

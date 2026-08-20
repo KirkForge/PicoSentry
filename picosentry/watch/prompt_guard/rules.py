@@ -108,13 +108,29 @@ def _extract_required_literals(parsed: list) -> tuple[tuple[tuple[str, ...], ...
             _flush(run)
             run = []
             if op is _sre_parse.BRANCH:
-                variants = [v for branch in av[1] for v in _walk_sequence(branch) if v]
+                # A branch that realizes zero constraints makes the whole
+                # alternation unconstrained — silently dropping only that
+                # branch (the old `if v` filter) left the prefilter demanding
+                # a literal the empty branch's matches cannot satisfy
+                # (WO6.0.0-001: `(?:one|1)` demanded "one" and rejected
+                # "priority 1"). If any branch walks to an empty realization,
+                # contribute nothing.
+                per_branch = [_walk_sequence(branch) for branch in av[1]]
+                if any(not v for branch_variants in per_branch for v in branch_variants):
+                    continue
+                variants = [v for branch_variants in per_branch for v in branch_variants if v]
                 _merge(branches, variants)
             elif op in (_sre_parse.MAX_REPEAT, _sre_parse.MIN_REPEAT):
                 if av[0] >= 1:  # mandatory occurrence
-                    _merge(branches, [v for v in _walk_sequence(av[2]) if v])
+                    sub = _walk_sequence(av[2])
+                    if any(not v for v in sub):
+                        continue
+                    _merge(branches, [v for v in sub if v])
             elif op is _sre_parse.SUBPATTERN:
-                _merge(branches, [v for v in _walk_sequence(av[-1]) if v])
+                sub = _walk_sequence(av[-1])
+                if any(not v for v in sub):
+                    continue
+                _merge(branches, [v for v in sub if v])
             elif op is _sre_parse.IN:
                 alts = _class_alternatives(av)
                 if alts is not None:

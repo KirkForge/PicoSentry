@@ -133,6 +133,99 @@ def test_helm_chart_renders_v_prefixed_image_tag() -> None:
     assert f"kirkforge/picodome:{app_version.group(1)}" == expected
 
 
+def test_serve_helm_chart_app_version_matches() -> None:
+    """The serve chart's appVersion must equal the v-prefixed package version
+    (WO5.0.0-031 deliverable 3). Same lockstep tooth as the picodome chart so
+    a bump can't ship a serve chart whose image tag the registry doesn't have.
+    """
+    chart = _REPO_ROOT / "deploy" / "helm" / "serve" / "Chart.yaml"
+    if not chart.exists():
+        pytest.skip(f"Serve helm chart not present: {chart}")
+    text = chart.read_text()
+    match = re.search(r'^appVersion:\s*"([^"]+)"', text, re.MULTILINE)
+    assert match, f"Serve chart is missing an appVersion field: {chart}"
+    expected = f"v{picosentry.__version__}"
+    assert match.group(1) == expected, f"serve chart appVersion = {match.group(1)!r}, expected {expected!r}"
+
+
+def _serve_deployment_template() -> str:
+    return (_REPO_ROOT / "deploy" / "helm" / "serve" / "templates" / "deployment.yaml").read_text()
+
+
+class TestServeHelmChart:
+    """WO5.0.0-031 deliverable 3 — the serve helm chart must render a pod that
+    starts ``picosentry serve --host --port --workers`` (the WO6.0.0-015 lesson:
+    base args must be unconditional, never gated on a feature flag), respect the
+    workers config via PICOSHOGUN_API_WORKERS, and default the image tag to
+    appVersion. Parse-based (no helm binary) — same pattern as the picodome
+    chart's TestHelmDefaultInstall.
+    """
+
+    def test_serve_chart_carries_serve_args(self):
+        """The deployment must emit `serve --host --port --workers` unconditionally."""
+        template = _serve_deployment_template()
+        assert "args:" in template, "serve deployment.yaml lost its args: block"
+        # The unconditional args block (serve --host --port --workers) must be
+        # present, NOT wrapped in a feature-flag conditional — the WO6.0.0-015
+        # regression class: a default install must start the server, not print
+        # --help and exit.
+        assert re.search(
+            r"^          args:\s*\n"
+            r'            - "serve"\s*\n'
+            r'            - "--host=\{\{ \.Values\.serve\.host \}\}"\s*\n'
+            r'            - "--port=\{\{ \.Values\.serve\.port \}\}"\s*\n'
+            r'            - "--workers=\{\{ \.Values\.workers \}\}"',
+            template,
+            re.MULTILINE,
+        ), "serve deployment.yaml must emit `serve --host --port --workers` unconditionally (WO6.0.0-015 lesson)"
+        # The args: line must NOT be preceded by a feature-flag if-guard.
+        lines = template.splitlines()
+        for i, line in enumerate(lines):
+            if line.strip() == "args:":
+                j = i - 1
+                while j >= 0 and not lines[j].strip():
+                    j -= 1
+                if j >= 0 and "{{- if" in lines[j] and "enabled" in lines[j]:
+                    pytest.fail(
+                        "args: block is wrapped in a feature-flag {{- if }} — "
+                        "default serve install would print --help and exit (WO6.0.0-015 regression)"
+                    )
+                break
+        else:
+            pytest.fail("no args: block found in serve deployment.yaml")
+
+    def test_serve_chart_respects_workers_config(self):
+        """PICOSHOGUN_API_WORKERS must be wired from values.workers so the
+        multi-worker config (WO5.0.0-031) is operator-tunable without a chart
+        rebuild."""
+        template = _serve_deployment_template()
+        assert re.search(
+            r"- name: PICOSHOGUN_API_WORKERS\s*\n\s*value: \{\{ \.Values\.workers \| quote \}\}",
+            template,
+            re.MULTILINE,
+        ), "serve deployment.yaml must wire PICOSHOGUN_API_WORKERS from values.workers"
+        values = (_REPO_ROOT / "deploy" / "helm" / "serve" / "values.yaml").read_text()
+        workers = re.search(r"^workers:\s*(\d+)", values, re.MULTILINE)
+        assert workers, "serve values.yaml missing a top-level workers: field"
+        assert int(workers.group(1)) >= 1, "serve values.yaml workers must be >= 1"
+
+    def test_serve_chart_image_tag_defaults_to_appversion(self):
+        """A default ``helm install`` must resolve a tag the registry actually
+        has — image.tag empty + `default .Chart.AppVersion` (same shape as the
+        picodome chart's test_helm_chart_renders_v_prefixed_image_tag)."""
+        chart_dir = _REPO_ROOT / "deploy" / "helm" / "serve"
+        values = (chart_dir / "values.yaml").read_text()
+        tag = re.search(r'^\s*tag:\s*"([^"]*)"', values, re.MULTILINE)
+        assert tag and tag.group(1) == "", "serve values.yaml image.tag must stay empty so appVersion is the default"
+        template = _serve_deployment_template()
+        assert "default .Chart.AppVersion" in template, (
+            "serve deployment template no longer defaults the tag to appVersion"
+        )
+        app_version = re.search(r'^appVersion:\s*"([^"]+)"', (chart_dir / "Chart.yaml").read_text(), re.MULTILINE)
+        assert app_version, "serve Chart.yaml is missing appVersion"
+        assert f"kirkforge/picodome:{app_version.group(1)}" == f"kirkforge/picodome:v{picosentry.__version__}"
+
+
 def test_experimental_notes_version_lockstep() -> None:
     """The experimental honesty table must quote the current version.
 

@@ -110,7 +110,9 @@ class OutputGuard:
         # detectors over bounded decode candidates (prompt-side machinery) so
         # b64/hex-wrapped secrets cannot pass by wrapping. Hits that only
         # appear after decoding carry a [decoded] marker.
-        decoded_texts, _exhausted = self._normalizer._decode_candidates(output, byte_budget=MAX_DECODE_BYTES)
+        # WO6.0.0-003/016: the exhaustion flag is surfaced as a WARN-tier
+        # violation so a starved decode cannot yield a clean verdict.
+        decoded_texts, decode_exhausted = self._normalizer._decode_candidates(output, byte_budget=MAX_DECODE_BYTES)
         for decoded in decoded_texts:
             for rule, _match in self._engine.evaluate(self._normalizer.normalize(decoded)):
                 if rule.id not in violations:
@@ -147,6 +149,20 @@ class OutputGuard:
         if prompt_result and prompt_result.score >= 0.4:
             total_score = min(1.0, total_score * 1.3)
 
+        # WO6.0.0-003/016: surface decode budget exhaustion as a WARN-tier
+        # violation so a starved decode cannot yield a clean verdict. The
+        # flag means some decodable candidate was dropped — the verdict may
+        # have missed encoded content.
+        details: dict[str, Any] = {}
+        if decode_exhausted:
+            details["decode_budget_exhausted"] = True
+            if "decode_budget_exhausted" not in violations:
+                violations.append("decode_budget_exhausted")
+            # WARN-tier: raise score to at least threshold_warn so the verdict
+            # is not PASS, but don't block (the exhaustion is advisory, not a
+            # confirmed violation).
+            total_score = max(total_score, self._config.threshold_warn)
+
         seen: set[str] = set()
         unique_violations: list[str] = []
         for v in violations:
@@ -167,6 +183,7 @@ class OutputGuard:
             corpus_version=self._config.corpus_version,
             duration_ms=duration_ms,
             redacted=redacted if redacted != output else None,
+            details=details,
             threshold_block=self._config.threshold_block,
             threshold_warn=self._config.threshold_warn,
         )

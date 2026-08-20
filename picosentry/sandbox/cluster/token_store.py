@@ -122,47 +122,53 @@ class ClusterTokenStore:
         with self._lock:
             return token in self._accepted
 
-    def set_primary(self, token: str) -> TokenInfo:
-        """Set a new primary token, adding the previous primary to accepted.
+    def _set_primary_locked(self, token: str) -> TokenInfo:
+        """Promote ``token`` to primary; caller MUST hold ``self._lock``.
 
         The demoted token's grace clock restarts at rotation time (its
         ``issued_at`` is re-stamped), so ``retire_older_than`` measures grace
         from the rotation, not from the token's original issue date.
         """
-        with self._lock:
-            info = TokenInfo(
-                token=token,
-                version=self._next_version(),
+        info = TokenInfo(
+            token=token,
+            version=self._next_version(),
+            issued_at=time.time(),
+            primary=True,
+        )
+        if self._primary is not None:
+            old = self._primary
+            self._accepted[old.token] = TokenInfo(
+                token=old.token,
+                version=old.version,
                 issued_at=time.time(),
-                primary=True,
+                primary=False,
             )
-            if self._primary is not None:
-                old = self._primary
-                self._accepted[old.token] = TokenInfo(
-                    token=old.token,
-                    version=old.version,
-                    issued_at=time.time(),
-                    primary=False,
-                )
-            self._primary = info
-            self._accepted[token] = info
-            return info
+        self._primary = info
+        self._accepted[token] = info
+        return info
 
-    def adopt_token(self, token: str, version: int, issued_at: float) -> bool:
-        """Add an inbound token to the accepted set (e.g. from a gossip snapshot).
+    def set_primary(self, token: str) -> TokenInfo:
+        with self._lock:
+            return self._set_primary_locked(token)
+
+    def _adopt_token_locked(self, token: str, version: int, issued_at: float) -> bool:
+        """Add an inbound token to the accepted set; caller MUST hold ``self._lock``.
 
         Returns True if the token was newly added.
         """
+        if token in self._accepted:
+            return False
+        self._accepted[token] = TokenInfo(
+            token=token,
+            version=version,
+            issued_at=issued_at,
+            primary=False,
+        )
+        return True
+
+    def adopt_token(self, token: str, version: int, issued_at: float) -> bool:
         with self._lock:
-            if token in self._accepted:
-                return False
-            self._accepted[token] = TokenInfo(
-                token=token,
-                version=version,
-                issued_at=issued_at,
-                primary=False,
-            )
-            return True
+            return self._adopt_token_locked(token, version, issued_at)
 
     def retire_older_than(self, cutoff: float) -> None:
         """Retire accepted tokens older than ``cutoff`` (epoch seconds).
@@ -204,7 +210,7 @@ class ClusterTokenStore:
                         "announced_at": announced_at,
                         "grace_expires": announced_at + token_grace_seconds(),
                     }
-        return self.set_primary(token)
+            return self._set_primary_locked(token)
 
     def apply_announcement(self, announcement: dict[str, Any]) -> bool:
         """Verify and apply a peer's rotation announcement.
@@ -215,6 +221,15 @@ class ClusterTokenStore:
         token, demoting the anchor with a fresh grace clock); otherwise the
         derived token is adopted into the accepted set. Adopters keep the
         announcement so it re-broadcasts via their own snapshots.
+
+        WO6.0.0-014 (TOCTOU rider): the anchor decision, the promotion and the
+        announcement store all run under one ``self._lock`` acquisition. The
+        prior code released the lock between the decision and the promotion, so
+        a concurrent ``rotate()`` could clobber ``_primary`` / ``_accepted`` /
+        ``_announcement`` in the gap — the promotion then landed on state the
+        decision no longer matched (lost rotation, lost promotion, or divergent
+        state across two interleaved announcements). The promotion now calls
+        the ``_locked`` helpers so no lock re-entry is needed.
 
         ponytail: ceiling — ANY-MEMBER adoption: any peer (or any holder of one
         still-accepted token) can rotate the cluster primary this way; upgrade
@@ -240,20 +255,19 @@ class ClusterTokenStore:
             if anchor is None or candidate == primary_token or candidate in self._accepted:
                 return False
 
-        if anchor == primary_token:
-            self.set_primary(candidate)
-        else:
-            # WO6.0.0-014: stamp issued_at=min(announced_at, now) so a holder
-            # of an accepted token cannot iteratively self-refresh trust. The
-            # old code passed issued_at=announced_at (announcer-chosen), so
-            # each derived candidate got a fresh grace clock and was itself a
-            # valid anchor — retire_older_than could never starve an evictee
-            # that kept gossiping. Clamping to now means a stale announcement
-            # (replayed or delayed) cannot reset the grace window forward.
-            self.adopt_token(candidate, version=0, issued_at=min(float(announced_at), time.time()))
-        with self._lock:
+            if anchor == primary_token:
+                self._set_primary_locked(candidate)
+            else:
+                # WO6.0.0-014: stamp issued_at=min(announced_at, now) so a holder
+                # of an accepted token cannot iteratively self-refresh trust. The
+                # old code passed issued_at=announced_at (announcer-chosen), so
+                # each derived candidate got a fresh grace clock and was itself a
+                # valid anchor — retire_older_than could never starve an evictee
+                # that kept gossiping. Clamping to now means a stale announcement
+                # (replayed or delayed) cannot reset the grace window forward.
+                self._adopt_token_locked(candidate, version=0, issued_at=min(float(announced_at), time.time()))
             self._announcement = dict(announcement)
-        return True
+            return True
 
     def to_snapshot(self) -> dict[str, Any]:
         with self._lock:

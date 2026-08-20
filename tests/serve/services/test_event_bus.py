@@ -87,7 +87,8 @@ class _FakePgDb:
 
     def execute(self, sql, params=()):
         if "FROM event_outbox WHERE seq >" in sql:
-            return list(self._rows)
+            last = params[0] if params else 0
+            return [r for r in self._rows if int(r["seq"]) > last]
         if "DELETE FROM event_outbox" in sql:
             return []
         return []

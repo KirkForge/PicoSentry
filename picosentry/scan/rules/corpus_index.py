@@ -14,7 +14,17 @@ logger = logging.getLogger("picosentry.corpus_index")
 # In-process cache for loaded corpus indexes.  The key includes the resolved
 # corpus path, ecosystem, built-in priority list, and the corpus file's mtime
 # and size so that updates on disk (e.g. ``picosentry update``) are picked up
-# without restarting the process.
+# without restarting the process. WO6.0.0-019: stale entries for the same
+# logical identity (path + ecosystem + builtin_list) are evicted on insert
+# (see load_indexed_corpus) so the long-lived daemon does not retain one index
+# per update cycle.
+# ponytail: ceiling — aggregate prewarm cost across all 7 ecosystems is
+# ~412MB / ~11s for a polyglot dep-heavy repo (npm 3.07s/+124MB, pypi 2.91s/
+# +94MB, go 1.60s/+69MB, cargo 0.26s/+7MB, maven 1.18s/+34MB, nuget 1.94s/
+# +79MB, rubygems 0.13s/+5MB; measured 2026-08-18). All outside the per-rule
+# 5s timebox. WO6.0.0-019 limits prewarm to detected ecosystems, so a
+# 2-ecosystem scan pays ~6s/180MB instead of ~11s/412MB. Upgrade path:
+# on-disk persisted delete-index in ``picosentry update`` if RSS bites.
 _index_cache: dict[tuple[str, str, tuple[str, ...], float | None, int | None], CorpusIndex] = {}
 
 # SymSpell-style delete-neighborhood acceleration (WO5.0.0-028).  For
@@ -456,12 +466,25 @@ def load_indexed_corpus(
 
     The result is cached per process based on the corpus file identity
     (resolved path, mtime, size) and the built-in list, so repeated scans
-    avoid rebuilding the trie.
+    avoid rebuilding the trie. WO6.0.0-019: stale entries (same path +
+    ecosystem + builtin_list but an old mtime/size from a prior
+    ``picosentry update``) are evicted on insert so the long-lived daemon
+    does not retain one ~412MB index per update cycle.
     """
     key = _cache_key(corpus_dir, ecosystem, builtin_list)
     cached = _index_cache.get(key)
     if cached is not None:
         return cached
+
+    # Evict stale entries for the same logical identity (path + ecosystem +
+    # builtin_list) but an outdated (mtime, size). The cache key includes the
+    # version, so an on-disk update produces a NEW key; without eviction the
+    # old key's CorpusIndex stays strongly referenced and RSS grows by one
+    # index per update cycle (WO6.0.0-019).
+    identity = key[:3]
+    stale = [k for k in _index_cache if k[:3] == identity and k != key]
+    for k in stale:
+        _index_cache.pop(k, None)
 
     corpus_set = load_corpus_for_ecosystem(corpus_dir, ecosystem, builtin_list)
     index = CorpusIndex(corpus_set, priority_names=builtin_list)

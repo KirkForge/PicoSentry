@@ -58,6 +58,23 @@ logger = logging.getLogger(__name__)
 _MAX_INPUT_FILES = 2048
 _MAX_INPUT_BYTES = 64 * 1024 * 1024
 
+# WO6.0.0-008 — node_modules JS-family content the L2-OBFS/NETEX/CRED/WORM
+# rules scan. The rules cap at MAX_FILES_PER_PACKAGE=200 per installed package
+# (sorted walk, deterministic); the cache key mirrors that so a payload
+# injected into node_modules/*/index.js invalidates the cache without the key
+# hashing every byte of a giant monorepo's deps. _NM_CONTENT_BUDGET_BYTES
+# bounds the total node_modules-content contribution so it can't starve the
+# manifest/lockfile half of the key on huge trees.
+_NM_JS_EXTENSIONS = frozenset({".js", ".mjs", ".cjs", ".ts", ".tsx"})
+_NM_MAX_FILES_PER_PKG = 200
+_NM_CONTENT_BUDGET_BYTES = 32 * 1024 * 1024
+# Vendored/build dirs to skip WITHIN a node_modules package. Note: this does
+# NOT include "node_modules" itself — we are already inside it. The rules'
+# own SKIP_DIRS (obfuscation.py:38) match this set; _SKIP_DIRS above includes
+# "node_modules" for the outer manifest walk, which would wrongly reject every
+# file here.
+_NM_INNER_SKIP_DIRS = frozenset({".git", ".hg", ".svn", "__pycache__", ".cache", "dist", "build", "out"})
+
 # Config dimensions that shape the cached (post-filter) payload — see
 # _run_scan: policy deny-lists, severity overrides, ignore lists and the
 # severity threshold are all applied BEFORE the result is cached. Baseline and
@@ -78,6 +95,73 @@ _CACHE_SHAPE_FIELDS = (
 _BUILD_HOOK_MARKERS = tuple(sorted(m.lower() for m in BUILD_HOOK_READ_SUFFIXES | BUILD_HOOK_READ_NAMES))
 
 
+def _hash_node_modules_content(target: Path, sha: hashlib._Hash) -> int:
+    """Fold a bounded sample of node_modules JS-family file content into ``sha``.
+
+    Mirrors the L2-OBFS/NETEX/CRED/WORM rules' read-surface: each installed
+    package under node_modules is walked (sorted, skipping vendored/VCS dirs)
+    and up to ``_NM_MAX_FILES_PER_PKG`` JS-family files per package are hashed.
+    A ``nm-content:`` separator + per-package path prefix keeps this distinct
+    from the manifest/lockfile half of the key. Returns the bytes hashed.
+
+    ponytail: ceiling — an in-place same-size edit past the per-package file
+    cap (200 files) or the total budget (_NM_CONTENT_BUDGET_BYTES) stays
+    invisible to the key. The rules themselves cap at the same 200 files, so
+    a payload the rules WILL scan is always in the first 200 files (sorted)
+    and thus in the key. Upgrade path: hash every file when budget allows.
+    """
+    nm = target / "node_modules"
+    if not nm.is_dir():
+        return 0
+    sha.update(b"nm-content:\0")
+    total = 0
+    budget_left = _NM_CONTENT_BUDGET_BYTES
+
+    def _walk_pkg(pkg_dir: Path) -> None:
+        nonlocal total, budget_left
+        if budget_left <= 0:
+            return
+        count = 0
+        for f in sorted(pkg_dir.rglob("*")):
+            if count >= _NM_MAX_FILES_PER_PKG or budget_left <= 0:
+                break
+            if f.is_symlink() or not f.is_file():
+                continue
+            if f.suffix not in _NM_JS_EXTENSIONS:
+                continue
+            if any(part in _NM_INNER_SKIP_DIRS for part in f.parts):
+                continue
+            try:
+                data = f.read_bytes()
+            except OSError:
+                continue
+            try:
+                rel = f.relative_to(target).as_posix()
+            except ValueError:
+                continue
+            sha.update(rel.encode("utf-8"))
+            sha.update(b"\0")
+            sha.update(hashlib.sha256(data).digest())
+            total += len(data)
+            budget_left -= len(data)
+            count += 1
+
+    for child in sorted(nm.iterdir()):
+        if budget_left <= 0:
+            break
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        if child.name.startswith("@"):
+            for scoped in sorted(child.iterdir()):
+                if scoped.is_dir():
+                    _walk_pkg(scoped)
+        else:
+            _walk_pkg(child)
+    if total >= _NM_CONTENT_BUDGET_BYTES:
+        sha.update(f"nm-truncated:{total}".encode())
+    return total
+
+
 def _hash_target_inputs(target: Path) -> str:
     """Content hash over every scan-relevant input file, all ecosystems.
 
@@ -86,6 +170,8 @@ def _hash_target_inputs(target: Path) -> str:
     npm-family locks — plus the L2-BUILD-001 read-surface (build.rs, Rakefile,
     extconf.rb, .rs/.ps1/.nuspec/… via the shared BUILD_HOOK_READ_* constants)
     and node_modules package.json manifests (what the campaign rules read).
+    WO6.0.0-008: also folds a bounded sample of node_modules JS-family CONTENT
+    (what L2-OBFS/NETEX/CRED/WORM scan) — see ``_hash_node_modules_content``.
     Content-based (mtime changes alone never invalidate — determinism
     contract). Returns "" when the target has no relevant files.
     """
@@ -98,6 +184,8 @@ def _hash_target_inputs(target: Path) -> str:
         if "node_modules" in rel_parts:
             # Campaigns/advisory reads descend into installed package
             # manifests, which the _SKIP_DIRS walk would otherwise exclude.
+            # JS-family CONTENT under node_modules is hashed separately by
+            # _hash_node_modules_content (bounded per-package sample).
             return file.name == "package.json"
         if any(part in _SKIP_DIRS for part in rel_parts):
             return False
@@ -118,7 +206,13 @@ def _hash_target_inputs(target: Path) -> str:
             if _is_scan_input(file):
                 files.append(file)
     if not files:
-        return ""
+        # Still hash node_modules content if present — a project with only
+        # node_modules (no root manifest) is a valid scan target.
+        nm_bytes = _hash_node_modules_content(target, sha) if target.is_dir() else 0
+        if nm_bytes == 0:
+            return ""
+        sha.update(f"nm-only:{nm_bytes}".encode())
+        return sha.hexdigest()[:16]
     total = 0
     truncated = len(files) > _MAX_INPUT_FILES
     for file in sorted(files, key=lambda p: p.relative_to(target).as_posix())[:_MAX_INPUT_FILES]:
@@ -139,6 +233,11 @@ def _hash_target_inputs(target: Path) -> str:
         # an in-place same-size edit past either cut stays invisible to the
         # key. Upgrade path: full-tree manifest hash when truncation fires.
         sha.update(f"truncated:{len(files)}:{total}".encode())
+    # WO6.0.0-008 — fold node_modules JS-family content (what L2-OBFS/NETEX/
+    # CRED/WORM scan) so a payload injected into node_modules/*/index.js
+    # invalidates the cache. Bounded per-package; see _hash_node_modules_content.
+    if target.is_dir():
+        _hash_node_modules_content(target, sha)
     return sha.hexdigest()[:16]
 
 
@@ -151,12 +250,53 @@ def _file_digest(path: str | None) -> str:
         return "missing"
 
 
+def _dir_digest(path: Path) -> str:
+    """Content digest of a directory's JSON files (sorted, stat-only fallback).
+
+    Used for the default advisory dir so ``picosentry advisories fetch``
+    (which updates that dir) invalidates the scan cache. Reads every *.json
+    file under ``path`` recursively, sorted by relative path for determinism.
+    Returns ``""`` when the dir is empty/missing and ``"missing"`` on read
+    errors — the same sentinel contract as ``_file_digest``.
+    """
+    if not path.is_dir():
+        return ""
+    sha = hashlib.sha256()
+    count = 0
+    for f in sorted(path.rglob("*.json")):
+        if f.is_symlink():
+            continue
+        try:
+            data = f.read_bytes()
+        except OSError:
+            continue
+        sha.update(f.relative_to(path).as_posix().encode("utf-8"))
+        sha.update(b"\0")
+        sha.update(hashlib.sha256(data).digest())
+        count += 1
+    if count == 0:
+        return ""
+    return sha.hexdigest()[:16]
+
+
 def _cache_config_digest(config: PicoSentryConfig) -> str:
     """Digest of every config/policy dimension that shapes the cached payload."""
     parts: dict = {name: getattr(config, name, None) for name in _CACHE_SHAPE_FIELDS}
     # Policy paths alone are not identity — the file content is what filtered the findings.
     parts["policy_file_digest"] = _file_digest(getattr(config, "policy_file", None))
-    parts["advisory_db_digest"] = _file_digest(getattr(config, "advisory_db", None))
+    # Advisory DB: an explicit --advisory-db path is digested directly. When
+    # no explicit path is given the scan uses the default advisory dir
+    # (default_advisory_dir()), so ``picosentry advisories fetch`` updates
+    # MUST invalidate the cache — fold the default dir's content digest in
+    # (WO6.0.0-019 rider). Without this, a fetched advisory set was invisible
+    # to the key and the cache served stale clean verdicts until TTL expiry.
+    explicit_adv = getattr(config, "advisory_db", None)
+    if explicit_adv:
+        parts["advisory_db_digest"] = _file_digest(explicit_adv)
+    else:
+        from picosentry.scan.advisory import default_advisory_dir
+
+        parts["advisory_db_digest"] = _dir_digest(default_advisory_dir())
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
 
 
@@ -350,23 +490,16 @@ class ScanOrchestrator:
             result = engine.scan(target, rules=config.rules, advisory_db_path=config.advisory_db)
 
         try:
-            effective_policy = _resolve_effective_policy(config=config)
+            _effective_policy = _resolve_effective_policy(config=config)
         except (PolicyNotFoundError, PolicyParseError, PolicyRuntimeError) as exc:
             raise ScanError(f"policy error: {exc}") from exc
-        if effective_policy is not None:
-            if hasattr(effective_policy, "deny_packages") and effective_policy.deny_packages:
-                denied_set = set(effective_policy.deny_packages)
-                result.apply_overrides([f for f in result.findings if f.package not in denied_set])
-
-            if hasattr(effective_policy, "deny_licenses") and effective_policy.deny_licenses:
-                denied_licenses = set(effective_policy.deny_licenses)
-                result.apply_overrides(
-                    [
-                        f
-                        for f in result.findings
-                        if not any(lic in denied_licenses for lic in getattr(f, "licenses", []))
-                    ]
-                )
+        # ponytail: WO6.0.0-007 — the deny_packages/deny_licenses finding
+        # suppression block that lived here was deleted: it inverted policy
+        # semantics (banning a pkg suppressed its findings, hiding the evidence
+        # that justified the ban). The policy engine surfaces deny_packages
+        # violations via _apply_policy (run() calls it after this returns); the
+        # deny_licenses block was dead code (Finding has no .licenses attr).
+        del _effective_policy  # resolved only for its raise-on-error side effect
 
         if config.severity_overrides:
             result.apply_overrides(config.apply_severity_overrides(result.findings))

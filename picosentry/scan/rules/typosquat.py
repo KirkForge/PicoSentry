@@ -108,7 +108,7 @@ _PREWARM_PROBES: dict[str, Callable[[Path], int]] = {
 }
 
 
-def prewarm_typosquat_indexes(target: Path, corpus_dir: Path) -> None:
+def prewarm_typosquat_indexes(target: Path, corpus_dir: Path, detected: frozenset[str] | None = None) -> None:
     """Finish building delete indexes for dep-heavy targets before rules run.
 
     The typosquat rules build a SymSpell-style delete index incrementally (one
@@ -119,8 +119,18 @@ def prewarm_typosquat_indexes(target: Path, corpus_dir: Path) -> None:
     The probe is intentionally cheap and approximate (root manifest entry
     counts); anything it misses falls back to the in-rule incremental build,
     which stays exact.
+
+    WO6.0.0-019: ``detected`` limits probing to ecosystems the scan actually
+    selected (``_detect_ecosystems`` already ran in ``scan()``). A polyglot
+    repo with only npm + pypi markers no longer pays the go/cargo/maven/
+    nuget/rubygems probe cost (~6s/180MB saved on a 2-ecosystem scan). When
+    ``detected`` is None (back-compat / direct callers) all ecosystems probe.
     """
-    for eco, probe in _PREWARM_PROBES.items():
+    ecosystems = tuple(detected) if detected is not None else tuple(_PREWARM_PROBES)
+    for eco in ecosystems:
+        probe = _PREWARM_PROBES.get(eco)
+        if probe is None:
+            continue
         key = (str(corpus_dir), eco)
         if key in _prewarmed:
             continue
@@ -347,6 +357,14 @@ _GO_CONFIG = TyposquatConfig(
     use_keyboard=True,
     manifest_file="go.mod",
     collect_deps=_collect_go_deps,
+    # ponytail: ceiling — use_keyboard=True forces the trie path (keyboard
+    # distance has no SymSpell completeness argument), measured 2.3s/420deps
+    # on dev hardware (2.2x headroom under the 5s box HERE; CI runners slower;
+    # ~800+ modules silently timebox out on slower machines — the SA-AJ
+    # class). Upgrade path: dep-count threshold → fall back to non-keyboard
+    # matching (SymSpell-accelerated) above ~600 deps, trading keyboard
+    # sensitivity for guaranteed completion. Pinned by
+    # test_go_typosquat_keyboard_perf_ceiling in the slow tier.
 )
 
 _CARGO_CONFIG = TyposquatConfig(

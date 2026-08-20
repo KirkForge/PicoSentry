@@ -308,6 +308,125 @@ class TestAdvisoryFromOsvMultiPackage(unittest.TestCase):
         self.assertEqual(len(db.check("pkg-b", "3.5.0")), 1)
 
 
+class TestAdvisoryNameNormalization(unittest.TestCase):
+    """WO6.0.0-006 — PEP 503 name normalization at index AND lookup time.
+
+    PyPI/METADATA feed raw names (``Flask``, ``PyYAML``, ``ruamel.yaml``) while
+    OSV records index by canonical form (``flask``, ``pyyaml``,
+    ``ruamel-yaml``). Exact-match lookups returned ``[]`` for the common case.
+    """
+
+    def test_check_flask_matches_flask_keyed_record(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "flask.json", _make_osv(adv_id="GHSA-flask", pkg_name="flask", ecosystem="pypi"))
+        db = AdvisoryDB(d)
+        # 'Flask' (canonical: 'flask') must find the 'flask'-keyed record.
+        self.assertEqual(len(db.check("Flask", "1.5.0")), 1)
+        self.assertEqual(len(db.check("flask", "1.5.0")), 1)
+        # Same result, regardless of case form.
+        self.assertEqual(db.check("Flask", "1.5.0"), db.check("flask", "1.5.0"))
+
+    def test_check_pyyaml_matches_pyyaml_keyed_record(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "pyyaml.json", _make_osv(adv_id="GHSA-pyyaml", pkg_name="pyyaml", ecosystem="pypi"))
+        db = AdvisoryDB(d)
+        self.assertEqual(len(db.check("PyYAML", "1.5.0")), 1)
+        self.assertEqual(len(db.check("pyyaml", "1.5.0")), 1)
+
+    def test_ruamel_yaml_dotted_matches_dashed_key(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(
+            d / "ruamel.json",
+            _make_osv(adv_id="GHSA-ruamel", pkg_name="ruamel-yaml", ecosystem="pypi"),
+        )
+        db = AdvisoryDB(d)
+        # 'ruamel.yaml' (canonical: 'ruamel-yaml') must find the
+        # 'ruamel-yaml'-keyed record — exact-match lookup used to return [].
+        self.assertEqual(len(db.check("ruamel.yaml", "1.5.0")), 1)
+        self.assertEqual(len(db.check("ruamel-yaml", "1.5.0")), 1)
+
+    def test_underscore_and_dot_collapse_to_dash(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(
+            d / "imp.json",
+            _make_osv(adv_id="GHSA-imp", pkg_name="importlib-metadata", ecosystem="pypi"),
+        )
+        db = AdvisoryDB(d)
+        # PEP 503: runs of [-_.] → single "-".
+        self.assertEqual(len(db.check("importlib.metadata", "1.5.0")), 1)
+        self.assertEqual(len(db.check("importlib_metadata", "1.5.0")), 1)
+        self.assertEqual(len(db.check("importlib-metadata", "1.5.0")), 1)
+
+
+class TestAdvisoryCvssSeverity(unittest.TestCase):
+    """WO6.0.0-006 — when ``database_specific.severity`` is absent, derive the
+    bucket from the top-level ``severity: [{type: CVSS_V3, score}]`` list so
+    raw PyPI/Go OSV records don't flatten to MEDIUM."""
+
+    def _osv_with_cvss(self, score, ecosystem="pypi"):
+        data = _make_osv(
+            adv_id=f"GHSA-cvss-{score}",
+            pkg_name="vuln-pkg",
+            ecosystem=ecosystem,
+            severity="",  # suppress database_specific.severity
+            db_specific={},  # no severity field at all
+        )
+        data["severity"] = [{"type": "CVSS_V3", "score": score}]
+        return data
+
+    def test_cvss_9_8_is_critical(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "crit.json", self._osv_with_cvss("9.8"))
+        db = AdvisoryDB(d)
+        results = db.check("vuln-pkg", "1.0.0")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].severity, "CRITICAL")
+
+    def test_cvss_7_5_is_high(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "high.json", self._osv_with_cvss("7.5"))
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "HIGH")
+
+    def test_cvss_5_0_is_medium(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "med.json", self._osv_with_cvss("5.0"))
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "MEDIUM")
+
+    def test_cvss_2_0_is_low(self):
+        d = Path(tempfile.mkdtemp())
+        _write_json(d / "low.json", self._osv_with_cvss("2.0"))
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "LOW")
+
+    def test_cvss_vector_string_falls_back_to_medium(self):
+        # CVSS vector strings need a vendor library to derive the base score;
+        # we fall back to MEDIUM rather than misclassify (ceiling: vector-only
+        # records; upgrade path: cvss-bsc lib when vector form dominates).
+        d = Path(tempfile.mkdtemp())
+        osv = self._osv_with_cvss("CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H")
+        _write_json(d / "vec.json", osv)
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "MEDIUM")
+
+    def test_db_specific_severity_wins_over_cvss(self):
+        d = Path(tempfile.mkdtemp())
+        osv = _make_osv(adv_id="GHSA-db-wins", pkg_name="vuln-pkg", severity="CRITICAL")
+        osv["severity"] = [{"type": "CVSS_V3", "score": "5.0"}]  # would be MEDIUM
+        _write_json(d / "wins.json", osv)
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "CRITICAL")
+
+    def test_empty_severity_list_is_medium(self):
+        d = Path(tempfile.mkdtemp())
+        osv = _make_osv(adv_id="GHSA-empty-sev", pkg_name="vuln-pkg", severity="", db_specific={})
+        osv["severity"] = []
+        _write_json(d / "empty.json", osv)
+        db = AdvisoryDB(d)
+        self.assertEqual(db.check("vuln-pkg", "1.0.0")[0].severity, "MEDIUM")
+
+
 class TestAdvisoryDBLoadEnvelope(unittest.TestCase):
     """WO5.0.0-009 — AdvisoryDB.load() understands the bundled-snapshot envelope."""
 

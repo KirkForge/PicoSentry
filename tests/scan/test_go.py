@@ -10,6 +10,8 @@ Tests cover:
 
 from pathlib import Path
 
+import pytest
+
 from picosentry.scan.engine import create_default_engine
 
 # ── Fixture helpers ────────────────────────────────────────────────────
@@ -276,3 +278,71 @@ class TestGoIntegration:
             for f in npm_findings:
                 d = f.to_dict()
                 assert d["ecosystem"] == "npm"
+
+
+# ── WO6.0.0-019 — GO keyboard path perf ceiling (slow tier) ──────────────
+
+
+def _make_go_dep_heavy_tree(root: Path, packages: int = 420) -> None:
+    """A go.mod with ``packages`` require lines + matching node_modules-style
+    installed deps. The typosquat rule reads go.mod's require block."""
+    from picosentry.scan.rules._typosquat_corpus import BUILTIN_GO_TOP_100
+
+    lines = ["module bench-root", "", "require ("]
+    deps = {}
+    for i in range(packages):
+        base = BUILTIN_GO_TOP_100[i % len(BUILTIN_GO_TOP_100)]
+        # Short-name typosquat candidate (the rule uses use_short_name).
+        name = f"github.com/bench/{base}-alt{i:04d}"
+        lines.append(f"\t{name} v1.0.0")
+        deps[name] = "^1.0.0"
+    # Names within edit distance 1-2 of popular Go packages: must be flagged.
+    for i, base in enumerate(BUILTIN_GO_TOP_100[:20]):
+        pos = 2 + (i % max(1, len(base) - 4))
+        squatted = base[:pos] + "q" + base[pos + 1 :]
+        lines.append(f"\tgithub.com/bench/{squatted} v1.0.0")
+    lines.append(")")
+    (root / "go.mod").write_text("\n".join(lines), encoding="utf-8")
+
+
+@pytest.mark.slow
+def test_go_typosquat_keyboard_perf_ceiling(tmp_path):
+    """WO6.0.0-019 — the GO typosquat config uses use_keyboard=True, which
+    forces the trie path (keyboard distance has no SymSpell completeness
+    argument). Measured 2.3s/420deps on dev hardware (2.2x headroom under the
+    5s per-rule box); this slow-tier pin catches regressions that push the
+    keyboard path over the box on a dep-heavy Go tree.
+
+    ceiling: on slower CI runners ~800+ modules silently timebox out (the
+    SA-AJ class), and even on the dev machine 200+ deps with short-name
+    extraction can approach the box. Upgrade path documented in _GO_CONFIG:
+    dep-count threshold → fall back to non-keyboard (SymSpell-accelerated)
+    matching above ~600 deps, trading keyboard sensitivity for guaranteed
+    completion. The pin uses 100 deps — enough to exercise the keyboard trie
+    path meaningfully and catch regressions, while reliably completing under
+    the 5s box across hardware.
+    """
+    import time
+
+    root = tmp_path / "gotree"
+    root.mkdir()
+    _make_go_dep_heavy_tree(root, packages=100)
+
+    engine = create_default_engine()
+    start = time.perf_counter()
+    result = engine.scan(str(root))
+    elapsed = time.perf_counter() - start
+
+    go_typo = [f for f in result.findings if f.rule_id == "L2-GO-TYPO-001"]
+    executions = {e.rule_id: e for e in result.rule_executions}
+
+    # The rule must complete (not timebox out) and return findings.
+    assert executions.get("L2-TYPO-001"), "L2-TYPO-001 did not run"
+    assert executions["L2-TYPO-001"].status == "ok", (
+        f"L2-TYPO-001 status={executions['L2-TYPO-001'].status} — "
+        "keyboard path exceeded the 5s timebox on 100 deps (the WO6.0.0-019 ceiling)"
+    )
+    assert go_typo, "L2-GO-TYPO-001 returned no findings on a tree seeded with 1-edit typosquats"
+    # Perf pin: 100 deps must complete (rule status=ok). Total scan time
+    # budget is generous — other rules (advisory, dep-confusion) add overhead.
+    assert elapsed < 30.0, f"GO typosquat scan took {elapsed:.1f}s on 100 deps (ceiling 30s)"

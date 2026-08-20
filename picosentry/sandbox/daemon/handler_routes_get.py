@@ -411,6 +411,12 @@ class PicoDomeGetRoutesMixin:
         Cluster nodes call this endpoint on their peers to discover nodes,
         scan assignments, and the current leader.  The caller merges the
         returned snapshot via POST /api/v1/cluster/snapshot.
+
+        WO6.0.0-014: the redundant inner ``_check_cluster_token`` is gone —
+        ``_authorize_cluster_route`` already authorized EITHER the cluster
+        token OR a normal API token (the documented contract). The inner
+        check unconditionally required an X-Cluster-Token header, so API
+        tokens that the outer gate accepted always 403'd here.
         """
         try:
             from picosentry.sandbox.cluster.manager import get_cluster_manager
@@ -423,9 +429,6 @@ class PicoDomeGetRoutesMixin:
                         "detail": "Cluster manager is not running on this node",
                     }
                 )
-                return
-
-            if not _check_cluster_token(self, mgr):
                 return
 
             snapshot = mgr.state.get_state_snapshot()

@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import hashlib
 import hmac
+import logging
 import os
 import secrets
 import threading
@@ -32,15 +33,29 @@ from dataclasses import dataclass
 from typing import Any
 
 
+logger = logging.getLogger("picodome.cluster.token_store")
+
 ROTATION_CONTEXT = "picodome-cluster-rotation:v1:"
 
 
 def token_grace_seconds() -> float:
-    """Shared-trust grace window (PICODOME_CLUSTER_TOKEN_GRACE_SECONDS, default 3600)."""
+    """Shared-trust grace window (PICODOME_CLUSTER_TOKEN_GRACE_SECONDS, default 3600).
+
+    WO6.0.0-014: a negative env value used to parse through and silently
+    DISABLE retirement forever (cutoff was always in the future). Reject
+    negatives explicitly — fail closed to the default. Zero is honored as
+    immediate retirement (the fail-closed setting), not "disable forever".
+    """
     try:
         grace = float(os.environ.get("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", "3600"))
     except (ValueError, TypeError):
         grace = 3600.0
+    if grace < 0:
+        logger.warning(
+            "PICODOME_CLUSTER_TOKEN_GRACE_SECONDS=%s is negative — using default 3600",
+            grace,
+        )
+        return 3600.0
     return grace
 
 
@@ -228,7 +243,14 @@ class ClusterTokenStore:
         if anchor == primary_token:
             self.set_primary(candidate)
         else:
-            self.adopt_token(candidate, version=0, issued_at=float(announced_at))
+            # WO6.0.0-014: stamp issued_at=min(announced_at, now) so a holder
+            # of an accepted token cannot iteratively self-refresh trust. The
+            # old code passed issued_at=announced_at (announcer-chosen), so
+            # each derived candidate got a fresh grace clock and was itself a
+            # valid anchor — retire_older_than could never starve an evictee
+            # that kept gossiping. Clamping to now means a stale announcement
+            # (replayed or delayed) cannot reset the grace window forward.
+            self.adopt_token(candidate, version=0, issued_at=min(float(announced_at), time.time()))
         with self._lock:
             self._announcement = dict(announcement)
         return True

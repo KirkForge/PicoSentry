@@ -385,7 +385,35 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
-      - run: bash scripts/test.sh integration tests/sandbox/test_landlock_backend.py tests/sandbox/test_verdict_parity.py
+      - name: Run landlock + verdict-parity tests (with junit)
+        run: |
+          bash scripts/test.sh integration --junit tests/sandbox/test_landlock_backend.py tests/sandbox/test_verdict_parity.py
+      - name: Assert at least one landlock test actually ran (not 0-skip green)
+        run: |
+          # WO6.0.0-021 item 8: the tests self-gate on is_available() and skip
+          # honestly on kernels without landlock — but a 0-runs / all-skipped
+          # result is green under pytest, masking a real backend regression
+          # or a kernel/LSM config drift on the runner. Parse the junit and
+          # hard-fail if no test in either file actually executed.
+          python3 - <<'PY'
+          import xml.etree.ElementTree as ET
+          from pathlib import Path
+          junit = Path(".pytest-artifacts/junit-integration.xml")
+          assert junit.exists(), f"no junit at {junit}"
+          tree = ET.parse(junit)
+          total_tests = 0
+          total_skipped = 0
+          for ts in tree.iter("testsuite"):
+              total_tests += int(ts.get("tests", 0))
+              total_skipped += int(ts.get("skipped", 0))
+          ran = total_tests - total_skipped
+          print(f"landlock-real-exec: {total_tests} tests, {total_skipped} skipped, {ran} ran")
+          assert ran > 0, (
+              f"landlock-real-exec ran 0 tests ({total_skipped} skipped) — "
+              "the runner kernel has no landlock LSM or the tests all self-gated; "
+              "this is a silent green, not a real-execution pass"
+          )
+          PY
 
   # ── nightly (schedule / manual) ────────────────────────────────────────
 

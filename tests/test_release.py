@@ -151,6 +151,33 @@ def test_readme_version_lockstep() -> None:
     assert f"picodome:v{picosentry.__version__}" in text, "README Docker pull line is stale"
 
 
+def test_manual_version_lockstep() -> None:
+    """manual.md header + engine line must quote the current version
+    (WO6.0.0-021 item 4). manual.md was an unguarded lockstep surface —
+    a missed bump shipped a stale manual while the wheel moved on."""
+    text = (_REPO_ROOT / "docs" / "manual.md").read_text()
+    # Line 3 header: "Version X.Y.Z — BUSL-1.1 — ..."
+    assert f"Version {picosentry.__version__}" in text, "manual.md header version is stale"
+    # Engine line in the quick-start banner.
+    assert f"Engine: v{picosentry.__version__}" in text, "manual.md Engine banner is stale"
+
+
+def test_uv_lock_version_lockstep() -> None:
+    """uv.lock's picosentry package version must match the runtime version
+    (WO6.0.0-021 item 4). uv.lock was an unguarded lockstep surface — the
+    SARIF-incident class: a `uv lock` after a bump that didn't get committed
+    shipped a stale lockfile while the wheel reported the new version."""
+    import re as _re
+
+    text = (_REPO_ROOT / "uv.lock").read_text()
+    # The picosentry package block: [[package]] \n name = "picosentry" \n version = "X.Y.Z"
+    m = _re.search(r'name = "picosentry"\s*\nversion = "([^"]+)"', text)
+    assert m, "uv.lock has no picosentry package block"
+    assert m.group(1) == picosentry.__version__, (
+        f"uv.lock picosentry version = {m.group(1)!r}, expected {picosentry.__version__!r}"
+    )
+
+
 def test_kubernetes_manifest_image_lockstep() -> None:
     """deploy/kubernetes/deployment.yaml must pin the current image tag.
 

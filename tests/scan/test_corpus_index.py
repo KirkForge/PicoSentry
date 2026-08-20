@@ -107,6 +107,34 @@ def test_load_indexed_corpus_invalidates_cache_when_file_changes(tmp_path: Path)
     assert index1 is not index2
 
 
+def test_index_cache_evicts_stale_entry_on_corpus_update(tmp_path: Path):
+    """WO6.0.0-019 — _index_cache must evict the stale-mtime entry when the
+    corpus file is updated, so the long-lived daemon does not retain one
+    ~412MB index per update cycle. The cache key includes (path, ecosystem,
+    builtin_list, mtime, size); without eviction every ``picosentry update``
+    adds a new key and the old key's CorpusIndex stays strongly referenced.
+    """
+    from picosentry.scan.rules.corpus_index import _index_cache
+
+    save_indexed_corpus(tmp_path, "npm", ["v1-pkg"])
+    _index_cache.clear()
+    index_v1 = load_indexed_corpus(tmp_path, "npm")
+    keys_v1 = [k for k in _index_cache if k[1] == "npm"]
+    assert len(keys_v1) == 1
+
+    # Simulate an on-disk update: rewrite the corpus file (new mtime/size).
+    save_indexed_corpus(tmp_path, "npm", ["v2-pkg"])
+    index_v2 = load_indexed_corpus(tmp_path, "npm")
+    keys_v2 = [k for k in _index_cache if k[1] == "npm"]
+
+    # The stale v1 entry must be evicted — only the v2 key remains.
+    assert len(keys_v2) == 1, f"stale entry not evicted: {keys_v2}"
+    assert keys_v2[0] != keys_v1[0]
+    assert index_v2 is not index_v1
+    # The old index is no longer in the cache (collectable by GC).
+    assert all(v is not index_v1 for v in _index_cache.values())
+
+
 # ── SymSpell delete-index acceleration (WO5.0.0-028) ──────────────────────
 
 
@@ -168,3 +196,40 @@ def test_prewarm_probe_counts_and_force_builds(tmp_path: Path, monkeypatch):
     small.mkdir()
     (small / "package.json").write_text(json.dumps({"name": "t", "dependencies": {"left-pad": "^1"}}))
     assert typo_mod._npm_dep_probe(small) < typo_mod._PREWARM_DEP_THRESHOLD
+
+
+def test_prewarm_probes_only_detected_ecosystems(tmp_path: Path, monkeypatch):
+    """WO6.0.0-019 — prewarm_typosquat_indexes with a ``detected`` set must
+    only probe those ecosystems, not all 7. A polyglot repo with npm + pypi
+    markers no longer pays the go/cargo/maven/nuget/rubygems probe cost."""
+    from picosentry.scan.rules import typosquat as typo_mod
+
+    # Set up an npm project that would trigger npm prewarm.
+    (tmp_path / "package.json").write_text(
+        json.dumps({"name": "t", "dependencies": {f"d{i}": "^1" for i in range(12)}})
+    )
+    save_indexed_corpus(tmp_path, "npm", [f"pkg-{i}" for i in range(40)])
+
+    monkeypatch.setattr(typo_mod, "_prewarmed", set())
+    probed: list[str] = []
+    real_probes = dict(typo_mod._PREWARM_PROBES)
+
+    def _tracking_probe(eco):
+        def _p(t):
+            probed.append(eco)
+            return real_probes[eco](t)
+
+        return _p
+
+    tracking_probes = {eco: _tracking_probe(eco) for eco in real_probes}
+    monkeypatch.setattr(typo_mod, "_PREWARM_PROBES", tracking_probes)
+
+    # Only npm detected → only npm probed.
+    typo_mod.prewarm_typosquat_indexes(tmp_path, tmp_path, detected=frozenset({"npm"}))
+    assert probed == ["npm"], f"expected only npm probed, got {probed}"
+
+    # None (back-compat) → all ecosystems probed.
+    monkeypatch.setattr(typo_mod, "_prewarmed", set())
+    probed.clear()
+    typo_mod.prewarm_typosquat_indexes(tmp_path, tmp_path, detected=None)
+    assert set(probed) == set(real_probes)

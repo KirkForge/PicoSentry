@@ -250,12 +250,53 @@ def _file_digest(path: str | None) -> str:
         return "missing"
 
 
+def _dir_digest(path: Path) -> str:
+    """Content digest of a directory's JSON files (sorted, stat-only fallback).
+
+    Used for the default advisory dir so ``picosentry advisories fetch``
+    (which updates that dir) invalidates the scan cache. Reads every *.json
+    file under ``path`` recursively, sorted by relative path for determinism.
+    Returns ``""`` when the dir is empty/missing and ``"missing"`` on read
+    errors — the same sentinel contract as ``_file_digest``.
+    """
+    if not path.is_dir():
+        return ""
+    sha = hashlib.sha256()
+    count = 0
+    for f in sorted(path.rglob("*.json")):
+        if f.is_symlink():
+            continue
+        try:
+            data = f.read_bytes()
+        except OSError:
+            continue
+        sha.update(f.relative_to(path).as_posix().encode("utf-8"))
+        sha.update(b"\0")
+        sha.update(hashlib.sha256(data).digest())
+        count += 1
+    if count == 0:
+        return ""
+    return sha.hexdigest()[:16]
+
+
 def _cache_config_digest(config: PicoSentryConfig) -> str:
     """Digest of every config/policy dimension that shapes the cached payload."""
     parts: dict = {name: getattr(config, name, None) for name in _CACHE_SHAPE_FIELDS}
     # Policy paths alone are not identity — the file content is what filtered the findings.
     parts["policy_file_digest"] = _file_digest(getattr(config, "policy_file", None))
-    parts["advisory_db_digest"] = _file_digest(getattr(config, "advisory_db", None))
+    # Advisory DB: an explicit --advisory-db path is digested directly. When
+    # no explicit path is given the scan uses the default advisory dir
+    # (default_advisory_dir()), so ``picosentry advisories fetch`` updates
+    # MUST invalidate the cache — fold the default dir's content digest in
+    # (WO6.0.0-019 rider). Without this, a fetched advisory set was invisible
+    # to the key and the cache served stale clean verdicts until TTL expiry.
+    explicit_adv = getattr(config, "advisory_db", None)
+    if explicit_adv:
+        parts["advisory_db_digest"] = _file_digest(explicit_adv)
+    else:
+        from picosentry.scan.advisory import default_advisory_dir
+
+        parts["advisory_db_digest"] = _dir_digest(default_advisory_dir())
     return hashlib.sha256(json.dumps(parts, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:16]
 
 

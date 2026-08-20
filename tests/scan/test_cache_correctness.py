@@ -350,6 +350,44 @@ class TestNodeModulesContentHashing:
         assert _NM_JS_EXTENSIONS == OBFS_JS == NETEX_JS == CRED_JS == WORM_JS
 
 
+class TestAdvisoryDirDigestInCacheKey:
+    """WO6.0.0-019 rider — the default advisory dir's content must feed the
+    cache key so ``picosentry advisories fetch`` invalidates the cache.
+
+    Before this fix, an explicit --advisory-db path was digested, but the
+    default dir (used when no flag is passed) was not — a fetched advisory
+    set was invisible to the key and the cache served stale clean verdicts
+    until TTL expiry."""
+
+    def test_default_advisory_dir_update_invalidates_cache(self, tmp_path, monkeypatch):
+        # Point the default advisory dir at a temp dir we control.
+        adv_dir = tmp_path / "advisories"
+        adv_dir.mkdir()
+        monkeypatch.setenv("PICOSENTRY_ADVISORY_DIR", str(adv_dir))
+        # Clear any cached import of the env (default_advisory_dir reads env live).
+        cfg = PicoSentryConfig()  # no advisory_db set → uses default dir
+        assert cfg.advisory_db is None
+
+        digest1 = _cache_config_digest(cfg)
+
+        # Simulate ``picosentry advisories fetch`` writing a new advisory file.
+        (adv_dir / "GHSA-new.json").write_text(json.dumps({"id": "GHSA-new", "affected": []}), encoding="utf-8")
+        digest2 = _cache_config_digest(cfg)
+        assert digest1 != digest2, "advisory fetch did not invalidate the cache key"
+
+    def test_explicit_advisory_db_still_digested(self, tmp_path):
+        """An explicit --advisory-db path is digested as before (single file,
+        not the default dir)."""
+        adv_file = tmp_path / "custom-advisories.json"
+        adv_file.write_text("[]", encoding="utf-8")
+        cfg = PicoSentryConfig()
+        cfg.advisory_db = str(adv_file)
+        digest1 = _cache_config_digest(cfg)
+        adv_file.write_text('[{"id":"x"}]', encoding="utf-8")
+        digest2 = _cache_config_digest(cfg)
+        assert digest1 != digest2
+
+
 class TestTruncationMarker:
     """WO5.0.0-010 — boundary-crossing edits past the file/byte caps invalidate."""
 

@@ -343,10 +343,12 @@ class ScanEngine:
 
         if _detected:
             # Finish the typosquat delete-index build for dep-heavy targets
-            # here, outside the per-rule timebox (WO5.0.0-028).
+            # here, outside the per-rule timebox (WO5.0.0-028). WO6.0.0-019:
+            # only probe detected ecosystems — a polyglot repo with npm + pypi
+            # markers no longer pays the go/cargo/maven/nuget/rubygems probe.
             from .rules.typosquat import prewarm_typosquat_indexes
 
-            prewarm_typosquat_indexes(target_path, self._corpus_dir)
+            prewarm_typosquat_indexes(target_path, self._corpus_dir, detected=_detected)
 
         explicit_rules = set(rules) if rules is not None else None
         selected_rules = (
@@ -541,6 +543,16 @@ class ScanEngine:
                     all_findings.extend(findings)
                     logger.debug("Rules %s: %d findings", rule_ids_for_fn, len(findings))
                     elapsed = int(now_ms() - rule_start)
+                    # WO6.0.0-019 rider — per-sub-rule attribution: each
+                    # rule_id alias gets its OWN findings_count (counted from
+                    # the findings' actual rule_id attribute), not the group
+                    # total. Previously every alias reported len(findings),
+                    # which disagreed with stats.findings_by_rule when a
+                    # function emits findings for several of its sub-rules.
+                    per_rule_counts: dict[str, int] = dict.fromkeys(rule_ids_for_fn, 0)
+                    for f in findings:
+                        if f.rule_id in per_rule_counts:
+                            per_rule_counts[f.rule_id] += 1
                     for rid in rule_ids_for_fn:
                         rule_timings[rid] = elapsed
                         rule_executions.append(
@@ -548,7 +560,7 @@ class ScanEngine:
                                 rule_id=rid,
                                 status="ok",
                                 duration_ms=elapsed,
-                                findings_count=len(findings),
+                                findings_count=per_rule_counts[rid],
                             )
                         )
                 except Exception as exc:

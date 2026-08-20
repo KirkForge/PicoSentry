@@ -350,23 +350,16 @@ class ScanOrchestrator:
             result = engine.scan(target, rules=config.rules, advisory_db_path=config.advisory_db)
 
         try:
-            effective_policy = _resolve_effective_policy(config=config)
+            _effective_policy = _resolve_effective_policy(config=config)
         except (PolicyNotFoundError, PolicyParseError, PolicyRuntimeError) as exc:
             raise ScanError(f"policy error: {exc}") from exc
-        if effective_policy is not None:
-            if hasattr(effective_policy, "deny_packages") and effective_policy.deny_packages:
-                denied_set = set(effective_policy.deny_packages)
-                result.apply_overrides([f for f in result.findings if f.package not in denied_set])
-
-            if hasattr(effective_policy, "deny_licenses") and effective_policy.deny_licenses:
-                denied_licenses = set(effective_policy.deny_licenses)
-                result.apply_overrides(
-                    [
-                        f
-                        for f in result.findings
-                        if not any(lic in denied_licenses for lic in getattr(f, "licenses", []))
-                    ]
-                )
+        # ponytail: WO6.0.0-007 — the deny_packages/deny_licenses finding
+        # suppression block that lived here was deleted: it inverted policy
+        # semantics (banning a pkg suppressed its findings, hiding the evidence
+        # that justified the ban). The policy engine surfaces deny_packages
+        # violations via _apply_policy (run() calls it after this returns); the
+        # deny_licenses block was dead code (Finding has no .licenses attr).
+        del _effective_policy  # resolved only for its raise-on-error side effect
 
         if config.severity_overrides:
             result.apply_overrides(config.apply_severity_overrides(result.findings))

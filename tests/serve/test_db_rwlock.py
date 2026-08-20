@@ -12,8 +12,6 @@ from __future__ import annotations
 import threading
 import time
 
-import pytest
-
 from picosentry.serve.database.manager import DatabaseManager
 from picosentry.serve.database.pools import ReadWriteLock
 
@@ -180,15 +178,24 @@ class TestRateLimitFlushAtomicity:
         from picosentry.serve.database.manager import db as app_db
 
         mw = self._middleware(monkeypatch)
-        mw.ip_requests["1.2.3.4"] = [time.time() - 1]
-        mw._flush_to_db()
-        rows = app_db.execute("SELECT bucket_key FROM rate_limit_counters WHERE bucket_type = 'ip'")
-        assert [r["bucket_key"] for r in rows] == ["1.2.3.4"]
-        app_db.execute("DELETE FROM rate_limit_counters")
+        try:
+            mw.ip_requests["1.2.3.4"] = [time.time() - 1]
+            mw._flush_to_db()
+            rows = app_db.execute("SELECT bucket_key FROM rate_limit_counters WHERE bucket_type = 'ip'")
+            assert [r["bucket_key"] for r in rows] == ["1.2.3.4"]
+            app_db.execute("DELETE FROM rate_limit_counters")
+        finally:
+            mw.shutdown()
 
     def test_failed_flush_rolls_back_to_previous_state(self, monkeypatch):
         """A crash between the DELETE and the INSERTs must roll back — the
-        old rows survive instead of leaving the table empty."""
+        old rows survive instead of leaving the table empty.
+
+        WO6.0.0-010: the flush now CATCHES operational DB errors (RuntimeError
+        is in _DB_SOFT_ERRORS) and degrades to memory-only instead of
+        propagating — so the assertion is that _flush_to_db returns normally
+        and the previous counters survive via transaction rollback.
+        """
         from picosentry.serve.database.manager import db as app_db
 
         mw = self._middleware(monkeypatch)
@@ -207,9 +214,13 @@ class TestRateLimitFlushAtomicity:
             return original(conn, sql, params)
 
         monkeypatch.setattr(app_db, "execute_on", _boom_on_second_insert)
-        with pytest.raises(RuntimeError):
+        # WO6.0.0-010: flush catches the error (degrade to memory-only), does
+        # not propagate — the transaction still rolls back so the old row survives.
+        try:
             mw._flush_to_db()
 
-        rows = app_db.execute("SELECT bucket_key FROM rate_limit_counters WHERE bucket_type = 'ip'")
-        assert [r["bucket_key"] for r in rows] == ["1.2.3.4"], "mid-flush crash left counters deleted"
-        app_db.execute("DELETE FROM rate_limit_counters")
+            rows = app_db.execute("SELECT bucket_key FROM rate_limit_counters WHERE bucket_type = 'ip'")
+            assert [r["bucket_key"] for r in rows] == ["1.2.3.4"], "mid-flush crash left counters deleted"
+            app_db.execute("DELETE FROM rate_limit_counters")
+        finally:
+            mw.shutdown()

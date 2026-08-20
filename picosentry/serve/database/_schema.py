@@ -1019,13 +1019,31 @@ MIGRATIONS: list[Migration] = [
             holder TEXT,
             expires_at TIMESTAMP
         );
-
         INSERT INTO scheduler_leases (lease_key, holder, expires_at)
             VALUES ('scheduler', NULL, '1970-01-01T00:00:00+00:00')
             ON CONFLICT (lease_key) DO NOTHING;
     """,
     ),
+    Migration(
+        23,
+        "outbox_created_at_timestamptz",
+        # SQLite no-op: TIMESTAMP stores TEXT and the DB-boundary tz-coercion
+        # in OutboxPoller._drain handles naive datetimes. Kept as a sibling
+        # so the version counter stays in lockstep across backends.
+        """
+        SELECT 1;
+    """,
+        postgres_sql="""
+        -- WO6.0.0-009: migration 22 declared created_at TIMESTAMP (no tz);
+        -- psycopg2 returns naive datetimes that TypeError'd against the
+        -- tz-aware _started_at, killing the poller thread on the first
+        -- foreign event. The boundary coercion in _drain is the actual fix;
+        -- this rider makes the column honest so the footgun cannot recur.
+        ALTER TABLE event_outbox ALTER COLUMN created_at TYPE TIMESTAMPTZ;
+    """,
+    ),
 ]
+
 
 __all__ = [
     "MIGRATIONS",

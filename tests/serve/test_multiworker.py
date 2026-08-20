@@ -134,6 +134,43 @@ def test_outbox_fanout_to_foreign_bus() -> None:
         poller.stop()
 
 
+def test_outbox_fanout_skips_local_only_side_effect_subscribers() -> None:
+    """WO6.0.0-009: foreign rows must fan out to history + ordinary
+    subscribers (WS) but SKIP local_only side-effect subscribers (the
+    orchestrator correlation/escalation subscriber). Without this skip every
+    worker re-fires escalation Nx — a false-outage generator in a security
+    product."""
+    bus_a = EventBus()
+    bus_a.outbox_enabled = True
+    bus_b = EventBus()
+    plain_seen: list = []
+    side_effect_seen: list = []
+    bus_b.subscribe("multi.demux", plain_seen.append)
+    bus_b.subscribe("multi.demux", side_effect_seen.append, local_only=True)
+
+    poller = OutboxPoller(bus_b, interval=0.05, retention_seconds=3600)
+    poller.start()
+    try:
+        bus_a.publish("multi.demux", {"v": 1}, source="worker-a")
+        assert _wait_until(lambda: len(plain_seen) == 1, timeout=3), f"plain subscriber missed: {plain_seen}"
+        time.sleep(0.3)  # several poll intervals — side_effect must never fire
+        assert len(side_effect_seen) == 0, f"local_only side-effect re-fired for foreign row: {side_effect_seen}"
+        assert any(e.type == "multi.demux" for e in bus_b.get_history("multi.demux", limit=50)), (
+            "history missing foreign row"
+        )
+
+        # Sanity: bus_b's OWN publish still fires both (local_only only
+        # applies to foreign/outbox-polled rows).
+        own_plain: list = []
+        own_side: list = []
+        bus_b.subscribe("multi.demux2", own_plain.append)
+        bus_b.subscribe("multi.demux2", own_side.append, local_only=True)
+        bus_b.publish("multi.demux2", {"v": 2}, source="worker-b")
+        assert len(own_plain) == 1 and len(own_side) == 1, "local publish did not fire local_only subscriber"
+    finally:
+        poller.stop()
+
+
 # ---------------------------------------------------------------------------
 # (c-lite) rate limit counted across two middleware instances — in-process
 # ---------------------------------------------------------------------------

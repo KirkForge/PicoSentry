@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import threading
+
 from picosentry.firewall.cache import VerdictCache
 from picosentry.firewall.scanner import FirewallVerdict
 
@@ -63,3 +65,59 @@ class TestVerdictCache:
         assert cache.get("npm", "b", "1") == FirewallVerdict.ALLOW
         assert cache.get("npm", "c", "1") == FirewallVerdict.BLOCK
         assert cache.stats().size == 2
+
+
+class TestVerdictCacheConcurrency:
+    # WO6-017: VerdictCache serves ThreadingHTTPServer's one-thread-per-request
+    # model. 8 threads x 3000 mixed get/put/clear/stats ops must complete with
+    # zero RuntimeError (dict changed size during iteration) and zero KeyError
+    # (evicted-between-get-and-del). Tight TTL + small max_entries force the
+    # eviction and expiry races that the unsynchronized cache used to lose.
+
+    def test_concurrent_get_put_evict_zero_errors(self, monkeypatch):
+        cache = VerdictCache(ttl_seconds=2, max_entries=50)
+        errors: list[BaseException] = []
+
+        def worker():
+            try:
+                for i in range(3000):
+                    key = f"pkg{i % 200}"
+                    cache.put("npm", key, "1", FirewallVerdict.ALLOW)
+                    cache.get("npm", key, "1")
+                    if i % 500 == 0:
+                        cache.stats()
+                        cache.clear()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=worker) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, f"concurrent cache ops raised: {errors!r}"
+
+    def test_concurrent_stats_during_mutation_no_error(self):
+        cache = VerdictCache(ttl_seconds=1, max_entries=10)
+        errors: list[BaseException] = []
+
+        def mutator():
+            try:
+                for i in range(3000):
+                    cache.put("npm", f"k{i % 20}", "1", FirewallVerdict.ALLOW)
+            except BaseException as exc:
+                errors.append(exc)
+
+        def reader():
+            try:
+                for _ in range(3000):
+                    cache.stats()
+            except BaseException as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=mutator)] + [threading.Thread(target=reader) for _ in range(7)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert not errors, f"stats during mutation raised: {errors!r}"

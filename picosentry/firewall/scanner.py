@@ -6,7 +6,7 @@ import re
 import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.parse import urlsplit
+from urllib.parse import unquote, urlsplit
 
 from picosentry.firewall.cache import VerdictCache as _VerdictCache
 from picosentry.firewall.cache import VerdictCache as _CacheForPut
@@ -28,7 +28,7 @@ _STATIC_EXT_RE = re.compile(r"\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|
 _ARTIFACT_RULE_EXCLUSIONS = frozenset({"L2-LOCK-001", "L2-PNPM-001"})
 
 
-def extract_version_manifest(metadata: dict, version: str) -> dict:
+def extract_version_manifest(metadata: dict, version: str) -> dict | None:
     """Return the requested version's manifest slice from a registry document.
 
     npm ``GET /pkg`` returns the whole-catalog doc with every version nested
@@ -36,6 +36,11 @@ def extract_version_manifest(metadata: dict, version: str) -> dict:
     fields, so scanning the raw doc would be blind to all version content.
     PyPI nests the requested version's metadata under ``info``. Single-manifest
     docs (npm ``GET /pkg/1.2.3``) pass through unchanged.
+
+    Returns ``None`` when a whole-catalog doc does not contain the requested
+    version — the caller must refuse (400/502) rather than scan root fields,
+    which would report a false ALLOW by inspecting non-version content
+    (WO6-017).
     """
     versions = metadata.get("versions")
     if isinstance(versions, dict):
@@ -46,7 +51,7 @@ def extract_version_manifest(metadata: dict, version: str) -> dict:
         slice_manifest = versions.get(resolved) if resolved else None
         if isinstance(slice_manifest, dict):
             return slice_manifest
-        return {k: v for k, v in metadata.items() if k != "versions"}
+        return None
     info = metadata.get("info")
     if isinstance(info, dict):
         return info
@@ -57,6 +62,10 @@ class FirewallVerdict:
     ALLOW = "allow"
     QUARANTINE = "quarantine"
     BLOCK = "block"
+    # Requested version could not be resolved from the upstream doc — the proxy
+    # maps this to 502 so a missing version is never silently ALLOW-scanned
+    # against root catalog fields (WO6-017).
+    UNRESOLVED = "unresolved"
 
 
 def classify_path(path: str) -> tuple[str, str, str] | None:
@@ -66,6 +75,11 @@ def classify_path(path: str) -> tuple[str, str, str] | None:
     path = urlsplit(path).path.rstrip("/")
     if _STATIC_EXT_RE.search(path):
         return None
+    # Percent-decode BEFORE regex match: npm clients send scopes as %40 (@)
+    # and the slash inside a scoped name as %2F. Decoding up front makes
+    # /%40scope/pkg classify identically to /@scope/pkg (WO6-017). Decoding
+    # before _STATIC_EXT_RE is safe — static extensions never arrive encoded.
+    path = unquote(path)
     m = _PYPI_PACKAGE_RE.match(path)
     if m:
         name = m.group(1)
@@ -73,7 +87,7 @@ def classify_path(path: str) -> tuple[str, str, str] | None:
         return ("pypi", name, version)
     m = _NPM_PACKAGE_RE.match(path)
     if m:
-        name = m.group(1).replace("%2F", "/")
+        name = m.group(1)
         version = m.group(2) or "latest"
         return ("npm", name, version)
     return None
@@ -130,6 +144,12 @@ class FirewallScanner:
             return cached
 
         manifest = extract_version_manifest(metadata, version)
+        if manifest is None:
+            # Whole-catalog doc without the requested version: refuse instead of
+            # scanning root fields (which would report a false ALLOW). The proxy
+            # maps UNRESOLVED to 502 (WO6-017).
+            self._cache.put(ecosystem, name, version, (FirewallVerdict.UNRESOLVED, []))
+            return FirewallVerdict.UNRESOLVED, []
         with tempfile.TemporaryDirectory(prefix="picosentry_fw_") as tmp:
             tmp_path = Path(tmp)
             if ecosystem == "npm":

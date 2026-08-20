@@ -227,6 +227,41 @@ class TestProxyHandlerVerdictLogic:
             calls = [str(c) for c in handler.send_response.call_args_list]
             assert any("502" in c for c in calls)
 
+    def test_unresolved_verdict_returns_502(self):
+        # WO6-017: an unresolvable version (whole-catalog doc without the
+        # requested version) must 502, not fall back to scanning root fields.
+        from picosentry.firewall.proxy import _ProxyHandler, FirewallConfig
+
+        config = FirewallConfig()
+        proxy = FirewallProxy(config)
+        handler_class = type(
+            "_H",
+            (_ProxyHandler,),
+            {"config": config, "scanner": proxy.scanner},
+        )
+        handler = object.__new__(handler_class)
+        handler.path = "/acme-lib/9.9.9"
+        handler.send_response = MagicMock()
+        handler.send_header = MagicMock()
+        handler.end_headers = MagicMock()
+        handler.wfile = MagicMock()
+        handler.log_message = MagicMock()
+        handler.scanner.scan_metadata = MagicMock(return_value=(FirewallVerdict.UNRESOLVED, []))
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            mock_resp = MagicMock()
+            mock_resp.status = 200
+            mock_resp.headers = MagicMock()
+            mock_resp.headers.get.return_value = "application/json"
+            mock_safe.return_value = (
+                mock_resp,
+                json.dumps({"name": "acme-lib", "versions": {"1.0.0": {}}}).encode(),
+            )
+            handler.do_GET()
+        calls = [str(c) for c in handler.send_response.call_args_list]
+        assert any("502" in c for c in calls)
+        header_dict = {args[0]: args[1] for args, _ in handler.send_header.call_args_list}
+        assert header_dict.get("X-PicoSentry-Verdict") == "unresolved"
+
 
 class TestSafeUpstreamPath:
     def test_rejects_dotdot(self):

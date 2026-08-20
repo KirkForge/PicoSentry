@@ -351,6 +351,13 @@ class DatabaseManager:
                 with self.transaction(immediate=True) as conn:
                     for raw_stmt in sql.split(";"):
                         stmt = raw_stmt.strip()
+                        # Strip leading -- comment lines so a fragment that
+                        # is comment-only becomes empty (skipped) while a
+                        # fragment with real SQL after comments is kept.
+                        # Semicolons inside -- comments split them off; a
+                        # comment-only statement is an empty query on postgres.
+                        lines = [ln for ln in stmt.splitlines() if not ln.strip().startswith("--")]
+                        stmt = "\n".join(lines).strip()
                         if stmt:
                             try:
                                 self.execute_on(conn, stmt + ";")

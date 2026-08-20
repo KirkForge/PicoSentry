@@ -1034,11 +1034,11 @@ MIGRATIONS: list[Migration] = [
         SELECT 1;
     """,
         postgres_sql="""
-        -- WO6.0.0-009: migration 22 declared created_at TIMESTAMP (no tz);
-        -- psycopg2 returns naive datetimes that TypeError'd against the
+        -- WO6.0.0-009: migration 22 declared created_at TIMESTAMP (no tz)
+        -- psycopg2 returns naive datetimes that TypeError against the
         -- tz-aware _started_at, killing the poller thread on the first
-        -- foreign event. The boundary coercion in _drain is the actual fix;
-        -- this rider makes the column honest so the footgun cannot recur.
+        -- foreign event. The boundary coercion in _drain is the actual fix
+        -- this rider makes the column honest so the footgun cannot recur
         ALTER TABLE event_outbox ALTER COLUMN created_at TYPE TIMESTAMPTZ;
     """,
     ),

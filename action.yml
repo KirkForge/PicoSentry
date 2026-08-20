@@ -47,7 +47,18 @@ runs:
             ;;
         esac
 
-        ARGS=(scan "${{ inputs.path }}" --format "${{ inputs.format }}" --output "${{ inputs.sarif-file }}")
+        # github format writes the SARIF bundle to --sarif-file (default
+        # sarif.json) and the markdown summary to --output; every other
+        # format writes its primary artifact to --output (WO6.0.0-021 item 3:
+        # previously --output was the SARIF path for github too, so the
+        # declared sarif-file ended up holding a markdown summary while the
+        # real SARIF landed at the hardcoded sarif.json).
+        ARGS=(scan "${{ inputs.path }}" --format "${{ inputs.format }}")
+        if [ "${{ inputs.format }}" = "github" ]; then
+          ARGS+=(--sarif-file "${{ inputs.sarif-file }}")
+        else
+          ARGS+=(--output "${{ inputs.sarif-file }}")
+        fi
         if [ -n "${{ inputs.severity-threshold }}" ]; then
           ARGS+=(--severity-threshold "${{ inputs.severity-threshold }}")
         fi

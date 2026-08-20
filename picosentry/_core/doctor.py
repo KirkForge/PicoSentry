@@ -371,6 +371,67 @@ def _check_optional_extras() -> CheckResult:
     return CheckResult("optional_extras", "pass", f"all {len(declared)} runtime extras importable")
 
 
+def _check_detection_metric_claims() -> CheckResult:
+    """Precision/recall % claims must match REPORT.json's mean_* fields.
+
+    The experimental honesty table, README, and manual all quote fixed
+    precision/recall percentages; nothing pinned them to the validation
+    report, so a scanner change with a forgotten regen shipped stale
+    numbers (the WO5-028 recall move proved they drift). This check reads
+    REPORT.json and asserts every documented percentage matches.
+    """
+    from picosentry.experimental import COMPONENT_STATUS
+
+    report_path = _ROOT / "tests" / "scan" / "fixtures" / "validation" / "REPORT.json"
+    if not report_path.exists():
+        return CheckResult("detection_metric_claims", "fail", f"REPORT.json not found: {report_path}")
+    try:
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        return CheckResult("detection_metric_claims", "fail", f"REPORT.json unparseable: {exc}")
+    mean_prec = data.get("mean_precision")
+    mean_recall = data.get("mean_recall")
+    if mean_prec is None or mean_recall is None:
+        return CheckResult("detection_metric_claims", "fail", "REPORT.json missing mean_precision/mean_recall")
+
+    # Build the (percentage_string, expected_value) pairs the surfaces claim.
+    expected_prec_pct = f"{mean_prec * 100:.2f}%"
+    expected_recall_pct = f"{mean_recall * 100:.2f}%"
+    problems: list[str] = []
+
+    # experimental.py COMPONENT_STATUS — the "Detection benchmarks" row.
+    for cs in COMPONENT_STATUS:
+        if "prec" not in cs.notes or "recall" not in cs.notes:
+            continue
+        m = re.search(r"(\d+\.\d+)%\s*prec,\s*(\d+\.\d+)%\s*recall", cs.notes)
+        if not m:
+            continue
+        claim_prec, claim_recall = m.group(1) + "%", m.group(2) + "%"
+        if claim_prec != expected_prec_pct:
+            problems.append(f"{cs.name}: claims {claim_prec} prec, REPORT.json = {expected_prec_pct}")
+        if claim_recall != expected_recall_pct:
+            problems.append(f"{cs.name}: claims {claim_recall} recall, REPORT.json = {expected_recall_pct}")
+
+    # README + manual quote the same numbers under "Mean precision/recall".
+    for doc_path in (Path("README.md"), Path("docs") / "manual.md"):
+        path = _ROOT / doc_path
+        if not path.exists():
+            continue
+        text = path.read_text(encoding="utf-8")
+        for label, expected in (("precision", expected_prec_pct), ("recall", expected_recall_pct)):
+            for m in re.finditer(rf"Mean\s+{label}\s*\|\s*(\d+\.\d+)%", text):
+                if m.group(1) + "%" != expected:
+                    problems.append(f"{doc_path}: claims {m.group(1)}% mean {label}, REPORT.json = {expected}")
+
+    if problems:
+        return CheckResult("detection_metric_claims", "fail", "; ".join(problems))
+    return CheckResult(
+        "detection_metric_claims",
+        "pass",
+        f"prec {expected_prec_pct} / recall {expected_recall_pct} match REPORT.json",
+    )
+
+
 def _check_version_consistency() -> CheckResult:
     versions: dict[str, str | None] = {}
 
@@ -454,6 +515,7 @@ def verify(repair: bool = False) -> DoctorReport:
         _check_picodome_not_tracked,
         _check_no_secrets_in_source,
         _check_experimental_claims,
+        _check_detection_metric_claims,
         _check_version_consistency,
         _check_watch_rules,
         _check_optional_extras,

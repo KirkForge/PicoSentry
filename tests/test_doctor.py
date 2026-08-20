@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -17,6 +18,7 @@ from picosentry._core.doctor import (
     DoctorReport,
     _check_corpus_files,
     _check_detector_implementations,
+    _check_detection_metric_claims,
     _check_experimental_claims,
     _check_fixture_count,
     _check_imports_healthy,
@@ -218,6 +220,40 @@ class TestExperimentalClaims:
         assert result.status in ("pass", "fail")
 
 
+class TestDetectionMetricClaims:
+    """Precision/recall % claims must be pinned to REPORT.json mean_*
+    (WO6.0.0-021 item 7). The check fails when a surface quotes a stale
+    percentage after a scanner change with a forgotten regen."""
+
+    def test_healthy_claims_pass(self):
+        result = _check_detection_metric_claims()
+        assert result.status == "pass", result.detail
+        assert "prec" in result.detail and "recall" in result.detail
+
+    def test_stale_precision_fails(self, tmp_path, monkeypatch):
+        from picosentry.experimental import ComponentStatus
+
+        report_dir = tmp_path / "tests" / "scan" / "fixtures" / "validation"
+        report_dir.mkdir(parents=True)
+        (report_dir / "REPORT.json").write_text(json.dumps({"mean_precision": 0.95, "mean_recall": 0.80}))
+        monkeypatch.setattr(doctor, "_ROOT", tmp_path)
+        # A claim row quoting 100.00% prec / 90.87% recall against a 95%/80% report.
+        monkeypatch.setattr(
+            "picosentry.experimental.COMPONENT_STATUS",
+            (ComponentStatus(name="`picosentry scan`", status="Stable", notes="100.00% prec, 90.87% recall"),),
+        )
+        result = _check_detection_metric_claims()
+        assert result.status == "fail"
+        assert "95.00%" in result.detail or "80.00%" in result.detail
+
+    def test_missing_report_fails(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(doctor, "_ROOT", tmp_path)
+        monkeypatch.setattr("picosentry.experimental.COMPONENT_STATUS", ())
+        result = _check_detection_metric_claims()
+        assert result.status == "fail"
+        assert "REPORT.json" in result.detail
+
+
 class TestVersionConsistency:
     def test_versions_match(self):
         result = _check_version_consistency()
@@ -402,3 +438,56 @@ class TestHealthCommand:
 
         assert health.cmd(argparse.Namespace()) == 1
         assert "scan" in capsys.readouterr().out
+
+
+class TestMaturityLockstep:
+    """`_COMMAND_MATURITY` badges must match `COMPONENT_STATUS` for every
+    overlapping command name (WO6.0.0-021 item 1). The two tables drifted for
+    months: serve was STABLE in the CLI dict but Beta in README/experimental.
+    """
+
+    @staticmethod
+    def _component_status_map() -> dict[str, str]:
+        from picosentry.experimental import COMPONENT_STATUS
+
+        out: dict[str, str] = {}
+        for cs in COMPONENT_STATUS:
+            m = re.match(r"`picosentry (\w+)`", cs.name)
+            if m:
+                out[m.group(1)] = cs.status
+        return out
+
+    def test_overlapping_commands_match_component_status(self):
+        from picosentry.cli_commands._maturity import _COMMAND_MATURITY
+
+        cs_map = self._component_status_map()
+        mismatches: list[str] = []
+        for cmd, (badge, _summary) in _COMMAND_MATURITY.items():
+            cs_status = cs_map.get(cmd)
+            if cs_status is None:
+                continue
+            if badge.capitalize() != cs_status:
+                mismatches.append(f"{cmd}: CLI={badge}, COMPONENT_STATUS={cs_status}")
+        assert not mismatches, "maturity badges drifted from COMPONENT_STATUS: " + "; ".join(mismatches)
+
+    def test_cluster_maturity_warning_fires(self, capsys, monkeypatch):
+        """`emit_maturity_warning('cluster')` must not be a silent no-op
+        (WO6.0.0-021 item 1): cluster is Beta in COMPONENT_STATUS, so the
+        warning dict must carry it and emit a BETA banner."""
+        from picosentry.cli_commands._maturity import _COMMAND_MATURITY, emit_maturity_warning
+
+        monkeypatch.delenv("PICOSENTRY_MATURITY_ACK", raising=False)
+        assert "cluster" in _COMMAND_MATURITY, "cluster must be in _COMMAND_MATURITY (was a silent no-op)"
+        badge = _COMMAND_MATURITY["cluster"][0]
+        assert badge == "BETA", f"cluster badge = {badge}, expected BETA"
+        emit_maturity_warning("cluster")
+        captured = capsys.readouterr()
+        assert "BETA" in captured.err, f"cluster warning should print BETA, got: {captured.err!r}"
+
+    def test_serve_maturity_matches_readme(self):
+        """serve must be BETA in the CLI dict — README and experimental both
+        say Beta. This is the regression the round-3 audit caught: serve was
+        STABLE in the dict, silently contradicting every guarded surface."""
+        from picosentry.cli_commands._maturity import _COMMAND_MATURITY
+
+        assert _COMMAND_MATURITY["serve"][0] == "BETA", "serve drifted back to non-BETA"

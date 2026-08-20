@@ -15,12 +15,15 @@ on:
   workflow_dispatch:
 
 # A new push to the same PR/ref supersedes any in-flight run — cancel it
-# instead of burning runners on obsolete commits. Scheduled (nightly) runs
-# get their own group and are never cancelled: a push to main during the
-# 03:00 exhaustive run must not kill it (WO5.0.0-026).
+# instead of burning runners on obsolete commits. Scheduled (nightly) and
+# manual-dispatch runs get their own group and are never cancelled: a push
+# to main during the 03:00 exhaustive run must not kill it (WO5.0.0-026).
+# WO6.0.0-021 item 5: the previous expression shared the -nightly group with
+# cancel-in-progress for non-schedule events, so a dispatch onto the nightly
+# group could be cancelled by a later push — contradicting the comment.
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}${{ (github.event_name == 'schedule' || github.event_name == 'workflow_dispatch') && '-nightly' || '' }}
-  cancel-in-progress: ${{ github.event_name != 'schedule' }}
+  cancel-in-progress: ${{ github.event_name != 'schedule' && github.event_name != 'workflow_dispatch' }}
 
 env:
   PYTHON_VERSION: '3.12'
@@ -127,6 +130,24 @@ jobs:
         run: git diff --exit-code docs/BENCHMARKS.md tests/scan/fixtures/validation/REPORT.json
       - name: Verify scan determinism
         run: uv run --extra scan picosentry scan --verify-determinism tests/scan/fixtures/validation/positive/
+
+  # Push-tier scan-artifacts sync (WO6.0.0-021 item 2): the PR gate above is
+  # PR-only, so direct-to-dev pushes (§1.5's documented flow) could land a
+  # scanner change with a forgotten regen and docs/BENCHMARKS.md would drift
+  # while CI stayed green. This job runs on every push to main/dev and asserts
+  # the committed artifacts match a fresh regen — the same teeth, no PR gate.
+  scan-artifacts-push:
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Regenerate REPORT.json
+        run: uv run --extra scan picosentry scan --validate --output tests/scan/fixtures/validation/REPORT.json
+      - name: Render per-rule table from REPORT.json
+        run: uv run python scripts/render_benchmarks.py
+      - name: Verify docs/BENCHMARKS.md + REPORT.json are in sync
+        run: git diff --exit-code docs/BENCHMARKS.md tests/scan/fixtures/validation/REPORT.json
 
   cli-verification:
     needs: [changes]

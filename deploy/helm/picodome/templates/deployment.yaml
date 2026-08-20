@@ -72,14 +72,14 @@ spec:
         - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{- if .Values.grpc.enabled }}
           args:
             - "daemon"
             - "--host={{ .Values.daemon.host }}"
             - "--port={{ .Values.daemon.port }}"
+            {{- if .Values.grpc.enabled }}
             - "--transport=grpc"
             - "--grpc-port={{ .Values.grpc.port }}"
-          {{- end }}
+            {{- end }}
           ports:
             - name: http
               containerPort: {{ .Values.daemon.port }}

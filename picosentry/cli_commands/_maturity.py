@@ -21,7 +21,7 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         ),
     ),
     "serve": (
-        "STABLE",
+        "BETA",
         "API server, dashboard, and orchestration.",
     ),
     "daemon": (
@@ -44,6 +44,13 @@ _COMMAND_MATURITY: dict[str, tuple[str, str]] = {
         (
             "Registry proxy firewall. Intercepts npm/PyPI install requests, "
             "scans package metadata with PicoSentry, and allows/quarantines/blocks."
+        ),
+    ),
+    "cluster": (
+        "BETA",
+        (
+            "Sandbox cluster mode. Gossip over HTTP(S) with shared cluster token + optional mTLS; "
+            "monotonic versioning; 3-node integration test."
         ),
     ),
 }

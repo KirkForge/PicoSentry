@@ -151,6 +151,33 @@ def test_readme_version_lockstep() -> None:
     assert f"picodome:v{picosentry.__version__}" in text, "README Docker pull line is stale"
 
 
+def test_manual_version_lockstep() -> None:
+    """manual.md header + engine line must quote the current version
+    (WO6.0.0-021 item 4). manual.md was an unguarded lockstep surface —
+    a missed bump shipped a stale manual while the wheel moved on."""
+    text = (_REPO_ROOT / "docs" / "manual.md").read_text()
+    # Line 3 header: "Version X.Y.Z — BUSL-1.1 — ..."
+    assert f"Version {picosentry.__version__}" in text, "manual.md header version is stale"
+    # Engine line in the quick-start banner.
+    assert f"Engine: v{picosentry.__version__}" in text, "manual.md Engine banner is stale"
+
+
+def test_uv_lock_version_lockstep() -> None:
+    """uv.lock's picosentry package version must match the runtime version
+    (WO6.0.0-021 item 4). uv.lock was an unguarded lockstep surface — the
+    SARIF-incident class: a `uv lock` after a bump that didn't get committed
+    shipped a stale lockfile while the wheel reported the new version."""
+    import re as _re
+
+    text = (_REPO_ROOT / "uv.lock").read_text()
+    # The picosentry package block: [[package]] \n name = "picosentry" \n version = "X.Y.Z"
+    m = _re.search(r'name = "picosentry"\s*\nversion = "([^"]+)"', text)
+    assert m, "uv.lock has no picosentry package block"
+    assert m.group(1) == picosentry.__version__, (
+        f"uv.lock picosentry version = {m.group(1)!r}, expected {picosentry.__version__!r}"
+    )
+
+
 def test_kubernetes_manifest_image_lockstep() -> None:
     """deploy/kubernetes/deployment.yaml must pin the current image tag.
 
@@ -376,6 +403,29 @@ class TestGateTruthfulness:
         assert proc.returncode == 2
         assert "findings-bearing format" in proc.stdout + proc.stderr
 
+    def test_action_github_format_uses_sarif_file_not_output(self, tmp_path):
+        """format=github must pass --sarif-file (not --output) so the SARIF
+        bundle lands at the declared sarif-file path (WO6.0.0-021 item 3).
+        Previously --output was the sarif-file path, but the github formatter
+        writes SARIF to --sarif-file and the markdown summary to --output, so
+        the declared output ended up holding markdown while real SARIF went to
+        the hardcoded sarif.json — and the action's count read sarif.json.
+        """
+        proc, args = self._run_action(tmp_path, format="github", stub_output=self.SARIF_TWO)
+        assert proc.returncode == 1, proc.stdout + proc.stderr
+        args_list = args.split()
+        assert "--sarif-file" in args_list, f"github format must pass --sarif-file, got: {args_list}"
+        assert "--output" not in args_list, f"github format must NOT pass --output, got: {args_list}"
+
+    def test_action_sarif_format_uses_output_not_sarif_file(self, tmp_path):
+        """format=sarif keeps the original --output path (the SARIF bundle
+        is the primary artifact). Regression guard for the item-3 fix."""
+        proc, args = self._run_action(tmp_path, format="sarif", stub_output=self.SARIF_EMPTY)
+        assert proc.returncode == 0, proc.stdout + proc.stderr
+        args_list = args.split()
+        assert "--output" in args_list, f"sarif format must pass --output, got: {args_list}"
+        assert "--sarif-file" not in args_list, f"sarif format must NOT pass --sarif-file, got: {args_list}"
+
     @staticmethod
     def _gitlab_script() -> str:
         import yaml
@@ -494,3 +544,129 @@ class TestGateTruthfulness:
         for rel in ("action.yml", "ci-templates/gitlab-picosentry.yml", ".github/workflows/verify-release.yml"):
             text = (_REPO_ROOT / rel).read_text()
             assert "|| echo" not in text, f"{rel} reintroduced an || echo fallback"
+
+
+def _helm_deployment_template() -> str:
+    return (_REPO_ROOT / "deploy" / "helm" / "picodome" / "templates" / "deployment.yaml").read_text()
+
+
+def _render_args_block(grpc_enabled: bool) -> str:
+    """Render the helm deployment container args with grpc toggled.
+
+    The chart uses ``{{- if .Values.grpc.enabled }}`` around the grpc-only
+    args. We emulate that by keeping the unconditional ``daemon --host --port``
+    args and appending the grpc args only when ``grpc_enabled`` is True —
+    mirroring the template's conditional, no helm binary needed.
+    """
+    template = _helm_deployment_template()
+    assert "args:" in template, "deployment.yaml lost its args: block"
+    # The unconditional block (daemon --host --port) must be present outside
+    # any grpc conditional — that's the WO6.0.0-015 fix.
+    assert re.search(
+        r"^          args:\s*\n"
+        r'            - "daemon"\s*\n'
+        r'            - "--host={{ \.Values\.daemon\.host }}"\s*\n'
+        r'            - "--port={{ \.Values\.daemon\.port }}"',
+        template,
+        re.MULTILINE,
+    ), "deployment.yaml must emit `daemon --host --port` unconditionally (WO6.0.0-015)"
+    base = [
+        "daemon",
+        "--host={{ .Values.daemon.host }}",
+        "--port={{ .Values.daemon.port }}",
+    ]
+    if grpc_enabled:
+        base.extend(["--transport=grpc", "--grpc-port={{ .Values.grpc.port }}"])
+    return " ".join(base)
+
+
+class TestHelmDefaultInstall:
+    """The default ``helm install`` must start the daemon, not print --help
+    and exit (WO6.0.0-015). The chart's args: block was conditional on
+    grpc.enabled (default false), so the default render produced a pod with
+    no args — Dockerfile CMD [--help] took over and the pod exited 0.
+    """
+
+    def test_default_render_carries_daemon_args(self):
+        """grpc disabled (the default) must still pass `daemon --host --port`."""
+        rendered = _render_args_block(grpc_enabled=False)
+        assert "daemon" in rendered
+        assert "--host={{ .Values.daemon.host }}" in rendered
+        assert "--port={{ .Values.daemon.port }}" in rendered
+        assert "--transport=grpc" not in rendered, "grpc args must not appear when grpc.enabled=false"
+
+    def test_grpc_variant_adds_transport_grpc(self):
+        """grpc.enabled=true appends --transport=grpc + --grpc-port."""
+        rendered = _render_args_block(grpc_enabled=True)
+        assert "daemon" in rendered
+        assert "--transport=grpc" in rendered
+        assert "--grpc-port={{ .Values.grpc.port }}" in rendered
+
+    def test_no_grpc_only_conditional_around_args(self):
+        """The args: block must NOT be wrapped in a grpc-only {{- if }} —
+        that's the regression we're fixing. The grpc conditional may only
+        wrap the grpc-specific args (--transport=grpc, --grpc-port)."""
+        template = _helm_deployment_template()
+        # The args: line must NOT be preceded by a grpc if-guard on the
+        # previous non-blank line.
+        lines = template.splitlines()
+        for i, line in enumerate(lines):
+            if line.strip() == "args:":
+                # Walk back over blank lines to the nearest non-blank.
+                j = i - 1
+                while j >= 0 and not lines[j].strip():
+                    j -= 1
+                if j >= 0 and "grpc.enabled" in lines[j] and "{{- if" in lines[j]:
+                    pytest.fail(
+                        "args: block is wrapped in a grpc-only {{- if .Values.grpc.enabled }} — "
+                        "default install prints --help and exits (WO6.0.0-015 regression)"
+                    )
+                break
+        else:
+            pytest.fail("no args: block found in deployment.yaml")
+
+
+class TestAlertRunbookUrls:
+    """Every runbook_url in picodome-alerts.yaml must point at the PicoSentry
+    manual (ch. 13 anchors), not the wrong-repo 404s it carried before
+    (WO6.0.0-021 item 6)."""
+
+    @staticmethod
+    def _runbook_urls() -> list[str]:
+        import yaml
+
+        text = (_REPO_ROOT / "deploy" / "monitoring" / "picodome-alerts.yaml").read_text()
+        doc = yaml.safe_load(text)
+        urls: list[str] = []
+        for group in doc["spec"]["groups"]:
+            for rule in group["rules"]:
+                url = rule.get("annotations", {}).get("runbook_url")
+                if url:
+                    urls.append(url)
+        return urls
+
+    def test_all_runbooks_point_at_picosentry_manual(self):
+        urls = self._runbook_urls()
+        assert urls, "no runbook_url annotations found — test is stale"
+        for url in urls:
+            assert "KirkForge/PicoSentry/blob/main/docs/manual.md" in url, (
+                f"runbook_url must point at PicoSentry manual, got: {url}"
+            )
+            assert "KirkForge/PicoDome" not in url, f"runbook_url still points at wrong repo: {url}"
+            assert "docs/runbooks/" not in url, f"runbook_url still points at nonexistent tree: {url}"
+
+    def test_runbook_anchors_resolve_in_manual(self):
+        """Every #anchor in a runbook_url must match a heading in manual.md."""
+        manual = (_REPO_ROOT / "docs" / "manual.md").read_text()
+        # Collect all GitHub-style anchors from markdown headings.
+        anchors: set[str] = set()
+        for line in manual.splitlines():
+            if line.startswith("#"):
+                heading = line.lstrip("#").strip()
+                anchor = re.sub(r"[^\w\s-]", "", heading).strip().lower().replace(" ", "-")
+                anchors.add(anchor)
+        for url in self._runbook_urls():
+            anchor = url.split("#", 1)[1] if "#" in url else ""
+            if not anchor:
+                continue
+            assert anchor in anchors, f"runbook anchor #{anchor} not found in manual.md headings"

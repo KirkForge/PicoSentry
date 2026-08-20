@@ -184,13 +184,13 @@ class TestMaturityWarnings:
         # Re-verify by calling the BETA path and confirming it DOES print.
         _emit_maturity_warning("serve")
         captured = capsys.readouterr()
-        assert "STABLE" in captured.err or captured.err == ""  # serve is now STABLE
+        assert "BETA" in captured.err  # serve is Beta (matches COMPONENT_STATUS/README)
 
     def test_maturity_warning_beta_commands(self, capsys):
-        """daemon prints BETA warning; serve is now STABLE."""
+        """daemon and serve print BETA warnings (pinned to COMPONENT_STATUS)."""
         from picosentry.cli import _emit_maturity_warning
 
-        for cmd in ("daemon",):
+        for cmd in ("daemon", "serve"):
             _emit_maturity_warning(cmd)
             captured = capsys.readouterr()
             assert "BETA" in captured.err, f"{cmd} should print BETA warning"

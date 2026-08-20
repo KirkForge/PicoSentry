@@ -10,8 +10,11 @@ on:
   workflow_dispatch:
 
 concurrency:
+  # WO6.0.0-021 item 5: this workflow only runs on schedule + dispatch, so
+  # cancel-in-progress: true would cancel a scheduled run when a dispatch
+  # fires (or vice versa). Both are exhaustive validations — never cancel.
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   admission-kind:

@@ -5,6 +5,11 @@
 #
 # Requires Prometheus Operator with PrometheusRule CRD,
 # or add rules directly to your Prometheus config.
+#
+# runbook_url targets the operations runbook in the PicoSentry manual
+# (docs/manual.md ch. 13). The previous values pointed at a wrong repo
+# (KirkForge/PicoDome) and a nonexistent docs/runbooks/ tree — every link
+# was a 404 (WO6.0.0-021 item 6).
 ---
 apiVersion: monitoring.coreos.com/v1
 kind: PrometheusRule
@@ -32,7 +37,7 @@ spec:
             slo: availability
           annotations:
             summary: "PicoDome error rate exceeds 1%"
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/ci-failures.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#local-ci-quality-validation"
 
         # Latency SLO: p95 < 2s
         - alert: PicoDomeHighLatency
@@ -46,7 +51,7 @@ spec:
             slo: latency
           annotations:
             summary: "PicoDome scan p95 latency exceeds 2s SLO"
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/ci-failures.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#local-ci-quality-validation"
 
         # Throughput SLO: >= 10 scans/min
         - alert: PicoDomeLowThroughput
@@ -70,7 +75,7 @@ spec:
           annotations:
             summary: "PicoDome admission controller is down"
             description: "The PicoDome admission webhook is not responding. Pod creation may be blocked depending on failurePolicy."
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/webhook-outage.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#admission-webhook-incident"
 
         - alert: PicoDomeAdmissionHighDenialRate
           expr: |
@@ -95,7 +100,7 @@ spec:
             severity: warning
           annotations:
             summary: "PicoDome admission p99 latency exceeds 1s"
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/webhook-outage.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#admission-webhook-incident"
 
     # ── Certificate Alerts ───────────────────────────────────────
     - name: picodome.certificates
@@ -108,7 +113,7 @@ spec:
             severity: warning
           annotations:
             summary: "PicoDome TLS certificate expires in less than 30 days"
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/cert-rotation.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#admission-deployment-and-certificate-rotation"
 
         - alert: PicoDomeCertExpiringCritical
           expr: |
@@ -118,7 +123,7 @@ spec:
             severity: critical
           annotations:
             summary: "PicoDome TLS certificate expires in less than 7 days"
-            runbook_url: "https://github.com/KirkForge/PicoDome/blob/main/docs/runbooks/cert-rotation.md"
+            runbook_url: "https://github.com/KirkForge/PicoSentry/blob/main/docs/manual.md#admission-deployment-and-certificate-rotation"
 
     # ── Security Alerts ─────────────────────────────────────────
     - name: picodome.security

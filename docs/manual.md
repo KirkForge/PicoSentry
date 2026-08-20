@@ -309,12 +309,24 @@ picosentry watch serve --host 127.0.0.1 --port 8766                   # HTTP dae
 API server, dashboard, and orchestration.
 
 ```bash
-picosentry serve --port 8765                                     # default
-picosentry serve --host 0.0.0.0 --port 8765 --workers 4          # production
+picosentry serve --port 8765                                     # default (single worker)
+picosentry serve --host 0.0.0.0 --port 8765 --workers 4          # multi-worker (see ceilings below)
 picosentry serve --plugin-dir /opt/plugins                       # add plugin dir
 picosentry serve --require-signed-plugins                        # enforce Ed25519 signing
 picosentry serve --trusted-public-keys "hex1,hex2"               # trusted signing keys
 ```
+
+> **Multi-worker status (honest-doc):** the multi-worker posture landed in
+> WO5-031 with documented ceilings (event fanout latency = the outbox poll
+> interval; scheduler jobs may be skipped across a leader takeover; rate
+> limits sync every `RATE_LIMIT_SYNC_SECONDS`; `/metrics` is per-worker —
+> see `picosentry/serve/api/server.py` deployment matrix). Two correctness
+> fixes are still pending as of this build: WO6-009 (outbox poller dies on
+> the Postgres backend; N× escalation delivery across workers) and WO6-010
+> (related outbox correctness). Until those land, `--workers > 1` can
+> multiply side-effectful escalation deliveries (alerts/webhooks) on
+> Postgres — prefer `--workers 1` for alerting-critical deployments, or run
+> multi-worker behind a single-worker alerting node.
 
 ### `picosentry daemon`
 
@@ -1924,9 +1936,42 @@ Use the Helm `networkPolicy.ingress.from` list to restrict sources.
 
 #### Token rotation
 
-Cluster mode now supports graceful token rotation without a maintenance window.
-Each node maintains a primary token and an accepted-token set. New tokens are
-propagated through gossip snapshots; old tokens remain accepted until retired.
+Cluster mode supports graceful token rotation without a maintenance window.
+Each node maintains a primary token and an accepted-token set. New tokens
+are propagated through gossip snapshots; old tokens remain accepted until
+retired.
+
+Rotation uses **HMAC-derived primaries** (WO5-030) and an **ANY-MEMBER
+adoption** policy so the cluster can rotate without a coordinator:
+
+- The rotating node derives the new primary as
+  `HMAC-SHA256(old_primary, "picodome-cluster-rotation:v1:<ts>")` — every
+  holder of the old primary can re-derive the same new token from public
+  snapshot data alone. The new token's raw bytes never travel on the wire.
+- The gossip snapshot carries an **announcement**
+  `{announced_by, hmac, announced_at, grace_expires}` where `hmac` is
+  `HMAC-SHA256(old_primary, new_primary)`. Peers apply the announcement
+  *before* the trust check so a peer that missed the rotation (or rejoined
+  after grace) re-derives the new token from a token it still holds instead
+  of splitting.
+- **ANY-MEMBER adoption**: any peer that can verify the announcement adopts
+  the rotated token. Quorum adoption is the documented upgrade path; until
+  it lands, the cluster relies on each holder re-deriving independently.
+- **Grace behavior**: the old token stays in the accepted set until
+  `--retire-after` elapses (default 300s from `rotate-token`, or
+  `PICODOME_CLUSTER_TOKEN_GRACE_SECONDS` for the shared-trust window). A
+  node that was partitioned across the rotation keeps its tokens until an
+  operator intervenes (no announcement verifies → no forced eviction).
+- **Self-refresh caveat (pending WO6-014)**: because `apply_announcement`
+  stamps adopted candidates with the announcer-chosen `announced_at`, a
+  holder of any accepted token can iteratively self-rotate — each derived
+  candidate gets a fresh grace clock and is itself a valid anchor, so
+  `retire_older_than` can never starve an evictee that keeps gossiping.
+  This is a known ceiling of the ANY-MEMBER policy; WO6-014 will land a
+  retirement ledger (persist retired digests; refuse re-adoption of
+  retired lineage) or monotonic `announced_at` per anchor. Until then,
+  treat rotation as a cooperative operator action, not an eviction
+  mechanism.
 
 1. Rotate the token on any node:
    ```bash
@@ -3046,8 +3091,20 @@ time. Legacy inner CLIs also exist per package:
 
 All endpoints require JWT authentication via `Authorization: Bearer <token>`
 (unless noted). Role and permission requirements are listed per endpoint.
-Org scoping is enforced via the `X-Org-API-Key` header or the user's default
-org membership (see `deps.get_current_org`).
+Org scoping is enforced via one of:
+
+- `X-Org-API-Key: <org-key>` — an org-scoped API key (`sk_…`). Resolves the
+  org from the key's stored row; the caller must be a member of that org
+  (`deps.get_current_org` → `_resolve_current_org`).
+- `X-Org-Id: <numeric org id>` — for multi-org JWT users, selects which of
+  the caller's own orgs this request acts in (WO5-032). Must be a numeric
+  org id; 400 if non-numeric, 403 if the caller is not a member. No header
+  = the caller's first org (pre-existing behavior).
+- An org-scoped role API key (`X-API-Key`) — pinned to the org it was
+  minted for; the `X-Org-*` headers are ignored on this path.
+
+See `picosentry/serve/api/deps.py` (`get_current_org`,
+`_resolve_current_org`) for the resolution order.
 
 Base path: Most endpoints are mounted on the root; scans and dashboard are
 under `/api/v1`.
@@ -3059,6 +3116,116 @@ under `/api/v1`.
 | `viewer` | `read:*` (projects, intelligence, alerts, metrics, dashboard, health, orgs, plugins, events, webhooks, scheduler, anomaly) |
 | `operator` | All `viewer` permissions + `run:projects`, `write:webhooks`, `write:intelligence`, `write:alerts`, `write:scheduler`, `write:anomaly`, `read:logs`, `read:backups` |
 | `admin` | All permissions including `admin:users`, `admin:orgs`, `admin:backups`, `admin:audit`, `admin:logs` |
+
+#### Organizations API
+
+Org lifecycle, membership, usage, and tier quotas. Source:
+`picosentry/serve/api/routers/orgs.py`, `picosentry/serve/services/orgs.py`.
+
+##### Tier quotas
+
+Each org has a tier that bounds members, projects, runs/day, and storage.
+Quota exhaustion returns **HTTP 402 Payment Required** (mapped in
+`picosentry/serve/api/server.py` and `picosentry/serve/errors.py`).
+
+| Tier | Users | Projects | Runs/day | Storage |
+|------|-------|----------|----------|---------|
+| `free` | 1 | 3 | 50 | 100 MB |
+| `starter` | 5 | 25 | 500 | 1 GB |
+| `pro` | 25 | 100 | 5 000 | 10 GB |
+| `enterprise` | 999 | 999 | 99 999 | ~1 TB |
+
+##### `GET /orgs`
+
+List the orgs the caller is a member of.
+
+| Field | Value |
+|-------|-------|
+| Auth | any authenticated user |
+| Response | `{ "orgs": [...], "count": int }` |
+
+##### `POST /orgs`
+
+Create a new org (the caller becomes the owner).
+
+| Field | Value |
+|-------|-------|
+| Auth | any authenticated user |
+| Request body | `OrgCreateRequest`: `name` (str), `slug` (str), `tier` (one of `free\|starter\|pro\|enterprise`, default `free`) |
+| Response 201 | `OrgCreateResponse`: `id`, `name`, `slug`, `tier`, `api_key` |
+| Errors | 409 slug already exists; 500 internal failure |
+
+##### `GET /orgs/{org_id}`
+
+Org detail including current usage.
+
+| Field | Value |
+|-------|-------|
+| Auth | org member |
+| Response | `OrgDetailResponse`: `id`, `name`, `slug`, `tier`, `api_key` (hidden), `is_active`, `created_at`, `usage` |
+
+##### `GET /orgs/{org_id}/members`
+
+List members of an org.
+
+| Field | Value |
+|-------|-------|
+| Auth | org member |
+| Response | `OrgMemberListResponse`: `{ "members": [...], "count": int }` |
+
+##### `POST /orgs/{org_id}/members`
+
+Invite a user to the org. Requires org-admin **and** the global
+`ADMIN_USERS` permission (dual gate).
+
+| Field | Value |
+|-------|-------|
+| Auth | org admin + `admin:users` permission |
+| Request body | `OrgMemberInviteRequest`: `user_id` (int), `role` (str) |
+| Response 201 | `OrgMemberInviteResponse` |
+| Errors | 403 not an org admin; 402 member quota exceeded |
+
+##### `PATCH /orgs/{org_id}/members/{user_id}`
+
+Change a member's org-level role.
+
+| Field | Value |
+|-------|-------|
+| Auth | org admin + `admin:users` permission |
+| Request body | `OrgMemberRoleUpdateRequest`: `role` (str) |
+| Response | `OrgMemberRoleResponse`: `user_id`, `role` |
+| Errors | 403 not an org admin; 404 user is not a member |
+
+##### `DELETE /orgs/{org_id}/members/{user_id}`
+
+Remove a member from the org.
+
+| Field | Value |
+|-------|-------|
+| Auth | org admin + `admin:users` permission |
+| Response | `OrgMemberRemoveResponse`: `user_id`, `removed: true` |
+| Errors | 403 not an org admin; 404 user is not a member |
+
+##### `GET /orgs/{org_id}/usage`
+
+Current usage against the org's tier quotas.
+
+| Field | Value |
+|-------|-------|
+| Auth | org member |
+| Response | `OrgUsageResponse` (members used, projects used, runs today, storage bytes) |
+
+##### `POST /orgs/{org_id}/upgrade`
+
+Upgrade the org's tier. Requires global `admin` role **and** org-admin
+membership (dual gate).
+
+| Field | Value |
+|-------|-------|
+| Auth | global admin + org admin |
+| Request body | `OrgTierUpgradeRequest`: `tier` (one of `free\|starter\|pro\|enterprise`) |
+| Response | `OrgUpgradeResponse`: `message`, `tier` |
+| Errors | 400 invalid tier; 403 not an org admin |
 
 #### Correlation API
 

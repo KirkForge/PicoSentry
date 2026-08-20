@@ -2,13 +2,19 @@ import json
 import logging
 import os
 import socket
+import sqlite3
 import threading
 import uuid
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
-from typing import Any
+from typing import Any, cast
+
+try:
+    import psycopg2 as _psycopg2
+except ImportError:
+    _psycopg2 = cast("Any", None)
 
 logger = logging.getLogger("picoshogun.EventBus")
 
@@ -25,11 +31,18 @@ _HANDLER_ERRORS: tuple[type[BaseException], ...] = (
 
 # Operational failures the outbox poller tolerates without dying: the DB
 # may blip (locked, migrating); the poller retries on the next tick.
+# sqlite3.OperationalError (busy_timeout expiry under a write-lock holder)
+# is a subclass of NEITHER OSError NOR ValueError — its absence killed the
+# daemon thread on the first contention-gated prune. TypeError arises when
+# a naive DB-side timestamp (postgres TIMESTAMP, no tz) is compared against
+# a tz-aware _started_at. psycopg2.Error covers the postgres backend.
 _POLL_ERRORS: tuple[type[BaseException], ...] = (
     OSError,
     RuntimeError,
     ValueError,
-)
+    TypeError,
+    sqlite3.Error,
+) + ((_psycopg2.Error,) if _psycopg2 is not None else ())
 
 _OUTBOX_BATCH = 500
 
@@ -66,6 +79,10 @@ class EventBus:
     def __init__(self):
         self.subscribers: dict[str, list[Callable]] = defaultdict(list)
         self.persistent_subscribers: dict[str, list[str]] = defaultdict(list)
+        # Subscribers tagged local_only do not fire for foreign (outbox-polled)
+        # rows — side-effectful subscribers (orchestrator correlation/escalation)
+        # must not be re-triggered by every worker reaching the same decision.
+        self.local_only_subscribers: set[Callable] = set()
         self.event_history: list[Event] = []
         self.max_history = 1000
         self._lock = threading.Lock()
@@ -74,7 +91,12 @@ class EventBus:
         self.worker_id = worker_identity()
 
     def subscribe(
-        self, event_type: str, callback: Callable, persistent: bool = False, subscriber_id: str | None = None
+        self,
+        event_type: str,
+        callback: Callable,
+        persistent: bool = False,
+        subscriber_id: str | None = None,
+        local_only: bool = False,
     ) -> str:
         sub_id = subscriber_id or str(uuid.uuid4())
 
@@ -82,6 +104,8 @@ class EventBus:
             self.subscribers[event_type].append(callback)
             if persistent:
                 self.persistent_subscribers[event_type].append(sub_id)
+            if local_only:
+                self.local_only_subscribers.add(callback)
 
         logger.debug("Subscriber %s registered for %s", sub_id, event_type)
         return sub_id
@@ -121,8 +145,13 @@ class EventBus:
         logger.debug("Event published: %s (%s)", event_type, event.id)
         return event
 
-    def _dispatch(self, event: Event) -> None:
-        """Append to history and invoke matching subscribers."""
+    def _dispatch(self, event: Event, *, skip_local_only: bool = False) -> None:
+        """Append to history and invoke matching subscribers.
+
+        skip_local_only: foreign (outbox-polled) rows pass True so side-effectful
+        subscribers tagged local_only (orchestrator escalation) are not re-fired
+        on every worker — they already ran on the publishing worker.
+        """
         with self._lock:
             self.event_history.append(event)
             if len(self.event_history) > self.max_history:
@@ -130,8 +159,15 @@ class EventBus:
 
         callbacks = []
         with self._lock:
-            callbacks = self.subscribers.get(event.type, []).copy()
-            callbacks.extend(self.subscribers.get("*", []))  # Wildcard subscribers
+            local_only = self.local_only_subscribers
+            for cb in self.subscribers.get(event.type, []):
+                if skip_local_only and cb in local_only:
+                    continue
+                callbacks.append(cb)
+            for cb in self.subscribers.get("*", []):
+                if skip_local_only and cb in local_only:
+                    continue
+                callbacks.append(cb)
 
         for callback in callbacks:
             try:
@@ -185,6 +221,7 @@ class EventBus:
         with self._lock:
             self.subscribers.clear()
             self.persistent_subscribers.clear()
+            self.local_only_subscribers.clear()
             self.event_history.clear()
 
 
@@ -211,22 +248,46 @@ class OutboxPoller:
         self._thread: threading.Thread | None = None
         self._started_at: datetime | None = None
         self._last_prune: datetime | None = None
+        # Liveness: 1 while the poller thread is running, 0 after it exits
+        # (clean stop OR death-by-uncaught-exception). /metrics surfaces this
+        # so a dead poller is visible — without it the thread vanishes silently
+        # and cross-worker fanout stays 100% broken with no signal.
+        self._alive = False
+        self.last_error: str | None = None
 
     def start(self) -> None:
         if self.is_running():
             return
         self._stop.clear()
+        self._alive = True
+        self.last_error = None
         self._thread = threading.Thread(target=self._run, name=f"event-outbox-{self.bus.worker_id[:12]}", daemon=True)
         self._thread.start()
+        try:
+            from picosentry.serve.services.metrics import metrics
+
+            metrics.set_global_gauge("picoshogun_outbox_poller_alive", 1.0)
+        except Exception:
+            pass
 
     def is_running(self) -> bool:
         return self._thread is not None and self._thread.is_alive()
+
+    def is_alive(self) -> bool:
+        """True only while the poller thread is actually running.
+
+        Distinct from is_running(): after an uncaught exception kills the
+        thread, is_running() is False but this returns the liveness bit the
+        metrics gauge reads so the death is observable.
+        """
+        return self._alive
 
     def stop(self) -> None:
         self._stop.set()
         if self._thread is not None:
             self._thread.join(timeout=2)
             self._thread = None
+        self._alive = False
 
     def _db(self):
         from picosentry.serve.database.manager import db
@@ -241,15 +302,29 @@ class OutboxPoller:
             last = int(row["seq"]) if row else 0
         except _POLL_ERRORS:
             logger.exception("Event outbox poller could not read starting seq; disabled")
+            self._alive = False
             return
         logger.info("Event outbox poller started at seq=%d (interval=%.2fs)", last, self.interval)
-        while not self._stop.is_set():
+        try:
+            while not self._stop.is_set():
+                try:
+                    last = self._drain(last)
+                    self._maybe_prune()
+                except _POLL_ERRORS:
+                    logger.warning("Event outbox poll tick failed", exc_info=True)
+                self._stop.wait(self.interval)
+        except BaseException as exc:
+            self.last_error = f"{type(exc).__name__}: {exc}"
+            logger.exception("Event outbox poller thread died")
+            raise
+        finally:
+            self._alive = False
             try:
-                last = self._drain(last)
-                self._maybe_prune()
-            except _POLL_ERRORS:
-                logger.warning("Event outbox poll tick failed", exc_info=True)
-            self._stop.wait(self.interval)
+                from picosentry.serve.services.metrics import metrics
+
+                metrics.set_global_gauge("picoshogun_outbox_poller_alive", 0.0)
+            except Exception:
+                pass
 
     def _drain(self, last: int) -> int:
         db = self._db()
@@ -264,23 +339,38 @@ class OutboxPoller:
             if row["worker_id"] == self.bus.worker_id:
                 continue
             payload = json.loads(row["payload"]) if row["payload"] else {}
+            raw_ts = row["created_at"]
+            # DB-boundary tz-coercion: postgres TIMESTAMP (no tz, migration 22)
+            # returns naive datetimes from psycopg2; comparing against the
+            # tz-aware _started_at raised TypeError, which was NOT in the
+            # old _POLL_ERRORS and killed the daemon thread on the first
+            # foreign event. Coerce naive → UTC once, at the read boundary.
+            if isinstance(raw_ts, datetime) and raw_ts.tzinfo is None:
+                raw_ts = raw_ts.replace(tzinfo=timezone.utc)
             event = Event(
                 id=row["id"],
                 type=row["type"],
                 source=row["source"],
                 payload=payload,
-                timestamp=row["created_at"],
+                timestamp=raw_ts,
                 priority=row["priority"] or "normal",
                 org_id=row["org_id"],
             )
             if replay_cutoff is not None and event.timestamp < replay_cutoff:
-                # Pre-boot row: warm the history only.
+                # Pre-boot row: warm the history only — never fire subscribers,
+                # local_only or otherwise, for events that predate this process.
                 with self.bus._lock:
                     self.bus.event_history.append(event)
                     if len(self.bus.event_history) > self.bus.max_history:
                         self.bus.event_history = self.bus.event_history[-self.bus.max_history :]
             else:
-                self.bus._dispatch(event)
+                # Foreign post-boot row: dispatch to history + ordinary
+                # subscribers (WS fanout) but SKIP local_only side-effect
+                # subscribers (orchestrator escalation) — the publishing
+                # worker already fired those. Without this skip every worker
+                # re-reaches the same escalation decision and multiplies alert
+                # deliveries Nx (false-outage signal generator).
+                self.bus._dispatch(event, skip_local_only=True)
         return last
 
     def _maybe_prune(self) -> None:

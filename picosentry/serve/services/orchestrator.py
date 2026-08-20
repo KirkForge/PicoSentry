@@ -75,6 +75,11 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             ),
             persistent=True,
             subscriber_id="correlation-engine",
+            # local_only: the outbox poller must NOT re-fire this on every
+            # worker for foreign rows — escalation is a pure function of
+            # shared DB state, so every worker reaches the same decision and
+            # multiplies alert deliveries Nx without this demux flag.
+            local_only=True,
         )
 
     def _load_registry(self):
@@ -272,17 +277,23 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
             (project_id, datetime.now(timezone.utc), "running", org_id),
         )
 
-        event_bus.publish(
-            "project.run.started",
-            {"project_id": project_id, "run_id": run_id, "status": "running"},
-            source="orchestrator",
-            priority="normal",
-            org_id=str(org_id) if org_id is not None else None,
-        )
-
         start_time = time.time()
 
         try:
+            # Started-event publish lives INSIDE the guarded section: if the
+            # outbox persist raises (DB contention, OperationalError), the
+            # except clause marks the run row 'failed' instead of orphaning
+            # it 'running' forever. publish() catches persist failures itself
+            # (best-effort), but local dispatch subscriber errors and any
+            # non-_POLL_ERRORS raise must still be guarded.
+            event_bus.publish(
+                "project.run.started",
+                {"project_id": project_id, "run_id": run_id, "status": "running"},
+                source="orchestrator",
+                priority="normal",
+                org_id=str(org_id) if org_id is not None else None,
+            )
+
             cmd = cli_args
             _validate_project_command(project_id, cmd[0] if cmd else "")
             for arg in cmd[1:]:

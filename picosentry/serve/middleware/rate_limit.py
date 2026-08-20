@@ -2,10 +2,11 @@ import asyncio
 import contextlib
 import hashlib
 import logging
+import sqlite3
 import threading
 import time
 from collections import defaultdict
-from typing import Any
+from typing import Any, cast
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
@@ -14,6 +15,31 @@ from starlette.responses import JSONResponse
 from picosentry.serve.middleware.rate_limit_redis import DENY
 
 logger = logging.getLogger("picoshogun.RateLimit")
+
+try:
+    import psycopg2 as _psycopg2
+except ImportError:
+    _psycopg2 = cast("Any", None)
+
+# Operational DB failures the persistence paths tolerate: sqlite3.OperationalError
+# (busy_timeout=15s product expiry under a write-lock holder) is a subclass of
+# NEITHER OSError NOR ValueError — catching only those turned DB contention into
+# a 500 on every request. psycopg2.Error covers the postgres backend.
+# RuntimeError is included to mirror scheduler._DB_SOFT_ERRORS — a generic
+# backend blip surfacing as RuntimeError must degrade to memory-only, not 500.
+_DB_SOFT_ERRORS: tuple[type[BaseException], ...] = (
+    OSError,
+    RuntimeError,
+    ValueError,
+    sqlite3.Error,
+) + ((_psycopg2.Error,) if _psycopg2 is not None else ())
+
+# ponytail: ceiling on flush batch length. max_buckets=100000 with a SELECT+upsert
+# per bucket under a BEGIN IMMEDIATE holder serialized every request on a 15s
+# busy_timeout expiry. Cap the per-tick flush so a background sweep is bounded;
+# the next tick resumes. Upgrade path: per-bucket delta persistence if the cap
+# ever throttles cross-worker convergence.
+_FLUSH_BATCH = 1000
 
 
 def _get_client_ip(request: Request, trusted_proxies: list[str] | None = None) -> str:
@@ -84,6 +110,47 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         if self.persist:
             self._init_db()
             self._restore_from_db()
+            self._start_flush_thread()
+
+    def _start_flush_thread(self) -> None:
+        # Background cadence thread: flush+sync runs OFF the request path so
+        # DB contention (15s busy_timeout) can never stall a request. The
+        # thread snapshots buckets under the lock, then transacts outside.
+        self._flush_stop = threading.Event()
+        self._flush_thread = threading.Thread(target=self._flush_loop, name=f"ratelimit-flush-{id(self)}", daemon=True)
+        self._flush_thread.start()
+
+    def _flush_loop(self) -> None:
+        while not self._flush_stop.wait(self.sync_interval):
+            try:
+                self._background_flush()
+            except _DB_SOFT_ERRORS:
+                logger.warning("Rate limit background flush tick failed", exc_info=True)
+            except Exception:
+                logger.exception("Rate limit background flush tick crashed")
+
+    def _background_flush(self) -> None:
+        now = time.time()
+        # Snapshot under the lock, transact outside — never hold _lock across
+        # a DB transaction that may block 15s on a busy_timeout expiry.
+        with self._lock:
+            self._evict_if_needed(now)
+            ip_snap = {k: list(v) for k, v in self.ip_requests.items() if v and v[-1] > now - self.window}
+            org_snap = {k: list(v) for k, v in self.org_requests.items() if v and v[-1] > now - self.window}
+        self._flush_snapshot(ip_snap, org_snap, now)
+        try:
+            self._sync_from_db(now)
+        except _DB_SOFT_ERRORS:
+            logger.warning("Rate limit persistence sync failed", exc_info=True)
+
+    def shutdown(self) -> None:
+        """Stop the background flush thread (tests, graceful shutdown)."""
+        stop = getattr(self, "_flush_stop", None)
+        if stop is not None:
+            stop.set()
+        t = getattr(self, "_flush_thread", None)
+        if t is not None and t.is_alive():
+            t.join(timeout=2)
 
     def _get_db(self):
         from picosentry.serve.database.manager import db
@@ -134,16 +201,20 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
             restored_org,
         )
 
-    def _flush_to_db(self):
+    def _flush_snapshot(self, ip_snap: dict, org_snap: dict, now: float) -> None:
+        """Flush pre-snapshotted buckets to the shared table OUTSIDE _lock.
+
+        The caller (_background_flush) snapshots under the lock; this runs the
+        BEGIN IMMEDIATE transaction without holding the request-path lock, so
+        a busy_timeout expiry degrades to memory-only instead of stalling
+        every request for 15s.
+        """
         if not self.persist:
             return
 
         db = self._get_db()
-        now = time.time()
         cutoff = now - self.window
-
-        # Caller (_evict_if_needed) already holds self._lock; taking it
-        # again here would deadlock on the non-reentrant Lock.
+        flushed = 0
         # MERGE-upsert, not DELETE+re-INSERT: with more than one worker
         # persisting to the same table, a replace-all clobbered the other
         # workers' counters (last writer wins). Each request is recorded by
@@ -151,7 +222,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # global set — idempotent under any interleaving.
         try:
             with db.transaction(immediate=True) as conn:
-                for bucket_type, buckets in (("ip", self.ip_requests), ("org", self.org_requests)):
+                for bucket_type, buckets in (("ip", ip_snap), ("org", org_snap)):
                     for key, timestamps in buckets.items():
                         if not (timestamps and timestamps[-1] > cutoff):
                             continue
@@ -162,7 +233,6 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                         )
                         merged = set(timestamps)
                         if row:
-                            # corrupt row → local counts win
                             with contextlib.suppress(ValueError, TypeError):
                                 foreign = [float(x) for x in row[0]["timestamps"].split(",") if x]
                                 merged.update(t for t in foreign if t > cutoff)
@@ -182,8 +252,26 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
                                 "(bucket_type, bucket_key, timestamps, updated_at) VALUES (?, ?, ?, CURRENT_TIMESTAMP)",
                                 (bucket_type, key, merged_ts),
                             )
-        except (OSError, ValueError) as exc:
-            logger.warning("Rate limit persistence flush failed: %s", exc)
+                        flushed += 1
+                        if flushed >= _FLUSH_BATCH:
+                            return
+        except _DB_SOFT_ERRORS:
+            logger.warning("Rate limit persistence flush failed; degrading to memory-only", exc_info=True)
+
+    def _flush_to_db(self) -> None:
+        """Synchronous flush: snapshot under lock, transact outside.
+
+        Compatibility entrypoint for tests and shutdown. The request path
+        uses _background_flush (off the request path); this snapshots the
+        live dicts and delegates to _flush_snapshot.
+        """
+        if not self.persist:
+            return
+        now = time.time()
+        with self._lock:
+            ip_snap = {k: list(v) for k, v in self.ip_requests.items() if v and v[-1] > now - self.window}
+            org_snap = {k: list(v) for k, v in self.org_requests.items() if v and v[-1] > now - self.window}
+        self._flush_snapshot(ip_snap, org_snap, now)
 
     def _sync_from_db(self, now: float):
         """Merge the shared table's counters into the local dicts.
@@ -192,6 +280,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         observations out, this pulls the other workers' in. Same union
         semantics — a bucket key we have never seen locally (all our
         traffic came via the other worker) is adopted from the row.
+
+        Called from the background _flush_loop; takes _lock to mutate the
+        request-path dicts safely.
         """
         if not self.persist:
             return
@@ -199,31 +290,21 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         db = self._get_db()
         cutoff = now - self.window
         rows = db.execute("SELECT bucket_type, bucket_key, timestamps FROM rate_limit_counters")
-        for row in rows:
-            try:
-                foreign = [t for t in (float(x) for x in row["timestamps"].split(",") if x) if t > cutoff]
-            except (ValueError, TypeError):
-                continue
-            if not foreign:
-                continue
-            buckets = self.ip_requests if row["bucket_type"] == "ip" else self.org_requests
-            merged = sorted({*buckets.get(row["bucket_key"], []), *foreign})
-            buckets[row["bucket_key"]] = merged
+        with self._lock:
+            for row in rows:
+                try:
+                    foreign = [t for t in (float(x) for x in row["timestamps"].split(",") if x) if t > cutoff]
+                except (ValueError, TypeError):
+                    continue
+                if not foreign:
+                    continue
+                buckets = self.ip_requests if row["bucket_type"] == "ip" else self.org_requests
+                merged = sorted({*buckets.get(row["bucket_key"], []), *foreign})
+                buckets[row["bucket_key"]] = merged
 
     def _evict_if_needed(self, now: float):
-        # Persist/re-sync runs on ITS OWN cadence (sync_interval), not under
-        # the 60s eviction gate: multi-worker deployments configure a few
-        # seconds and must not wait a minute between counter exchanges.
-        if self.persist and now - self._last_flush > self.sync_interval:
-            self._last_flush = now
-            self._flush_to_db()
-            # Pull the other workers' counts in the same cadence; a worker
-            # with no local traffic would otherwise never re-sync.
-            try:
-                self._sync_from_db(now)
-            except (OSError, ValueError) as exc:
-                logger.warning("Rate limit persistence sync failed: %s", exc)
-
+        # Eviction only — flush/sync moved to the background _flush_loop so
+        # DB contention can never stall the request path. Caller holds _lock.
         if now - self._last_eviction < 60:
             return
         self._last_eviction = now

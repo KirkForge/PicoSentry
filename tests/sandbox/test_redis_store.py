@@ -39,17 +39,32 @@ class TestRedisStoreFallback:
         with pytest.raises(RedisStoreUnavailable):
             store.add("job-1", ["ls"], "alice")
 
-    def test_get_returns_none_when_unavailable(self):
-        store = RedisScanJobStore(redis_url="redis://localhost:1/0")
-        assert store.get("job-1") is None
+    def test_get_raises_when_unavailable(self):
+        """WO6.0.0-018: get() with Redis down must be loud — the old None
+        return masqueraded as "no such job" (404) during an outage."""
+        from picosentry.sandbox.daemon.redis_store import RedisStoreUnavailable
 
-    def test_update_returns_none_when_unavailable(self):
         store = RedisScanJobStore(redis_url="redis://localhost:1/0")
-        assert store.update("job-1", status="completed") is None
+        with pytest.raises(RedisStoreUnavailable):
+            store.get("job-1")
 
-    def test_list_returns_empty_when_unavailable(self):
+    def test_update_raises_when_unavailable(self):
+        """WO6.0.0-018: update() with Redis down must be loud — the old None
+        return masqueraded as "no such job" during an outage."""
+        from picosentry.sandbox.daemon.redis_store import RedisStoreUnavailable
+
         store = RedisScanJobStore(redis_url="redis://localhost:1/0")
-        assert store.list_recent() == []
+        with pytest.raises(RedisStoreUnavailable):
+            store.update("job-1", status="completed")
+
+    def test_list_raises_when_unavailable(self):
+        """WO6.0.0-018: list_recent() with Redis down must be loud — the old
+        [] return masqueraded as "count: 0" during an outage."""
+        from picosentry.sandbox.daemon.redis_store import RedisStoreUnavailable
+
+        store = RedisScanJobStore(redis_url="redis://localhost:1/0")
+        with pytest.raises(RedisStoreUnavailable):
+            store.list_recent()
 
 
 class MockRedis:
@@ -288,6 +303,7 @@ class TestRedisStoreLiveness:
 
     def test_cached_client_reset_on_lost_connection(self, monkeypatch):
         from picosentry.sandbox.daemon import redis_store
+        from picosentry.sandbox.daemon.redis_store import RedisStoreUnavailable
 
         store = RedisScanJobStore()
         mock_redis = MockRedis()
@@ -306,6 +322,9 @@ class TestRedisStoreLiveness:
 
             monkeypatch.setattr(redis_store._redis, "from_url", _no_reconnect)
 
-        assert store.get("job-1") is None
+        # WO6.0.0-018: a lost connection used to masquerade as None (404) —
+        # now it raises RedisStoreUnavailable so the HTTP layer can 503.
+        with pytest.raises(RedisStoreUnavailable):
+            store.get("job-1")
         assert store._available is False
         assert store._client is None

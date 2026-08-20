@@ -54,3 +54,32 @@ class TestHealthExceptionNarrowing:
         results = {r.component: r for r in check_health()}
         assert results["sandbox_backend"].healthy is False
         assert "backend unavailable" in results["sandbox_backend"].detail
+
+
+class TestRedisHealthBranch:
+    """WO6.0.0-018: health used to report "backend=jsonl healthy=True" for
+    PICODOME_STORE_BACKEND=redis even when Redis was down — the sqlite-only
+    special-casing missed the redis branch entirely."""
+
+    def test_redis_backend_reported_truthfully_when_down(self, monkeypatch):
+        # Force the redis store to report unavailable (no real Redis needed).
+        class _DownStore:
+            available = False
+
+        monkeypatch.setenv("PICODOME_STORE_BACKEND", "redis")
+        monkeypatch.setattr("picosentry.sandbox.daemon.redis_store.RedisScanJobStore", lambda: _DownStore())
+        results = {r.component: r for r in check_health()}
+        assert "store_backend" in results
+        assert results["store_backend"].healthy is False
+        assert "backend=redis" in results["store_backend"].detail
+        assert "connected=False" in results["store_backend"].detail
+
+    def test_redis_backend_reported_healthy_when_up(self, monkeypatch):
+        class _UpStore:
+            available = True
+
+        monkeypatch.setenv("PICODOME_STORE_BACKEND", "redis")
+        monkeypatch.setattr("picosentry.sandbox.daemon.redis_store.RedisScanJobStore", lambda: _UpStore())
+        results = {r.component: r for r in check_health()}
+        assert results["store_backend"].healthy is True
+        assert "connected=True" in results["store_backend"].detail

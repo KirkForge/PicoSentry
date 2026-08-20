@@ -196,10 +196,17 @@ class PicoDomeGetRoutesMixin:
     def _handle_ready(self: PicoDomeHandler) -> None:
 
         try:
-            from picosentry.sandbox.l3.engine import _detect_backend
+            from picosentry.sandbox.l3.engine import get_backend
 
             enterprise_mode = _ENTERPRISE_MODE
-            backend = _detect_backend(allow_degraded=not enterprise_mode)
+            # WO6.0.0-018: route /ready through the BackendRegistry instead
+            # of calling _detect_backend per request. _detect_backend probes
+            # every backend (seccomp-trace forks a child via probe_log_emits)
+            # — a fork inside a ThreadingHTTPServer worker per /ready hit is
+            # a cacheable hazard. The registry caches the first detection and
+            # returns it on subsequent calls; allow_degraded is honored on
+            # the cache-miss path (the only path that probes).
+            backend = get_backend(allow_degraded=not enterprise_mode)
             is_degraded = backend.isolation_level == "observational_only"
 
             if enterprise_mode and backend.isolation_level == "observational_only":
@@ -266,7 +273,15 @@ class PicoDomeGetRoutesMixin:
         # tenant's jobs — cross-tenant access is indistinguishable from
         # "no such job" so existence is not leaked.
         tenant_id = self._resolve_tenant(self._get_token())
-        job = self.job_store.get(job_id, tenant_id=tenant_id)
+        try:
+            job = self.job_store.get(job_id, tenant_id=tenant_id)
+        except RuntimeError as exc:
+            # WO6.0.0-018: RedisStoreUnavailable (a RuntimeError subclass) —
+            # a Redis outage used to masquerade as "no such job" (404). Surface
+            # it as 503 so the client knows the store is down, not empty.
+            logger.error("Job store unavailable for get %s: %s", job_id, exc)
+            self._send_error(ErrorCodes.NOT_READY, detail="job store unavailable")
+            return
         if job:
             self._send_json(job)
         else:
@@ -275,7 +290,13 @@ class PicoDomeGetRoutesMixin:
     def _handle_list_scans(self: PicoDomeHandler, query: dict) -> None:
         limit = _clamped_limit(query, "limit", 50)
         tenant_id = self._resolve_tenant(self._get_token())
-        jobs = self.job_store.list_recent(tenant_id=tenant_id, limit=limit)
+        try:
+            jobs = self.job_store.list_recent(tenant_id=tenant_id, limit=limit)
+        except RuntimeError as exc:
+            # WO6.0.0-018: RedisStoreUnavailable — outage used to return [].
+            logger.error("Job store unavailable for list_recent: %s", exc)
+            self._send_error(ErrorCodes.NOT_READY, detail="job store unavailable")
+            return
         self._send_json(
             {
                 "scans": jobs,

@@ -144,6 +144,18 @@ class TestVersionedPolicyStoreHardening:
 
         assert not controlled_path.exists()
 
+    @pytest.mark.parametrize("reserved", ["default", "strict", "node", "python"])
+    def test_reserved_builtin_names_rejected_at_save(self, store, reserved):
+        """WO6.0.0-018: load_policy short-circuits on builtin named policies
+        BEFORE the store read (l3/policy.py:269-278), so a stored "default"
+        persisted, versioned, signed, displayed — and never loaded on scans.
+        Reject at save so the shadowing can't happen silently."""
+        from picosentry.sandbox.l3.models import Policy, SyscallAction
+
+        policy = Policy(name=reserved, version="1.0", default_action=SyscallAction.DENY, rules=[])
+        with pytest.raises(ValueError, match="reserved"):
+            store.save(policy, author="admin", change_description="shadow builtin")
+
 
 class TestPolicyStoreEnvSplitBrain:
     """WO5.0.0-018: get_policy_store() froze its directory at first call while

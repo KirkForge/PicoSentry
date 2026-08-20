@@ -163,12 +163,21 @@ def sanitize_scan_timeout(raw: Any) -> float | None:
     then clamp to the server cap. Returns None when the value is unusable —
     callers must REJECT (a NaN/±Inf/garbage timeout is a bad request, never
     a silent default; NaN reached subprocess backends as an unhandled
-    ValueError with an orphaned child)."""
+    ValueError with an orphaned child).
+
+    WO6.0.0-018: negative finite values used to pass through (clamped to
+    the server cap via min(neg, 300)=neg) — a negative timeout made the
+    landlock deadline instantly past, producing an honest KILL that should
+    have been a 400 at the boundary. Reject negatives here so the callers'
+    None-check surfaces them as INVALID_ARGUMENT.
+    """
     try:
         parsed = float(raw)
     except (TypeError, ValueError):
         return None
     if not math.isfinite(parsed):
+        return None
+    if parsed < 0:
         return None
     return min(parsed, max_scan_timeout_seconds())
 

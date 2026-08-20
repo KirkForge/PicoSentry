@@ -98,6 +98,22 @@ def read_proc_seccomp(log_path: str) -> str:
 
 
 def probe_log_emits(lib: ctypes.CDLL) -> bool:
+    """Probe whether a child can load a SCMP_ACT_LOG filter and execve.
+
+    WO6.0.0-018: the name is aspirational — this probe verifies the filter
+    LOADS and the child runs to completion under it, NOT that seccomp
+    actually EMITS log records (v2.0.8 SCMP_ACT_LOG emits nothing
+    observable to /proc/<pid>/seccomp on kernels without CONFIG_SECCOMP_LOG).
+    A reaped child always satisfies WIFEXITED or WIFSIGNALED, so the real
+    gate is "seccomp_load returned 0 AND execve happened without the kernel
+    killing the child pre-exec". The /proc/seccomp buffer emptiness is
+    detected later at run time (orchestrator logs it). Renaming would break
+    the public API; the docstring is the honest record.
+    ponytail: ceiling — a real "log emits" probe would need to parse
+    /proc/<pid>/seccomp after the child runs, but the buffer is empty by the
+    time the parent reaps; upgrade to a ptrace-based probe if observability
+    of emission becomes a gate.
+    """
     lib.seccomp_init.argtypes = [ctypes.c_uint32]
     lib.seccomp_init.restype = ctypes.c_void_p
     lib.seccomp_load.argtypes = [ctypes.c_void_p]
@@ -123,8 +139,16 @@ def probe_log_emits(lib: ctypes.CDLL) -> bool:
 
     try:
         _, status = os.waitpid(pid, 0)
-
-        return os.WIFEXITED(status) or os.WIFSIGNALED(status)
+        # The child either exited 0 (seccomp_load ok + /bin/true ran) or was
+        # killed by the kernel (seccomp_load ok + execve violated the filter
+        # — unlikely for SCMP_ACT_LOG which is permissive). A non-zero exit
+        # (127) means seccomp_load failed or /bin/true missing — that's the
+        # actual signal this probe gates on, not log emission.
+        if os.WIFEXITED(status):
+            return os.WEXITSTATUS(status) == 0
+        # WIFSIGNALED: killed under the filter — the filter loaded, so the
+        # kernel supports it; treat as "probe passed" (the load path worked).
+        return os.WIFSIGNALED(status)
     except ChildProcessError:
         return False
 

@@ -195,6 +195,18 @@ class TestNonFiniteTimeout:
         assert sanitize_scan_timeout("junk") is None
         assert sanitize_scan_timeout(None) is None
 
+    def test_negative_timeout_rejected(self):
+        """WO6.0.0-018: a negative finite timeout used to pass through clamped
+        to min(neg, 300)=neg — the landlock deadline was instantly past,
+        producing an honest KILL that should have been a 400 at the boundary."""
+        from picosentry.sandbox.daemon.constants import sanitize_scan_timeout
+
+        assert sanitize_scan_timeout(-1) is None
+        assert sanitize_scan_timeout(-0.001) is None
+        assert sanitize_scan_timeout(-300) is None
+        # Zero is a valid (if useless) timeout — keep it.
+        assert sanitize_scan_timeout(0) == 0.0
+
 
 # ─── Retention traversal ──────────────────────────────────────────────────────
 

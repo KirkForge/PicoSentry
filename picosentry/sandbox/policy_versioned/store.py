@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, TYPE_CHECKING
 
-from picosentry.sandbox.l3.policy import _policy_from_dict
+from picosentry.sandbox.l3.policy import NAMED_POLICIES, _policy_from_dict
 
 if TYPE_CHECKING:
     from picosentry.sandbox.l3.models import Policy
@@ -28,9 +28,20 @@ def _validate_policy_name(name: str) -> None:
     policy names (same rule as l3.policy.load_policy). The read path always
     validated; the write path used to mkdir/write under caller-controlled
     paths (WO4.0.0-002). All-dot names slipped both checks: `".." in "."`
-    is False, yet "." resolves to the store root itself (WO5.0.0-002)."""
+    is False, yet "." resolves to the store root itself (WO5.0.0-002).
+
+    WO6.0.0-018: reserved builtin names (default/strict/node/python) are
+    rejected at save — load_policy short-circuits on them BEFORE the store
+    read (l3/policy.py:269-278), so a stored "default" persisted, versioned,
+    signed, displayed, and never loaded on scans. Reject at the boundary so
+    the shadowing can't happen silently."""
     if not name or name.strip(".") == "" or "/" in name or "\\" in name or ".." in name:
         raise ValueError(f"Invalid policy name: {name!r}")
+    if name in NAMED_POLICIES:
+        raise ValueError(
+            f"Policy name {name!r} is reserved (builtin named policy) — "
+            "save under a different name; builtin policies are not overridable."
+        )
 
 
 @dataclass(frozen=True)

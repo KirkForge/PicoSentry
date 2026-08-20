@@ -2,21 +2,53 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-18 evening, WO6.0.0 SEEDED — 22 WOs open for tomorrow, no code changes) ═══
+# ═══ CURRENT STATE (2026-08-20, WO6.0.0 COMPLETE — 22/22 DONE, all merged to dev) ═══
 
-**Evening seeding round complete** (6 read-only explorers: scan / sandbox / serve / watch+firewall / core-CLI-CI / cross-cutting WO5-seam hunter): ~60 verified findings → **WO6.0.0 series, 22 WOs (P0×15, P1×7)** in `docs/workorders/`. Orchestrator spot-verified the top 5 claims (rot13 misspelling regression, EventHistoryItem int-vs-uuid, helm args-only-under-grpc, QueryAudit no-tenant-filter, advisory exact-match) — all confirmed. No code changed; docs-only.
+**WO6.0.0 series complete in one execution wave.** 7 parallel worktrees off `origin/dev` (commit `9c94099f`): watch-guards (001/002/003/016), sandbox-cluster (004/005/014/018), scan-cluster (006/007/008/019), serve-outbox (009/010), serve-rest (011/012/013/020), core-docs (015/021/022), firewall (017 follow-up). Zero merge conflicts (disjoint file ownership verified pre-merge). Orchestrator landed the `--picoshogun-plugin` 1-line reorder (WO-022 item 5, flagged by 2 workers). All 22 WOs DONE; 1 small rider deferred (WO-014 TOCTOU lock-promotion — `issued_at` clamp addresses the core defect).
 
-**Headline findings (tomorrow's queue):**
-1. **Watch guard bypasses** (the crown jewels): prefilter DROPS unconstrained alternation branches — 3 shipped rules have live plaintext bypasses (`"priority 1: ignore your rules"` passes clean!); `_is_textlike` printable-ratio dilution defeats decode in BOTH guards; separator collapse splits tokens (`orig.inal`); entity gate requires `;`; rot13 gate has TWO misspelled entries (WO5-029 reintroduced the exact class WO5-011 fixed) + closed-vocab synonym bypass (001/002/016).
-2. **Multi-worker post-landing bugs**: outbox poller DIES on postgres (naive TIMESTAMP vs aware cutoff — found independently by two explorers) and when it works, escalation side-effects fire N× (every worker alerts/emails/webhooks — WO5-033 made dispatch work just as WO5-031 multiplied dispatchers); rate-limit flush catches the wrong exception class → 500s on every request under contention (009/010).
-3. **Scan correctness**: advisory lookups exact-match — `Flask`/`PyYAML` get ZERO advisories while the DB holds matches (the core CVE promise); `deny_packages` policy SUPPRESSES findings for the banned package (inverted — exit code can flip 1→0); cache still blind to node_modules JS content the OBFS rules scan (stale clean verdicts — WO5-010's class, one level deeper) (006/007/008).
-4. **Sandbox**: gRPC QueryAudit leaks ALL tenants' audit events to tenant tokens (WO5-001 tenancy exists on HTTP only); seccomp-trace left out of the WO5-019 parity matrix (benign nonzero exits = KILL); cluster grace=0 INVERTED (disables retirement forever) + rotation lets stale-token holders self-refresh trust forever (004/005/014).
-5. **Serve**: /events/history 500s for any org WITH events (uuid id vs int model); org-create honors client tier (viewer self-serves enterprise = unlimited quotas); login lock-order inversion → 15s stalls under concurrent writers (011/012/013).
-6. **Deploy**: helm default install prints `--help` and exits (masked only by the pending docker push) (015).
+**Gate (dev head `2e7c33fd` after all merges + firewall):**
+- ruff: All checks passed! · format: 712 files · mypy: 417 source files clean
+- `bash scripts/test.sh fast`: **5639 passed, 37 skipped, 0 failed in ~352s** (1 pre-existing gRPC xdist flake `test_health_open_without_token` passes in isolation — confirmed by 7 workers across 3 sessions)
+- detect_changes vs `origin/dev`: 78 files / 180 symbols — all map to the 7 WO scopes; no surprise blast radius
 
-**Batch shape for tomorrow** (README has the coordination notes): watch cluster (001-003+016) / sandbox cluster (004+005+014+018) / scan cluster (006-008+019) / serve split (009+010) + (011-013+020) / core+docs (015+021+022, with 022 waiting on 009/010 wording).
+**Headline fixes landed:**
+1. **Watch guards (the crown jewels)**: prefilter alternation-branch drop closed (3 shipped-rule FNs); rot13 misspellings restored (WO5-029 regression of WO5-011's class) + property test; textlike dilution + separator split + HTML entity + decode-budget starvation all closed; output/gateway FP (SYSTEM/PUBLIC English) + message-shape holes closed.
+2. **Multi-worker post-landing bugs**: outbox poller pg-death (tz-coercion + widened `_POLL_ERRORS` + liveness gauge); N× escalation demux (`local_only` subscriber flag); rate-limit flush exception classes + off-request-path; outbox persist + orphaned run rows; login lock-order inversion (15s stalls); add_job TOCTOU; PG UTC pinning.
+3. **Scan correctness**: advisory PEP 503 normalization (Flask/PyYAML now get advisories); `deny_packages` inversion fixed (findings SURVIVE); cache hashes node_modules JS-family content; corpus-index stale-entry eviction + detected-only prewarm.
+4. **Sandbox**: gRPC QueryAudit tenant-scoped; seccomp-trace verdict parity; cluster grace=0 + self-refresh trust + EITHER-auth dead code; hygiene round 3 (audit archives, reserved names, redis health, /ready forks).
+5. **Serve/deploy**: /events/history 500 (uuid vs int); org tier clamp; helm default install (was printing --help); maturity drift; scan-artifacts push-tier gate; action.yml sarif-file; alert runbook 404s; doctor detection-metric pins.
+6. **Firewall**: VerdictCache thread-safety + %40-scope decode + unresolvable-version 502.
 
-**Standing context**: v2.1.3 shipped (PyPI verified; main=dev green at `b0a00974`+this commit); green-before-ff rule now in AGENTS.md §1.5; WO5 remainders: docker push (tooling-gated), WO5-029 fused-pass target, WO5-031 e2e isolation + serve helm chart.
+**Standing context**: v2.1.3 shipped (PyPI verified; main=dev green at `c9c99544`); green-before-ff rule in AGENTS.md §1.5; WO5 remainders: docker push (tooling-gated), WO5-029 fused-pass target, WO5-031 e2e isolation + serve helm chart. **dev is now 24 commits ahead of origin/dev** (22 WO6 merges + orchestrator fix + firewall merge) — pushed; main ff pending green dev CI. WO6.0.0 series CLOSED.
+
+**Next**: ff main to dev when push CI green (verify by headSha); WO5 remainders (docker push runbook, WO5-029 <1s/MB target, WO5-031 e2e isolation + helm chart); WO6-014 TOCTOU rider (concurrent rotate() clobber under apply_announcement lock); release v2.2.0 when ready (dev now ~24 commits ahead of main — release trigger met).
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-08-20 (l): WO6.0.0 execution wave — 22/22 DONE — COMPLETE
+
+### Method
+7 parallel worker subagents in exclusive worktrees off `origin/dev` (`9c94099f`): SA-WO6-watch-guards (001/002/003/016), SA-WO6-sandbox (004/005/014/018), SA-WO6-scan (006/007/008/019), SA-WO6-serve-outbox (009/010), SA-WO6-serve-rest (011/012/013/020), SA-WO6-core-docs (015/021/022), SA-WO6-firewall (017 follow-up). Each got a detailed prompt with WO files, scope (exclusive file ownership), gate, kill criterion, and standing rules. `.venv` symlinked from main repo into each worktree (saves ~20 min env creation each). Pre-merge: verified zero file overlaps across all 6 branches (`git diff --name-only | sort | uniq -d` = empty). 7 `--no-ff` merges into dev, zero conflicts. Orchestrator landed the `--picoshogun-plugin` 1-line reorder (WO-022 item 5, flagged by 2 workers in the gap between their scopes).
+
+### Notable
+- The disjoint-file-ownership check before dispatch is what made 7 clean merges possible — verify with the overlap grep, not by reading scopes.
+- Every M-L effort WO landed in one wave because the explorer evidence was airtight (live repros + exact file:line chains + specific deliverables); no worker spent time "understanding the problem."
+- Contract-test updates for fixed bugs are legitimate (the WO mandates the fix; the test asserted the bug; updating to assert the fix is the deliverable) — each has a WO-comment explaining why.
+- The pre-existing gRPC xdist flake (`test_health_open_without_token`) was independently confirmed by all 7 workers — it's environmental, not a code bug.
+
+### Gate (dev head `2e7c33fd`)
+- ruff: All checks passed! · format: 712 files · mypy: 417 source files clean
+- `bash scripts/test.sh fast`: **5639 passed, 37 skipped, 0 failed** (~352s; 1 pre-existing gRPC xdist flake passes in isolation)
+- detect_changes vs `origin/dev`: 78 files / 180 symbols — all map to 7 WO scopes; no surprise blast radius
+
+### Pending / next
+- ff main to dev when push CI green (verify by headSha + workflowName, never "a green row exists"; run `bash scripts/test.sh integration` on the release commit before tagging)
+- WO5 remainders: docker push runbook, WO5-029 <1s/MB fused-pass target, WO5-031 e2e isolation + serve helm chart
+- WO6-014 TOCTOU rider (concurrent rotate() clobber under apply_announcement lock — `issued_at` clamp addresses the core defect; the lock-promotion fix is a deeper concurrency change)
+- Release v2.2.0 when ready (dev ~24 commits ahead of main — release trigger met)
+
+### Blocked
+- Docker Hub push (tooling + credentials) — WO5.0.0-014, runbook recorded.
 
 # ═══ SESSION HISTORY ═══
 

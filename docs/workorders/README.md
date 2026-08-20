@@ -4,6 +4,49 @@
 
 Improvement series to push the production review score up. Work happens in isolated worktrees off `dev`; the orchestrator reviews and merges.
 
+## WO7.0.0 — Seventh series (OPEN — seeded by the 2026-08-20 six-explorer round)
+
+Priorities: P0 = security/correctness, do first. Every WO carries verified evidence. Worktrees: `wo/7.0.0/<slug>` off `origin/dev`.
+
+| ID | Title | Pri | Effort |
+|----|-------|-----|--------|
+| [WO7.0.0-001](WO7.0.0-001-osv-crates-io-dropped.md) | Scan: OSV connected-mode drops ALL Rust/cargo advisories (`crates.io` not mapped) | P0 | S |
+| [WO7.0.0-002](WO7.0.0-002-sandbox-http-health-bypassed.md) | Sandbox: HTTP /health hardcodes "healthy" — bypasses check_health() | P0 | S |
+| [WO7.0.0-003](WO7.0.0-003-grpc-scan-audit-untenantable.md) | Sandbox: gRPC Scan RPC audit events not attributable and not tenant-tagged | P0 | S |
+| [WO7.0.0-004](WO7.0.0-004-correlation-chains-unique-tenant.md) | Serve: `correlation_chains.artifact_id UNIQUE` clobbers cross-tenant chain scores | P0 | S |
+| [WO7.0.0-005](WO7.0.0-005-project-stats-cross-tenant-count.md) | Serve: `update_project_stats` counts ALL orgs' runs (cross-tenant leak) | P0 | S |
+| [WO7.0.0-006](WO7.0.0-006-firewall-encoded-dot-traversal.md) | Firewall: encoded-dot path traversal bypasses `_safe_upstream_path` (SSRF) | P0 | S |
+| [WO7.0.0-007](WO7.0.0-007-pep508-dep-name-corruption.md) | Scan: PEP 508 dep parser in advisory collector corrupts 3 dep spec forms | P1 | S |
+| [WO7.0.0-008](WO7.0.0-008-firewall-toml-injection.md) | Firewall: TOML injection via URL-path package name | P1 | S |
+| [WO7.0.0-009](WO7.0.0-009-firewall-unresolved-cached.md) | Firewall: `UNRESOLVED` verdict cached with full TTL (stale 502 on new publishes) | P1 | S |
+| [WO7.0.0-010](WO7.0.0-010-firewall-cache-on-eviction.md) | Firewall: VerdictCache O(n) eviction on every get/put (3.4ms/get at 10k) | P1 | S-M |
+| [WO7.0.0-011](WO7.0.0-011-scan-cache-ecosystem-blind.md) | Scan: cache blind to ecosystem detection (stale no-pypi verdict) | P1 | M |
+| [WO7.0.0-012](WO7.0.0-012-typosquat-known-legit-normalize.md) | Scan: PyPI typosquat `known_legitimate` normalized vs raw deps → self-typosquat FP | P1 | S |
+| [WO7.0.0-013](WO7.0.0-013-firewall-pypi-metadata-unused.md) | Firewall: PyPI scan blind to author/maintainer/repo/provenance | P1 | M |
+| [WO7.0.0-014](WO7.0.0-014-grpc-scan-bypasses-jobstore.md) | Sandbox: gRPC Scan RPC bypasses job_store (not persisted, not tenant-scoped) | P1 | M |
+| [WO7.0.0-015](WO7.0.0-015-grpc-ratelimit-skip.md) | Sandbox: gRPC auth interceptor skips rate limiting (DoS with valid token) | P1 | S |
+| [WO7.0.0-016](WO7.0.0-016-clustertokenstore-timing.md) | Sandbox: `ClusterTokenStore.is_accepted` non-constant-time dict membership | P1 | S |
+| [WO7.0.0-017](WO7.0.0-017-tokenauth-bruteforce-threadsafe.md) | Sandbox: `TokenAuth` brute-force tracking dict not thread-safe | P1 | S |
+| [WO7.0.0-018](WO7.0.0-018-daemon-orphaned-jobs.md) | Sandbox: daemon restart leaves orphaned "running" jobs (no reconciliation) | P1 | S |
+| [WO7.0.0-019](WO7.0.0-019-versioned-policy-signature.md) | Sandbox: versioned policy loads skip signature verification (only latest.json signed) | P1 | S |
+| [WO7.0.0-020](WO7.0.0-020-l4engine-exception-narrow.md) | Sandbox: `L4Engine.analyze` exception tuple too narrow (`KeyError` kills scan) | P1 | S |
+| [WO7.0.0-021](WO7.0.0-021-gateway-nonjson-200-unscanned.md) | Watch: gateway non-JSON 200 passes output unscanned (no picowatch metadata) | P1 | S |
+| [WO7.0.0-022](WO7.0.0-022-gateway-error-body-attested.md) | Watch: gateway upstream 200 with error body attests `output_valid: true` | P1 | S |
+| [WO7.0.0-023](WO7.0.0-023-cli-flag-forwarding.md) | CLI: flag forwarding gaps (admission/daemon/watch) | P1 | M |
+| [WO7.0.0-024](WO7.0.0-024-serve-helm-templates.md) | Deploy: serve helm chart missing PVC/SA/Secret/RBAC/NetworkPolicy/PDB templates | P1 | M |
+| [WO7.0.0-025](WO7.0.0-025-gitlab-template-github-format.md) | CI: gitlab template github-format hard-fails (action.yml fixed, gitlab not) | P1 | S |
+| [WO7.0.0-026](WO7.0.0-026-grpc-health-dos.md) | Sandbox: gRPC `Health()` unauthenticated + expensive check_health() (DoS) | P1 | S |
+| [WO7.0.0-027](WO7.0.0-027-backup-tempdir-collision.md) | Serve: `backup.create_backup` temp_dir collision under concurrency | P1 | S |
+| [WO7.0.0-028](WO7.0.0-028-acknowledge-alert-sent-conflation.md) | Serve: `acknowledge_alert` conflates "acknowledged" with "delivered" via `sent` | P1 | S |
+| [WO7.0.0-029](WO7.0.0-029-ratelimit-flush-sigterm.md) | Serve: rate-limit flush thread not stopped in SIGTERM (post-db.close errors) | P2 | S |
+| [WO7.0.0-030](WO7.0.0-030-deny-packages-normalize.md) | Scan: `deny_packages` comparison case-sensitive, not PEP 503 normalized | P2 | S |
+| [WO7.0.0-031](WO7.0.0-031-osv-disk-cache-on2.md) | Scan: OSV disk-cache `_write_cache` O(N²) — `_enforce_caps` on every write | P2 | S |
+| [WO7.0.0-032](WO7.0.0-032-is-package-reachable-rescan.md) | Scan: `_is_package_reachable` rescans source tree per package (O(packages×files)) | P2 | M |
+| [WO7.0.0-033](WO7.0.0-033-orchestrator-health-atomic.md) | Serve: `_orchestrator_health.perform_health_checks` writes rows non-atomically | P2 | S |
+| [WO7.0.0-034](WO7.0.0-034-core-truthfulness-riders.md) | Core: truthfulness riders round 4 (doctor, CLI, README, k8s, picodome ro-fs) | P2 | M |
+
+Suggested batch shape: P0 scan (001/006) + watch (002-003) + serve (004/005); P1 scan cluster (007/009/011/012/013) + sandbox cluster (014-020) + watch (021/022) + serve (027/028) + core (023-025); P2 riders (029-034).
+
 ## WO6.0.0 — Sixth series (DONE 2026-08-20 — 22/22 DONE, 7 parallel worktrees off origin/dev)
 
 Priorities: P0 = security/correctness, do first. Every WO carries verified evidence (live repros or airtight file:line chains; the top claims re-verified by the orchestrator — 5/5 confirmed). WO5-033/031's interplay produced two of the biggest finds (outbox). Worktrees: `wo/6.0.0/<slug>` off `origin/dev`.

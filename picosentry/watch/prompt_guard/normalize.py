@@ -359,7 +359,18 @@ class Normalizer:
         for placeholder, original in placeholders.items():
             result = result.replace(original, placeholder)
 
-        result = self._SEPARATOR_PUNCT.sub(" ", result)
+        # WO5.0.0-029 fused-pass: gate the _SEPARATOR_PUNCT.sub (a full-text O(n)
+        # scan that matches nothing in benign prose) on a single .search of the
+        # same pattern. _SEPARATOR_PUNCT and _SEPARATOR_REMOVED share the exact
+        # regex, so has_separator_punct is a perfect pre-filter: benign text with
+        # no `\w[.\-/_]\w` shape pays only the search, not the sub. The
+        # collapse_spaced_text re-run still fires unconditionally — it serves a
+        # second spaced-single-char collapse pass independent of separators
+        # (the first pass runs on pre-sub text; this one catches patterns exposed
+        # or unchanged after the sub — see test_spaced_collapse_respects_multi_
+        # space_boundaries).
+        if self._SEPARATOR_PUNCT.search(result) is not None:
+            result = self._SEPARATOR_PUNCT.sub(" ", result)
 
         result = self.collapse_spaced_text(result)
 

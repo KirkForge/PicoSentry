@@ -1,0 +1,160 @@
+# PicoSentry Serve Helm values
+replicaCount: 2
+
+image:
+  repository: kirkforge/picodome
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion
+  tag: ""
+
+serve:
+  host: "0.0.0.0"
+  port: 8766
+
+# Multi-worker: picosentry serve --workers N. Core mechanisms (DB event outbox,
+# scheduler leader lease, rate-limit sync, WS per-client queues) landed in
+# WO5.0.0-031; the 2-real-worker e2e isolation proof is pending, so >1 is
+# "unsupported-with-core-landed" until WO5.0.0-031 closes. Use 1 for
+# alerting-critical deployments until then.
+workers: 1
+
+# Database backend: sqlite (default, single-pod) or postgres (multi-pod).
+# For workers > 1 or replicaCount > 1, postgres is required (the sqlite file
+# is per-pod; cross-process locking is via postgres).
+database:
+  backend: sqlite
+  # Postgres URL (only used when backend=postgres). Inject via existingSecret
+  # to avoid committing credentials: set database.existingSecret and
+  # database.existingSecretKey; the env var PICOSHOGUN_DATABASE_URL is wired
+  # from that secret key.
+  url: ""
+  # SQLite path (only used when backend=sqlite). Mount a PVC at /home/picodome/.picosentry
+  # so scans/workspace survive pod restarts.
+  path: "/home/picodome/.picosentry/picoshogun.db"
+  existingSecret: ""
+  existingSecretKey: "database-url"
+
+auth:
+  # Comma-separated API tokens (or use existingSecret). WARNING: change this
+  # in production — tokens must be >= 32 chars.
+  tokens: ""
+  existingSecret: ""
+  createSecret: true
+
+# Enterprise mode: requires enforcement backend, no dev bypass.
+enterprise:
+  enabled: true
+
+security:
+  # Run an init container before the main pod that refuses to start if any
+  # dev-bypass environment variables are set. Disable only for explicit
+  # development Helm installs — never in production.
+  blockDevBypasses: true
+
+metrics:
+  # If true, expose /metrics on the main port (auth-gated). PicoSentry Serve
+  # does not currently separate the metrics port; the scraper reads /metrics
+  # on the main service port with an API token.
+  separatePort: false
+  port: 9100
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+persistence:
+  # SQLite DB + scan workspace. Disable only when database.backend=postgres
+  # AND scans are ephemeral (no workspace root).
+  enabled: true
+  size: 5Gi
+  storageClass: ""
+
+cors:
+  # Allowed origins for CORS headers (default: * for all — narrow in production)
+  origins: "*"
+
+ratelimit:
+  enabled: true
+  # backend: memory (per-pod, limits × replicas) or redis (shared across pods).
+  # redis is required for workers > 1 to keep limits consistent.
+  backend: memory
+  redisUrl: ""
+
+webhooks:
+  enabled: false
+  endpoints: []
+  # - url: https://hooks.slack.com/services/...
+  #   secret: my-signing-secret
+  #   events: ["scan_alert"]
+  #   minSeverity: high
+
+retention:
+  scanResultsDays: 90
+  auditLogsDays: 365
+
+monitoring:
+  prometheus:
+    enabled: true
+    scrape: true
+    port: 8766
+    path: /metrics
+
+service:
+  type: ClusterIP
+  port: 8766
+
+serviceAccount:
+  create: true
+  name: ""
+
+rbac:
+  create: true
+
+networkPolicy:
+  enabled: true
+  ingress:
+    from: []
+
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  seccompProfile:
+    type: RuntimeDefault
+
+healthProbe:
+  liveness:
+    initialDelaySeconds: 5
+    periodSeconds: 30
+  readiness:
+    initialDelaySeconds: 3
+    periodSeconds: 10
+  startup:
+    initialDelaySeconds: 5
+    periodSeconds: 10
+
+# Horizontal Pod Autoscaler — scale based on CPU/memory utilization.
+# Requires metrics-server in the cluster. NOTE: scaling beyond replicaCount=1
+# requires database.backend=postgres (cross-pod sqlite is not supported) and
+# ratelimit.backend=redis. See WO5.0.0-031 for the multi-worker support matrix.
+autoscaling:
+  enabled: false
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 80
+  targetMemoryUtilizationPercentage: 80
+  scaleDownStabilizationSeconds: 300
+  scaleUpStabilizationSeconds: 60
+
+# PodDisruptionBudget — ensures minimum availability during voluntary disruptions.
+priorityClassName: ""
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+  maxUnavailable: ""

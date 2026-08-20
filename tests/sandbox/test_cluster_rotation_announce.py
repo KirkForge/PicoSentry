@@ -151,6 +151,196 @@ class TestRotationAnnouncementUnit:
         assert infos["old-token"].issued_at == 6000.0, "grace must run from rotation, not original issue (1000.0)"
 
 
+class TestApplyAnnouncementToctou:
+    """WO6.0.0-014 TOCTOU rider: ``apply_announcement`` must hold its lock
+    across the anchor decision AND the promotion. The prior code released the
+    lock between the two, so a concurrent ``rotate()`` could clobber the state
+    the promotion was based on.
+
+    The tooth is a deterministic lock-held assertion: the promotion helpers
+    (``_set_primary_locked`` / ``_adopt_token_locked``) are only safe to call
+    when ``self._lock`` is already held by the current thread. A
+    non-reentrant ``threading.Lock`` cannot be re-acquired by the holder, so
+    if ``apply_announcement`` released the lock before promoting, a concurrent
+    ``acquire(blocking=False)`` from another thread would SUCCEED during the
+    promotion — proving the gap. The fixed code holds the lock throughout, so
+    the concurrent acquire fails for the whole window.
+    """
+
+    def test_promotion_runs_under_held_lock(self, monkeypatch):
+        store = _state_with_token("toctou-anchor").token_store
+        lock = store._lock
+
+        # Instrument the promotion path: whenever the locked helpers run, the
+        # store lock MUST already be held by apply_announcement's `with` block.
+        # threading.Lock is non-reentrant: acquire(blocking=False) returns False
+        # when the lock is already held (by the current thread), True when it
+        # was acquired (so we must release it to avoid leaking the lock). If
+        # apply_announcement released the lock between the decision and the
+        # promotion, this acquire would succeed — the TOCTOU.
+        promotion_under_lock: list[bool] = []
+
+        real_set_primary_locked = store._set_primary_locked
+        real_adopt_locked = store._adopt_token_locked
+
+        def _lock_is_held() -> bool:
+            got = lock.acquire(blocking=False)
+            if got:
+                lock.release()
+                return False
+            return True
+
+        def checked_set_primary_locked(token: str):
+            promotion_under_lock.append(_lock_is_held())
+            return real_set_primary_locked(token)
+
+        def checked_adopt_locked(token, version, issued_at):
+            promotion_under_lock.append(_lock_is_held())
+            return real_adopt_locked(token, version, issued_at)
+
+        monkeypatch.setattr(store, "_set_primary_locked", checked_set_primary_locked)
+        monkeypatch.setattr(store, "_adopt_token_locked", checked_adopt_locked)
+
+        # Drive a follow-rotation announcement (anchor == primary branch).
+        import hashlib
+        import hmac as hmac_mod
+
+        announced_at = 1234.0
+        anchor = "toctou-anchor"
+        candidate = derive_rotation_token(anchor, announced_at)
+        ann = {
+            "announced_by": "peer",
+            "hmac": hmac_mod.new(anchor.encode("utf-8"), candidate.encode("utf-8"), hashlib.sha256).hexdigest(),
+            "announced_at": announced_at,
+            "grace_expires": announced_at + 60,
+        }
+        assert store.apply_announcement(ann) is True
+        assert promotion_under_lock, "promotion helpers were never called"
+        assert all(promotion_under_lock), f"promotion ran without the lock held (TOCTOU gap): {promotion_under_lock}"
+        assert store.primary_token == candidate, "follow-rotation did not promote the candidate"
+
+        # Drive an adopt (anchor != primary branch): rotate first so the anchor
+        # is a non-primary accepted token.
+        store2 = _state_with_token("anchor-a").token_store
+        store2.rotate("explicit-primary")  # anchor-a is now accepted, not primary
+        lock2 = store2._lock
+        adopt_checked: list[bool] = []
+        real_adopt2 = store2._adopt_token_locked
+
+        def checked_adopt2(token, version, issued_at):
+            got = lock2.acquire(blocking=False)
+            if got:
+                lock2.release()
+                adopt_checked.append(False)
+            else:
+                adopt_checked.append(True)
+            return real_adopt2(token, version, issued_at)
+
+        monkeypatch.setattr(store2, "_adopt_token_locked", checked_adopt2)
+        candidate2 = derive_rotation_token("anchor-a", announced_at)
+        ann2 = {
+            "announced_by": "peer",
+            "hmac": hmac_mod.new(b"anchor-a", candidate2.encode("utf-8"), hashlib.sha256).hexdigest(),
+            "announced_at": announced_at,
+            "grace_expires": announced_at + 60,
+        }
+        assert store2.apply_announcement(ann2) is True
+        assert adopt_checked, "adopt helper was never called"
+        assert all(adopt_checked), f"adopt ran without the lock held (TOCTOU gap): {adopt_checked}"
+
+    def test_concurrent_apply_announcement_and_rotate_stay_consistent(self, monkeypatch):
+        """Stress test: real threads hammering apply_announcement + rotate must
+        leave the store internally consistent. The TOCTOU fix (single lock
+        scope) is what makes this pass; under the old gap a concurrent rotate
+        could retire the announcement's anchor between decision and promotion,
+        leaving a stored announcement that verifies against no accepted token.
+
+        Kept small (2 threads, 30 iterations) to stay well under the 60s test
+        timeout — the deterministic ``test_promotion_runs_under_held_lock`` is
+        the primary tooth; this is a consistency backstop under real scheduling.
+        """
+        import hashlib
+        import hmac as hmac_mod
+        import threading
+
+        clock = FakeClock(1_000_000.0)
+        _time_lock = threading.Lock()
+
+        def safe_time() -> float:
+            with _time_lock:
+                return clock.time()
+
+        monkeypatch.setattr("picosentry.sandbox.cluster.token_store.time.time", safe_time)
+        monkeypatch.setenv("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", str(GRACE_SECONDS))
+
+        store = _state_with_token("stress-anchor").token_store
+
+        barrier = threading.Barrier(2)
+        errors: list[Exception] = []
+        iterations = 30
+
+        def rotate_worker() -> None:
+            try:
+                barrier.wait()
+                for _ in range(iterations):
+                    clock.advance(1.0)
+                    store.rotate(announced_by="rotator")
+            except Exception as exc:
+                errors.append(exc)
+
+        def announce_worker() -> None:
+            try:
+                barrier.wait()
+                for _ in range(iterations):
+                    with _time_lock:
+                        now = clock.time()
+                    primary = store.primary_token
+                    if not primary:
+                        continue
+                    cand = derive_rotation_token(primary, now)
+                    h = hmac_mod.new(primary.encode("utf-8"), cand.encode("utf-8"), hashlib.sha256).hexdigest()
+                    ann = {
+                        "announced_by": "peer",
+                        "hmac": h,
+                        "announced_at": now,
+                        "grace_expires": now + GRACE_SECONDS,
+                    }
+                    clock.advance(0.5)
+                    store.apply_announcement(ann)
+            except Exception as exc:
+                errors.append(exc)
+
+        threads = [threading.Thread(target=rotate_worker), threading.Thread(target=announce_worker)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join(timeout=20)
+
+        assert errors == [], f"worker threads raised: {errors}"
+
+        # The strong invariant: if an announcement is stored, it MUST verify
+        # against some currently-accepted token. The TOCTOU gap could leave a
+        # stored announcement whose anchor was retired between decision and
+        # the announcement store — unverifiable against current state.
+        primary = store.primary_token
+        assert primary, "store ended with no primary"
+        assert store.is_accepted(primary), "primary not in accepted set (clobbered)"
+        announcement = store.announcement
+        if announcement is not None:
+            ctx = f"{ROTATION_CONTEXT}{float(announcement['announced_at'])}".encode()
+            verified = False
+            for tok in store.accepted_tokens:
+                cand = hmac_mod.new(tok.encode("utf-8"), ctx, hashlib.sha256).hexdigest()
+                expected = hmac_mod.new(tok.encode("utf-8"), cand.encode("utf-8"), hashlib.sha256).hexdigest()
+                if hmac_mod.compare_digest(expected, announcement["hmac"]):
+                    verified = True
+                    break
+            assert verified, (
+                f"stored announcement verifies against NO accepted token — "
+                f"the decision/promotion gap was clobbered: {announcement}"
+            )
+
+
 class TestThreeNodeRotationGate:
     """The WO gate: rotate on A → announce → adopt everywhere → grace → retire."""
 

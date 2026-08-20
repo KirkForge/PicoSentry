@@ -1,0 +1,177 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "serve.fullname" . }}
+  labels:
+    {{- include "serve.labels" . | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "serve.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "serve.selectorLabels" . | nindent 8 }}
+      annotations:
+        {{- if .Values.monitoring.prometheus.enabled }}
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "{{ .Values.monitoring.prometheus.port }}"
+        prometheus.io/path: "/metrics"
+        {{- end }}
+        checksum/tokens: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "serve.serviceAccountName" . }}
+      {{- with .Values.priorityClassName }}
+      priorityClassName: {{ . }}
+      {{- end }}
+      {{- if .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml .Values.imagePullSecrets | nindent 8 }}
+      {{- end }}
+      securityContext:
+        runAsNonRoot: {{ .Values.securityContext.runAsNonRoot }}
+        runAsUser: {{ .Values.securityContext.runAsUser }}
+        runAsGroup: {{ .Values.securityContext.runAsGroup }}
+        fsGroup: {{ .Values.securityContext.fsGroup }}
+        seccompProfile:
+          type: {{ .Values.securityContext.seccompProfile.type }}
+      {{- if .Values.security.blockDevBypasses }}
+      initContainers:
+        - name: security-check
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command:
+            - "python3"
+            - "-m"
+            - "picosentry._core.security_check"
+            - "--strict"
+            - "--json"
+          env:
+            - name: PICODOME_ENTERPRISE_MODE
+              value: "1"
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          resources:
+            limits:
+              cpu: "100m"
+              memory: "64Mi"
+            requests:
+              cpu: "50m"
+              memory: "32Mi"
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag | default .Chart.AppVersion }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args:
+            - "serve"
+            - "--host={{ .Values.serve.host }}"
+            - "--port={{ .Values.serve.port }}"
+            - "--workers={{ .Values.workers }}"
+          ports:
+            - name: http
+              containerPort: {{ .Values.serve.port }}
+              protocol: TCP
+            {{- if .Values.metrics.separatePort }}
+            - name: metrics
+              containerPort: {{ .Values.metrics.port }}
+              protocol: TCP
+            {{- end }}
+          env:
+            - name: PICOSHOGUN_API_HOST
+              value: {{ .Values.serve.host | quote }}
+            - name: PICOSHOGUN_API_PORT
+              value: {{ .Values.serve.port | quote }}
+            - name: PICOSHOGUN_API_WORKERS
+              value: {{ .Values.workers | quote }}
+            {{- if .Values.enterprise.enabled }}
+            - name: PICODOME_ENTERPRISE_MODE
+              value: "1"
+            {{- end }}
+            {{- if .Values.auth.existingSecret }}
+            - name: PICOSHOGUN_API_TOKENS
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret }}
+                  key: api-tokens
+            {{- else if .Values.auth.tokens }}
+            - name: PICOSHOGUN_API_TOKENS
+              value: {{ .Values.auth.tokens | quote }}
+            {{- end }}
+            {{- if .Values.database.existingSecret }}
+            - name: PICOSHOGUN_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.database.existingSecret }}
+                  key: {{ .Values.database.existingSecretKey }}
+            {{- else if .Values.database.url }}
+            - name: PICOSHOGUN_DATABASE_URL
+              value: {{ .Values.database.url | quote }}
+            {{- end }}
+            {{- if ne .Values.database.backend "sqlite" }}
+            - name: PICOSHOGUN_DATABASE_BACKEND
+              value: {{ .Values.database.backend | quote }}
+            {{- else }}
+            - name: PICOSHOGUN_DATABASE_PATH
+              value: {{ .Values.database.path | quote }}
+            {{- end }}
+            {{- if .Values.ratelimit.enabled }}
+            {{- if ne .Values.ratelimit.backend "memory" }}
+            - name: PICOSHOGUN_RATE_LIMIT_BACKEND
+              value: {{ .Values.ratelimit.backend | quote }}
+            {{- end }}
+            {{- if .Values.ratelimit.redisUrl }}
+            - name: PICOSHOGUN_RATE_LIMIT_REDIS_URL
+              value: {{ .Values.ratelimit.redisUrl | quote }}
+            {{- end }}
+            {{- end }}
+            - name: PICOSHOGUN_CORS_ORIGINS
+              value: {{ .Values.cors.origins | quote }}
+          volumeMounts:
+            {{- if .Values.persistence.enabled }}
+            - name: data
+              mountPath: /home/picodome/.picosentry
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.healthProbe.liveness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.liveness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: {{ .Values.healthProbe.readiness.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.readiness.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 3
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: {{ .Values.healthProbe.startup.initialDelaySeconds }}
+            periodSeconds: {{ .Values.healthProbe.startup.periodSeconds }}
+            timeoutSeconds: 5
+            failureThreshold: 30
+      volumes:
+        {{- if .Values.persistence.enabled }}
+        - name: data
+          persistentVolumeClaim:
+            claimName: {{ include "serve.fullname" . }}-data
+        {{- end }}

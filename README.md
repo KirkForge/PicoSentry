@@ -101,8 +101,8 @@ Also: `picosentry firewall` (registry metadata proxy), `daemon`, `admission`
 | Postgres backend | **Stable** | psycopg2 pool + runtime placeholder translation + DDL auto-translation + dialect helpers; live PG 15/16/17/18 CI |
 | Cluster mode | **Beta** | Gossip over HTTP(S) with shared cluster token + optional mTLS; monotonic versioning; 3-node integration test |
 | Detection benchmarks | **Stable** | 5674 fixtures (3431 pos / 2236 neg), 53 rules, 100.00% prec, 90.87% recall — see docs/model-card.md |
-| Docker image | **Stable** | multi-arch (linux/amd64 + linux/arm64), non-root; latest published: kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.1.3 push pending (WO5.0.0-014) |
-| PyPI package | **Stable** | `pip install picosentry` — v2.1.3 published |
+| Docker image | **Stable** | multi-arch (linux/amd64 + linux/arm64), non-root; latest published: kirkforge/picodome:v2.0.18 — kirkforge/picodome:v2.2.0 push pending (WO5.0.0-014) |
+| PyPI package | **Stable** | `pip install picosentry` — v2.2.0 published |
 
 "Beta" = works, has regression + security tests, suitable for controlled
 production use. This table is generated from
@@ -121,7 +121,7 @@ pip install picosentry[all]           # everything
 ```
 
 **Docker:** `docker pull kirkforge/picodome:v2.0.18` (latest published;
-multi-arch, non-root) — `kirkforge/picodome:v2.1.3` push pending (WO5.0.0-014).
+multi-arch, non-root) — `kirkforge/picodome:v2.2.0` push pending (WO5.0.0-014).
 All install options incl. `[grpc]`, `[watch-server]`, `[otel]`, `[sigstore]`:
 [manual ch. 2](docs/manual.md#2-installation).
 

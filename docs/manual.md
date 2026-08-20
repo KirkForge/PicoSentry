@@ -1,6 +1,6 @@
 # PicoSentry Manual
 
-> Version 2.1.3 — BUSL-1.1 — Source of truth: codebase and [`picosentry/experimental.py`](../picosentry/experimental.py).
+> Version 2.2.0 — BUSL-1.1 — Source of truth: codebase and [`picosentry/experimental.py`](../picosentry/experimental.py).
 >
 > This is the single PicoSentry manual. Every former standalone tech doc is a
 > chapter here; the old files remain as one-line pointer stubs for link
@@ -73,7 +73,7 @@ picosentry scan examples/pypi-obfuscated-setup/
 ```text
 🦞 PicoSentry
 Target: /home/you/PicoSentry/examples/pypi-obfuscated-setup
-Engine: v2.1.3 | Corpus: vabd36dc30c3f
+Engine: v2.2.0 | Corpus: vabd36dc30c3f
 Scan ID: 08057439b4ba08d8
 
 Packages scanned: 0
@@ -129,7 +129,7 @@ docker pull kirkforge/picodome:v2.0.18
 ```
 
 Multi-arch image (linux/amd64 + linux/arm64), non-root user. `v2.0.18` is
-the latest published tag; the `v2.1.3` image push is pending (WO5.0.0-014).
+the latest published tag; the `v2.2.0` image push is pending (WO5.0.0-014).
 See `deploy/` for Kubernetes and Helm charts.
 
 ---
@@ -178,7 +178,7 @@ both architectures.
 `deploy/helm/picodome/values.yaml` uses `kirkforge/picodome` by default. The
 chart does not require any architecture-specific settings; Kubernetes pulls the
 matching manifest from the multi-arch image. The chart's `appVersion` is
-v-prefixed (`v2.1.3`) to match the registry tag scheme — image references
+v-prefixed (`v2.2.0`) to match the registry tag scheme — image references
 resolve without a `v`-less/appVersion mismatch.
 
 ### Runtime smoke test

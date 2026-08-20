@@ -1,4 +1,4 @@
-__version__ = "2.1.3"  # kept in lockstep with the top-level picosentry.__version__
+__version__ = "2.2.0"  # kept in lockstep with the top-level picosentry.__version__
 
 from picosentry._core.security import constant_time_compare as constant_time_compare
 from picosentry._core.time import now_ms as now_ms

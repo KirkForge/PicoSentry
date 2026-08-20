@@ -52,11 +52,20 @@ async def create_org(
     request: OrgCreateRequest,
     user: dict = Depends(get_current_user),
 ):
+    # WO6.0.0-012: POST /orgs/{id}/upgrade requires global admin + org admin
+    # (the dual gate at :156-164); create-with-tier bypassed exactly that
+    # control — a viewer could self-service enterprise (unlimited quotas).
+    # Clamp create to `free` unless the caller is a global admin, so the
+    # front door matches the upgrade gate. A global admin can still seed a
+    # paid-tier org directly.
+    tier = request.tier
+    if tier != "free" and user.get("role") != "admin":
+        tier = "free"
     result = Organization.create(
         name=request.name,
         slug=request.slug,
         owner_user_id=user["id"],
-        tier=request.tier,
+        tier=tier,
     )
     if result is None:
         # Organization.create logs the cause; a swallowed internal failure
@@ -69,7 +78,7 @@ async def create_org(
         "id": result["org_id"],
         "name": request.name,
         "slug": request.slug,
-        "tier": request.tier,
+        "tier": tier,
         "api_key": result["api_key"],
     }
 

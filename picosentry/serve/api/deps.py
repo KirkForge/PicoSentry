@@ -150,10 +150,14 @@ def _resolve_current_org(api_key: str | None, org_id_header: str | None, user: d
     return user_orgs[0]
 
 
-async def require_org_membership(
+def require_org_membership(
     org_id: int,
     user: dict = Depends(get_current_user),
 ) -> dict:
+    # WO6.0.0-020: sync def (not async) so FastAPI dispatches this to the
+    # threadpool — Organization.list_orgs_for_user is a blocking DB read.
+    # An async def wrapping a sync DB call blocks the event loop (the
+    # convention get_current_user follows deliberately).
     orgs = Organization.list_orgs_for_user(user["id"])
     org = next((o for o in orgs if o["id"] == org_id), None)
     if not org:

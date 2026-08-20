@@ -215,49 +215,73 @@ class AuthService:
         WebAuthn assertion has been independently verified (the passkey is
         the second factor).  It skips the MFA gate so a second-factor-proof
         caller can receive the token without re-entering a TOTP code.
+
+        WO6.0.0-013: reads (user lookup, locked check, password verify,
+        webauthn creds, totp match) run WITHOUT a transaction — a credential-
+        stuffing burst no longer takes the write lock per attempt. Only the
+        write branches (failed-login counter, totp timestep persist, last
+        login) open a transaction. The previous single-transaction form held
+        BEGIN IMMEDIATE for the whole login including the invalid-credential
+        early return, and the webauthn SELECT inside it self-deadlocked the
+        writer-preferring ReadWriteLock (15s stall under a concurrent writer).
         """
         normalized = self._normalize_username(username)
         now = datetime.now(timezone.utc)
 
-        with self._db.transaction() as conn:
-            rows = self._db.execute_on(conn, "SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
-            user = rows[0] if rows else None
+        # Pure read — no transaction, no write lock held. A failed-credential
+        # early return here costs nothing at the lock layer.
+        user = self._db.execute_one("SELECT * FROM users WHERE username = ? AND is_active = 1", (normalized,))
+        if not user:
+            logger.warning("Auth failed: invalid credentials")
+            return {"status": "invalid"}
 
-            if not user:
-                logger.warning("Auth failed: invalid credentials")
-                return {"status": "invalid"}
+        locked_until = user.get("locked_until")
+        if locked_until:
+            if isinstance(locked_until, str):
+                locked_until = datetime.fromisoformat(locked_until)
+            if locked_until > now:
+                logger.warning("Auth failed: account %s locked until %s", normalized, locked_until)
+                return {"status": "locked"}
 
-            locked_until = user.get("locked_until")
-            if locked_until:
-                if isinstance(locked_until, str):
-                    locked_until = datetime.fromisoformat(locked_until)
-                if locked_until > now:
-                    logger.warning("Auth failed: account %s locked until %s", normalized, locked_until)
-                    return {"status": "locked"}
+        if not self._verify_password(password, user["password_hash"]):
+            self._record_failed_login(user, now)
+            logger.warning("Auth failed: invalid credentials")
+            return {"status": "invalid"}
 
-            if not self._verify_password(password, user["password_hash"]):
-                self._record_failed_login(conn, user, now)
-                logger.warning("Auth failed: invalid credentials")
-                return {"status": "invalid"}
-
-            # Password is correct — reset the failure counter.
-            self._db.execute_on(
-                conn, "UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?", (user["id"],)
+        totp_secret = user.get("totp_secret")
+        if not mfa_verified:
+            # webauthn creds lookup is a pure read; running it outside the
+            # transaction avoids the lock-order inversion (BEGIN IMMEDIATE
+            # held → execute() re-enters the ReadWriteLock READ half →
+            # writer-preferring lock starves the reader until busy_timeout
+            # kills the writer: 15s stall under a concurrent scheduler writer).
+            has_webauthn = bool(
+                self._db.execute_one("SELECT 1 FROM webauthn_credentials WHERE user_id = ? LIMIT 1", (user["id"],))
             )
-
-            totp_secret = user.get("totp_secret")
-            if not mfa_verified:
-                has_webauthn = bool(self.webauthn_credentials_for_user(user["id"]))
-                if totp_secret and not (totp_code and self._verify_totp_replay(conn, user, totp_secret, totp_code)):
+            if totp_secret:
+                matched = self._totp_match_timestep(totp_secret, totp_code) if totp_code else None
+                if not (matched is not None and self._totp_replay_ok(user, matched)):
                     if totp_code:
-                        self._record_failed_login(conn, user, now)
+                        self._record_failed_login(user, now)
                     methods = ["totp"] + (["webauthn"] if has_webauthn else [])
                     logger.info("User %s requires MFA", normalized)
                     return {"status": "mfa_required", "mfa_methods": methods}
-                if has_webauthn and not totp_secret:
-                    logger.info("User %s requires WebAuthn MFA", normalized)
-                    return {"status": "mfa_required", "mfa_methods": ["webauthn"]}
+                # TOTP valid — persist the consumed timestep in its own tx.
+                with self._db.transaction(immediate=True) as conn:
+                    self._db.execute_on(
+                        conn, "UPDATE users SET totp_last_timestep = ? WHERE id = ?", (matched, user["id"])
+                    )
+            elif has_webauthn:
+                logger.info("User %s requires WebAuthn MFA", normalized)
+                return {"status": "mfa_required", "mfa_methods": ["webauthn"]}
 
+        # Password valid, MFA satisfied — write branches in one tx.
+        with self._db.transaction(immediate=True) as conn:
+            self._db.execute_on(
+                conn,
+                "UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?",
+                (user["id"],),
+            )
             self._db.execute_on(conn, "UPDATE users SET last_login = ? WHERE id = ?", (now, user["id"]))
 
         org_id = None
@@ -273,21 +297,32 @@ class AuthService:
         logger.info("User %s authenticated", user["username"])
         return {"status": "ok", "token": token, "user_id": user["id"], "role": user["role"]}
 
-    def _record_failed_login(self, conn, user: dict[str, Any], now: datetime) -> None:
-        attempts = int(user.get("failed_login_attempts") or 0) + 1
-        max_attempts = settings.security.lockout_max_attempts
-        if attempts >= max_attempts:
-            locked_until = now + timedelta(minutes=settings.security.lockout_window_minutes)
-            self._db.execute_on(
-                conn,
-                "UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?",
-                (attempts, locked_until, user["id"]),
-            )
-            logger.warning(
-                "Account %s locked until %s after %d failed attempts", user["username"], locked_until, attempts
-            )
-        else:
-            self._db.execute_on(conn, "UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"]))
+    def _record_failed_login(self, user: dict[str, Any], now: datetime) -> None:
+        # WO6.0.0-013: own transaction with an in-tx re-read of the counter.
+        # The previous form read attempts from the caller's in-tx SELECT and
+        # wrote attempts+1, which raced under concurrent failed logins (both
+        # read N, both write N+1, one increment lost). The re-read inside
+        # BEGIN IMMEDIATE sees the latest committed state.
+        with self._db.transaction(immediate=True) as conn:
+            row = self._db.execute_on(conn, "SELECT failed_login_attempts FROM users WHERE id = ?", (user["id"],))
+            if not row:
+                return
+            attempts = int(row[0]["failed_login_attempts"] or 0) + 1
+            max_attempts = settings.security.lockout_max_attempts
+            if attempts >= max_attempts:
+                locked_until = now + timedelta(minutes=settings.security.lockout_window_minutes)
+                self._db.execute_on(
+                    conn,
+                    "UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?",
+                    (attempts, locked_until, user["id"]),
+                )
+                logger.warning(
+                    "Account %s locked until %s after %d failed attempts", user["username"], locked_until, attempts
+                )
+            else:
+                self._db.execute_on(
+                    conn, "UPDATE users SET failed_login_attempts = ? WHERE id = ?", (attempts, user["id"])
+                )
 
     def _generate_token(self, user_id: int, username: str, role: str, org_id: int | None = None) -> str:
         if not HAS_JWT:

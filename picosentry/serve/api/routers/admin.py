@@ -103,7 +103,16 @@ async def get_event_history(
     user: dict = Depends(require_role("admin")),
     org: dict = Depends(get_current_org),
 ):
-    events = event_bus.get_history(event_type, limit, org_id=str(org["id"]))
+    # org_id=None is a system-wide event: WS broadcasts it to every
+    # authenticated socket (websocket_manager.broadcast), so the queryable
+    # history surface must include it too — otherwise admins see scheduler
+    # /backup events in their WS feed but cannot retrieve them after the
+    # fact. Matches WS fan-out semantics. get_history(org_id=None) returns
+    # the unfiltered history; we then keep this org's events + system events
+    # only (cross-org isolation preserved).
+    org_id = str(org["id"])
+    events = event_bus.get_history(event_type, limit=1000, org_id=None)
+    visible = [e for e in events if e.org_id is None or e.org_id == org_id]
     return [
         {
             "id": e.id,
@@ -113,5 +122,5 @@ async def get_event_history(
             "timestamp": e.timestamp.isoformat(),
             "priority": e.priority,
         }
-        for e in events
+        for e in visible[-limit:]
     ]

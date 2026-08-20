@@ -117,21 +117,32 @@ class TestExecuteEndsImplicitTransaction:
 
 
 class TestTransactionSemanticsUnchanged:
-    def test_execute_inside_transaction_does_not_end_it(self):
+    def test_execute_inside_transaction_raises_guard(self):
+        # WO6.0.0-013: execute() inside transaction() self-deadlocks the
+        # writer-preferring ReadWriteLock (the reader waits for _writer to
+        # clear, which is this same thread holding BEGIN IMMEDIATE). The
+        # guard surfaces the latent trap as an actionable error. Use
+        # execute_on(conn, ...) inside transaction() instead.
         conn = _FakePGConn()
         mgr = _pg_manager(conn)
         with mgr.transaction() as tx_conn:
             assert tx_conn is conn
-            mgr.execute("UPDATE t SET x = 1")
-            assert conn.commits == 0  # transaction() owns the commit
-        assert conn.commits == 1
-        assert conn.rolls == 0
+            with pytest.raises(RuntimeError, match="execute_on"):
+                mgr.execute("UPDATE t SET x = 1")
+            assert conn.commits == 0  # guard raised before any commit
+        assert conn.commits == 1  # transaction() committed normally (guard was caught)
+
+    def test_execute_insert_inside_transaction_raises_guard(self):
+        conn = _FakePGConn()
+        mgr = _pg_manager(conn)
+        with mgr.transaction(), pytest.raises(RuntimeError, match="execute_on"):
+            mgr.execute_insert("INSERT INTO t (x) VALUES (1)")
+        assert conn.commits == 1  # transaction() committed normally
 
     def test_rollback_clears_depth_for_lateral_executes(self):
         conn = _FakePGConn()
         mgr = _pg_manager(conn)
         with pytest.raises(ValueError, match="boom"), mgr.transaction():
-            mgr.execute("SELECT 1")
             raise ValueError("boom")
         assert conn.rolls == 1
         mgr.execute("UPDATE t SET x = 1")
@@ -142,10 +153,8 @@ class TestTransactionSemanticsUnchanged:
         mgr = _pg_manager(conn)
         with mgr.transaction():
             with mgr.transaction():
-                mgr.execute("UPDATE t SET x = 1")
-            assert conn.commits == 1  # inner exit commits (pre-existing behavior)
-            mgr.execute("UPDATE t SET x = 2")
-            assert conn.commits == 1  # still inside the outer transaction
+                pass  # inner exit commits (pre-existing behavior)
+            assert conn.commits == 1
         assert conn.commits == 2
         mgr.execute("UPDATE t SET x = 3")
         assert conn.commits == 3

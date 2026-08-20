@@ -485,7 +485,7 @@ class AuditVerifyResponse(BaseModel):
 
 
 class EventHistoryItem(BaseModel):
-    id: int
+    id: str
     type: str
     source: str
     payload: dict[str, Any]

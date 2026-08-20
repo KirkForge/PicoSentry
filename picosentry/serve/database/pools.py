@@ -199,6 +199,20 @@ class PostgresPool:
         if conn is None:
             conn = self._psycopg2.connect(self._url, connect_timeout=5)
             conn.autocommit = False
+            # WO6.0.0-020: pin every session to UTC. The lease expires_at
+            # TIMESTAMP is compared against tz-aware params, and quota-day
+            # boundaries use CURRENT_DATE — both correct only if all
+            # sessions share one TZ. Without this, a session inheriting the
+            # postgres cluster's default TZ (or a per-role TZ) shifts
+            # CURRENT_DATE and silently mis-bounds quota windows. SET in a
+            # one-shot autocommit so it persists for the session and is not
+            # rolled back by the manager's per-statement finish.
+            conn.autocommit = True
+            try:
+                with contextlib.suppress(self._psycopg2.Error):
+                    conn.cursor().execute("SET TIMEZONE 'UTC'")
+            finally:
+                conn.autocommit = False
             self._local.conn = conn
             with self._conns_lock:
                 self._all_conns.add(conn)

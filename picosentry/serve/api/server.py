@@ -11,7 +11,14 @@ Deployment support matrix (WO5.0.0-031):
 |                 | TTL can overlap at takeover; rate limits sync every                       |
 |                 | RATE_LIMIT_SYNC_SECONDS (default 5s) so bursts can overshoot by the      |
 |                 | other workers' unsynced counts; /metrics is per-worker — aggregate via  |
-|                 | labeled instances in the scraper, not in-process.                        |
+|                 | labeled instances in the scraper, not in-process. A removed/disabled    |
+|                 | job can fire once more if a standby takes over the leader lease before  |
+|                 | the next reload_every (default 30s) — the leader's remove_job writes   |
+|                 | to the DB, but a standby that wins the lease before its next reload    |
+|                 | still holds the stale in-memory jobs list (WO6.0.0-020 documented      |
+|                 | ceiling: a jobs-version column the standby polls would close this;     |
+|                 | not implemented because the one-fire ceiling is the same order as the  |
+|                 | lease-TTL overlap already documented above).                            |
 
 The full matrix is also in deploy/helm/picosentry/README.md.
 """
@@ -430,6 +437,10 @@ def main() -> None:
     def _graceful_shutdown(signum, _frame):
         sig_name = signal.strsignal(signum) or str(signum)
         logger.info("Received %s — initiating graceful shutdown", sig_name)
+        # WO6.0.0-020: SIGTERM must stop the outbox poller too — post-`db.close()`
+        # the poller re-opens connections and keeps polling during the shutdown
+        # window. Matches the lifespan teardown order (line 268-275).
+        _stop_outbox_poller()
         anomaly_detector.stop()
         scheduler.stop()
         event_bus.shutdown()

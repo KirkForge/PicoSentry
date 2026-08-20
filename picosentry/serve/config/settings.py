@@ -408,6 +408,22 @@ class Settings:  # rationale: composed config with injectable sub-configs for te
         if not self.is_production() and self.api.host == "0.0.0.0":
             issues.append("CONFIG: Binding to all interfaces — use 127.0.0.1 for local dev or set SHOGUN_API_HOST")
 
+        # WO6.0.0-020: topology detection. Multi-worker posture is derived
+        # from PICOSHOGUN_API_WORKERS only (outbox_enabled()), so launching
+        # via `uvicorn --workers N` or a WSGI runner that exports WEB_CONCURRENCY
+        # (gunicorn/uvicorn convention) leaves api.workers=1 and silently
+        # disables every multi-worker mechanism (outbox fanout, scheduler
+        # lease, rate-limit sync). Warn so the operator knows to set
+        # PICOSHOGUN_API_WORKERS=N (or force the outbox on explicitly).
+        if self.multiworker.event_outbox.lower() == "auto" and self.api.workers <= 1:
+            web_concurrency = os.environ.get("WEB_CONCURRENCY", "").strip()
+            if web_concurrency and web_concurrency != "1":
+                issues.append(
+                    f"CONFIG: WEB_CONCURRENCY={web_concurrency!r} detected but PICOSHOGUN_API_WORKERS is "
+                    f"{self.api.workers!r}; multi-worker mechanisms (outbox, scheduler lease, rate-limit "
+                    "sync) are OFF. Set PICOSHOGUN_API_WORKERS=N to match, or PICOSHOGUN_EVENT_OUTBOX=true."
+                )
+
         issues.extend(self.alerts.validate())
 
         return issues

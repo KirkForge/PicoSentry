@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import os
@@ -14,13 +15,23 @@ logger = logging.getLogger("picoshogun.ws")
 router = APIRouter()
 
 
-def _resolve_org_id(user: dict) -> int | None:
-    """First org the user belongs to — same resolution get_current_org uses."""
+def _resolve_org_id_sync(user: dict) -> int | None:
+    """First org the user belongs to — same resolution get_current_org uses.
+
+    Sync (blocking DB read); callers in the async websocket handler must
+    dispatch via asyncio.to_thread to avoid blocking the event loop
+    (WO6.0.0-020: sync DB reads on the loop).
+    """
     try:
         user_orgs = Organization.list_orgs_for_user(user["id"])
     except (KeyError, OSError, ValueError, RuntimeError, TypeError):
         return None
     return user_orgs[0]["id"] if user_orgs else None
+
+
+async def _resolve_org_id(user: dict) -> int | None:
+    """Async wrapper: dispatches the blocking DB read to the threadpool."""
+    return await asyncio.to_thread(_resolve_org_id_sync, user)
 
 
 @router.websocket("/ws")
@@ -64,7 +75,8 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
 
     # Empty channel set on connect — clients MUST opt in via subscribe
     # after authenticating.  See docstring above.
-    await ws_manager.connect(websocket, channels=[], org_id=_resolve_org_id(user) if user else None)
+    org_id = await _resolve_org_id(user) if user else None
+    await ws_manager.connect(websocket, channels=[], org_id=org_id)
     authenticated = user is not None
 
     if authenticated and user is not None:
@@ -95,7 +107,7 @@ async def websocket_endpoint(websocket: WebSocket, token: str | None = None):
                 user = auth_service.validate_token(auth_token)
                 if user:
                     authenticated = True
-                    await ws_manager.set_org(websocket, _resolve_org_id(user))
+                    await ws_manager.set_org(websocket, await _resolve_org_id(user))
                     await websocket.send_text(
                         json.dumps(
                             {

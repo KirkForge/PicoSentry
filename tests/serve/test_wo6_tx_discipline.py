@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import threading
 import time
-from datetime import datetime, timezone
 
 import pytest
 
@@ -32,7 +31,6 @@ def _fresh_mgr(tmp_path) -> DatabaseManager:
     from picosentry.serve.database.pools import SQLitePool
 
     mgr._pool = SQLitePool(db_path=tmp_path / "wo13.db")
-    from picosentry.serve.config.settings import settings
 
     mgr._lock = __import__("picosentry.serve.database.pools", fromlist=["ReadWriteLock"]).ReadWriteLock()
     mgr._tx_depth = threading.local()
@@ -74,7 +72,7 @@ class TestLoginTxDiscipline:
                         "VALUES ('test', ?, 't', 'r', '{}', '127.0.0.1', 'ua', '', 'h', NULL, 'info')",
                         (uid,),
                     )
-                except Exception as exc:  # noqa: BLE001 — collect for assertion
+                except Exception as exc:
                     writer_errors.append(exc)
                     break
                 time.sleep(0.001)
@@ -158,9 +156,8 @@ class TestExecuteInTxGuard:
 
     def test_execute_insert_inside_transaction_raises(self, tmp_path):
         mgr = _fresh_mgr(tmp_path)
-        with mgr.transaction():
-            with pytest.raises(RuntimeError, match="execute_on"):
-                mgr.execute_insert("INSERT INTO audit_log (action) VALUES ('x')")
+        with mgr.transaction(), pytest.raises(RuntimeError, match="execute_on"):
+            mgr.execute_insert("INSERT INTO audit_log (action) VALUES ('x')")
 
     def test_execute_on_inside_transaction_is_allowed(self, tmp_path):
         """execute_on(conn, ...) is the correct API inside transaction()."""

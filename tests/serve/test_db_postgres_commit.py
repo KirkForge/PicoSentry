@@ -135,9 +135,8 @@ class TestTransactionSemanticsUnchanged:
     def test_execute_insert_inside_transaction_raises_guard(self):
         conn = _FakePGConn()
         mgr = _pg_manager(conn)
-        with mgr.transaction():
-            with pytest.raises(RuntimeError, match="execute_on"):
-                mgr.execute_insert("INSERT INTO t (x) VALUES (1)")
+        with mgr.transaction(), pytest.raises(RuntimeError, match="execute_on"):
+            mgr.execute_insert("INSERT INTO t (x) VALUES (1)")
         assert conn.commits == 1  # transaction() committed normally
 
     def test_rollback_clears_depth_for_lateral_executes(self):

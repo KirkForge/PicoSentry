@@ -190,11 +190,19 @@ class JobScheduler:
         serializes sqlite writers so the second boot's in-transaction SELECT
         sees the winner's row; on postgres the loser's INSERT fails on the
         unique index after the winner commits and is retried as a read.
+
+        WO6.0.0-020: the IntegrityError fallback (and the in-tx SELECT hit)
+        previously returned the WINNER's id without re-checking org — two
+        orgs racing one name let the loser's request return 201 with the
+        winner's job id, bypassing the cross-org guard in add_job(). Re-check
+        org inside both fallback paths and raise the cross-org error if the
+        existing row belongs to another org.
         """
         try:
             with db.transaction(immediate=True) as conn:
-                row = db.execute_on(conn, "SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+                row = db.execute_on(conn, "SELECT id, org_id FROM scheduled_jobs WHERE name = ?", (name,))
                 if row:
+                    self._raise_if_cross_org(name, row[0]["org_id"], org_id)
                     return row[0]["id"]
                 db.execute_on(
                     conn,
@@ -205,10 +213,18 @@ class JobScheduler:
                 row = db.execute_on(conn, "SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
                 return row[0]["id"]
         except _INTEGRITY_ERRORS:
-            existing = db.execute_one("SELECT id FROM scheduled_jobs WHERE name = ?", (name,))
+            existing = db.execute_one("SELECT id, org_id FROM scheduled_jobs WHERE name = ?", (name,))
             if existing:
+                self._raise_if_cross_org(name, existing["org_id"], org_id)
                 return existing["id"]
             raise
+
+    @staticmethod
+    def _raise_if_cross_org(name: str, existing_org: int | None, requested_org: int | None) -> None:
+        """Raise the cross-org guard error if the existing job belongs to a
+        different org than the request. Mirrors add_job's pre-check."""
+        if existing_org != requested_org:
+            raise ValueError(f"Job name already in use by another organization: {name!r}")
 
     def remove_job(self, job_id: int) -> bool:
         with self._lock:

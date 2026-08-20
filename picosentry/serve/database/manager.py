@@ -191,6 +191,19 @@ class DatabaseManager:
             conn.rollback()
 
     def execute(self, sql: str, params: tuple = ()) -> list:
+        if self._in_transaction():
+            # WO6.0.0-013: execute() takes the statement lock, but a
+            # transaction() on this thread may already hold the SQLite write
+            # lock via BEGIN IMMEDIATE — re-entering the ReadWriteLock here
+            # self-deadlocks (writer-preferring lock: the reader waits for
+            # _writer to clear, which is this same thread). Use execute_on(
+            # conn, ...) inside transaction() instead. This guard surfaces the
+            # latent trap as an actionable error rather than a 15s stall.
+            raise RuntimeError(
+                "db.execute() called inside a transaction() on the same thread; "
+                "use execute_on(conn, ...) on the open connection instead "
+                "(execute() re-enters the statement lock and self-deadlocks)."
+            )
         with self._statement_lock(sql):
             conn = self._get_connection()
             try:
@@ -227,6 +240,16 @@ class DatabaseManager:
         return [self._row_to_dict(r, cursor) for r in cursor.fetchall()]
 
     def execute_insert(self, sql: str, params: tuple = ()) -> int:
+        if self._in_transaction():
+            # WO6.0.0-013: same self-deadlock trap as execute() — use
+            # execute_on(conn, ...) inside transaction(). execute_insert
+            # also commits its own connection, which would commit the
+            # caller's transaction out from under it.
+            raise RuntimeError(
+                "db.execute_insert() called inside a transaction() on the same thread; "
+                "use execute_on(conn, ...) on the open connection instead "
+                "(execute_insert() commits its own connection and re-enters the statement lock)."
+            )
         with self._lock.write():
             conn = self._get_connection()
             cursor = self._cursor(conn, sql, params)
@@ -266,6 +289,13 @@ class DatabaseManager:
         whose rowcount IS the answer (1 = won the lease, 0 = someone else
         holds it); execute() discards rowcount, so this sibling exists.
         """
+        if self._in_transaction():
+            # WO6.0.0-013: same self-deadlock trap as execute() — use
+            # execute_on(conn, ...) inside transaction().
+            raise RuntimeError(
+                "db.execute_update() called inside a transaction() on the same thread; "
+                "use execute_on(conn, ...) on the open connection instead."
+            )
         with self._lock.write():
             conn = self._get_connection()
             cursor = self._cursor(conn, sql, params)

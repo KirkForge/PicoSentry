@@ -178,12 +178,11 @@ def main(argv: list[str] | None = None) -> None:
     args = parser.parse_args(argv)
     config = PicoWatchConfig.from_env()
 
-    if args.command is None:
-        parser.print_help()
-        sys.exit(1)
-
     if args.picoshogun_plugin:
         _run_picoshogun_plugin()
+    elif args.command is None:
+        parser.print_help()
+        sys.exit(1)
     elif args.command == "scan-prompt":
         _scan_prompt(args, config)
     elif args.command == "validate-output":

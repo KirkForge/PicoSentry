@@ -198,6 +198,59 @@ class TestAuditLogger:
         assert list(audit_dir.glob("*.1.jsonl.gz")), "rotation should have occurred"
         assert audit.verify_chain() == []
 
+    def test_query_walks_rotated_archives(self, audit_dir):
+        """WO6.0.0-018: query() used to read only the live file — after a
+        rotation, query(limit=1000) returned just the live window (3 events)
+        while verify_chain walked the archives (data existed). Must now return
+        the full history across archives + live."""
+        # max_bytes=400 (~2 events/file), rotate_count=20 retains all 40.
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=400, rotate_count=20)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        assert list(audit_dir.glob("*.1.jsonl.gz")), "rotation should have occurred"
+
+        events = audit.query(limit=1000)
+        # Before the fix this returned ~2 (live-only). Must return all 40.
+        assert len(events) == 40, f"archive-aware query returned {len(events)} events, expected 40"
+
+    def test_get_stats_counts_archives(self, audit_dir):
+        """WO6.0.0-018: get_stats() used to count only the live file — a
+        freshly-rotated log reported events=0 while the data lived in archives."""
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=400, rotate_count=20)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        assert list(audit_dir.glob("*.1.jsonl.gz")), "rotation should have occurred"
+
+        stats = audit.get_stats()
+        assert stats["events"] == 40, f"archive-aware stats counted {stats['events']} events, expected 40"
+        assert stats["exists"] is True
+        assert stats["size_bytes"] > 0
+
+    def test_query_limit_bounds_across_archives(self, audit_dir):
+        """The deque bound applies across archives + live — newest `limit`
+        events, not `limit` per source."""
+        audit = AuditLogger(log_dir=audit_dir, max_bytes=400, rotate_count=20)
+        for i in range(40):
+            audit.record(
+                event_type=AuditEventType.SCAN_START,
+                actor="rot",
+                detail=f"iter-{i}" + "y" * 20,
+            )
+        events = audit.query(limit=5)
+        assert len(events) == 5
+        # Newest first — iter-39 at index 0 down to iter-35 at index 4.
+        details = [e.detail for e in events]
+        for offset, i in enumerate(range(39, 34, -1)):
+            assert f"iter-{i}" in details[offset], details
+
     def test_verify_chain_detects_archive_tamper(self, audit_dir):
         import gzip
 

@@ -449,9 +449,13 @@ class ClusterManager:
     def _retire_tokens_if_configured(self) -> None:
         from picosentry.sandbox.cluster.token_store import token_grace_seconds
 
-        grace = token_grace_seconds()
-        if grace > 0:
-            self.retire_stale_tokens(grace)
+        # WO6.0.0-014: grace=0 used to skip retirement entirely (the `if
+        # grace > 0` guard), so the fail-closed setting disabled retirement
+        # FOREVER instead of making it immediate. Call unconditionally;
+        # token_grace_seconds() rejects negatives and grace=0 means
+        # cutoff=now (retire every non-primary token at once).
+        grace = max(token_grace_seconds(), 0.0)
+        self.retire_stale_tokens(grace)
 
     def _fetch_and_merge_peer(self, peer: ClusterNode) -> None:
         """Fetch snapshot from a single peer and merge it into local state."""

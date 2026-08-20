@@ -140,6 +140,23 @@ def check_health() -> list[HealthStatus]:
                     timestamp=now,
                 )
             )
+        elif store_backend.lower() == "redis":
+            # WO6.0.0-018: health used to report "backend=jsonl healthy=True"
+            # for PICODOME_STORE_BACKEND=redis even when Redis was down — the
+            # sqlite-only special-casing missed the redis branch entirely.
+            from picosentry.sandbox.daemon.redis_store import RedisScanJobStore
+
+            redis_store = RedisScanJobStore()
+            redis_ok = redis_store.available
+            detail = f"backend=redis connected={redis_ok}"
+            checks.append(
+                HealthStatus(
+                    healthy=redis_ok,
+                    component="store_backend",
+                    detail=detail,
+                    timestamp=now,
+                )
+            )
         else:
             checks.append(
                 HealthStatus(

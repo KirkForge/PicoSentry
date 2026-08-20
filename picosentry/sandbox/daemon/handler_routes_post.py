@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import concurrent.futures
+import contextlib
 import hashlib
 import json
 import logging
@@ -12,7 +13,7 @@ from urllib.parse import urlparse
 
 from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 from picosentry.sandbox.daemon.constants import _ENTERPRISE_MODE, sanitize_scan_timeout
-from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token
+from picosentry.sandbox.daemon.handler_routes_get import _check_cluster_token  # noqa: F401  # re-exported for tests
 from picosentry.sandbox.errors import ErrorCodes
 from picosentry.sandbox.l3.engine import sandbox_run
 from picosentry.sandbox.l3.policy import default_policy, load_policy
@@ -256,13 +257,18 @@ class PicoDomePostRoutesMixin:
             else:
                 self._send_json(result, status=201)
         except (OSError, RuntimeError):
-            self.job_store.update(
-                job_id,
-                tenant_id=tenant_id,
-                status="failed",
-                completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-                error="scan execution failed",
-            )
+            # WO6.0.0-018: the failure-status update itself may raise
+            # RedisStoreUnavailable if Redis went down between submit and
+            # completion — suppress so the client still gets the 503/500,
+            # not an unhandled exception crash.
+            with contextlib.suppress(RuntimeError):
+                self.job_store.update(
+                    job_id,
+                    tenant_id=tenant_id,
+                    status="failed",
+                    completed_at=time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                    error="scan execution failed",
+                )
             logger.exception("Scan job failed")
             self._send_error(ErrorCodes.SCAN_FAILED, detail="scan execution failed")
 
@@ -401,7 +407,11 @@ class PicoDomePostRoutesMixin:
                 except OSError:
                     logger.exception("Failed to sign policy companion for %s", policy.name)
             self._send_json(pv.to_dict(), status=201)
-        except (ValueError, KeyError, TypeError):
+        except ValueError as e:
+            # WO6.0.0-018: surface the specific rejection (reserved name,
+            # invalid name) so the caller knows WHY, not just "invalid".
+            self._send_error(ErrorCodes.INVALID_POLICY, detail=str(e) or "Invalid policy data")
+        except (KeyError, TypeError):
             self._send_error(ErrorCodes.INVALID_POLICY, detail="Invalid policy data")
         except (OSError, RuntimeError):
             logger.exception("Policy creation failed")
@@ -411,11 +421,18 @@ class PicoDomePostRoutesMixin:
         """POST /api/v1/cluster/snapshot — merge a peer's cluster state.
 
         Accepts a pushed snapshot authenticated by X-Cluster-Token (the same
-        token the gossip client uses for GET). The daemon's own gossip loop
-        pulls snapshots via GET and merges locally, so this endpoint serves
-        peers/operators that push instead of pull.
+        token the gossip client uses for GET) OR a normal API token with
+        scan:write permission (the documented EITHER contract). The daemon's
+        own gossip loop pulls snapshots via GET and merges locally, so this
+        endpoint serves peers/operators that push instead of pull.
         Body must be a JSON snapshot as produced by GET /api/v1/cluster/snapshot.
         Merging follows last-writer-wins for nodes and status-priority for scans.
+
+        WO6.0.0-014: the redundant inner ``_check_cluster_token`` is gone —
+        ``_authorize_cluster_route`` (called from _handle_post) already
+        authorized EITHER path. The inner check unconditionally required an
+        X-Cluster-Token header, so API tokens that the outer gate accepted
+        always 403'd here.
         """
         try:
             content_length = int(self.headers.get("Content-Length", 0))
@@ -435,9 +452,6 @@ class PicoDomePostRoutesMixin:
             mgr = get_cluster_manager()
             if not mgr.is_running:
                 self._send_error(409, "cluster manager is not running on this node")
-                return
-
-            if not _check_cluster_token(self, mgr):
                 return
 
             before_nodes = len(mgr.state.list_nodes())

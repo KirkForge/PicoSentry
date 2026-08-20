@@ -118,6 +118,7 @@ class SeccompTraceBackend(SandboxBackend):
         start_ms = now_ms()
         events: list[SandboxEvent] = []
         effective_timeout = timeout or 30.0
+        degraded = False
 
         pid: int | None = None
         out_r: int | None = None
@@ -257,15 +258,26 @@ class SeccompTraceBackend(SandboxBackend):
 
                 events.extend(self._posthoc_analysis(stdout, stderr))
 
-                events.append(
-                    SandboxEvent(
-                        rule_id="L3-TRACE-LIFECYCLE",
-                        verdict=Verdict.ALLOW if exit_code == 0 else Verdict.KILL,
-                        operation="process_exit",
-                        detail=f"process exited with code {exit_code}",
-                        timestamp_ms=int(now_ms() - start_ms),
+                # WO6.0.0-005: verdict parity with the other backends. The old
+                # LIFECYCLE rule (ALLOW iff exit==0 else KILL) turned every
+                # benign nonzero exit (grep no-match, npm audit) into a KILL and
+                # reported infra failures (125/126/127) as a clean policy verdict
+                # with degraded=False. Use the shared event-driven helper and
+                # surface infra failures as degraded like landlock does.
+                if exit_code in (125, 126, 127):
+                    events.append(
+                        SandboxEvent(
+                            rule_id="L3-EXEC-001" if exit_code == 127 else "L3-EXEC-002",
+                            verdict=Verdict.DENY,
+                            operation="exec_not_found" if exit_code == 127 else "exec_permission_denied",
+                            detail=(
+                                f"child exited {exit_code} before/at exec — "
+                                "infrastructure failure, not a policy verdict"
+                            ),
+                            timestamp_ms=int(now_ms() - start_ms),
+                        )
                     )
-                )
+                    degraded = True
 
         except FileNotFoundError:
             events.append(
@@ -278,6 +290,7 @@ class SeccompTraceBackend(SandboxBackend):
                 )
             )
             stdout, stderr, exit_code = "", "", -1
+            degraded = True
         except (OSError, RuntimeError, ValueError, TypeError, subprocess.SubprocessError) as e:
             logger.warning("Seccomp trace sandbox failed: %s", e)
             return self._fallback_run(command, policy, timeout, cwd, env)
@@ -290,11 +303,11 @@ class SeccompTraceBackend(SandboxBackend):
                 session.resources.open_fds = [fd for fd in session.resources.open_fds if fd not in (out_r, err_r)]
 
         duration_ms = int(now_ms() - start_ms)
-        overall = event_parser.compute_verdict(events, exit_code)
+        from picosentry.sandbox.l3.backends.base import compute_verdict
 
         return SandboxResult(
             command=command,
-            overall_verdict=overall,
+            overall_verdict=compute_verdict(events, exit_code),
             exit_code=exit_code if exit_code != -31 else 31,
             duration_ms=duration_ms,
             events=events,
@@ -302,7 +315,7 @@ class SeccompTraceBackend(SandboxBackend):
             backend_name=self.name,
             isolation_level=self.isolation_level,
             enforcement_guarantee=self.enforcement_guarantee,
-            degraded=False,
+            degraded=degraded,
             stdout=stdout,
             stderr=stderr,
         )

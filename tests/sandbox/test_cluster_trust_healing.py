@@ -149,7 +149,11 @@ class TestScheduledTokenRetirement:
         mgr._retire_tokens_if_configured()
         assert calls == [1234.0]
 
-    def test_retire_disabled_with_zero_grace(self, monkeypatch):
+    def test_retire_immediate_with_zero_grace(self, monkeypatch):
+        """WO6.0.0-014: grace=0 is the fail-closed setting — retire IMMEDIATELY,
+        not "disable retirement forever" (the old `if grace > 0` guard did
+        that). A zero grace means cutoff=now, so every non-primary token is
+        stale and gets retired on the next gossip round."""
         mgr = ClusterManager(
             node_id="retire-node",
             backend=MemoryStateBackend(),
@@ -161,7 +165,198 @@ class TestScheduledTokenRetirement:
         monkeypatch.setenv("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", "0")
 
         mgr._retire_tokens_if_configured()
-        assert calls == []
+        assert calls == [0.0], "grace=0 must retire immediately, not skip retirement"
+
+    def test_negative_grace_rejected_uses_default(self, monkeypatch):
+        """WO6.0.0-014: a negative env value used to parse through and silently
+        disable retirement forever (cutoff was always in the future). It must
+        be rejected — fail closed to the default grace."""
+        from picosentry.sandbox.cluster.token_store import token_grace_seconds
+
+        monkeypatch.setenv("PICODOME_CLUSTER_TOKEN_GRACE_SECONDS", "-5")
+        assert token_grace_seconds() == 3600.0, "negative grace must fall back to default"
+
+
+class TestSelfRefreshTrustClamped:
+    """WO6.0.0-014: a holder of an accepted token could iteratively
+    self-rotate trust because apply_announcement stamped adopted candidates
+    with issued_at=announced_at (announcer-chosen), giving each derived
+    candidate a fresh grace clock. issued_at must be clamped to min(announced_at, now)."""
+
+    def test_adopted_candidate_issued_at_does_not_exceed_now(self, monkeypatch):
+        import hashlib
+        import hmac as hmac_mod
+
+        from picosentry.sandbox.cluster.token_store import (
+            ClusterTokenStore,
+            ROTATION_CONTEXT,
+        )
+
+        # The adopter's clock is BEHIND the announced_at (e.g. clock skew or a
+        # replayed announcement). The old code stamped issued_at=announced_at
+        # (forward of now), so the grace window ran past the adopter's now.
+        monkeypatch.setattr("picosentry.sandbox.cluster.token_store.time.time", lambda: 1000.0)
+
+        # Set up so the anchor is NOT the primary — that's the adopt_token
+        # path (the buggy branch). The primary is "new-primary"; an old
+        # accepted token "old-anchor" is the anchor the announcer holds.
+        store = ClusterTokenStore(initial_token="old-anchor")
+        store.set_primary("new-primary")  # demotes old-anchor into accepted
+        assert store.is_accepted("old-anchor")
+        assert store.primary_token == "new-primary"
+
+        announced_at = 2000.0  # announcer's clock is 1000s ahead
+        ctx = f"{ROTATION_CONTEXT}{announced_at}".encode()
+        candidate = hmac_mod.new(b"old-anchor", ctx, hashlib.sha256).hexdigest()
+        expected_hmac = hmac_mod.new(b"old-anchor", candidate.encode(), hashlib.sha256).hexdigest()
+        announcement = {
+            "announced_by": "peer",
+            "hmac": expected_hmac,
+            "announced_at": announced_at,
+            "grace_expires": announced_at + 600,
+        }
+
+        assert store.apply_announcement(announcement) is True
+        infos = {i.token: i for i in store.accepted_token_infos}
+        assert candidate in infos, "candidate was not adopted"
+        # Clamped: issued_at must not be forward of the adopter's now.
+        assert infos[candidate].issued_at <= 1000.0, (
+            f"issued_at={infos[candidate].issued_at} leaked the announcer's future clock"
+        )
+
+    def test_stale_announcement_cannot_reset_grace_forward(self, monkeypatch):
+        """A replayed/delayed announcement must not push a candidate's grace
+        window forward past the adopter's now — that's the self-refresh bug."""
+        import hashlib
+        import hmac as hmac_mod
+
+        from picosentry.sandbox.cluster.token_store import (
+            ClusterTokenStore,
+            ROTATION_CONTEXT,
+        )
+
+        clock = {"now": 1000.0}
+        monkeypatch.setattr("picosentry.sandbox.cluster.token_store.time.time", lambda: clock["now"])
+
+        # anchor is NOT the primary (adopt_token path, the buggy branch)
+        store = ClusterTokenStore(initial_token="old-anchor")
+        store.set_primary("new-primary")
+
+        announced_at = 1000.0
+        ctx = f"{ROTATION_CONTEXT}{announced_at}".encode()
+        candidate = hmac_mod.new(b"old-anchor", ctx, hashlib.sha256).hexdigest()
+        expected_hmac = hmac_mod.new(b"old-anchor", candidate.encode(), hashlib.sha256).hexdigest()
+        announcement = {
+            "announced_by": "peer",
+            "hmac": expected_hmac,
+            "announced_at": announced_at,
+            "grace_expires": announced_at + 600,
+        }
+        assert store.apply_announcement(announcement) is True
+        assert store.is_accepted(candidate)
+        # The candidate was adopted at issued_at=min(1000, 1000)=1000.
+
+        # Time passes; the candidate is now stale.
+        clock["now"] = 2000.0
+        # Re-applying the SAME announcement returns False (candidate already
+        # accepted) — no re-adoption, no grace reset.
+        assert store.apply_announcement(announcement) is False
+        # Retire everything older than now-1s. The candidate (issued_at=1000)
+        # is stale and MUST be retired even though the announcement is still
+        # being gossiped by a holder of old-anchor.
+        store.retire_older_than(2000.0 - 1.0)
+        assert not store.is_accepted(candidate), "stale candidate survived retirement (self-refresh bug)"
+        # The primary is never retired.
+        assert store.primary_token == "new-primary"
+
+
+class TestEitherAuthDeadCode:
+    """WO6.0.0-014: API-token holders were dead-coded — the outer
+    _authorize_cluster_route accepted EITHER a cluster token OR an API token,
+    but both handlers re-ran _check_cluster_token inside, which required an
+    X-Cluster-Token header → API tokens always 403'd. The redundant inner
+    check is gone; an API token with the right permission must reach the
+    handler."""
+
+    def test_api_token_can_fetch_cluster_snapshot(self, tmp_path, monkeypatch):
+        import http.client
+        import socket
+
+        import picosentry.sandbox.audit.logger as audit_logger_mod
+        from picosentry.sandbox.audit import AuditLogger
+        from picosentry.sandbox.tenant import reset_tenant_registry
+
+        API_TOKEN = "picodome-admin-cluster-route-test-0001"
+        CLUSTER_TOKEN = "cluster-token-wo014"
+        audit_logger_mod._audit_logger = AuditLogger(log_dir=tmp_path / "audit", max_bytes=1024 * 1024)
+
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            s.bind(("127.0.0.1", 0))
+            port = s.getsockname()[1]
+        finally:
+            s.close()
+
+        for key, value in {
+            "PICODOME_JOB_STORE_DIR": str(tmp_path / "jobs"),
+            "PICODOME_API_TOKENS": API_TOKEN,
+            "PICODOME_CLUSTER_TOKEN": CLUSTER_TOKEN,
+            "PICODOME_CLUSTER_ADDRESS": "127.0.0.1",
+            "PICODOME_CLUSTER_PORT": str(port),
+            "PICODOME_CLUSTER_HEARTBEAT_INTERVAL": "9999",
+            "PICODOME_CLUSTER_HEARTBEAT_TIMEOUT": "9999",
+        }.items():
+            monkeypatch.setenv(key, value)
+
+        from picosentry.sandbox.daemon.server import PicoDomeDaemon
+
+        daemon = PicoDomeDaemon(host="127.0.0.1", port=port)
+        daemon.start(background=True)
+        # wait for health
+        deadline = time.monotonic() + 5.0
+        while time.monotonic() < deadline:
+            try:
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=2)
+                conn.request("GET", "/health")
+                r = conn.getresponse()
+                r.read()
+                conn.close()
+                if r.status == 200:
+                    break
+            except OSError:
+                time.sleep(0.05)
+        else:
+            raise TimeoutError("daemon did not become healthy")
+        try:
+            # API token (admin role → scan:read) must reach the snapshot handler.
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.request(
+                "GET",
+                "/api/v1/cluster/snapshot",
+                headers={"Authorization": f"Bearer {API_TOKEN}"},
+            )
+            resp = conn.getresponse()
+            body = resp.read()
+            conn.close()
+            assert resp.status == 200, f"API token rejected (the EITHER-auth dead code): {body!r}"
+            # The snapshot must be a real JSON object, not the 403 cluster-token-required error.
+            assert json.loads(body).get("cluster") != "inactive" or "nodes" in json.loads(body)
+
+            # Cluster token path still works (regression — the inner check removal
+            # must not have broken the cluster-token branch of _authorize_cluster_route).
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=5)
+            conn.request(
+                "GET",
+                "/api/v1/cluster/snapshot",
+                headers={"X-Cluster-Token": CLUSTER_TOKEN},
+            )
+            resp = conn.getresponse()
+            body = resp.read()
+            conn.close()
+            assert resp.status == 200, f"cluster token path broke: {body!r}"
+        finally:
+            daemon.stop()
+            reset_tenant_registry()
 
 
 class TestJsonlRuntimeCap:

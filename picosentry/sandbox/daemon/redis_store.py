@@ -157,7 +157,11 @@ class RedisScanJobStore:
     def get(self, job_id: str) -> dict[str, Any] | None:
         client = self._get_client()
         if not self._available:
-            return None
+            # WO6.0.0-018: reads used to return None when Redis was down,
+            # so a /api/v1/scan/<id> GET during an outage 404'd "no such job"
+            # — indistinguishable from a real not-found. Raise so the HTTP
+            # layer can surface a 503 (writes already 503'd via WO5-017).
+            raise RedisStoreUnavailable(f"Redis unavailable, get {job_id} cannot be served")
 
         key = f"{_JOB_KEY_PREFIX}{job_id}"
         data = client.hgetall(key)
@@ -169,7 +173,8 @@ class RedisScanJobStore:
     def update(self, job_id: str, **kwargs: Any) -> dict[str, Any] | None:
         client = self._get_client()
         if not self._available:
-            return None
+            # WO6.0.0-018: raise like get() — None masqueraded as "no such job".
+            raise RedisStoreUnavailable(f"Redis unavailable, update {job_id} cannot be served")
 
         key = f"{_JOB_KEY_PREFIX}{job_id}"
         existing = client.hgetall(key)
@@ -201,7 +206,9 @@ class RedisScanJobStore:
     def list_recent(self, limit: int = 50) -> list[dict[str, Any]]:
         client = self._get_client()
         if not self._available:
-            return []
+            # WO6.0.0-018: raise like get()/update() — [] masqueraded as "no
+            # jobs" during an outage.
+            raise RedisStoreUnavailable("Redis unavailable, list_recent cannot be served")
 
         job_ids = client.zrevrange(_JOB_LIST_KEY, 0, limit - 1)
         if not job_ids:

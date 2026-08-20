@@ -82,7 +82,15 @@ class TenantAwareScanJobStore:
         limit: int = 50,
     ) -> list[dict[str, Any]]:
         tid = tenant_id or self._default_tenant
-        all_jobs = self._store.list_recent(limit=1000)  # get plenty, then filter
+        # WO6.0.0-018: the inner scan used a hardcoded 1000 with no ceiling
+        # note. Pull enough to satisfy `limit` after the tenant filter, with
+        # a sane cap so a malicious `limit` doesn't scan the whole store.
+        # ponytail: ceiling — this over-fetches by the cross-tenant ratio;
+        # push the tenant filter into the store layer for true bound.
+        inner_limit = max(limit, 1) * 4
+        if inner_limit > 4000:
+            inner_limit = 4000
+        all_jobs = self._store.list_recent(limit=inner_limit)
         tenant_jobs = [j for j in all_jobs if _job_tenant(j) == tid.normalized]
         return tenant_jobs[:limit]
 

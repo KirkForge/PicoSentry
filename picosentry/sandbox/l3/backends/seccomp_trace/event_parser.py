@@ -92,15 +92,4 @@ def parse_seccomp_log(
     return events
 
 
-def compute_verdict(events: list[SandboxEvent], exit_code: int) -> Verdict:
-    if exit_code == -1:
-        return Verdict.KILL
-    for event in events:
-        if event.verdict == Verdict.KILL:
-            return Verdict.KILL
-        if event.verdict == Verdict.DENY:
-            return Verdict.DENY
-    return Verdict.ALLOW
-
-
-__all__ = ["classify_syscall", "compute_verdict", "parse_seccomp_log"]
+__all__ = ["classify_syscall", "parse_seccomp_log"]

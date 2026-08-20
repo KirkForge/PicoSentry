@@ -231,87 +231,135 @@ class AuditLogger:
     ) -> list[AuditEvent]:
         """Most recent `limit` matching events, newest first (WO5.0.0-018).
 
-        The file is oldest-first; a forward scan that stops at `limit`
-        matched events returns the OLDEST window. The deque keeps the last
-        `limit` matches in bounded memory while scanning to EOF.
+        WO6.0.0-018: archive-aware — walks rotated gzip archives (oldest first)
+        then the live log, so a query past the rotation boundary returns the
+        full history instead of just the live-file window. The deque keeps the
+        last `limit` matches in bounded memory while scanning to EOF across
+        all sources. `since`/`until` are compared as raw strings — timestamps
+        are normalized to ``%Y-%m-%dT%H:%M:%SZ`` (lexicographic == chronological
+        for that fixed-width format); callers passing non-ISO values get the
+        same empty-result fall-through the live-only scan produced.
         """
         results: collections.deque[AuditEvent] = collections.deque(maxlen=max(1, limit))
 
-        if not self._log_path.is_file():
+        # Sources in chronological order (oldest first): rotated archives
+        # (highest rotate index == oldest) then the live log. Same ordering
+        # verify_chain uses.
+        sources: list[tuple[Path, bool]] = [(p, True) for p in self._rotated_archive_paths()]
+        if self._log_path.is_file():
+            sources.append((self._log_path, False))
+
+        if not any(p.is_file() for p, _ in sources):
             return []
 
-        try:
-            with self._log_path.open(encoding="utf-8") as f:
-                for raw_line in f:
-                    line = raw_line.strip()
-                    if not line:
-                        continue
-
-                    try:
-                        data = json.loads(line)
-                    except json.JSONDecodeError:
-                        continue
-
-                    if event_type and data.get("event_type") != event_type.value:
-                        continue
-                    if actor and actor not in data.get("actor", ""):
-                        continue
-                    if target and target not in data.get("target", ""):
-                        continue
-                    if since and data.get("timestamp", "") < since:
-                        continue
-                    if until and data.get("timestamp", "") > until:
-                        continue
-
-                    schema_ver = data.get("schema_version", 1)
-                    if schema_ver not in AUDIT_SCHEMA_COMPAT:
-                        logger.warning(
-                            "Audit event with unknown schema_version=%s",
-                            schema_ver,
+        for path, gzipped in sources:
+            if not path.is_file():
+                continue
+            opener: Any = gzip.open if gzipped else open
+            try:
+                with opener(path, "rt", encoding="utf-8") as f:
+                    for raw_line in f:
+                        line = raw_line.strip()
+                        if not line:
+                            continue
+                        evt = self._match_audit_line(
+                            line,
+                            event_type=event_type,
+                            actor=actor,
+                            target=target,
+                            since=since,
+                            until=until,
                         )
-
-                    evt = AuditEvent(
-                        event_type=AuditEventType(data["event_type"]),
-                        actor=data.get("actor", ""),
-                        detail=data.get("detail", ""),
-                        target=data.get("target", ""),
-                        metadata=data.get("metadata", {}),
-                        event_id=data.get("event_id", ""),
-                        timestamp=data.get("timestamp", ""),
-                        prev_hash=data.get("prev_hash", ""),
-                    )
-                    results.append(evt)
-
-        except OSError:
-            pass
+                        if evt is not None:
+                            results.append(evt)
+            except (OSError, EOFError):
+                # A corrupt/truncated archive is logged elsewhere (verify_chain
+                # surfaces it); the query degrades to the readable prefixes.
+                logger.debug("Audit query could not read %s", path, exc_info=True)
 
         return list(results)[::-1]
 
+    @staticmethod
+    def _match_audit_line(
+        line: str,
+        *,
+        event_type: AuditEventType | None,
+        actor: str | None,
+        target: str | None,
+        since: str | None,
+        until: str | None,
+    ) -> AuditEvent | None:
+        """Parse one audit log line and return the event if it matches the
+        filters, else None. Shared by query() across live + archive sources."""
+        try:
+            data = json.loads(line)
+        except json.JSONDecodeError:
+            return None
+
+        if event_type and data.get("event_type") != event_type.value:
+            return None
+        if actor and actor not in data.get("actor", ""):
+            return None
+        if target and target not in data.get("target", ""):
+            return None
+        if since and data.get("timestamp", "") < since:
+            return None
+        if until and data.get("timestamp", "") > until:
+            return None
+
+        schema_ver = data.get("schema_version", 1)
+        if schema_ver not in AUDIT_SCHEMA_COMPAT:
+            logger.warning("Audit event with unknown schema_version=%s", schema_ver)
+
+        return AuditEvent(
+            event_type=AuditEventType(data["event_type"]),
+            actor=data.get("actor", ""),
+            detail=data.get("detail", ""),
+            target=data.get("target", ""),
+            metadata=data.get("metadata", {}),
+            event_id=data.get("event_id", ""),
+            timestamp=data.get("timestamp", ""),
+            prev_hash=data.get("prev_hash", ""),
+        )
+
     def get_stats(self) -> dict[str, Any]:
-        if not self._log_path.is_file():
+        # WO6.0.0-018: archive-aware — count events across rotated archives
+        # AND the live log, not just the live file (a freshly-rotated log
+        # used to report events=0 while verify_chain walked the archives).
+        total_events = 0
+        sources: list[tuple[Path, bool]] = [(p, True) for p in self._rotated_archive_paths()]
+        if self._log_path.is_file():
+            sources.append((self._log_path, False))
+
+        if not any(p.is_file() for p, _ in sources):
             return {"exists": False, "events": 0, "size_bytes": 0}
 
-        stat = self._log_path.stat()
-        events = 0
-        try:
-            with self._log_path.open(encoding="utf-8") as f:
-                for line in f:
-                    if line.strip():
-                        events += 1
-        except OSError:
-            pass
+        live_stat = self._log_path.stat() if self._log_path.is_file() else None
+        total_bytes = 0
+        for path, gzipped in sources:
+            if not path.is_file():
+                continue
+            opener: Any = gzip.open if gzipped else open
+            try:
+                with opener(path, "rt", encoding="utf-8") as f:
+                    for line in f:
+                        if line.strip():
+                            total_events += 1
+                total_bytes += path.stat().st_size
+            except (OSError, EOFError):
+                logger.debug("Audit stats could not read %s", path, exc_info=True)
 
         return {
             "chain_intact": len(self.verify_chain()) == 0,
-            "events": events,
+            "events": total_events,
             "exists": True,
             "last_modified": time.strftime(
                 "%Y-%m-%dT%H:%M:%SZ",
-                time.gmtime(stat.st_mtime),
+                time.gmtime(live_stat.st_mtime if live_stat else time.time()),
             ),
             "path": str(self._log_path),
             "schema_version": AUDIT_SCHEMA_VERSION,
-            "size_bytes": stat.st_size,
+            "size_bytes": total_bytes,
         }
 
     @property

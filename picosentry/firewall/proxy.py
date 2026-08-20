@@ -170,6 +170,17 @@ class _ProxyHandler(BaseHTTPRequestHandler):
 
         verdict, findings = self.scanner.scan_metadata(ecosystem, name, version, metadata)
 
+        if verdict == FirewallVerdict.UNRESOLVED:
+            # Upstream returned a whole-catalog doc without the requested
+            # version — refuse rather than scan root fields and report a
+            # false ALLOW (WO6-017).
+            self.send_response(502)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("X-PicoSentry-Verdict", "unresolved")
+            self.end_headers()
+            self.wfile.write(b'{"error": "version not found in upstream catalog"}')
+            return
+
         if verdict == FirewallVerdict.ALLOW:
             self._send_response(status, content_type, body, extra_headers=[("X-PicoSentry-Verdict", "allow")])
             return

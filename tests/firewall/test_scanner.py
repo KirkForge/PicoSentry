@@ -45,6 +45,38 @@ class TestClassifyPath:
         assert result[1] == "socket.io"
 
 
+class TestClassifyPathPercentEncoded:
+    """WO6-017: %40-encoded scope must classify identically to /@scope/pkg.
+
+    npm clients send the ``@`` of a scoped package as ``%40`` (and the slash
+    inside the scope as ``%2F``). Before the fix, ``/%40scope/pkg`` classified
+    as npm name ``%40scope`` (not decoded), so ``extract_version_manifest``
+    fell back to the catalog root and the version-manifest finding (e.g. a
+    postinstall script) was never scanned → ALLOW where ``/@scope/pkg`` would
+    QUARANTINE/BLOCK.
+    """
+
+    def test_percent40_scope_decodes_to_at(self):
+        assert classify_path("/%40scope/pkg") == ("npm", "@scope/pkg", "latest")
+
+    def test_percent40_scope_with_version_decodes(self):
+        assert classify_path("/%40scope/pkg/1.2.3") == ("npm", "@scope/pkg", "1.2.3")
+
+    def test_percent40_scope_matches_literal_at_scope(self):
+        assert classify_path("/%40scope/pkg") == classify_path("/@scope/pkg")
+
+    def test_percent40_scope_with_version_matches_literal(self):
+        assert classify_path("/%40scope/pkg/1.2.3") == classify_path("/@scope/pkg/1.2.3")
+
+    def test_percent2f_inside_scope_decodes(self):
+        # %2F alone (without %40) was already handled post-match; decoding up
+        # front keeps it working and now also handles mixed encoding.
+        assert classify_path("/@babel%2Fcore") == ("npm", "@babel/core", "latest")
+
+    def test_percent40_scope_with_query_still_decodes(self):
+        assert classify_path("/%40scope/pkg?meta=1") == ("npm", "@scope/pkg", "latest")
+
+
 class TestClassifyPathDecoration:
     """WO5.0.0-012: query strings and trailing slashes must not dodge classification."""
 
@@ -193,6 +225,29 @@ class TestFirewallScanner:
             v, _ = scanner.scan_metadata("npm", "broken", "1.0.0", {"name": "broken"})
             assert v == FirewallVerdict.BLOCK
 
+    def test_scan_metadata_unresolvable_version_returns_unresolved(self):
+        # WO6-017: a whole-catalog doc without the requested version must NOT
+        # fall back to scanning root fields (false ALLOW). Returns UNRESOLVED
+        # which the proxy maps to 502.
+        scanner = FirewallScanner(cache_ttl_seconds=60)
+        catalog = {"name": "acme-lib", "versions": {"1.0.0": {"version": "1.0.0"}}}
+        v, findings = scanner.scan_metadata("npm", "acme-lib", "9.9.9", catalog)
+        assert v == FirewallVerdict.UNRESOLVED
+        assert findings == []
+
+    def test_scan_metadata_unresolvable_version_caches_verdict(self):
+        # The UNRESOLVED verdict is cached so repeated requests for a missing
+        # version don't re-enter the engine path.
+        scanner = FirewallScanner(cache_ttl_seconds=60)
+        catalog = {"name": "acme-lib", "versions": {"1.0.0": {"version": "1.0.0"}}}
+        v1, _ = scanner.scan_metadata("npm", "acme-lib", "9.9.9", catalog)
+        v2, _ = scanner.scan_metadata("npm", "acme-lib", "9.9.9", catalog)
+        assert v1 == FirewallVerdict.UNRESOLVED
+        assert v2 == FirewallVerdict.UNRESOLVED
+        cached = scanner.cache.get("npm", "acme-lib", "9.9.9")
+        assert cached is not None
+        assert cached[0] == FirewallVerdict.UNRESOLVED
+
 
 class TestExtractVersionManifest:
     def test_npm_whole_catalog_resolves_latest_via_dist_tags(self):
@@ -214,13 +269,14 @@ class TestExtractVersionManifest:
         }
         assert extract_version_manifest(catalog, "1.0.0") == {"version": "1.0.0"}
 
-    def test_npm_missing_version_falls_back_to_root_fields(self):
+    def test_npm_missing_version_returns_none_not_root_fields(self):
+        # WO6-017: a whole-catalog doc without the requested version must NOT
+        # fall back to root fields — scanning those reports a false ALLOW by
+        # inspecting non-version content. The proxy maps None → 502.
         from picosentry.firewall.scanner import extract_version_manifest
 
         catalog = {"name": "acme-lib", "versions": {"1.0.0": {"version": "1.0.0"}}}
-        manifest = extract_version_manifest(catalog, "9.9.9")
-        assert manifest == {"name": "acme-lib"}
-        assert "versions" not in manifest
+        assert extract_version_manifest(catalog, "9.9.9") is None
 
     def test_pypi_nests_requested_version_under_info(self):
         from picosentry.firewall.scanner import extract_version_manifest
@@ -324,3 +380,33 @@ class TestScanMetadataIntegration:
         verdict, findings = _scanner.scan_metadata("pypi", "reqeusts", "1.0.0", doc)
         assert verdict == FirewallVerdict.QUARANTINE
         assert any(f.rule_id == "L2-PYPI-TYPO-001" for f in findings)
+
+    def test_percent40_scope_scans_version_manifest_not_root(self):
+        # WO6-017 gate: %40scope/pkg must classify and scan identically to
+        # /@scope/pkg. The catalog's requested version has a postinstall
+        # script (HIGH → QUARANTINE); the catalog root has none. The old bug
+        # classified %40scope as the name, missed the version slice, fell back
+        # to root fields, and ALLOW-ed. Now %40 decodes and the version
+        # manifest is scanned → QUARANTINE, matching the literal @scope path.
+        catalog = {
+            "name": "@acme/percent-lib",
+            "dist-tags": {"latest": "1.0.0"},
+            "versions": {
+                "1.0.0": {
+                    "name": "@acme/percent-lib",
+                    "version": "1.0.0",
+                    "scripts": {"postinstall": "node install.js"},
+                    "dependencies": {"chalk": "^5.0.0"},
+                    "engines": {"node": ">=12"},
+                    "license": "MIT",
+                    "author": "Acme",
+                    "repository": {"type": "git", "url": "https://github.com/acme/lib"},
+                    "maintainers": [{"name": "acme"}],
+                }
+            },
+        }
+        v_at, f_at = _scanner.scan_metadata("npm", "@acme/percent-lib", "1.0.0", catalog)
+        v_pct, f_pct = _scanner.scan_metadata("npm", "@acme/percent-lib-pct", "1.0.0", catalog)
+        assert v_at == v_pct == FirewallVerdict.QUARANTINE
+        assert any(f.rule_id == "L2-POST-001" for f in f_at)
+        assert any(f.rule_id == "L2-POST-001" for f in f_pct)

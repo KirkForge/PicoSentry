@@ -271,6 +271,17 @@ class PicoDomeServicer:
                 until=until or None,
                 limit=limit,
             )
+
+            # WO6.0.0-004: tenant scoping parity with the HTTP route
+            # (handler_routes_get.py:337-344). The interceptor enforces RBAC
+            # (audit:read, which READER holds) but never filtered by tenant —
+            # a tenant reader token saw ALL tenants' audit events. Resolve the
+            # caller's tenant and filter metadata.tenant_id for non-operator
+            # tokens; operators see all.
+            if not self._is_tenant_operator(context):
+                tenant_id = self._resolve_tenant(context)
+                events = [e for e in events if e.metadata.get("tenant_id") == str(tenant_id)]
+
             events_json = json.dumps([e.to_dict() for e in events], sort_keys=True, default=str)
             count = len(events)
         except (OSError, ImportError):
@@ -326,6 +337,26 @@ class PicoDomeServicer:
         except Exception:
             logger.debug("tenant resolution failed", exc_info=True)
             return ""
+
+    def _is_tenant_operator(self, context) -> bool:
+        """WO6.0.0-004: gRPC parity with HTTP ``_is_tenant_operator``
+        (handler_mixins.py:148). Explicitly-designated operator tokens see
+        all tenants' audit events; everyone else is scoped to their own."""
+        from picosentry.sandbox.tenant import get_tenant_registry
+
+        try:
+            from picosentry.sandbox.grpc_transport.auth import bearer_token_from_metadata
+
+            token = bearer_token_from_metadata(context.invocation_metadata())
+            if not token or token == "no-auth-dev-mode":
+                return False
+            import hashlib
+
+            token_hash = hashlib.sha256(token.encode("utf-8")).hexdigest()
+            return get_tenant_registry().is_operator_token(token_hash)
+        except Exception:
+            logger.debug("operator check failed", exc_info=True)
+            return False
 
     def _audit_log(self, event_type: str, detail: str = "") -> None:
         try:

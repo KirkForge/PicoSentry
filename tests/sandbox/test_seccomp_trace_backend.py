@@ -319,29 +319,34 @@ class TestSeccompTraceBackendRun:
         assert result.overall_verdict == Verdict.ALLOW
 
     def test_run_echo_emits_trace_events(self) -> None:
-        """Even a simple echo produces events (file_read/write for argv + stdout)."""
+        """Even a simple echo produces events (file_read/write for argv + stdout).
+
+        WO6.0.0-005: the old LIFECYCLE event (which always emitted
+        ``process_exit``) is gone — a benign nonzero exit is no longer a
+        KILL, and an event list of just the trace/post-hoc events is the
+        honest signal. We assert what is contractually true: a clean exit
+        is ALLOW with degraded=False, and stdout was captured."""
         backend = SeccompTraceBackend()
         result = backend.run(["echo", "hello"], default_policy())
-        # The default policy is KILL-mode (default_action=DENY), so
-        # SCMP_ACT_KILL_PROCESS is the default. The trace then captures
-        # syscalls the tracee makes BEFORE any policy violation. For
-        # echo, that's execve + a few writes + exit. We expect at least
-        # one event from the trace path (or from the post-hoc layer).
-        assert len(result.events) > 0
-        # Lifecycle event always emitted at the end
-        operations = [e.operation for e in result.events]
-        assert "process_exit" in operations
+        assert result.exit_code == 0
+        assert result.overall_verdict is Verdict.ALLOW
+        assert result.degraded is False
+        assert "hello" in result.stdout
 
     def test_run_permissive_policy_emits_many_events(self) -> None:
         """Permissive policy uses SCMP_ACT_LOG as default. The filter
         loads with LOG as the default action; SAFE_SYSCALLS get explicit
         ALLOW rules. On a kernel with full audit-pipe wiring we'd
         capture many per-syscall events; in this environment we capture
-        the lifecycle event (and the post-hoc analyzer contributes its
-        own), per the v2.0.8 SCMP_ACT_LOG limitation noted in
+        whatever the trace path emits (or none, when /proc/seccomp is
+        empty under v2.0.8 SCMP_ACT_LOG), per the limitation noted in
         ``orchestrator.run``. Assert what we *can* verify deterministically:
-        the process exited cleanly, the lifecycle event is present, and
-        the stdout was captured.
+        the process exited cleanly with ALLOW + degraded=False, and the
+        stdout was captured.
+
+        WO6.0.0-005: the old LIFECYCLE event (which always emitted
+        ``process_exit``) is gone — a benign nonzero exit is no longer a
+        KILL, and the event list is the honest trace signal alone.
         """
         backend = SeccompTraceBackend()
         permissive = Policy(
@@ -351,13 +356,8 @@ class TestSeccompTraceBackendRun:
         )
         result = backend.run(["echo", "hello"], permissive)
         assert result.exit_code == 0
-        operations = [e.operation for e in result.events]
-        assert "process_exit" in operations, f"lifecycle event must always be emitted; got {operations!r}"
-        # LOOSE floor, not STRICT: the orchestrator's v2.0.8 SCMP_ACT_LOG
-        # fallback may yield exactly the lifecycle event in this
-        # environment. A strict ">5" floor would over-constrain the
-        # contract; the meaningful invariants are clean exit + lifecycle
-        # event + non-empty stdout.
+        assert result.overall_verdict is Verdict.ALLOW
+        assert result.degraded is False
         assert result.stdout.strip() == "hello"
 
     def test_run_command_not_found(self) -> None:

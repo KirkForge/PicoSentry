@@ -30,6 +30,22 @@ _skip_landlock = pytest.mark.skipif(
     reason="landlock real-exec is opt-in (set PICODOME_HAS_LANDLOCK=1 on Linux >= 5.13 with landlock LSM)",
 )
 
+# WO6.0.0-005: seccomp-trace is gated on libseccomp + CONFIG_SECCOMP_LOG=y,
+# same opt-in env (PICODOME_HAS_SECCOMP=1) the trace-backend suite uses.
+_HAS_SECCOMP_TRACE_ENV = os.environ.get("PICODOME_HAS_SECCOMP") == "1"
+_seccomp_trace_available = False
+if _HAS_SECCOMP_TRACE_ENV:
+    try:
+        from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
+
+        _seccomp_trace_available = SeccompTraceBackend().is_available()
+    except Exception:
+        _seccomp_trace_available = False
+_skip_seccomp_trace = pytest.mark.skipif(
+    not (_HAS_SECCOMP_TRACE_ENV and _seccomp_trace_available),
+    reason="seccomp-trace unavailable (set PICODOME_HAS_SECCOMP=1 and ensure libseccomp + CONFIG_SECCOMP_LOG=y)",
+)
+
 
 def _allow_all_policy() -> Policy:
     return Policy(name="parity-allow-all", version="1.0", default_action=SyscallAction.ALLOW, rules=[])
@@ -93,6 +109,16 @@ class TestComputeVerdictUnit:
         for backend in (SubprocessBackend(), SeccompBackend(), SeatbeltBackend()):
             assert backend._compute_verdict(events, -11) is Verdict.KILL
             assert backend._compute_verdict(events, 2) is Verdict.ALLOW
+
+    def test_seccomp_trace_uses_shared_helper_for_benign_nonzero_exit(self):
+        # WO6.0.0-005: seccomp-trace used to KILL any nonzero exit; the
+        # private compute_verdict is gone and the orchestrator now imports
+        # the shared helper. A stub event list + benign exit must ALLOW.
+        from picosentry.sandbox.l3.backends.base import compute_verdict as shared_compute_verdict
+
+        assert shared_compute_verdict([], 3) is Verdict.ALLOW
+        assert shared_compute_verdict([], 2) is Verdict.ALLOW
+        assert shared_compute_verdict([], -9) is Verdict.KILL
 
 
 class TestFsCeilings:
@@ -230,3 +256,41 @@ class TestLandlockDegradedHonesty:
         )
         result = backend.run(["python3", "-c", "print(open('/etc/hostname').read())"], deny_read, timeout=15.0)
         assert result.exit_code != 0  # the read was blocked; python errors out
+
+
+class TestSeccompTraceParity:
+    """WO6.0.0-005: seccomp-trace real-exec parity seat.
+
+    The same PARITY_CASES matrix the other backends run, plus the degraded
+    honesty check that infra failures (125/126/127) surface as DENY+degraded
+    rather than a clean policy KILL.
+    """
+
+    @_skip_seccomp_trace
+    @pytest.mark.parametrize("label,command,expected", PARITY_CASES, ids=[c[0] for c in PARITY_CASES])
+    def test_verdict_matches_on_seccomp_trace(self, label, command, expected):
+        from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
+
+        backend = SeccompTraceBackend()
+        if not backend.is_available():
+            pytest.skip("seccomp-trace unavailable on this platform")
+        result = backend.run(command, _allow_all_policy(), timeout=15.0)
+        assert result.overall_verdict is expected, (
+            f"{backend.name}: exit={result.exit_code} events={[e.rule_id for e in result.events]}"
+        )
+
+    @_skip_seccomp_trace
+    def test_seccomp_trace_infra_failure_is_degraded_deny(self):
+        """WO6.0.0-005 item 2: a missing command (exit 127) was reported as a
+        clean policy KILL with degraded=False. Must be DENY+degraded now,
+        matching the landlock contract (test_infra_failure_is_degraded_not_clean_deny)."""
+        from picosentry.sandbox.l3.backends.seccomp_trace_backend import SeccompTraceBackend
+
+        backend = SeccompTraceBackend()
+        if not backend.is_available():
+            pytest.skip("seccomp-trace unavailable on this platform")
+        result = backend.run(["/nonexistent/binary-for-parity"], _allow_all_policy(), timeout=15.0)
+        assert result.exit_code == 127, f"unexpected exit code: {result.exit_code}"
+        assert result.overall_verdict is Verdict.DENY
+        assert result.degraded is True
+        assert any(e.rule_id.startswith("L3-EXEC") for e in result.events)

@@ -15,6 +15,29 @@ _PRE_RELEASE_RE = re.compile(r"^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$")
 
 _KNOWN_ECOSYSTEMS = frozenset(("npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"))
 
+# PEP 503 normalized name: runs of [-_.] → single "-", lowercase. PyPI, Go, and
+# other ecosystems that index by canonical name need the query normalized too —
+# ``Flask``/``flask`` and ``ruamel.yaml``/``ruamel-yaml`` are the same package
+# (WO6.0.0-006). Applied at index AND lookup so collectors stay raw.
+_NORMALIZE_RE = re.compile(r"[-_.]+")
+
+
+def _normalize_name(name: str) -> str:
+    return _NORMALIZE_RE.sub("-", name).lower()
+
+
+def _cvss_score_to_severity(score: float) -> str:
+    # CVSS v3/v4 base-score buckets (spec §7.4): <4 LOW, <7 MEDIUM, <9 HIGH,
+    # else CRITICAL. Used when ``database_specific.severity`` is absent and the
+    # raw OSV record carries only ``severity: [{type: CVSS_V3, score}]``.
+    if score >= 9.0:
+        return "CRITICAL"
+    if score >= 7.0:
+        return "HIGH"
+    if score >= 4.0:
+        return "MEDIUM"
+    return "LOW"
+
 
 @dataclass
 class Advisory:
@@ -65,6 +88,12 @@ class Advisory:
             sev = db_specific.get("severity", "").upper()
             if sev in ("CRITICAL", "HIGH", "MEDIUM", "LOW"):
                 severity = sev
+            else:
+                # Raw PyPI/Go OSV records often carry only
+                # ``severity: [{type: CVSS_V3, score: "CVSS:3.1/AV:.../..."}]``
+                # → derive the bucket from the base score so connected-mode
+                # queries don't flatten every record to MEDIUM (WO6.0.0-006).
+                severity = _severity_from_osv_severity_list(data.get("severity", []))
 
         advisories: list[Advisory] = []
         for affected in data.get("affected", []):
@@ -121,6 +150,38 @@ class Advisory:
         return advisories
 
 
+def _severity_from_osv_severity_list(entries: object) -> str:
+    """Pick a severity bucket from an OSV record's top-level ``severity`` list.
+
+    Each entry is ``{"type": "CVSS_V3", "score": <score>}`` where ``<score>``
+    is either a bare numeric string (the common GitHub-advisory shape, e.g.
+    ``"7.5"``) or a full CVSS vector string. We only bucket the numeric form —
+    deriving a base score from a CVSS vector needs a vendor library, and
+    guessing from the trailing segment misclassifies (``A:H`` is not 8.0).
+    Unknown shapes fall back to MEDIUM (the Advisory default), never louder.
+    """
+    if not isinstance(entries, list):
+        return "MEDIUM"
+    best = 0.0
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        score = entry.get("score")
+        if score is None:
+            continue
+        score_str = str(score).strip()
+        try:
+            best = max(best, float(score_str))
+            continue
+        except ValueError:
+            # ponytail: CVSS vector strings (``CVSS:3.1/AV:N/...``) need a
+            # vendor library to derive the base score; ceiling: fall back to
+            # MEDIUM rather than misclassify. Upgrade path: cvss-bsc lib when
+            # vector-only records become the dominant connected-mode shape.
+            continue
+    return _cvss_score_to_severity(best) if best > 0.0 else "MEDIUM"
+
+
 class AdvisoryDB:
     def __init__(self, db_dir: Path | None = None) -> None:
         self._advisories: dict[str, list[Advisory]] = {}  # pkg_name → advisories
@@ -156,7 +217,13 @@ class AdvisoryDB:
 
             for entry in entries:
                 for adv in Advisory.from_osv(entry):
-                    self._advisories.setdefault(adv.package_name, []).append(adv)
+                    # PEP 503 normalization at index time — collectors stay raw
+                    # but the canonical key makes ``Flask``/``flask`` and
+                    # ``ruamel.yaml``/``ruamel-yaml`` resolve to one record
+                    # (WO6.0.0-006). The Advisory keeps its original
+                    # package_name for display; only the key is normalized.
+                    key = _normalize_name(adv.package_name)
+                    self._advisories.setdefault(key, []).append(adv)
                     count += 1
 
         self._loaded = True
@@ -165,7 +232,11 @@ class AdvisoryDB:
         return count
 
     def check(self, pkg_name: str, pkg_version: str) -> list[Advisory]:
-        advisories = self._advisories.get(pkg_name, [])
+        # PEP 503 normalization at lookup time matches the index key — same
+        # ``_normalize_name`` at both ends so ``check('Flask')`` ==
+        # ``check('flask')`` and ``ruamel.yaml`` finds the
+        # ``ruamel-yaml``-keyed record (WO6.0.0-006).
+        advisories = self._advisories.get(_normalize_name(pkg_name), [])
         if not advisories:
             return []
 

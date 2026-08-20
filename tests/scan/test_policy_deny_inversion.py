@@ -33,13 +33,9 @@ def _evil_pkg_project(tmp_path: Path) -> Path:
     )
     evil = project / "node_modules" / "evil-pkg"
     evil.mkdir(parents=True)
-    (evil / "package.json").write_text(
-        json.dumps({"name": "evil-pkg", "version": "1.0.0"}), encoding="utf-8"
-    )
+    (evil / "package.json").write_text(json.dumps({"name": "evil-pkg", "version": "1.0.0"}), encoding="utf-8")
     # eval + hex payload → fires L2-OBFS-001 and L2-OBFS-002.
-    (evil / "index.js").write_text(
-        "var s = '\\x65\\x76\\x61\\x6c'; eval(s);", encoding="utf-8"
-    )
+    (evil / "index.js").write_text("var s = '\\x65\\x76\\x61\\x6c'; eval(s);", encoding="utf-8")
     return project
 
 
@@ -82,9 +78,7 @@ def test_banned_package_findings_surive_run_scan(tmp_path: Path):
 
     # Now add a policy that bans evil-pkg — the OLD code dropped these findings.
     policy_file = tmp_path / "policy.yml"
-    policy_file.write_text(
-        "version: 1\ndeny_packages:\n  - evil-pkg\n", encoding="utf-8"
-    )
+    policy_file.write_text("version: 1\ndeny_packages:\n  - evil-pkg\n", encoding="utf-8")
     config_with_policy = PicoSentryConfig()
     config_with_policy.policy_file = str(policy_file)
 
@@ -113,9 +107,7 @@ def test_deny_licenses_dead_block_removed_no_crash(tmp_path: Path):
     project = _evil_pkg_project(tmp_path)
 
     policy_file = tmp_path / "policy.yml"
-    policy_file.write_text(
-        "version: 1\ndeny_licenses:\n  - GPL-3.0\n", encoding="utf-8"
-    )
+    policy_file.write_text("version: 1\ndeny_licenses:\n  - GPL-3.0\n", encoding="utf-8")
     args = _mock_args()
     config = PicoSentryConfig()
     config.policy_file = str(policy_file)
@@ -134,9 +126,7 @@ def test_non_banned_package_findings_unaffected(tmp_path: Path):
     project = _evil_pkg_project(tmp_path)
 
     policy_file = tmp_path / "policy.yml"
-    policy_file.write_text(
-        "version: 1\ndeny_packages:\n  - some-other-pkg\n", encoding="utf-8"
-    )
+    policy_file.write_text("version: 1\ndeny_packages:\n  - some-other-pkg\n", encoding="utf-8")
     args = _mock_args()
     config_no_policy = PicoSentryConfig()
     result_no_policy = _run_scan(args, project, merged_config=config_no_policy)

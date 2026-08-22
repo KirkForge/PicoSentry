@@ -43,15 +43,30 @@ def _sanitize_header(value: str) -> str:
 
 
 def _safe_upstream_path(path: str) -> str | None:
-    if not path.startswith("/"):
-        return None
+    # Strip the query before validating so '?refresh=1' on a metadata URL
+    # doesn't pollute the traversal check, and decode percent-encoding BEFORE
+    # the '..' check so '%2e%2e' / '%2E%2E' / '..%2f' cannot bypass the guard
+    # (WO7.0.0-006 — encoded-dot SSRF). The decoded path is what we return so
+    # the upstream URL the classifier validated == the URL upstream sees;
+    # sending raw '%2e%2e' would let the upstream decode it to '..' after our
+    # guard cleared the raw form.
     if "//" in path:
+        # Rejects '//attacker.com/evil' (urlsplit would consume // as netloc
+        # and hide the authority from a path-only '//'-check) and '//path'
+        # (empty segment). Must run on the raw form — urlsplit strips it.
         return None
-    segments = path.split("/")
-    for seg in segments:
-        if seg == "..":
-            return None
-    return path
+    parts = urllib.parse.urlsplit(path)
+    decoded = urllib.parse.unquote(parts.path)
+    if not decoded.startswith("/"):
+        return None
+    if ".." in decoded.split("/"):
+        return None
+    # Defense-in-depth: a second unquote catches double-encoding
+    # ('%252e%252e' → '%2e%2e' → '..'). Safe for npm/pypi registries —
+    # package names are a restricted charset with no literal '%'.
+    if ".." in urllib.parse.unquote(decoded).split("/"):
+        return None
+    return decoded + ("?" + parts.query if parts.query else "")
 
 
 class FirewallConfig:

@@ -1064,5 +1064,73 @@ def test_default_path_advisory_scan_fires_without_explicit_db(tmp_path, monkeypa
     assert any("GHSA" in f.message or "CVE" in f.message for f in adv)
 
 
+class TestAdvisoryFromOsvCratesIoEcosystem(unittest.TestCase):
+    """WO7.0.0-001 — OSV ships Rust advisories with ``ecosystem: "crates.io"``
+    while ``_KNOWN_ECOSYSTEMS`` holds ``cargo``. Without an alias, ``.lower()``
+    cannot bridge the gap and every Rust advisory is silently dropped."""
+
+    def test_crates_io_ecosystem_not_dropped(self):
+        # Real RUSTSEC record shape: api.osv.dev ships Rust advisories with
+        # ``ecosystem: "crates.io"`` (verified against api.osv.dev).
+        data = _make_osv(
+            adv_id="RUSTSEC-2018-0001",
+            pkg_name="static_slice",
+            ecosystem="crates.io",
+            introduced="0.0.0",
+            fixed="1.0.0",
+            severity="HIGH",
+        )
+        advs = Advisory.from_osv(data)
+        self.assertEqual(len(advs), 1)
+        self.assertEqual(advs[0].id, "RUSTSEC-2018-0001")
+        self.assertEqual(advs[0].package_name, "static_slice")
+        self.assertEqual(advs[0].severity, "HIGH")
+
+    def test_crates_io_record_reachable_by_advisory_db_check(self):
+        # The dropped record must round-trip through AdvisoryDB.load() and be
+        # reachable by AdvisoryDB.check() — this is the path
+        # advisory_check._merge_osv_findings consumes in connected mode.
+        d = Path(tempfile.mkdtemp())
+        _write_json(
+            d / "RUSTSEC-2021-0014.json",
+            _make_osv(
+                adv_id="RUSTSEC-2021-0014",
+                pkg_name="generic-array",
+                ecosystem="crates.io",
+                introduced="0.0.0",
+                fixed="0.14.5",
+                severity="HIGH",
+            ),
+        )
+        db = AdvisoryDB(d)
+        self.assertEqual(db.advisory_count, 1)
+        results = db.check("generic-array", "0.14.4")
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].id, "RUSTSEC-2021-0014")
+
+    def test_mixed_cargo_and_crates_io_in_same_record(self):
+        # A multi-package record carrying both ``cargo`` and ``crates.io``
+        # ecosystems must yield one Advisory per affected entry.
+        data = {
+            "id": "GHSA-rust-multi",
+            "summary": "affects two Rust packages via different ecosystem spellings",
+            "affected": [
+                {
+                    "package": {"ecosystem": "cargo", "name": "pkg-cargo"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "1.0.0"}, {"fixed": "2.0.0"}]}],
+                },
+                {
+                    "package": {"ecosystem": "crates.io", "name": "pkg-crates-io"},
+                    "ranges": [{"type": "SEMVER", "events": [{"introduced": "3.0.0"}, {"fixed": "4.0.0"}]}],
+                },
+            ],
+            "database_specific": {"severity": "HIGH"},
+        }
+        advs = Advisory.from_osv(data)
+        self.assertEqual(len(advs), 2)
+        by_pkg = {adv.package_name: adv for adv in advs}
+        self.assertEqual(set(by_pkg), {"pkg-cargo", "pkg-crates-io"})
+
+
 if __name__ == "__main__":
     unittest.main()

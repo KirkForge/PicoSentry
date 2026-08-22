@@ -49,6 +49,7 @@ class PicoDomeGRPCServer:
         scan_fn: Callable | None = None,
         analyze_fn: Callable | None = None,
         auth: Any | None = None,
+        rate_limiter: Any | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -67,6 +68,11 @@ class PicoDomeGRPCServer:
 
             auth = TokenAuth()
         self._auth = auth
+        if rate_limiter is None:
+            from picosentry.sandbox.ratelimit import RateLimitConfig, TokenBucketLimiter
+
+            rate_limiter = TokenBucketLimiter(RateLimitConfig())
+        self._rate_limiter = rate_limiter
 
         # Tenant registry from the environment (WO5.0.0-001) — the servicer
         # resolves tenants per request; without this the registry is empty and
@@ -93,7 +99,7 @@ class PicoDomeGRPCServer:
 
         self._server = grpc.server(
             futures.ThreadPoolExecutor(max_workers=self._max_workers),
-            interceptors=[build_auth_interceptor(self._auth)],
+            interceptors=[build_auth_interceptor(self._auth, rate_limiter=self._rate_limiter)],
         )
         self._servicer = PicoDomeServicer(
             scan_engine=self._scan_engine,

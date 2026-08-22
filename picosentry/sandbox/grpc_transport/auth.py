@@ -103,8 +103,14 @@ def assert_secure_transport(host: str, has_tls: bool) -> None:
     )
 
 
-def build_auth_interceptor(auth: TokenAuth):
-    """Build a grpc.ServerInterceptor enforcing METHOD_PERMISSIONS via TokenAuth+RBAC."""
+def build_auth_interceptor(auth: TokenAuth, rate_limiter: Any | None = None):
+    """Build a grpc.ServerInterceptor enforcing METHOD_PERMISSIONS via TokenAuth+RBAC.
+
+    WO7.0.0-015: when a ``rate_limiter`` (TokenBucketLimiter) is supplied,
+    authenticated requests are subject to the same per-actor rate limiting
+    as the HTTP path (handler_mixins._require_auth). Without it one valid
+    token can monopolize all ThreadPoolExecutor slots — DoS with valid creds.
+    """
     import grpc
 
     def _deny(code, details):
@@ -130,6 +136,14 @@ def build_auth_interceptor(auth: TokenAuth):
             if not auth.has_permission(token, permission):
                 logger.warning("gRPC %s rejected: missing permission %s", method, permission)
                 return _deny(grpc.StatusCode.PERMISSION_DENIED, f"insufficient permissions ({permission})")
+
+            if rate_limiter is not None:
+                import hashlib
+
+                actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+                if not rate_limiter.allow(actor=actor):
+                    logger.warning("gRPC %s rejected: rate limited (actor=%s)", method, actor)
+                    return _deny(grpc.StatusCode.RESOURCE_EXHAUSTED, "rate limit exceeded")
 
             return continuation(handler_call_details)
 

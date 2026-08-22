@@ -33,11 +33,15 @@ def running_daemon(daemon_port: int) -> Generator[str, None, None]:
     daemon.start(background=True)
     try:
         # Wait for the server to be ready.
-        deadline = time.time() + 5
+        deadline = time.time() + 10
         while time.time() < deadline:
             try:
-                urlopen(f"http://127.0.0.1:{daemon_port}/health", timeout=0.5)
-                break
+                resp = urlopen(f"http://127.0.0.1:{daemon_port}/health", timeout=2)
+                # WO7.0.0-002: /health now calls check_health() and may return 503
+                # on systems without a sandbox backend. The daemon is "up" when
+                # it responds at all — the health verdict is the real subsystem state.
+                if resp.status in (200, 503):
+                    break
             except Exception:
                 time.sleep(0.1)
         yield f"http://127.0.0.1:{daemon_port}"
@@ -50,7 +54,10 @@ class TestDaemonHealthExemption:
         """Hammer /health and ensure it never returns 429."""
         for _ in range(50):
             resp = urlopen(f"{running_daemon}/health", timeout=5)
-            assert resp.status == 200
+            # WO7.0.0-002: /health may return 503 if the sandbox backend is
+            # unavailable — the point of this test is rate-limit exemption,
+            # not the health verdict. 429 would mean /health is rate-limited.
+            assert resp.status != 429
 
     def test_ready_not_rate_limited(self, running_daemon: str) -> None:
         for _ in range(50):

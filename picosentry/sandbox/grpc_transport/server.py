@@ -50,6 +50,7 @@ class PicoDomeGRPCServer:
         analyze_fn: Callable | None = None,
         auth: Any | None = None,
         rate_limiter: Any | None = None,
+        job_store: Any | None = None,
     ) -> None:
         self._host = host
         self._port = port
@@ -73,6 +74,7 @@ class PicoDomeGRPCServer:
 
             rate_limiter = TokenBucketLimiter(RateLimitConfig())
         self._rate_limiter = rate_limiter
+        self._job_store = job_store
 
         # Tenant registry from the environment (WO5.0.0-001) — the servicer
         # resolves tenants per request; without this the registry is empty and
@@ -106,6 +108,7 @@ class PicoDomeGRPCServer:
             start_time=self._start_time,
             scan_count_ref=self,
             auth=self._auth,
+            job_store=self._job_store,
         )
 
         try:

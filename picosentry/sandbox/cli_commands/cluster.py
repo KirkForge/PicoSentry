@@ -183,10 +183,10 @@ def cmd(args: argparse.Namespace) -> int:
         print(f"  Version: {result['token_version']}")
         print(f"  Accepted tokens: {result['accepted_count']}")
         print(f"  Retired stale tokens: {retired}")
-        print("  Propagate the new token to peers via `picodome cluster status` and gossip.")
+        print("  Propagate the new token to peers via `picosentry cluster status` and gossip.")
         return 0
 
-    print("Usage: picodome cluster {join|status|leave|rotate-token}", file=sys.stderr)
+    print("Usage: picosentry cluster {join|status|leave|rotate-token}", file=sys.stderr)
     return 1
 
 

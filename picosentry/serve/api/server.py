@@ -122,6 +122,20 @@ def _stop_outbox_poller():
     event_bus.outbox_enabled = False
 
 
+def _stop_rate_limiter() -> None:
+    """Stop the rate-limit background flush thread before db.close().
+
+    Without this the flush thread keeps writing after the DB is closed,
+    producing spurious persistence errors in the shutdown log (WO7.0.0-029).
+    """
+    node = getattr(app, "middleware_stack", None)
+    while node is not None:
+        if isinstance(node, RateLimitMiddleware):
+            node.shutdown()
+            return
+        node = getattr(node, "app", None)
+
+
 configure_logging(
     level=settings.logging.level,
     log_dir=settings.logging.log_dir if settings.logging.structured else None,
@@ -275,6 +289,7 @@ async def lifespan(app: FastAPI):
     logger.info("PicoShogun shutting down — stopping background services")
     ws_manager.main_loop = None
     _stop_outbox_poller()
+    _stop_rate_limiter()
     anomaly_detector.stop()
     scheduler.stop()
     event_bus.shutdown()
@@ -440,7 +455,9 @@ def main() -> None:
         # WO6.0.0-020: SIGTERM must stop the outbox poller too — post-`db.close()`
         # the poller re-opens connections and keeps polling during the shutdown
         # window. Matches the lifespan teardown order (line 268-275).
+        # WO7.0.0-029: rate-limit flush thread must also stop before db.close().
         _stop_outbox_poller()
+        _stop_rate_limiter()
         anomaly_detector.stop()
         scheduler.stop()
         event_bus.shutdown()

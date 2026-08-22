@@ -67,6 +67,8 @@ spec:
                   key: api-tokens
             - name: PICODOME_ENTERPRISE_MODE
               value: "1"
+            - name: PICODOME_JOB_STORE_DIR
+              value: "/home/picodome/.picodome"
             - name: PICODOME_TLS_CERT
               value: "/tls/tls.crt"
             - name: PICODOME_TLS_KEY

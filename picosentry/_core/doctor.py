@@ -455,6 +455,14 @@ def _check_version_consistency() -> CheckResult:
             helm_version = m.group(1)
             versions["deploy/helm/picodome/Chart.yaml appVersion"] = helm_version.removeprefix("v")
 
+    k8s_deploy = _ROOT / "deploy" / "kubernetes" / "deployment.yaml"
+    k8s_version: str | None = None
+    if k8s_deploy.exists():
+        m = re.search(r"^\s+version:\s*(v[0-9][^\s]+)", k8s_deploy.read_text(), re.MULTILINE)
+        if m:
+            k8s_version = m.group(1).strip().strip('"').strip("'")
+            versions["deploy/kubernetes/deployment.yaml version"] = k8s_version.removeprefix("v")
+
     non_none = {k: v for k, v in versions.items() if v is not None}
     unique = set(non_none.values())
     problems: list[str] = []

@@ -164,14 +164,19 @@ def perform_health_checks(registry: dict[str, ProjectMeta]) -> list[dict]:
             }
         )
 
-    for check in checks:
-        db.execute_insert(
-            """
-            INSERT INTO health_checks (component, status, message, latency_ms)
-            VALUES (?, ?, ?, ?)
-        """,
-            (check["component"], check["status"], check["message"], check["latency_ms"]),
-        )
+    try:
+        with db.transaction(immediate=True) as conn:
+            for check in checks:
+                db.execute_on(
+                    conn,
+                    """
+                    INSERT INTO health_checks (component, status, message, latency_ms)
+                    VALUES (?, ?, ?, ?)
+                """,
+                    (check["component"], check["status"], check["message"], check["latency_ms"]),
+                )
+    except _HEALTH_PROBE_ERRORS:
+        logger.warning("health_checks atomic insert failed; snapshot not persisted", exc_info=True)
 
     try:
         db.execute(

@@ -20,6 +20,12 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     parser.add_argument("--background", action="store_true", help="Run in background")
     parser.add_argument("--scan-enabled", action="store_true", default=None, help="Enable container image scanning")
     parser.add_argument(
+        "--scan-fail-closed",
+        action=argparse.BooleanOptionalAction,
+        default=True,
+        help="Deny pods when the daemon is unreachable during image scanning (default: true)",
+    )
+    parser.add_argument(
         "--scan-min-severity",
         choices=["info", "low", "medium", "high", "critical"],
         default="high",

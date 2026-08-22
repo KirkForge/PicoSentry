@@ -8,6 +8,7 @@ import sqlite3
 import tarfile
 import urllib.parse
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -129,7 +130,7 @@ class BackupManager:
 
         self.backup_dir.mkdir(parents=True, exist_ok=True)
 
-        temp_dir = self.backup_dir / f"temp_{timestamp}"
+        temp_dir = self.backup_dir / f"temp_{timestamp}_{uuid.uuid4().hex}"
         temp_dir.mkdir(parents=True, exist_ok=True)
 
         try:

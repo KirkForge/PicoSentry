@@ -13,11 +13,21 @@ logger = logging.getLogger("picodome.grpc_transport.servicer")
 
 
 class PicoDomeServicer:
-    def __init__(self, scan_engine, start_time: float, scan_count_ref: Any, auth: Any | None = None) -> None:
+    def __init__(
+        self,
+        scan_engine,
+        start_time: float,
+        scan_count_ref: Any,
+        auth: Any | None = None,
+        job_store: Any | None = None,
+    ) -> None:
         self._scan_engine = scan_engine
         self._start_time = start_time
         self._scan_count_ref = scan_count_ref
         self._auth = auth
+        self._job_store = job_store
+        self._health_cache: tuple[float, list[Any]] | None = None
+        self._health_cache_ttl: float = 5.0
 
     def Scan(self, request, context):
         self._audit_log("SCAN_START", detail=f"command={list(request.command)}", context=context)
@@ -72,6 +82,21 @@ class PicoDomeServicer:
                 self._audit_log("SCAN_ERROR", detail="x-tenant does not match token's tenant", context=context)
                 return self._reject(context, "PERMISSION_DENIED", "x-tenant does not match token's tenant")
 
+            job_id = f"grpc-{uuid.uuid4().hex}"
+            if self._job_store is not None:
+                try:
+                    from picosentry.sandbox.tenant import TenantId
+
+                    self._job_store.add(
+                        job_id,
+                        command,
+                        actor=self._resolve_actor(context),
+                        tenant_id=TenantId(str(tenant_id)) if tenant_id else None,
+                    )
+                    self._job_store.update(job_id, status="running", tenant_id=tenant_id or None)
+                except Exception:
+                    logger.debug("job_store add/update failed for %s", job_id, exc_info=True)
+
             sandbox_result = self._scan_engine.scan(
                 command=command,
                 policy=policy,
@@ -86,13 +111,24 @@ class PicoDomeServicer:
             )
 
             result = {
-                "job_id": f"grpc-{uuid.uuid4().hex}",
+                "job_id": job_id,
                 "sandbox": sandbox_result.to_dict(deterministic=False),
                 "analysis": analysis_result.to_dict(deterministic=False),
                 "l3_verdict": sandbox_result.overall_verdict.value,
                 "l4_verdict": analysis_result.overall_verdict.value,
                 "findings_count": len(analysis_result.findings),
             }
+
+            if self._job_store is not None:
+                try:
+                    self._job_store.update(
+                        job_id,
+                        status="completed",
+                        tenant_id=tenant_id or None,
+                        result=result,
+                    )
+                except Exception:
+                    logger.debug("job_store update failed for %s", job_id, exc_info=True)
 
             if hasattr(self._scan_count_ref, "_scan_count"):
                 # WO5.0.0-018: increment under the stats lock — the HTTP
@@ -173,14 +209,8 @@ class PicoDomeServicer:
     def Health(self, request, context):
         uptime = int(time.time() - self._start_time)
 
-        try:
-            from picosentry.sandbox.health import check_health
-
-            checks = check_health()
-            all_healthy = all(c.healthy for c in checks)
-        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
-            logger.debug("Health check failed, defaulting to healthy", exc_info=True)
-            all_healthy = True
+        checks = self._cached_health_checks()
+        all_healthy = all(c.healthy for c in checks) if checks else True
 
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2 as pb2
@@ -200,6 +230,25 @@ class PicoDomeServicer:
                     "uptime_seconds": uptime,
                 }
             )
+
+    def _cached_health_checks(self) -> list[Any]:
+        """WO7.0.0-026: check_health() walks the audit chain and probes
+        backends — an unauthenticated client can DoS by hammering Health().
+        Cache the result for ``_health_cache_ttl`` seconds (default 5s) so
+        concurrent calls within the window share one expensive traversal."""
+        now = time.time()
+        cached = self._health_cache
+        if cached is not None and (now - cached[0]) < self._health_cache_ttl:
+            return cached[1]
+        try:
+            from picosentry.sandbox.health import check_health
+
+            checks = check_health()
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
+            logger.debug("Health check failed, defaulting to healthy", exc_info=True)
+            checks = []
+        self._health_cache = (now, checks)
+        return checks
 
     def GetPolicy(self, request, context):
         name = request.name if hasattr(request, "name") else ""
@@ -317,6 +366,20 @@ class PicoDomeServicer:
         }.get(code_name, grpc.StatusCode.INVALID_ARGUMENT)
         context.abort(code, detail)
         return
+
+    def _resolve_actor(self, context) -> str:
+        """SHA-256 hash of the caller's token (same as _audit_log)."""
+        try:
+            from picosentry.sandbox.grpc_transport.auth import bearer_token_from_metadata
+
+            token = bearer_token_from_metadata(context.invocation_metadata())
+            if token:
+                import hashlib
+
+                return hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+        except Exception:
+            logger.debug("actor resolution failed", exc_info=True)
+        return "picodome-grpc"
 
     def _resolve_tenant(self, context) -> str:
         """Tenant resolution mirroring the HTTP daemon's rule (WO5.0.0-001):

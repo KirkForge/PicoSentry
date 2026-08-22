@@ -96,6 +96,14 @@ class PicoDomeDaemon:
         # exposes the raw store — every get/list/update carries tenant_id.
         from picosentry.sandbox.tenant.store import TenantAwareScanJobStore
 
+        # WO7.0.0-018: reconcile stale running/queued jobs before serving.
+        reconcile = getattr(raw_store, "reconcile_on_start", None)
+        if reconcile is not None:
+            try:
+                reconcile()
+            except Exception:
+                logger.warning("Job store reconciliation failed", exc_info=True)
+
         PicoDomeHandler.job_store = TenantAwareScanJobStore(raw_store)
 
         # Rebuild auth from the CURRENT environment. PicoDomeHandler's import-time

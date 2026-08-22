@@ -125,8 +125,19 @@ class VersionedPolicyStore:
                         logger.warning("Failed to remove temp policy file %s", tmp_path)
 
             serialized = json.dumps(pv.to_dict(), indent=2, sort_keys=True, default=str)
-            _atomic_write(policy_dir / f"v{next_version}.json", serialized)
-            _atomic_write(policy_dir / "latest.json", serialized)
+            v_path = policy_dir / f"v{next_version}.json"
+            latest_path = policy_dir / "latest.json"
+            _atomic_write(v_path, serialized)
+            _atomic_write(latest_path, serialized)
+
+            # WO7.0.0-019: sign vN.json too (not just latest.json) so
+            # versioned loads can verify signatures.
+            key = _load_signing_key()
+            if key is not None:
+                from picosentry.sandbox.policy_versioned.signing import sign_policy_companion
+
+                sign_policy_companion(v_path, key)
+                sign_policy_companion(latest_path, key)
 
             logger.info(
                 "Policy '%s' v%d saved by %s: %s",
@@ -138,11 +149,13 @@ class VersionedPolicyStore:
 
             return pv
 
-    def load(self, name: str, version: int | None = None) -> PolicyVersion | None:
+    def load(self, name: str, version: int | None = None, verify_signature: bool = True) -> PolicyVersion | None:
         _validate_policy_name(name)
         if version is None:
             latest_path = self._store_dir / name / "latest.json"
             if latest_path.is_file():
+                if verify_signature and not self._verify_companion(latest_path):
+                    return None
                 return self._read_version_file(latest_path)
 
             versions = self._list_versions(name)
@@ -152,6 +165,8 @@ class VersionedPolicyStore:
 
         path = self._store_dir / name / f"v{version}.json"
         if not path.is_file():
+            return None
+        if verify_signature and not self._verify_companion(path):
             return None
         return self._read_version_file(path)
 
@@ -246,6 +261,22 @@ class VersionedPolicyStore:
             logger.warning("Failed to read policy version from %s: %s", path, e)
             return None
 
+    def _verify_companion(self, path: Path) -> bool:
+        """WO7.0.0-019: verify the companion signature on a policy file.
+
+        If no signing key is configured and no .sig exists, the policy is
+        treated as unsigned (acceptable in dev mode). If a .sig exists but
+        the key is missing, or the signature doesn't verify, return False.
+        """
+        from picosentry.sandbox.policy_versioned.signing import (
+            load_policy_with_companion_verification,
+        )
+
+        _content, result = load_policy_with_companion_verification(path)
+        if result is None:
+            return True
+        return result.valid
+
     @staticmethod
     def _hash_policy(policy: Policy) -> str:
         data = policy.to_dict()
@@ -268,3 +299,10 @@ def get_policy_store() -> VersionedPolicyStore:
             if _policy_store is None or _policy_store._store_dir != key:
                 _policy_store = VersionedPolicyStore(store_dir=key)
     return _policy_store
+
+
+def _load_signing_key() -> bytes | None:
+    """WO7.0.0-019: load the policy signing key for companion signatures."""
+    from picosentry.sandbox.policy_versioned.signing import load_key
+
+    return load_key()

@@ -240,3 +240,22 @@ class RedisScanJobStore:
     @property
     def redis_url(self) -> str:
         return self._redis_url
+
+    def reconcile_on_start(self) -> int:
+        """WO7.0.0-018: mark stale running/queued jobs as failed on daemon boot."""
+        client = self._get_client()
+        if not self._available:
+            logger.warning("Redis unavailable, skipping orphan reconciliation")
+            return 0
+        job_ids = client.zrevrange(_JOB_LIST_KEY, 0, -1)
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        count = 0
+        for job_id in job_ids:
+            key = f"{_JOB_KEY_PREFIX}{job_id}"
+            status = client.hget(key, "status")
+            if status in ("running", "queued"):
+                client.hset(key, mapping={"status": "failed", "error": "ORPHANED_ON_RESTART", "completed_at": now})
+                count += 1
+        if count:
+            logger.info("Reconciled %d orphaned job(s) on startup", count)
+        return count

@@ -231,3 +231,21 @@ class PersistentScanJobStore:
             logger.warning("Failed to rewrite job store: %s", e)
             with contextlib.suppress(OSError):
                 tmp_file.unlink()
+
+    def reconcile_on_start(self) -> int:
+        """WO7.0.0-018: mark stale running/queued jobs as failed on daemon boot."""
+        self._ensure_loaded()
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        count = 0
+        with self._lock:
+            for job in self._jobs.values():
+                if job.get("status") in ("running", "queued"):
+                    job["status"] = "failed"
+                    job["error"] = "ORPHANED_ON_RESTART"
+                    job["completed_at"] = now
+                    count += 1
+            if count:
+                self._rewrite_disk()
+        if count:
+            logger.info("Reconciled %d orphaned job(s) on startup", count)
+        return count

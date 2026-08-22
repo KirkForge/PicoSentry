@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from picosentry.firewall.proxy import FirewallConfig, FirewallProxy
 from picosentry.firewall.scanner import FirewallVerdict, classify_path
 
@@ -75,8 +77,6 @@ class TestFirewallConfig:
         assert config.listen_host == "0.0.0.0"
 
     def test_invalid_quarantine_action_rejected(self):
-        import pytest
-
         with pytest.raises(ValueError):
             FirewallConfig(quarantine_action="nonsense")
 
@@ -283,6 +283,86 @@ class TestSafeUpstreamPath:
         from picosentry.firewall.proxy import _safe_upstream_path
 
         assert _safe_upstream_path("/express/4.18.0") == "/express/4.18.0"
+
+
+class TestSafeUpstreamPathEncodedDot:
+    """WO7.0.0-006 — encoded-dot path traversal bypasses _safe_upstream_path.
+
+    ``_safe_upstream_path`` rejected literal ``..`` but never percent-decoded;
+    ``classify_path`` unquotes BEFORE matching, so a client sending ``%2e%2e``
+    reached arbitrary upstream paths while the guard recorded a clean path.
+    All encoded forms must be rejected identically to literal ``..``.
+    """
+
+    @pytest.mark.parametrize(
+        "path",
+        [
+            "/foo/%2e%2e/bar",
+            "/foo/%2E%2E/bar",
+            "/foo/..%2fbar",
+            "/foo/..%2Fbar",
+            "/foo/%2e%2e%2fbar",
+            "/foo/%252e%252e/bar",  # double-encoded
+            "/pkg/%2e%2e/admin/metrics",  # the live bypass from the WO
+            "/%2e%2e/%2e%2e/etc/passwd",
+        ],
+    )
+    def test_rejects_encoded_dot_traversal(self, path):
+        from picosentry.firewall.proxy import _safe_upstream_path
+
+        assert _safe_upstream_path(path) is None, f"encoded-dot traversal must be rejected: {path}"
+
+    def test_encoded_dot_rejected_identically_to_literal(self):
+        from picosentry.firewall.proxy import _safe_upstream_path
+
+        # The guard must treat /foo/../bar and /foo/%2e%2e/bar identically.
+        assert _safe_upstream_path("/foo/../bar") is None
+        assert _safe_upstream_path("/foo/%2e%2e/bar") is None
+        assert _safe_upstream_path("/foo/%2E%2E/bar") is None
+
+    def test_query_preserved_on_clean_path(self):
+        from picosentry.firewall.proxy import _safe_upstream_path
+
+        # WO5.0.0-012 — query-decorated metadata URLs must keep their query
+        # so '?refresh=1' reaches the upstream (the regression guard for the
+        # urlsplit change that strips the query before the '..' check).
+        assert _safe_upstream_path("/pypi/requests/2.31.0/json?refresh=1") == "/pypi/requests/2.31.0/json?refresh=1"
+
+    def test_encoded_dot_in_query_does_not_reject(self):
+        from picosentry.firewall.proxy import _safe_upstream_path
+
+        # A query containing a literal '%2e' is not a traversal — only the
+        # path portion is checked. This guards against false positives from
+        # the urlsplit change.
+        assert _safe_upstream_path("/pypi/requests/json?u=%2e%2e") == "/pypi/requests/json?u=%2e%2e"
+
+    def test_encoded_slash_in_scope_decoded_for_upstream(self):
+        from picosentry.firewall.proxy import _safe_upstream_path
+
+        # WO6-017 — npm scoped names arrive as %40scope%2Fpkg; the decoded
+        # path is what we send upstream so it matches what classify_path saw.
+        assert _safe_upstream_path("/@babel%2Fcore") == "/@babel/core"
+
+
+class TestSafeUpstreamPathProxyIntegration:
+    """WO7.0.0-006 — the SSRF lands via _upstream_url, not just the guard
+    function. The proxy must reject an encoded-dot path with 400/502, not
+    reach an arbitrary upstream path."""
+
+    def test_encoded_dot_path_does_not_reach_upstream(self):
+        handler = _make_handler("/pkg/%2e%2e/admin/metrics", FirewallConfig())
+        with patch("picosentry.firewall.proxy.safe_urlopen") as mock_safe:
+            handler.do_GET()
+            mock_safe.assert_not_called()
+            assert any("400" in str(c) for c in handler.send_response.call_args_list)
+
+    def test_encoded_dot_in_pass_through_does_not_reach_upstream(self):
+        handler = _make_handler("/foo/%2e%2e/bar.tgz", FirewallConfig())
+        with patch("picosentry.firewall.proxy._open_upstream_stream") as mock_stream:
+            handler.do_GET()
+            mock_stream.assert_not_called()
+            # _proxy_pass hits _guess_upstream → _safe_upstream_path → None → 400
+            assert any("400" in str(c) for c in handler.send_response.call_args_list)
 
 
 class TestSanitizeHeader:

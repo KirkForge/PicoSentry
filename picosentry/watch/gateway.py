@@ -350,11 +350,12 @@ def create_gateway_app(
                     "X-Picowatch-Profile": profile.name,
                 },
             )
-        # Every delivered token must be validated (WO5.0.0-013): n>1
-        # completions and tool-call arguments are part of what the client
-        # executes — scanning only choices[0].message.content attested
-        # unscanned output as output_valid. WO6.0.0-003: legacy
-        # `function_call.arguments` (pre-tool_calls API) is also scanned.
+        # WO7-022: a 200 with {"error": {...}} (no choices) yields empty
+        # output_parts → output_guard validates "" → output_valid: true. The
+        # error message is never scanned and the empty string is falsely
+        # attested as valid. Route the error message through the guard and
+        # mark output_valid as false when an error body is present.
+        error_body = completion.get("error")
         choices = completion.get("choices") or []
         output_parts: list[str] = []
         for choice in choices:
@@ -378,6 +379,13 @@ def create_gateway_app(
             legacy_fc = message.get("function_call")
             if isinstance(legacy_fc, dict) and legacy_fc.get("arguments"):
                 output_parts.append(str(legacy_fc["arguments"]))
+        # WO7-022: when the upstream returns an error body (no choices), the
+        # error message is part of what the client sees — scan it so an
+        # injection in the error message is not silently attested valid.
+        if not output_parts and isinstance(error_body, dict):
+            error_msg = error_body.get("message")
+            if isinstance(error_msg, str) and error_msg:
+                output_parts.append(error_msg)
         output_text = "\n".join(output_parts)
 
         output_result = await asyncio.to_thread(gateway._output_guard.validate, output_text)
@@ -395,6 +403,9 @@ def create_gateway_app(
                 },
             )
 
+        # WO7-022: an error body is not a valid model output — do not attest
+        # output_valid: true even when the guard passes on the error message.
+        effective_output_valid = output_result.valid and not (isinstance(error_body, dict) and not choices)
         completion["picowatch"] = {
             "profile": profile.name,
             "prompt_blocked": False,
@@ -406,9 +417,11 @@ def create_gateway_app(
                 "choices[*].message.content",
                 "choices[*].message.tool_calls[*].function.arguments",
                 "choices[*].message.function_call.arguments",
+                "error.message" if isinstance(error_body, dict) and not choices else "",
             ],
-            "output_valid": output_result.valid,
+            "output_valid": effective_output_valid,
             "output_violations": violations,
+            "upstream_error": bool(isinstance(error_body, dict) and not choices),
             # WO6.0.0-016: surface decode budget exhaustion from both sides
             # so a starved decode is visible, not a silent clean verdict.
             "prompt_decode_budget_exhausted": prompt_result.details.get("decode_budget_exhausted", False),

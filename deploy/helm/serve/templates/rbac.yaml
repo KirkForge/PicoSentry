@@ -1,0 +1,38 @@
+{{- if .Values.rbac.create }}
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ include "serve.fullname" . }}
+  labels:
+    {{- include "serve.labels" . | nindent 4 }}
+rules:
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list"]
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get"]
+    resourceNames:
+      {{- if .Values.auth.existingSecret }}
+      - {{ .Values.auth.existingSecret }}
+      {{- else }}
+      - {{ include "serve.fullname" . }}-tokens
+      {{- end }}
+      {{- if .Values.database.existingSecret }}
+      - {{ .Values.database.existingSecret }}
+      {{- end }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ include "serve.fullname" . }}
+  labels:
+    {{- include "serve.labels" . | nindent 4 }}
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "serve.serviceAccountName" . }}
+roleRef:
+  kind: Role
+  name: {{ include "serve.fullname" . }}
+  apiGroup: rbac.authorization.k8s.io
+{{- end }}

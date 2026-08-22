@@ -20,12 +20,17 @@ _NPM_PACKAGE_RE = re.compile(r"^/(@[^/]+/[^/]+|[^/]+)(?:/([^/]+))?$")
 _PYPI_PACKAGE_RE = re.compile(r"^/pypi/([^/]+)(?:/([^/]+))?/json$")
 _STATIC_EXT_RE = re.compile(r"\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|eot|map)$", re.IGNORECASE)
 
-# Rules that require local artifacts (lockfiles, pnpm workspace files) which
-# registry metadata documents never contain — they structurally false-positive
-# on every manifest with dependencies (e.g. "no lockfile" HIGH on any package
-# with deps). The firewall is a *metadata* firewall; artifact scanning is
-# picosentry scan's job on the downloaded tarball.
-_ARTIFACT_RULE_EXCLUSIONS = frozenset({"L2-LOCK-001", "L2-PNPM-001"})
+# Rules that require local artifacts (lockfiles, pnpm workspace files, private
+# registry config) which registry metadata documents never contain — they
+# structurally false-positive on every manifest with dependencies (e.g. "no
+# lockfile" HIGH on any package with deps). The firewall is a *metadata*
+# firewall; artifact scanning is picosentry scan's job on the downloaded
+# tarball.
+_ARTIFACT_RULE_EXCLUSIONS = frozenset({"L2-LOCK-001", "L2-PNPM-001", "L2-DEPC-001", "L2-PYPI-DEPC-001"})
+
+# WO7-009: UNRESOLVED gets a short TTL so a version published during the
+# negative-cache window is re-resolved quickly instead of blocked for an hour.
+_UNRESOLVED_TTL_SECONDS = 30
 
 
 def extract_version_manifest(metadata: dict, version: str) -> dict | None:
@@ -93,6 +98,89 @@ def classify_path(path: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _sanitize_pypi_name(name: str) -> str | None:
+    """Escape a URL-path package name for safe interpolation into TOML.
+
+    ``classify_path`` percent-decodes the path before regex match, so a
+    path like ``/pypi/evil%27%0a[tool.evil]%0acmd/json`` yields a name with
+    single quotes and newlines. Interpolating that into ``name = '{name}'``
+    closes the TOML string and starts a new section — TOML injection
+    (WO7-008). Strip the characters that break out of a single-quoted TOML
+    basic string (``'``, ``\\n``, ``\\r``, ``]``, ``#``); reject names that
+    still contain anything non-printable or empty after sanitization.
+    """
+    safe = name.replace("'", "").replace("\n", "").replace("\r", "").replace("]", "").replace("#", "")
+    safe = safe.strip()
+    if not safe or not safe.isprintable():
+        return None
+    return safe
+
+
+def _pypi_to_npm_manifest(name: str, version: str, info: dict) -> dict | None:
+    """Map PyPI ``info`` metadata into an npm ``package.json`` shape.
+
+    WO7-013: the firewall writes pypi_metadata.json but no rule reads it.
+    Writing a package.json lets the existing npm rules (L2-MAINT, L2-FORK,
+    L2-PROV) fire on PyPI packages, giving PyPI the same metadata firewall
+    coverage as npm. Only fields the existing rules read are mapped.
+    """
+    manifest: dict = {"name": name, "version": version}
+
+    author_name = info.get("author") or ""
+    author_email = info.get("author_email") or ""
+    if author_name:
+        if author_email:
+            manifest["author"] = {"name": str(author_name), "email": str(author_email)}
+        else:
+            manifest["author"] = str(author_name)
+
+    maintainer_name = info.get("maintainer") or ""
+    maintainer_email = info.get("maintainer_email") or ""
+    if maintainer_name:
+        m: dict = {"name": str(maintainer_name)}
+        if maintainer_email:
+            m["email"] = str(maintainer_email)
+        manifest["maintainers"] = [m]
+
+    repo_url = info.get("home_page") or ""
+    project_urls = info.get("project_urls")
+    if isinstance(project_urls, dict):
+        for key in ("Repository", "repository", "Source", "source", "Homepage", "homepage"):
+            val = project_urls.get(key)
+            if val and isinstance(val, str):
+                repo_url = val
+                break
+    if repo_url:
+        manifest["repository"] = {"type": "git", "url": str(repo_url)}
+        manifest["homepage"] = str(repo_url)
+
+    description = info.get("summary") or info.get("description") or ""
+    if description:
+        manifest["description"] = str(description)
+
+    license_val = info.get("license") or ""
+    if license_val and isinstance(license_val, str):
+        manifest["license"] = license_val
+
+    requires_dist = info.get("requires_dist") or []
+    if isinstance(requires_dist, list) and requires_dist:
+        deps: dict[str, str] = {}
+        for req in requires_dist:
+            if isinstance(req, str) and req:
+                dep_name = _sanitize_pypi_name(
+                    req.split(">")[0].split("<")[0].split("=")[0].split("!")[0].split(";")[0].strip()
+                )
+                if dep_name:
+                    deps[dep_name] = "*"
+        if deps:
+            manifest["dependencies"] = deps
+
+    if info.get("yanked"):
+        manifest["_npmUser"] = {"name": str(info.get("author", "unknown"))}
+
+    return manifest
+
+
 class FirewallScanner:
     def __init__(
         self,
@@ -148,7 +236,11 @@ class FirewallScanner:
             # Whole-catalog doc without the requested version: refuse instead of
             # scanning root fields (which would report a false ALLOW). The proxy
             # maps UNRESOLVED to 502 (WO6-017).
-            self._cache.put(ecosystem, name, version, (FirewallVerdict.UNRESOLVED, []))
+            # WO7-009: short TTL (30s) so a version published during the window
+            # is re-resolved instead of blocked for up to an hour.
+            self._cache.put(
+                ecosystem, name, version, (FirewallVerdict.UNRESOLVED, []), ttl_override=_UNRESOLVED_TTL_SECONDS
+            )
             return FirewallVerdict.UNRESOLVED, []
         with tempfile.TemporaryDirectory(prefix="picosentry_fw_") as tmp:
             tmp_path = Path(tmp)
@@ -156,12 +248,26 @@ class FirewallScanner:
                 pkg_file = tmp_path / "package.json"
                 pkg_file.write_text(json.dumps(manifest, indent=2))
             elif ecosystem == "pypi":
+                safe_name = _sanitize_pypi_name(name)
+                if safe_name is None:
+                    return FirewallVerdict.BLOCK, []
                 pkg_file = tmp_path / "pyproject.toml"
-                pkg_file.write_text(f"[project]\nname = '{name}'\n")
+                pkg_file.write_text(f"[project]\nname = '{safe_name}'\n")
                 req_file = tmp_path / "requirements.txt"
-                req_file.write_text(f"{name}=={version}")
+                req_file.write_text(f"{safe_name}=={version}")
                 meta_file = tmp_path / "pypi_metadata.json"
                 meta_file.write_text(json.dumps(manifest, indent=2))
+                # WO7-013: write a package.json under node_modules/<name>/ so
+                # the existing npm rules (L2-MAINT, L2-FORK, L2-PROV) fire on
+                # PyPI packages too — the firewall was blind to author/repo/
+                # provenance because no PyPI rule read pypi_metadata.json. The
+                # node_modules path makes has_execution_risk() return True so
+                # the informational rules fire (they skip clean root manifests).
+                npm_manifest = _pypi_to_npm_manifest(safe_name, version, manifest)
+                if npm_manifest:
+                    nm_dir = tmp_path / "node_modules" / safe_name
+                    nm_dir.mkdir(parents=True)
+                    (nm_dir / "package.json").write_text(json.dumps(npm_manifest, indent=2))
             else:
                 return FirewallVerdict.ALLOW, []
 

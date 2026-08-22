@@ -172,8 +172,12 @@ def _hash_target_inputs(target: Path) -> str:
     and node_modules package.json manifests (what the campaign rules read).
     WO6.0.0-008: also folds a bounded sample of node_modules JS-family CONTENT
     (what L2-OBFS/NETEX/CRED/WORM scan) — see ``_hash_node_modules_content``.
+    WO7-011: folds the detected ecosystem set into the key so a scan whose
+    ecosystem markers change (e.g. .venv added) does not hit a stale cache row
+    from a previous scan with a different ecosystem set.
     Content-based (mtime changes alone never invalidate — determinism
-    contract). Returns "" when the target has no relevant files.
+    contract). Returns "" when the target has no relevant files and no
+    detected ecosystems.
     """
 
     def _is_scan_input(file: Path) -> bool:
@@ -210,9 +214,9 @@ def _hash_target_inputs(target: Path) -> str:
         # node_modules (no root manifest) is a valid scan target.
         nm_bytes = _hash_node_modules_content(target, sha) if target.is_dir() else 0
         if nm_bytes == 0:
-            return ""
+            return _ecosystem_hash(target, sha)
         sha.update(f"nm-only:{nm_bytes}".encode())
-        return sha.hexdigest()[:16]
+        return _ecosystem_hash(target, sha, _has_content=True)
     total = 0
     truncated = len(files) > _MAX_INPUT_FILES
     for file in sorted(files, key=lambda p: p.relative_to(target).as_posix())[:_MAX_INPUT_FILES]:
@@ -238,6 +242,26 @@ def _hash_target_inputs(target: Path) -> str:
     # invalidates the cache. Bounded per-package; see _hash_node_modules_content.
     if target.is_dir():
         _hash_node_modules_content(target, sha)
+    return _ecosystem_hash(target, sha, _has_content=True)
+
+
+def _ecosystem_hash(target: Path, sha: hashlib._Hash, _has_content: bool = False) -> str:
+    """Fold the detected ecosystem set into the hash and return the digest.
+
+    WO7-011: ecosystem marker dirs (.venv, .tox) flip detection without changing
+    file content. Without this, a stale cache row from a scan with a different
+    ecosystem set survives. Returns "" when no files hashed AND no ecosystems.
+    """
+    from picosentry.scan.engine import _detect_ecosystems
+
+    detected = []
+    if target.is_dir():
+        detected = sorted(_detect_ecosystems(target))
+        if detected:
+            sha.update(b"ecosystems:\0")
+            sha.update(",".join(detected).encode("utf-8"))
+    if not detected and not _has_content:
+        return ""
     return sha.hexdigest()[:16]
 
 

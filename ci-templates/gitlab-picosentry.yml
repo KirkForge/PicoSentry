@@ -10,7 +10,17 @@
     - pip install --no-cache-dir picosentry
   script:
     - |
-      ARGS=(scan "${PICOSENTRY_PATH}" --format "${PICOSENTRY_FORMAT}" --output picosentry-results.sarif)
+      ARGS=(scan "${PICOSENTRY_PATH}" --format "${PICOSENTRY_FORMAT}")
+      # github format writes the SARIF bundle to --sarif-file and the markdown
+      # summary to --output; every other format writes its primary artifact to
+      # --output (WO6-021 fixed action.yml for the same bug; WO7-025 mirrors
+      # the fix here). Without this, github-format users on gitlab get a hard
+      # fail because --output is not a valid flag for the github format.
+      if [ "${PICOSENTRY_FORMAT}" = "github" ]; then
+        ARGS+=(--sarif-file picosentry-results.sarif)
+      else
+        ARGS+=(--output picosentry-results.sarif)
+      fi
       if [ "${PICOSENTRY_SEVERITY_THRESHOLD}" != "LOW" ]; then
         ARGS+=(--severity-threshold "${PICOSENTRY_SEVERITY_THRESHOLD}")
       fi
@@ -28,7 +38,7 @@
         *) echo "PicoSentry scan failed (unexpected exit ${EXIT_CODE})"; exit "${EXIT_CODE}" ;;
       esac
       case "${PICOSENTRY_FORMAT}" in
-        sarif)
+        sarif|github)
           FINDINGS_COUNT=$(python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(len(d.get('runs',[{}])[0].get('results',[])))" picosentry-results.sarif) || {
             echo "Failed to parse picosentry-results.sarif as SARIF — refusing to report 0 findings"; exit 2;
           }
@@ -40,7 +50,7 @@
           ;;
         *)
           if [ "${PICOSENTRY_FAIL_ON_FINDINGS}" = "true" ]; then
-            echo "PICOSENTRY_FAIL_ON_FINDINGS requires a findings-bearing format (sarif or json); '${PICOSENTRY_FORMAT}' cannot trip it"; exit 2
+            echo "PICOSENTRY_FAIL_ON_FINDINGS requires a findings-bearing format (sarif, github or json); '${PICOSENTRY_FORMAT}' cannot trip it"; exit 2
           fi
           FINDINGS_COUNT=0
           ;;

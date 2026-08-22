@@ -40,6 +40,23 @@ def _advisory_db_cache_put(cache_key: tuple[str, str], db: AdvisoryDB, load_time
     _advisory_db_cache[cache_key] = (db, load_time)
 
 
+def _pep508_name(dep: str) -> str:
+    """Extract the package name from a PEP 508 dependency specifier.
+
+    Uses ``packaging.requirements.Requirement`` which correctly handles
+    extras, markers, URL specs, and all operator forms (``~=``, ``===``,
+    ``@``). Falls back to the raw split-chain for unparseable specs so a
+    malformed dep never crashes the scan (WO7-013).
+    """
+    try:
+        from packaging.requirements import Requirement
+
+        return Requirement(dep).name
+    except Exception:
+        name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].split(";")[0].strip()
+        return name.split("[")[0].strip()
+
+
 def _get_advisory_db(corpus_dir: Path, advisory_db_path: str | None = None) -> AdvisoryDB | None:
     import time
 
@@ -179,7 +196,7 @@ def _collect_pypi_packages(target: Path) -> list[tuple[str, str, str, Path]]:
         if isinstance(deps, list):
             for dep in deps:
                 if isinstance(dep, str) and dep:
-                    name = dep.split(">")[0].split("<")[0].split("=")[0].split("!")[0].strip()
+                    name = _pep508_name(dep)
                     if name and (name, "unknown") not in seen:
                         seen.add((name, "unknown"))
                         packages.append((name, "unknown", f"{name}@unknown", target / "pyproject.toml"))

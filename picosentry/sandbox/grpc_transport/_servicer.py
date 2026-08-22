@@ -18,6 +18,8 @@ class PicoDomeServicer:
         self._start_time = start_time
         self._scan_count_ref = scan_count_ref
         self._auth = auth
+        self._health_cache: tuple[float, list[Any]] | None = None
+        self._health_cache_ttl: float = 5.0
 
     def Scan(self, request, context):
         self._audit_log("SCAN_START", detail=f"command={list(request.command)}", context=context)
@@ -173,14 +175,8 @@ class PicoDomeServicer:
     def Health(self, request, context):
         uptime = int(time.time() - self._start_time)
 
-        try:
-            from picosentry.sandbox.health import check_health
-
-            checks = check_health()
-            all_healthy = all(c.healthy for c in checks)
-        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
-            logger.debug("Health check failed, defaulting to healthy", exc_info=True)
-            all_healthy = True
+        checks = self._cached_health_checks()
+        all_healthy = all(c.healthy for c in checks) if checks else True
 
         try:
             from picosentry.sandbox.grpc_transport.proto import picodome_pb2 as pb2
@@ -200,6 +196,25 @@ class PicoDomeServicer:
                     "uptime_seconds": uptime,
                 }
             )
+
+    def _cached_health_checks(self) -> list[Any]:
+        """WO7.0.0-026: check_health() walks the audit chain and probes
+        backends — an unauthenticated client can DoS by hammering Health().
+        Cache the result for ``_health_cache_ttl`` seconds (default 5s) so
+        concurrent calls within the window share one expensive traversal."""
+        now = time.time()
+        cached = self._health_cache
+        if cached is not None and (now - cached[0]) < self._health_cache_ttl:
+            return cached[1]
+        try:
+            from picosentry.sandbox.health import check_health
+
+            checks = check_health()
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
+            logger.debug("Health check failed, defaulting to healthy", exc_info=True)
+            checks = []
+        self._health_cache = (now, checks)
+        return checks
 
     def GetPolicy(self, request, context):
         name = request.name if hasattr(request, "name") else ""

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from collections.abc import Callable
 from contextlib import suppress
 from dataclasses import dataclass, field
@@ -39,6 +40,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger("picosentry.typosquat")
 
 __all__ = ["detect_all_typosquat"]
+
+_PEP503_RE = re.compile(r"[-_.]+")
+
+
+def _pep503_normalize(name: str) -> str:
+    """PEP 503 normalization: lowercase, runs of - _ . → single -."""
+    return _PEP503_RE.sub("-", name).lower()
 
 
 @dataclass(frozen=True)
@@ -168,19 +176,25 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
             if not compare_name:
                 continue
 
-        if not compare_name or compare_name in config.known_legitimate:
+        # WO7-012: known_legitimate and the corpus index store PEP 503-
+        # normalized names (ruamel-yaml); deps are collected raw (ruamel.yaml).
+        # Normalize before the membership checks so a package is not its own
+        # typosquat at edit distance 1.
+        normalized = _pep503_normalize(compare_name) if config.ecosystem == "pypi" else compare_name
+
+        if not normalized or normalized in config.known_legitimate:
             continue
 
-        if len(compare_name) < config.min_name_length:
+        if len(normalized) < config.min_name_length:
             continue
 
-        if compare_name in index:
+        if normalized in index:
             continue
 
-        close_matches = check_typosquat_against_index(compare_name, index, use_keyboard=config.use_keyboard)
+        close_matches = check_typosquat_against_index(normalized, index, use_keyboard=config.use_keyboard)
         if close_matches:
             best_match, best_dist = close_matches[0]
-            severity, confidence = typosquat_severity_confidence(compare_name, best_match, best_dist)
+            severity, confidence = typosquat_severity_confidence(normalized, best_match, best_dist)
 
             manifest_path = config.manifest_file
             if config.file_detection_fn:
@@ -207,7 +221,7 @@ def _detect_all_typosquat_standard(target: Path, corpus_dir: Path, config: Typos
                     package=dep_name,
                     file=manifest_path if isinstance(manifest_path, str) else str(manifest_path),
                     message=message,
-                    evidence=f"edit_distance({compare_name}, {best_match}) = {best_dist}",
+                    evidence=f"edit_distance({normalized}, {best_match}) = {best_dist}",
                     remediation=(
                         f"Verify that '{dep_name}' is the intended package, "
                         f"not a misspelling of '{best_match}'. "

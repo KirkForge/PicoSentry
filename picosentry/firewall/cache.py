@@ -30,7 +30,6 @@ class VerdictCache:
     def get(self, ecosystem: str, name: str, version: str):
         key = (ecosystem, name, version)
         with self._lock:
-            self._evict_expired()
             entry = self._store.get(key)
             if entry is None:
                 self._misses += 1
@@ -47,7 +46,6 @@ class VerdictCache:
     def put(self, ecosystem: str, name: str, version: str, verdict: object, ttl_override: int | None = None) -> None:
         key = (ecosystem, name, version)
         with self._lock:
-            self._evict_expired()
             if key not in self._store and len(self._store) >= self._max_entries:
                 oldest = min(self._store, key=lambda k: self._store[k][0])
                 del self._store[oldest]

@@ -15,6 +15,7 @@ from picosentry.cli_commands._maturity import emit_maturity_warning
 
 def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     watch_parser = subparsers.add_parser("watch", help="LLM prompt injection detection and output validation")
+    watch_parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     watch_parser.add_argument("--verify-determinism", action="store_true", help="Run twice and compare results")
     watch_parser.add_argument("--picoshogun-plugin", action="store_true", help="Run as PicoShogun plugin (ADR-005)")
     watch_sub = watch_parser.add_subparsers(dest="watch_command")
@@ -46,6 +47,8 @@ def cmd(args: argparse.Namespace) -> int:
     )
 
     watch_argv: list[str] = []
+    if getattr(args, "verbose", False):
+        watch_argv.append("--verbose")
     if getattr(args, "verify_determinism", False):
         watch_argv.append("--verify-determinism")
     if getattr(args, "picoshogun_plugin", False):

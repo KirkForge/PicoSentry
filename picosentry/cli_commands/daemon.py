@@ -22,15 +22,64 @@ def add_arguments(subparsers: argparse._SubParsersAction) -> None:
     )
     parser.add_argument(
         "--store-backend",
-        choices=["jsonl", "sqlite"],
+        choices=["jsonl", "sqlite", "redis"],
         default=None,
-        help="Job store backend: jsonl (default) or sqlite",
+        help="Job store backend: jsonl (default), sqlite or redis (PICODOME_REDIS_URL)",
     )
     parser.add_argument(
         "--metrics-port",
         type=int,
         default=None,
         help="Separate port for /metrics endpoint (default: same as API port)",
+    )
+    parser.add_argument(
+        "--cluster-token",
+        default="",
+        help="Shared secret required for cluster gossip membership (also PICODOME_CLUSTER_TOKEN env)",
+    )
+    parser.add_argument(
+        "--cluster-address",
+        default="",
+        help="Cluster gossip bind address (default: daemon host)",
+    )
+    parser.add_argument(
+        "--cluster-port",
+        type=int,
+        default=None,
+        help="Cluster gossip port (default: daemon port)",
+    )
+    parser.add_argument(
+        "--cluster-backend",
+        choices=["memory", "sqlite"],
+        default="memory",
+        help="Cluster state backend (default: memory)",
+    )
+    parser.add_argument(
+        "--cluster-heartbeat-interval",
+        type=int,
+        default=10,
+        help="Cluster heartbeat interval in seconds (default: 10)",
+    )
+    parser.add_argument(
+        "--cluster-heartbeat-timeout",
+        type=int,
+        default=30,
+        help="Cluster heartbeat timeout in seconds (default: 30)",
+    )
+    parser.add_argument(
+        "--cluster-tls-cert",
+        default="",
+        help="Client certificate path for TLS/mTLS gossip (also PICODOME_CLUSTER_TLS_CERT env)",
+    )
+    parser.add_argument(
+        "--cluster-tls-key",
+        default="",
+        help="Client private key path for TLS/mTLS gossip (also PICODOME_CLUSTER_TLS_KEY env)",
+    )
+    parser.add_argument(
+        "--cluster-tls-ca",
+        default="",
+        help="CA bundle path to verify peer certificates (also PICODOME_CLUSTER_TLS_CA env)",
     )
 
 

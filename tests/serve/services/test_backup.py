@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import tarfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -182,3 +183,33 @@ def test_restore_under_live_pool_swaps_state(tmp_path: Path, monkeypatch: pytest
     # the restored (pre-mutation) state.
     assert mgr.execute_one("SELECT v FROM state WHERE k = 'shape'")["v"] == "original"
     mgr.close()
+
+
+def test_concurrent_backups_same_second_use_distinct_temp_dirs(manager: BackupManager, tmp_path: Path) -> None:
+    """WO7.0.0-027: two backups in the same second must not collide on temp_dir."""
+    errors: list[BaseException] = []
+    results: list[dict] = []
+
+    def _do_backup(name: str) -> None:
+        try:
+            r = manager.create_backup(name=name, include_logs=False)
+            if r is not None:
+                results.append(r)
+        except BaseException as exc:
+            errors.append(exc)
+
+    threads = [
+        threading.Thread(target=_do_backup, args=("concurrent_a",)),
+        threading.Thread(target=_do_backup, args=("concurrent_b",)),
+    ]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=30)
+
+    assert errors == [], f"backup threads raised: {errors}"
+    assert len(results) == 2
+    paths = {Path(r["path"]) for r in results}
+    assert len(paths) == 2
+    for p in paths:
+        assert p.exists()

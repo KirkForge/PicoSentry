@@ -64,6 +64,14 @@ COMPONENT_STATUS: tuple[ComponentStatus, ...] = (
         ),
     ),
     ComponentStatus(
+        name="`picosentry firewall`",
+        status="Beta",
+        notes=(
+            "Registry proxy firewall; intercepts npm/PyPI install requests, scans package "
+            "metadata with PicoSentry, allows/quarantines/blocks"
+        ),
+    ),
+    ComponentStatus(
         name="`picosentry corpus`",
         status="Stable",
         notes="Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures",

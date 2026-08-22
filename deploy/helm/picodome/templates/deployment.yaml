@@ -125,7 +125,7 @@ spec:
             - name: PICODOME_TLS_CA
               value: "/tls/ca.crt"
             {{- end }}
-            {{- if .Values.persistence.enabled }}
+            {{- if or .Values.persistence.enabled (eq .Values.store.backend "sqlite") }}
             - name: PICODOME_JOB_STORE_DIR
               value: "/home/picodome/.picodome"
             {{- end }}
@@ -160,7 +160,7 @@ spec:
               mountPath: /tls
               readOnly: true
             {{- end }}
-            {{- if .Values.persistence.enabled }}
+            {{- if or .Values.persistence.enabled (eq .Values.store.backend "sqlite") }}
             - name: data
               mountPath: /home/picodome/.picodome
             {{- end }}
@@ -211,7 +211,7 @@ spec:
           secret:
             secretName: {{ .Values.mtls.existingTLSSecret | default (printf "%s-tls" (include "picodome.fullname" .)) }}
         {{- end }}
-        {{- if .Values.persistence.enabled }}
+        {{- if or .Values.persistence.enabled (eq .Values.store.backend "sqlite") }}
         - name: data
           persistentVolumeClaim:
             claimName: {{ include "picodome.fullname" . }}-data

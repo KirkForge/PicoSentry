@@ -1,4 +1,4 @@
-{{- if .Values.persistence.enabled }}
+{{- if or .Values.persistence.enabled (eq .Values.store.backend "sqlite") }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:

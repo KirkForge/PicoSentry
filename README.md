@@ -95,6 +95,7 @@ Also: `picosentry firewall` (registry metadata proxy), `daemon`, `admission`
 | `picosentry serve` | **Beta** | API server, dashboard, RBAC, multi-tenant Postgres backend — security review + regression tests in place. Auth hardening: MFA/TOTP enrollment, JWT `jti` revocation, account lockout, role-scoped API keys (`services/auth.py`) |
 | `picosentry daemon` | **Beta** | Sandbox-as-a-service; HTTP + gRPC; auth, rate limiting, TLS/mTLS, audit |
 | `picosentry admission` | **Beta** | K8s admission webhook; pod security validation + optional image scanning; fail-closed by default when image scanning is enabled; live-tested against a kind cluster |
+| `picosentry firewall` | **Beta** | Registry proxy firewall; intercepts npm/PyPI install requests, scans package metadata with PicoSentry, allows/quarantines/blocks |
 | `picosentry corpus` | **Stable** | Export/import/validate/list/sign IoC packs; 3 built-in packs; deterministic signatures |
 | Cross-layer correlation | **Stable** | Links findings across scan + sandbox + watch layers; persistence, dedup, and per-minute backpressure tested in CI |
 | Plugin system | **Stable** | Loads, validates, dispatches; Ed25519 signature verify against a configured trusted-key allowlist; unsigned plugins load only when signing is not required |
@@ -152,6 +153,7 @@ Everything technical is in **[docs/manual.md](docs/manual.md)**:
 [Internal API map](docs/manual.md#19-internal-api-map) ·
 [Extension guide](docs/manual.md#20-extension-guide) ·
 [Limitations & status](docs/manual.md#21-known-limitations-and-component-status) ·
+[Repository structure](docs/manual.md#22-repository-structure) ·
 [ADR index](docs/manual.md#23-appendix-adr-index)
 
 Reference files that stay standalone: generated per-rule benchmark table

@@ -71,11 +71,11 @@ def cmd(args: argparse.Namespace) -> int:
 
     if args.host:
         os.environ["PICOSHOGUN_API_HOST"] = args.host
-    if args.port:
+    if args.port is not None:
         os.environ["PICOSHOGUN_API_PORT"] = str(args.port)
     if args.reload:
         os.environ["PICOSHOGUN_API_RELOAD"] = "true"
-    if args.workers:
+    if args.workers is not None:
         os.environ["PICOSHOGUN_API_WORKERS"] = str(args.workers)
     if getattr(args, "require_signed_plugins", False):
         os.environ["PICOSHOGUN_REQUIRE_SIGNED_PLUGINS"] = "1"

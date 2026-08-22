@@ -139,6 +139,8 @@ class TestOSVCacheCaps:
             client._write_cache(key, [{"id": f"t{i}"}])
             os.utime(client._cache_path(key), (base + i, base + i))
 
+        client._enforce_caps()
+
         remaining = {p.name for p in tmp_path.glob("*.json")}
         assert len(remaining) == 3
         assert client._cache_path(client._cache_key("npm", "pkg-0")).name not in remaining

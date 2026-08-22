@@ -61,6 +61,9 @@ class OSVClient:
             os.environ.get("PICOSENTRY_OSV_NEGATIVE_TTL_SECONDS", str(DEFAULT_OSV_NEGATIVE_TTL_SECONDS))
         )
         self._swept = False  # one age/count sweep per client on first load
+        self._write_count = 0  # ponytail: gate _enforce_caps every N writes, not every write — O(N²)→O(N)
+
+    _ENFORCE_CAPS_EVERY = 50
 
     def _cache_key(self, ecosystem: str, package_name: str, version: str | None = None) -> str:
         # The OSV query is version-filtered, so the version must be part of the
@@ -127,7 +130,9 @@ class OSVClient:
         tmp = path.with_suffix(f".tmp.{os.getpid()}.{next(_TMP_SEQ)}")
         tmp.write_text(json.dumps(entry, sort_keys=True), encoding="utf-8")
         tmp.replace(path)
-        self._enforce_caps()
+        self._write_count += 1
+        if self._write_count % self._ENFORCE_CAPS_EVERY == 0:
+            self._enforce_caps()
 
     def _fetch(self, payload: dict) -> list[dict] | None:
         """Query OSV. Returns the raw OSV vuln records, or None on transport/API

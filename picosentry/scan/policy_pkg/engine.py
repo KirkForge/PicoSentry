@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,12 @@ from picosentry.scan.policy_pkg.models import (
 )
 
 logger = logging.getLogger("picosentry.policy")
+
+_PEP503_RE = re.compile(r"[-_.]+")
+
+
+def _pep503_normalize(name: str) -> str:
+    return _PEP503_RE.sub("-", name).lower()
 
 
 @dataclass
@@ -191,20 +198,22 @@ class Policy:
         if not self.deny_packages:
             return violations
 
+        denied_map: dict[str, str] = {}
+        for denied in self.deny_packages:
+            denied_map.setdefault(_pep503_normalize(self._parse_package_name(denied)), denied)
+
         for pkg in sorted(installed_packages):
             pkg_name = self._parse_package_name(pkg)
-            for denied in self.deny_packages:
-                d_name = self._parse_package_name(denied)
-                if d_name and d_name == pkg_name:
-                    violations.append(
-                        PolicyViolation(
-                            violation_type="deny_package",
-                            severity="ERROR",
-                            message=f"Package '{pkg}' is on the deny list",
-                            detail={"package": pkg, "denied": denied},
-                        )
+            matched = denied_map.get(_pep503_normalize(pkg_name))
+            if matched is not None:
+                violations.append(
+                    PolicyViolation(
+                        violation_type="deny_package",
+                        severity="ERROR",
+                        message=f"Package '{pkg}' is on the deny list",
+                        detail={"package": pkg, "denied": matched},
                     )
-                    break
+                )
 
         return violations
 

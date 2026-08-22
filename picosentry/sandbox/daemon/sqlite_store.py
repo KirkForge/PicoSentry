@@ -278,3 +278,20 @@ class SQLiteScanJobStore:
     def from_env(cls, max_jobs: int = 10000) -> SQLiteScanJobStore:
         db_path = os.environ.get("PICODOME_SQLITE_PATH")
         return cls(db_path=Path(db_path) if db_path else None, max_jobs=max_jobs)
+
+    def reconcile_on_start(self) -> int:
+        """WO7.0.0-018: mark stale running/queued jobs as failed on daemon boot."""
+        self._ensure_schema()
+        now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+        with self._lock:
+            conn = self._get_conn()
+            cursor = conn.execute(
+                """UPDATE jobs SET status = 'failed', error = 'ORPHANED_ON_RESTART', completed_at = ?
+                   WHERE status IN ('running', 'queued')""",
+                (now,),
+            )
+            conn.commit()
+            count = cursor.rowcount
+        if count:
+            logger.info("Reconciled %d orphaned job(s) on startup", count)
+        return count

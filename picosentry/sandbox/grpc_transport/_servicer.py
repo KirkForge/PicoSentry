@@ -20,7 +20,7 @@ class PicoDomeServicer:
         self._auth = auth
 
     def Scan(self, request, context):
-        self._audit_log("SCAN_START", detail=f"command={list(request.command)}")
+        self._audit_log("SCAN_START", detail=f"command={list(request.command)}", context=context)
 
         try:
             command = list(request.command) if hasattr(request, "command") else []
@@ -30,7 +30,7 @@ class PicoDomeServicer:
 
             deny_error = validate_command(command)
             if deny_error:
-                self._audit_log("SCAN_ERROR", detail=deny_error)
+                self._audit_log("SCAN_ERROR", detail=deny_error, context=context)
                 return self._reject(context, "PERMISSION_DENIED", deny_error)
 
             policy_name = request.policy if hasattr(request, "policy") else ""
@@ -39,7 +39,7 @@ class PicoDomeServicer:
 
             timeout = sanitize_scan_timeout(raw_timeout)
             if timeout is None:
-                self._audit_log("SCAN_ERROR", detail=f"invalid timeout: {raw_timeout!r}")
+                self._audit_log("SCAN_ERROR", detail=f"invalid timeout: {raw_timeout!r}", context=context)
                 return self._reject(context, "INVALID_ARGUMENT", "timeout must be a finite number")
 
             cwd = request.cwd if hasattr(request, "cwd") and request.cwd else None
@@ -48,7 +48,7 @@ class PicoDomeServicer:
 
                 confined = confine_cwd(cwd)
                 if confined is None:
-                    self._audit_log("SCAN_ERROR", detail=f"cwd outside workspace root: {cwd}")
+                    self._audit_log("SCAN_ERROR", detail=f"cwd outside workspace root: {cwd}", context=context)
                     return self._reject(context, "PERMISSION_DENIED", "cwd escapes workspace root")
                 cwd = str(confined)
 
@@ -69,7 +69,7 @@ class PicoDomeServicer:
             try:
                 tenant_id = self._resolve_tenant(context)
             except TenantMismatchError:
-                self._audit_log("SCAN_ERROR", detail="x-tenant does not match token's tenant")
+                self._audit_log("SCAN_ERROR", detail="x-tenant does not match token's tenant", context=context)
                 return self._reject(context, "PERMISSION_DENIED", "x-tenant does not match token's tenant")
 
             sandbox_result = self._scan_engine.scan(
@@ -109,6 +109,7 @@ class PicoDomeServicer:
                 "SCAN_COMPLETE",
                 detail=f"l3={sandbox_result.overall_verdict.value} l4={analysis_result.overall_verdict.value}"
                 f" tenant={tenant_id}",
+                context=context,
             )
 
             try:
@@ -142,7 +143,7 @@ class PicoDomeServicer:
                 # log it as a scan failure.
                 raise
             logger.exception("Scan RPC failed")
-            self._audit_log("SCAN_ERROR", detail=type(e).__name__)
+            self._audit_log("SCAN_ERROR", detail=type(e).__name__, context=context)
 
             error_result = {
                 "result_json": json.dumps({"error": "scan_failed"}),
@@ -358,7 +359,7 @@ class PicoDomeServicer:
             logger.debug("operator check failed", exc_info=True)
             return False
 
-    def _audit_log(self, event_type: str, detail: str = "") -> None:
+    def _audit_log(self, event_type: str, detail: str = "", context: Any = None) -> None:
         try:
             from picosentry.sandbox.audit import AuditEventType, get_audit_logger
 
@@ -368,10 +369,31 @@ class PicoDomeServicer:
                 et = AuditEventType(event_type)
             except ValueError:
                 et = AuditEventType.SCAN_START  # fallback
+
+            actor = "picodome-grpc"
+            metadata: dict[str, Any] | None = None
+            target = ""
+            if context is not None:
+                try:
+                    from picosentry.sandbox.grpc_transport.auth import bearer_token_from_metadata
+
+                    token = bearer_token_from_metadata(context.invocation_metadata())
+                    if token:
+                        import hashlib
+
+                        actor = hashlib.sha256(token.encode("utf-8")).hexdigest()[:16]
+                    tenant_id = self._resolve_tenant(context)
+                    if tenant_id:
+                        metadata = {"tenant_id": str(tenant_id)}
+                except Exception:
+                    logger.debug("audit actor/tenant resolution failed", exc_info=True)
+
             audit.record(
                 event_type=et,
-                actor="picodome-grpc",
+                actor=actor,
                 detail=detail,
+                target=target,
+                metadata=metadata,
             )
         except (OSError, RuntimeError, ValueError, TypeError, AttributeError):
             logger.debug("Audit log failed for event %s", event_type, exc_info=True)

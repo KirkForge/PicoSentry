@@ -1093,6 +1093,23 @@ MIGRATIONS: list[Migration] = [
             ON correlation_chains(org_id, artifact_id);
     """,
     ),
+    Migration(
+        25,
+        "alerts_acknowledged_column",
+        # WO7.0.0-028: acknowledge_alert used to set sent=1 (a delivery flag)
+        # instead of a separate acknowledged flag. Add acknowledged so the
+        # two states are independent. No semicolons in comments.
+        """
+        ALTER TABLE alerts ADD COLUMN acknowledged BOOLEAN DEFAULT 0;
+
+        CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts(acknowledged, created_at);
+    """,
+        postgres_sql="""
+        ALTER TABLE alerts ADD COLUMN IF NOT EXISTS acknowledged BOOLEAN DEFAULT FALSE;
+
+        CREATE INDEX IF NOT EXISTS idx_alerts_acknowledged ON alerts(acknowledged, created_at);
+    """,
+    ),
 ]
 
 

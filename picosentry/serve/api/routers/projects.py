@@ -210,7 +210,7 @@ async def acknowledge_alert(
         )
         if not alert:
             return None
-        db.execute_insert("UPDATE alerts SET sent = 1 WHERE id = ?", (alert_id,))
+        db.execute_insert("UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,))
         return alert_id
 
     if await asyncio.to_thread(_acknowledge) is None:

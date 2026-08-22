@@ -1042,6 +1042,57 @@ MIGRATIONS: list[Migration] = [
         ALTER TABLE event_outbox ALTER COLUMN created_at TYPE TIMESTAMPTZ;
     """,
     ),
+    Migration(
+        24,
+        "correlation_chains_unique_org_artifact",
+        # WO7.0.0-004: the bare UNIQUE on artifact_id collapsed two orgs
+        # ingesting the same artifact into one cached row — cross-tenant
+        # leak + lost scores. Drop it and add UNIQUE(org_id, artifact_id).
+        # SQLite cannot ALTER DROP CONSTRAINT, so recreate the table without
+        # the column-level UNIQUE. The old UNIQUE on artifact_id alone
+        # means no duplicate (org_id, artifact_id) pairs can exist, so the
+        # copy is safe with no dedup step. No semicolons in comments.
+        """
+        CREATE TABLE correlation_chains_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            artifact_id TEXT NOT NULL,
+            chain_score REAL NOT NULL DEFAULT 0.0,
+            severity TEXT NOT NULL DEFAULT 'INFO',
+            confidence TEXT NOT NULL DEFAULT 'LOW',
+            narrative TEXT,
+            event_count INTEGER NOT NULL DEFAULT 0,
+            phase_count INTEGER NOT NULL DEFAULT 0,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            org_id INTEGER
+        );
+
+        INSERT INTO correlation_chains_new
+            (id, artifact_id, chain_score, severity, confidence, narrative,
+             event_count, phase_count, updated_at, created_at, org_id)
+        SELECT id, artifact_id, chain_score, severity, confidence, narrative,
+               event_count, phase_count, updated_at, created_at, org_id
+        FROM correlation_chains;
+
+        DROP TABLE correlation_chains;
+        ALTER TABLE correlation_chains_new RENAME TO correlation_chains;
+
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_score
+            ON correlation_chains(chain_score DESC);
+        CREATE INDEX IF NOT EXISTS idx_correlation_chains_org
+            ON correlation_chains(org_id);
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_correlation_chains_org_artifact
+            ON correlation_chains(org_id, artifact_id);
+    """,
+        postgres_sql="""
+        ALTER TABLE correlation_chains
+            DROP CONSTRAINT IF EXISTS correlation_chains_artifact_id_key;
+        DROP INDEX IF EXISTS correlation_chains_artifact_id_key;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_correlation_chains_org_artifact
+            ON correlation_chains(org_id, artifact_id);
+    """,
+    ),
 ]
 
 

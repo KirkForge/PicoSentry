@@ -933,6 +933,11 @@ class TestHandlerPolicySignatureVerify:
         from picosentry.sandbox.l3.policy import _policy_from_dict
 
         store.save(_policy_from_dict(body_data), author="pytest", change_description="test")
+        # WO7.0.0-019: save() now signs when a key is configured; remove the
+        # companion signature to simulate an unsigned/tampered policy.
+        latest_sig = tmp_path / "unsigned-custom" / "latest.json.sig"
+        if latest_sig.is_file():
+            latest_sig.unlink()
 
         _make_handler(tmp_path, token="test-token-32-chars-long-for-perm")
         handler = _new_handler()

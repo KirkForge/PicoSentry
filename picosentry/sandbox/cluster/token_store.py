@@ -120,7 +120,10 @@ class ClusterTokenStore:
 
     def is_accepted(self, token: str) -> bool:
         with self._lock:
-            return token in self._accepted
+            if not token or not self._accepted:
+                return False
+            token_bytes = token.encode("utf-8")
+            return any(hmac.compare_digest(token_bytes, c.encode("utf-8")) for c in self._accepted)
 
     def _set_primary_locked(self, token: str) -> TokenInfo:
         """Promote ``token`` to primary; caller MUST hold ``self._lock``.

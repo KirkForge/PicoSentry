@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 import logging
 import os
+import threading
 from pathlib import Path
 
 from picosentry._core.security import constant_time_compare
@@ -87,6 +88,7 @@ class TokenAuth:
         self._token_hashes: set[str] = set()
 
         self._failed_attempts: dict[str, tuple[int, float]] = {}
+        self._failed_attempts_lock = threading.Lock()
         self._is_enterprise = _is_enterprise_mode()
         self._load_tokens()
 
@@ -173,7 +175,8 @@ class TokenAuth:
         # (WO5.0.0-018 documented ceiling).
         import time as _time
 
-        entry = self._failed_attempts.get(token_hash)
+        with self._failed_attempts_lock:
+            entry = self._failed_attempts.get(token_hash)
         if entry is None:
             return None
         attempts, last_time = entry
@@ -191,18 +194,21 @@ class TokenAuth:
     def _record_failure(self, token_hash: str) -> None:
         import time as _time
 
-        self._evict_stale_failures_if_needed()
-        entry = self._failed_attempts.get(token_hash)
-        if entry is None:
-            self._failed_attempts[token_hash] = (1, _time.monotonic())
-        else:
-            attempts, _ = entry
-            self._failed_attempts[token_hash] = (attempts + 1, _time.monotonic())
+        with self._failed_attempts_lock:
+            self._evict_stale_failures_if_needed()
+            entry = self._failed_attempts.get(token_hash)
+            if entry is None:
+                self._failed_attempts[token_hash] = (1, _time.monotonic())
+            else:
+                attempts, _ = entry
+                self._failed_attempts[token_hash] = (attempts + 1, _time.monotonic())
 
     def _clear_failures(self, token_hash: str) -> None:
-        self._failed_attempts.pop(token_hash, None)
+        with self._failed_attempts_lock:
+            self._failed_attempts.pop(token_hash, None)
 
     def _evict_stale_failures_if_needed(self) -> None:
+        # ponytail: caller MUST hold self._failed_attempts_lock.
         import time as _time
 
         if len(self._failed_attempts) < MAX_FAILED_ATTEMPTS_CACHE:

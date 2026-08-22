@@ -358,7 +358,7 @@ class EnhancedOrchestrator:  # rationale: async execution engine coordinating Pi
                 ),
             )
 
-            update_project_stats(project_id)
+            update_project_stats(project_id, org_id=org_id)
 
             metrics.project_run(project_id, duration, status, org_id=org_id)
 

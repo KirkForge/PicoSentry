@@ -93,6 +93,24 @@ def classify_path(path: str) -> tuple[str, str, str] | None:
     return None
 
 
+def _sanitize_pypi_name(name: str) -> str | None:
+    """Escape a URL-path package name for safe interpolation into TOML.
+
+    ``classify_path`` percent-decodes the path before regex match, so a
+    path like ``/pypi/evil%27%0a[tool.evil]%0acmd/json`` yields a name with
+    single quotes and newlines. Interpolating that into ``name = '{name}'``
+    closes the TOML string and starts a new section — TOML injection
+    (WO7-008). Strip the characters that break out of a single-quoted TOML
+    basic string (``'``, ``\\n``, ``\\r``, ``]``, ``#``); reject names that
+    still contain anything non-printable or empty after sanitization.
+    """
+    safe = name.replace("'", "").replace("\n", "").replace("\r", "").replace("]", "").replace("#", "")
+    safe = safe.strip()
+    if not safe or not safe.isprintable():
+        return None
+    return safe
+
+
 class FirewallScanner:
     def __init__(
         self,
@@ -156,10 +174,13 @@ class FirewallScanner:
                 pkg_file = tmp_path / "package.json"
                 pkg_file.write_text(json.dumps(manifest, indent=2))
             elif ecosystem == "pypi":
+                safe_name = _sanitize_pypi_name(name)
+                if safe_name is None:
+                    return FirewallVerdict.BLOCK, []
                 pkg_file = tmp_path / "pyproject.toml"
-                pkg_file.write_text(f"[project]\nname = '{name}'\n")
+                pkg_file.write_text(f"[project]\nname = '{safe_name}'\n")
                 req_file = tmp_path / "requirements.txt"
-                req_file.write_text(f"{name}=={version}")
+                req_file.write_text(f"{safe_name}=={version}")
                 meta_file = tmp_path / "pypi_metadata.json"
                 meta_file.write_text(json.dumps(manifest, indent=2))
             else:

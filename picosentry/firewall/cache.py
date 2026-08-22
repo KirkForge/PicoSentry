@@ -44,7 +44,7 @@ class VerdictCache:
             self._hits += 1
             return verdict
 
-    def put(self, ecosystem: str, name: str, version: str, verdict: object) -> None:
+    def put(self, ecosystem: str, name: str, version: str, verdict: object, ttl_override: int | None = None) -> None:
         key = (ecosystem, name, version)
         with self._lock:
             self._evict_expired()
@@ -52,7 +52,8 @@ class VerdictCache:
                 oldest = min(self._store, key=lambda k: self._store[k][0])
                 del self._store[oldest]
                 self._evictions += 1
-            self._store[key] = (time.monotonic() + self._ttl, verdict)
+            ttl = ttl_override if ttl_override is not None else self._ttl
+            self._store[key] = (time.monotonic() + ttl, verdict)
 
     def clear(self) -> None:
         with self._lock:

@@ -27,6 +27,10 @@ _STATIC_EXT_RE = re.compile(r"\.(ico|png|jpg|jpeg|gif|svg|css|js|woff|woff2|ttf|
 # picosentry scan's job on the downloaded tarball.
 _ARTIFACT_RULE_EXCLUSIONS = frozenset({"L2-LOCK-001", "L2-PNPM-001"})
 
+# WO7-009: UNRESOLVED gets a short TTL so a version published during the
+# negative-cache window is re-resolved quickly instead of blocked for an hour.
+_UNRESOLVED_TTL_SECONDS = 30
+
 
 def extract_version_manifest(metadata: dict, version: str) -> dict | None:
     """Return the requested version's manifest slice from a registry document.
@@ -166,7 +170,11 @@ class FirewallScanner:
             # Whole-catalog doc without the requested version: refuse instead of
             # scanning root fields (which would report a false ALLOW). The proxy
             # maps UNRESOLVED to 502 (WO6-017).
-            self._cache.put(ecosystem, name, version, (FirewallVerdict.UNRESOLVED, []))
+            # WO7-009: short TTL (30s) so a version published during the window
+            # is re-resolved instead of blocked for up to an hour.
+            self._cache.put(
+                ecosystem, name, version, (FirewallVerdict.UNRESOLVED, []), ttl_override=_UNRESOLVED_TTL_SECONDS
+            )
             return FirewallVerdict.UNRESOLVED, []
         with tempfile.TemporaryDirectory(prefix="picosentry_fw_") as tmp:
             tmp_path = Path(tmp)

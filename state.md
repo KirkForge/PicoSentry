@@ -2,23 +2,43 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-20, WO7.0.0 SEEDED — 34 WOs open for next session; v2.2.0 shipped) ═══
+# ═══ CURRENT STATE (2026-08-22, WO7.0.0 COMPLETE — 34/34 DONE; v2.2.0 shipped; main = dev = 8c3a68e2, both green) ═══
 
-**v2.2.0 published and verified on PyPI** (wheel `5b70b9fa…`, sdist `8fcf18a6…`, digests byte-verified, reproducible two-build). **main = dev = `7d2e0791`, both green** (main CI run 32414140889, success). Tag `v2.2.0` pushed. WO6.0.0 series fully CLOSED (22/22 DONE + deferred riders landed). WO7.0.0 series seeded (34 WOs) — the next session's queue.
+**WO7.0.0 series fully CLOSED** (34/34 DONE). Three waves of 2 subagents each (P0: 6 WOs, P1: 22 WOs, P2: 6 WOs), 6 worktrees total off `origin/dev`. Zero merge conflicts (disjoint file ownership verified pre-merge each wave). Orchestrator landed 3 riders (org_id threading, health probe lightweight, test fixes for health 503 on CI). Central gate green each wave: P0 5678, P1 5806, P2 **5854 passed / 0 failed / 37 skipped**. ruff/format/mypy clean (747 files, 417 source files). **main = dev = `8c3a68e2`, both green** (P2 push CI run 32587754827, all jobs success: 5-Python matrix 3.10–3.14, PG 15-18, reproducible-build, landlock-real-exec, docker amd64+arm64). WO6.0.0 and WO5.0.0 also fully closed.
 
-**WO7.0.0 series (34 WOs: P0×6, P1×22, P2×6)** in `docs/workorders/`. Six read-only explorers (scan / sandbox / serve / watch+firewall / core-CLI-CI / cross-cutting seam hunter) found ~57 verified findings → triaged into 34 WOs. Headline P0s: OSV `crates.io` drop (ALL Rust advisories silently dropped in connected mode), sandbox HTTP /health bypasses check_health(), gRPC Scan audit not tenant-tagged, correlation_chains UNIQUE clobbers cross-tenant scores, project_stats cross-tenant count, firewall encoded-dot SSRF. Suggested batch shape in README.
-
-**Deferred riders landed this session**: WO6-014 TOCTOU (lock-held promotion), WO5-031 serve helm chart (templates present but missing PVC/SA/RBAC — WO7-024), WO5-029 12% perf gating win (<1s/MB target still open). Two CI bugs fixed en route: migration 23 comment semicolons broke pg-live, outbox poller test fake didn't filter by seq>last on 3.14.
+**Migrations landed this session**: 24 (correlation_chains UNIQUE(org_id, artifact_id)), 25 (alerts `acknowledged` column separate from `sent`).
 
 **Standing context**: green-before-ff rule in AGENTS.md §1.5; WO5 remainders: docker push (tooling-gated, runbook in WO5-014), WO5-029 <1s/MB target (12% landed, full fused pass pending), WO5-031 e2e isolation (core + helm chart landed, 2-worker e2e pending). Next free series: WO8.0.0.
 
 **The queue (next session — jump-in order)**:
-1. **WO7.0.0 P0 cluster** (6 WOs): scan 001/006 + sandbox 002/003 + serve 004/005 — security/correctness, do first
-2. **WO7.0.0 P1 wave** (22 WOs): scan cluster (007/009-013) + sandbox cluster (014-020) + watch (021/022) + serve (027/028) + core (023-025) + firewall (008/010)
-3. **WO7.0.0 P2 riders** (6 WOs): 029-034
-4. **WO5 remainders**: docker push (when tooling exists), WO5-029 fused-pass target, WO5-031 e2e isolation
+1. **WO5 remainders**: docker push (when tooling exists), WO5-029 fused-pass target, WO5-031 e2e isolation
+2. **WO8.0.0 exploration round**: dispatch 6 read-only explorers to seed the next series (scan / sandbox / serve / watch+firewall / core-CLI-CI / cross-cutting)
+3. **Release v2.3.0** when ready (dev ~35 commits ahead of main before the ff; WO7.0.0 is a significant security/correctness wave — warrants a release)
 
 # ═══ SESSION HISTORY ═══
+
+## Session 2026-08-22 (n): WO7.0.0 execution wave — 34/34 DONE, 3 waves of 2 subagents — COMPLETE
+
+### Method
+3 waves of 2 subagent worktrees each off `origin/dev`: P0 (scan+firewall / sandbox+serve), P1 (scan+firewall+watch+deploy / sandbox+serve+core), P2 (scan / serve+core+deploy). Each subagent got exclusive file ownership (verified pre-merge with `comm -12` overlap check). Orchestrator merged each wave with `--no-ff` (zero conflicts), ran central gates, pushed dev, waited for push CI green at the exact headSha (verified by databaseId + headSha), then ff'd main. 3 orchestrator riders landed centrally: (1) `update_project_stats(project_id, org_id=org_id)` threading in orchestrator.py:361, (2) health probe lightweight — `check_health()` no longer calls `verify_chain()` (was 2.7s on a 23k-event audit log; now a file-exists check), (3) test_daemon_hardening + test_daemon_handler adapted for health 503 on CI runners without a sandbox backend.
+
+### Gate (final — dev head `8c3a68e2`)
+- ruff: All checks passed! · format: 747 files already formatted · mypy: 417 source files clean
+- `bash scripts/test.sh fast`: **5854 passed, 37 skipped, 0 failed** in 302s
+- Push CI run 32587754827: **all jobs success** (5-Python matrix 3.10–3.14, PG 15-18, docker amd64+arm64, reproducible-build, landlock-real-exec, scan-artifacts-push)
+- P0 CI (run 32581044576 at `375b8a33`): success; P1 CI (run 32585837794 at `0cde128c`): success; P2 CI (run 32587754827 at `8c3a68e2`): success
+
+### Notable
+- The disjoint-file-ownership check before each wave's merge is what made 6 clean merges possible — verify with `comm -12`, not by reading scopes.
+- WO7-002 exposed a pre-existing perf issue: `check_health()` called `audit.get_stats()` which calls `verify_chain()` — O(n) over the entire audit log on EVERY /health request. The fix makes the health probe lightweight (file-exists + last-line-parseable), not a full chain walk. Full `verify_chain` is available via CLI `--verify` and the admin `/admin/audit/verify` endpoint.
+- The `test_daemon_hardening.py` and `test_daemon_handler.py` tests that asserted `status == "healthy"` on `/health` were updated to accept `503` — on CI runners without a sandbox backend (no landlock/seccomp), `check_health()` correctly reports unhealthy. The test purpose is rate-limit exemption, not the health verdict.
+- WO7-005 rider: the subagent made `update_project_stats` accept `org_id` as an optional parameter, but the caller (`orchestrator.py:361`) didn't pass it. The orchestrator landed the 1-line fix centrally (`update_project_stats(project_id, org_id=org_id)`).
+
+### Pending / next
+WO5 remainders: docker push (tooling-gated), WO5-029 fused-pass target, WO5-031 e2e isolation. Next free series: WO8.0.0. Release v2.3.0 warranted (WO7 is a significant security/correctness wave).
+
+### Blocked
+- Docker Hub push (tooling + credentials) — WO5.0.0-014, runbook recorded.
 
 ## Session 2026-08-20 (m): deferred riders + v2.2.0 release + WO7.0.0 seeded — COMPLETE
 

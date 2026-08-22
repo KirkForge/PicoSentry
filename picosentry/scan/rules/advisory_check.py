@@ -336,13 +336,34 @@ def _is_package_reachable(target: Path, pkg_name: str, ecosystem: str) -> bool:
     Greps the scanned project's source files (excluding vendored deps, lockfiles,
     and manifests) for the package's import name. When no source files exist or
     the ecosystem has no source mapping, defaults to True (backward compat).
+
+    The source-tree walk + import extraction is memoized per ``target`` so a
+    scan that checks many packages only walks the tree once, building one
+    import-name set per ecosystem and checking each package against it in O(1)
+    (O(packages + files) instead of O(packages x files); WO7-032).
     """
     if not target.is_dir():
         return True
 
-    patterns = _import_patterns(pkg_name, ecosystem)
-    if not patterns:
+    imports = _import_map(target).get(ecosystem)
+    if imports is None:
         return True
+
+    return _package_in_imports(pkg_name, ecosystem, imports)
+
+
+_import_map_cache: dict[str, dict[str, set[str]]] = {}
+
+
+def _import_map(target: Path) -> dict[str, set[str]]:
+    cache_key = str(target.resolve())
+    cached = _import_map_cache.get(cache_key)
+    if cached is not None:
+        return cached
+
+    pypi_imports: set[str] = set()
+    npm_imports: set[str] = set()
+    word_imports: set[str] = set()
 
     for file in target.rglob("*"):
         if not file.is_file() or file.is_symlink():
@@ -355,31 +376,65 @@ def _is_package_reachable(target: Path, pkg_name: str, ecosystem: str) -> bool:
             text = file.read_text(encoding="utf-8", errors="replace")
         except OSError:
             continue
-        for pattern in patterns:
-            if pattern.search(text):
-                return True
-    return False
+
+        if file.suffix == ".py":
+            pypi_imports.update(_extract_py_imports(text))
+            word_imports.update(re.findall(r"\b[A-Za-z_][\w.-]*\b", text))
+        elif file.suffix in (".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx"):
+            npm_imports.update(_extract_npm_imports(text))
+            word_imports.update(re.findall(r"\b[A-Za-z_][\w.-]*\b", text))
+        else:
+            word_imports.update(re.findall(r"\b[A-Za-z_][\w.-]*\b", text))
+
+    result = {
+        "pypi": pypi_imports,
+        "npm": npm_imports,
+        "go": word_imports,
+        "cargo": word_imports,
+        "maven": word_imports,
+        "nuget": word_imports,
+        "rubygems": word_imports,
+    }
+    _import_map_cache[cache_key] = result
+    return result
 
 
-def _import_patterns(pkg_name: str, ecosystem: str) -> list[re.Pattern]:
-    """Build regexes that match an import/require of ``pkg_name`` in source."""
+_PY_IMPORT_RE = re.compile(r"^\s*(?:import\s+(\S+)|from\s+(\S+)\s+import)", re.MULTILINE)
+_NPM_IMPORT_RE = re.compile(
+    r"""(?:require\(\s*['"]([^'"]+)['"]\s*\)|from\s+['"]([^'"]+)['"]|import\s+['"]([^'"]+)['"])"""
+)
+
+
+def _extract_py_imports(text: str) -> set[str]:
+    names: set[str] = set()
+    for m in _PY_IMPORT_RE.finditer(text):
+        mod = m.group(1) or m.group(2)
+        if mod:
+            root = mod.split(".", 1)[0].replace("-", "_").replace(" ", "_")
+            names.add(root.lower())
+    return names
+
+
+def _extract_npm_imports(text: str) -> set[str]:
+    names: set[str] = set()
+    for m in _NPM_IMPORT_RE.finditer(text):
+        name = m.group(1) or m.group(2) or m.group(3)
+        if name:
+            if name.startswith("@"):
+                names.add(name.lower())
+            else:
+                names.add(name.split("/", 1)[0].lower())
+    return names
+
+
+def _package_in_imports(pkg_name: str, ecosystem: str, imports: set[str]) -> bool:
     if ecosystem == "pypi":
-        mod = pkg_name.replace("-", "_").replace(".", "_")
-        return [
-            re.compile(rf"\bimport\s+{re.escape(mod)}\b"),
-            re.compile(rf"\bfrom\s+{re.escape(mod)}\b"),
-        ]
+        return pkg_name.replace("-", "_").replace(".", "_").lower() in imports
     if ecosystem == "npm":
-        return [
-            re.compile(rf"require\(\s*['\"]{re.escape(pkg_name)}['\"]\s*\)"),
-            re.compile(rf"from\s+['\"]{re.escape(pkg_name)}['\"]"),
-            re.compile(rf"import\s+['\"]{re.escape(pkg_name)}['\"]"),
-        ]
-    if ecosystem == "go":
-        return [re.compile(rf"\b{re.escape(pkg_name)}\b")]
-    if ecosystem in ("cargo", "maven", "nuget", "rubygems"):
-        return [re.compile(rf"\b{re.escape(pkg_name)}\b")]
-    return []
+        if pkg_name.startswith("@"):
+            return pkg_name.lower() in imports
+        return pkg_name.split("/", 1)[0].lower() in imports
+    return pkg_name in imports
 
 
 def _check_packages(
@@ -546,6 +601,8 @@ def detect_all_advisory_vulnerabilities(
     if db is None:
         logger.debug("No advisory DB loaded — skipping advisory check")
         return findings
+
+    _import_map_cache.clear()
 
     connected = intelligence_mode == IntelligenceMode.CONNECTED.value
     osv_client = OSVClient() if connected else None

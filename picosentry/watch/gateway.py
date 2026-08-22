@@ -338,7 +338,18 @@ def create_gateway_app(
                         "picowatch": {"profile": profile.name, "output_scanned": False},
                     },
                 )
-            return forwarded
+            # WO7-021: add picowatch metadata so downstream can distinguish
+            # "scanned clean" from "unscanned" — the raw passthrough had no
+            # picowatch block, making a non-JSON 200 look like a clean scan.
+            return Response(
+                content=forwarded.body,
+                status_code=forwarded.status_code,
+                media_type=forwarded.headers.get("content-type", "application/json"),
+                headers={
+                    "X-Picowatch-Output-Scanned": "false",
+                    "X-Picowatch-Profile": profile.name,
+                },
+            )
         # Every delivered token must be validated (WO5.0.0-013): n>1
         # completions and tool-call arguments are part of what the client
         # executes — scanning only choices[0].message.content attested

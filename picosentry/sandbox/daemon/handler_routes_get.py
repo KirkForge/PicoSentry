@@ -181,8 +181,24 @@ class PicoDomeGetRoutesMixin:
             logger.debug("Redis health check failed, using in-memory fallback", exc_info=True)
             redis_health = {"connected": False, "mode": "in-memory"}
 
+        # WO7.0.0-002: HTTP /health used to return {"status": "healthy"} 200
+        # unconditionally — never calling check_health(). A dead sandbox kept
+        # receiving LB traffic. Mirror the gRPC Health() verdict: call
+        # check_health() and report the real subsystem state.
+        all_healthy = True
+        checks_data: list[dict[str, Any]] = []
+        try:
+            from picosentry.sandbox.health import check_health
+
+            checks = check_health()
+            all_healthy = all(c.healthy for c in checks)
+            checks_data = [c.to_dict() for c in checks]
+        except (OSError, RuntimeError, ValueError, TypeError, ImportError):
+            logger.debug("check_health() failed, defaulting to healthy", exc_info=True)
+
         health_data: dict[str, Any] = {
-            "status": "healthy",
+            "status": "healthy" if all_healthy else "unhealthy",
+            "checks": checks_data,
         }
 
         if not _ENTERPRISE_MODE:
@@ -191,7 +207,7 @@ class PicoDomeGetRoutesMixin:
             health_data["uptime_seconds"] = uptime
             health_data["redis"] = redis_health
 
-        self._send_json(health_data)
+        self._send_json(health_data, status=200 if all_healthy else 503)
 
     def _handle_ready(self: PicoDomeHandler) -> None:
 

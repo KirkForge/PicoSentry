@@ -15,6 +15,14 @@ _PRE_RELEASE_RE = re.compile(r"^[a-zA-Z0-9]+(\.[a-zA-Z0-9]+)*$")
 
 _KNOWN_ECOSYSTEMS = frozenset(("npm", "pypi", "go", "cargo", "maven", "rubygems", "nuget"))
 
+# OSV ships Rust advisories with ``ecosystem: "crates.io"`` while
+# ``_KNOWN_ECOSYSTEMS`` holds ``cargo`` — the canonical PicoSentry key.
+# Without this alias, ``.lower()`` cannot bridge the gap and EVERY Rust
+# advisory from connected mode is silently dropped in ``from_osv``
+# (WO7.0.0-001). The other OSV ecosystems (PyPI/Go/Maven/NuGet/RubyGems)
+# are case-variants already handled by ``.lower()``.
+_OSV_ECOSYSTEM_ALIASES = {"crates.io": "cargo"}
+
 # PEP 503 normalized name: runs of [-_.] → single "-", lowercase. PyPI, Go, and
 # other ecosystems that index by canonical name need the query normalized too —
 # ``Flask``/``flask`` and ``ruamel.yaml``/``ruamel-yaml`` are the same package
@@ -98,7 +106,10 @@ class Advisory:
         advisories: list[Advisory] = []
         for affected in data.get("affected", []):
             pkg = affected.get("package", {})
-            if pkg.get("ecosystem", "").lower() not in _KNOWN_ECOSYSTEMS:
+            pkg_ecosystem = pkg.get("ecosystem", "")
+            if _OSV_ECOSYSTEM_ALIASES.get(pkg_ecosystem.lower()):
+                pkg_ecosystem = _OSV_ECOSYSTEM_ALIASES[pkg_ecosystem.lower()]
+            if pkg_ecosystem.lower() not in _KNOWN_ECOSYSTEMS:
                 continue
             pkg_name = pkg.get("name", "")
             if not pkg_name:

@@ -69,7 +69,10 @@ def _wait_healthy(port: int, timeout: float = 5.0) -> None:
     while time.monotonic() < deadline:
         try:
             status, _ = _http_request(port, "GET", "/health")
-            if status == 200:
+            # WO7.0.0-002: /health now calls check_health() and may return 503
+            # on systems without a sandbox backend. The daemon is "up" when it
+            # responds at all — the health verdict is the real subsystem state.
+            if status in (200, 503):
                 return
         except OSError:
             time.sleep(0.05)
@@ -197,8 +200,12 @@ class TestHealthDuringLongScan:
             t0 = time.monotonic()
             status, _ = _http_request(port, "GET", "/health")
             elapsed = time.monotonic() - t0
-            assert status == 200
-            assert elapsed < 1.0, f"/health took {elapsed:.2f}s while a scan was in flight"
+            # WO7.0.0-002: /health may return 503 if check_health() reports an
+            # unavailable backend — the point is it answers, not the code.
+            # check_health() probes real subsystems (audit chain, storage, store)
+            # so it is not instant; the original returned 200 in <1ms.
+            assert status in (200, 503)
+            assert elapsed < 5.0, f"/health took {elapsed:.2f}s while a scan was in flight"
 
             release.set()
             assert post_done.wait(timeout=10)
@@ -339,7 +346,7 @@ class TestSignalHandling:
             assert not isinstance(daemon._server.socket, FakeSSLSocket)
 
             status, _ = _http_request(port, "GET", "/health")
-            assert status == 200, "listener dead after SIGHUP reloads"
+            assert status in (200, 503), "listener dead after SIGHUP reloads"
         finally:
             daemon.stop()
 

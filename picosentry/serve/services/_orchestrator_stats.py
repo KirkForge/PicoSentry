@@ -24,18 +24,34 @@ def get_threat_score(intel: Any) -> dict[str, Any]:
     }
 
 
-def update_project_stats(project_id: str) -> None:
-    stats = db.execute_one(
-        """
-        SELECT
-            COUNT(*) as total,
-            SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
-            AVG(duration_seconds) as avg_dur
-        FROM project_runs
-        WHERE project_id = ?
-    """,
-        (project_id,),
-    )
+def update_project_stats(project_id: str, org_id: int | None = None) -> None:
+    # WO7.0.0-005: the SELECT had only project_id in WHERE — every org's runs
+    # blended into one count for shared/global projects. Filter by the caller's
+    # org_id so the count reflects only that org's runs.
+    if org_id is None:
+        stats = db.execute_one(
+            """
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
+                AVG(duration_seconds) as avg_dur
+            FROM project_runs
+            WHERE project_id = ? AND org_id IS NULL
+        """,
+            (project_id,),
+        )
+    else:
+        stats = db.execute_one(
+            """
+            SELECT
+                COUNT(*) as total,
+                SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as success,
+                AVG(duration_seconds) as avg_dur
+            FROM project_runs
+            WHERE project_id = ? AND org_id = ?
+        """,
+            (project_id, org_id),
+        )
 
     if stats:
         success_rate = (stats["success"] / stats["total"] * 100) if stats["total"] > 0 else 0

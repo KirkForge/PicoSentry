@@ -151,26 +151,71 @@ def _persist_chains_cache_impl(engine) -> int:
         for (_org_id, artifact_id), chain in list(engine._chains.items()):
             event_count = sum(len(e) for e in chain.phases.values())
             phase_count = len(chain.phases)
-            # ponytail: correlation_chains is keyed by artifact_id (UNIQUE), so
-            # the same artifact owned by two orgs collapses to one cached row —
-            # the DB table is a report cache; the engine keeps per-org truth.
             chain_org = int(_org_id) if _org_id is not None else None
             try:
-                if db.backend == "postgres":
-                    db.execute(
+                # WO7.0.0-004: the cache key is (org_id, artifact_id) not just
+                # artifact_id — the bare UNIQUE collapsed cross-tenant rows.
+                # The WHERE must match both columns and SET must include org_id
+                # so a second org's write does not clobber the first's org_id.
+                if chain_org is None:
+                    existing = db.execute_one(
+                        f"SELECT 1 FROM correlation_chains WHERE org_id IS NULL AND artifact_id = {ph}",
+                        (artifact_id,),
+                    )
+                else:
+                    existing = db.execute_one(
+                        f"SELECT 1 FROM correlation_chains WHERE org_id = {ph} AND artifact_id = {ph}",
+                        (chain_org, artifact_id),
+                    )
+                if existing:
+                    if chain_org is None:
+                        db.execute(
+                            f"""
+                            UPDATE correlation_chains
+                            SET chain_score = {ph}, severity = {ph}, confidence = {ph},
+                                narrative = {ph}, event_count = {ph}, phase_count = {ph},
+                                org_id = {ph}, updated_at = CURRENT_TIMESTAMP
+                            WHERE org_id IS NULL AND artifact_id = {ph}
+                        """,
+                            (
+                                chain.chain_score,
+                                chain.severity.value,
+                                chain.confidence.value,
+                                chain.narrative,
+                                event_count,
+                                phase_count,
+                                chain_org,
+                                artifact_id,
+                            ),
+                        )
+                    else:
+                        db.execute(
+                            f"""
+                            UPDATE correlation_chains
+                            SET chain_score = {ph}, severity = {ph}, confidence = {ph},
+                                narrative = {ph}, event_count = {ph}, phase_count = {ph},
+                                org_id = {ph}, updated_at = CURRENT_TIMESTAMP
+                            WHERE org_id = {ph} AND artifact_id = {ph}
+                        """,
+                            (
+                                chain.chain_score,
+                                chain.severity.value,
+                                chain.confidence.value,
+                                chain.narrative,
+                                event_count,
+                                phase_count,
+                                chain_org,
+                                chain_org,
+                                artifact_id,
+                            ),
+                        )
+                else:
+                    db.execute_insert(
                         f"""
                         INSERT INTO correlation_chains
                         (artifact_id, chain_score, severity, confidence,
                          narrative, event_count, phase_count, org_id)
                         VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-                        ON CONFLICT (artifact_id) DO UPDATE SET
-                            chain_score = EXCLUDED.chain_score,
-                            severity = EXCLUDED.severity,
-                            confidence = EXCLUDED.confidence,
-                            narrative = EXCLUDED.narrative,
-                            event_count = EXCLUDED.event_count,
-                            phase_count = EXCLUDED.phase_count,
-                            updated_at = CURRENT_TIMESTAMP
                     """,
                         (
                             artifact_id,
@@ -183,49 +228,6 @@ def _persist_chains_cache_impl(engine) -> int:
                             chain_org,
                         ),
                     )
-                else:
-                    existing = db.execute_one(
-                        "SELECT 1 FROM correlation_chains WHERE artifact_id = ?",
-                        (artifact_id,),
-                    )
-                    if existing:
-                        db.execute(
-                            f"""
-                            UPDATE correlation_chains
-                            SET chain_score = {ph}, severity = {ph}, confidence = {ph},
-                                narrative = {ph}, event_count = {ph}, phase_count = {ph},
-                                updated_at = CURRENT_TIMESTAMP
-                            WHERE artifact_id = {ph}
-                        """,
-                            (
-                                chain.chain_score,
-                                chain.severity.value,
-                                chain.confidence.value,
-                                chain.narrative,
-                                event_count,
-                                phase_count,
-                                artifact_id,
-                            ),
-                        )
-                    else:
-                        db.execute_insert(
-                            f"""
-                            INSERT INTO correlation_chains
-                            (artifact_id, chain_score, severity, confidence,
-                             narrative, event_count, phase_count, org_id)
-                            VALUES ({ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph}, {ph})
-                        """,
-                            (
-                                artifact_id,
-                                chain.chain_score,
-                                chain.severity.value,
-                                chain.confidence.value,
-                                chain.narrative,
-                                event_count,
-                                phase_count,
-                                chain_org,
-                            ),
-                        )
                 count += 1
             except _PERSIST_ERRORS as e:
                 logger.debug("Chain persist skip for %s: %s", artifact_id, e)

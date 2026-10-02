@@ -54,18 +54,25 @@ DEFAULT_RULES: list = [
     },
     {
         # ceiling: this path list is a *grant ceiling*, not a blanket
-        # "nothing else may be written" promise. LandlockBackend honours it
-        # (LANDLOCK_RULE_PATH_BENEATH, tightened to the workspace); seccomp-bpf
-        # cannot — it filters syscalls and has no path awareness, so under
-        # seccomp a workload may create a file anywhere the kernel permits
-        # (measured: a $HOME write succeeds). Keep the description honest about
-        # which backend actually enforces it. Upgrade path: seatbelt (macOS)
-        # also scopes by path; there is no seccomp equivalent.
+        # "nothing else may be written" promise, and neither backend implements
+        # it literally. seccomp-bpf cannot — it filters syscalls and has no
+        # path awareness, so under seccomp a workload may create a file
+        # anywhere the kernel permits (measured: a $HOME write succeeds).
+        # landlock scopes by path, but tighter than this text reads: an
+        # allow-path that is an ancestor of the workspace (e.g. this /tmp/**)
+        # is narrowed to the workspace itself, and unbounded globs /
+        # path-blind allows are refused outright. Net effect under landlock is
+        # workspace + the listed non-ancestor paths (the /dev stdio trio).
+        # Keep the description honest about all of that. Upgrade path: seatbelt
+        # (macOS) also scopes by path; there is no seccomp equivalent.
         "rule_id": "L3-FILE-W-001",
         "target": "file_write",
         "action": "allow",
         "paths": ["/tmp/**", "/dev/null", "/dev/stdout", "/dev/stderr"],
-        "description": "Write grants for temp and stdio (path-scoped under landlock; seccomp-bpf cannot scope by path)",
+        "description": (
+            "Write grants: landlock scopes to the workspace + listed paths "
+            "(a /tmp glob tightens to the workspace); seccomp-bpf cannot scope by path"
+        ),
     },
     {
         "rule_id": "L3-NET-OUT-001",

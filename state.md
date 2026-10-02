@@ -2,7 +2,7 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-08-23, v2.2.0 shipped; WO7+WO8 complete; main = a0b9d9d3, dev = e79f0469) ═══
+# ═══ CURRENT STATE (2026-10-02, recurring CI gates fixed; dev = 0c5a1853) ═══
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 
@@ -23,6 +23,40 @@
 - **Next explorer round**: WO9.0.0 series (next free series) — no WOs seeded yet. Areas worth probing: WO5-029 fused-pass target, WO5-031 2-worker e2e, watch slow-tier non-typosquat rule cost (155s), any regressions from WO8.
 
 **Blocked**: Docker Hub push (tooling + credentials) — WO5.0.0-014.
+
+**2026-10-02 — recurring red gates fixed (dev `0c5a1853`)**: four failures in the
+scheduled PicoSentry CI resolved at source — `dependency-audit` died in
+`ensurepip` (now `uvx`); the audit that finally ran exposed 18 real CVEs
+(PyJWT floor -> `>=2.15.0`, lock: pyjwt 2.15.1 / urllib3 2.8.0 / anyio
+4.14.2+4.15.1, re-audit clean); `test_validation_report_is_deterministic` blew a
+hardcoded `timeout(180)` that predated the 5,667-fixture corpus (one pass is
+213s) — read-only consumers now share a cached `run_validation()` while the
+determinism test keeps two real passes; and
+`test_fail_closed_policy_rejects_fallback` read the overloaded
+`SandboxResult.degraded` flag as "backend degraded" when the seccomp exec path
+uses it for the 126/127 exit-ambiguity marker (WO5.0.0-019), demanding an
+L3-SANDBOX-DEGRADE event that is correct not to exist. Gates: ruff/format/mypy
+clean, `scripts/test.sh fast` 5965 passed / 37 skipped. Branch protection on
+`main`+`dev` now requires real PR contexts under Actions app 15368 (the old
+`postgres-live-test (15)/(16)` + `PicoDome Admission Real-Cluster Matrix` contexts
+were push/schedule-only and could never satisfy a PR).
+
+**ESCALATE (needs a decision, security-shaped, not guessed)**: seccomp-bpf cannot
+express path-scoped filesystem rules, but `L3-FILE-W-001` advertises "Write to
+temp and stdio only" with a `/tmp/**` allowlist. Measured: a workload under the
+default policy can create a file in `$HOME` (seccomp does not block it), and
+`test_sandbox_blocks_file_write` — which sits in `TestSeccompBackend` and asserts
+exactly that path-scoped blocking — only ever passed because a leftover
+`/tmp/seccomp_test_should_be_blocked` from a previous run made `touch` take the
+`utimensat` path. LandlockBackend can enforce paths (`LANDLOCK_RULE_PATH_BENEATH`)
+and has no file-write test at all. Open: (1) does the policy overclaim, or is
+seccomp the wrong backend to trust for it, (2) move the test to the landlock
+suite? Details + the fix I got wrong in `lessons.md`. **Deterministic, not a
+flake** (proven both ways): the test passes iff a stale
+`/tmp/seccomp_test_should_be_blocked` exists, so it is red on every clean
+machine and fresh CI checkout. Any "green" fast-suite number quoted for this
+head is only valid on a box that already ran the suite — re-verify from a clean
+`/tmp` before trusting it.
 
 # ═══ SESSION HISTORY ═══
 

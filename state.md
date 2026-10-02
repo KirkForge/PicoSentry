@@ -41,7 +41,7 @@ clean, `scripts/test.sh fast` 5965 passed / 37 skipped. Branch protection on
 `postgres-live-test (15)/(16)` + `PicoDome Admission Real-Cluster Matrix` contexts
 were push/schedule-only and could never satisfy a PR).
 
-**ESCALATE (needs a decision, security-shaped, not guessed)**: seccomp-bpf cannot
+**ESCALATE — RESOLVED 2026-10-02 (was: needs a decision, security-shaped)**: seccomp-bpf cannot
 express path-scoped filesystem rules, but `L3-FILE-W-001` advertises "Write to
 temp and stdio only" with a `/tmp/**` allowlist. Measured: a workload under the
 default policy can create a file in `$HOME` (seccomp does not block it), and
@@ -49,7 +49,10 @@ default policy can create a file in `$HOME` (seccomp does not block it), and
 exactly that path-scoped blocking — only ever passed because a leftover
 `/tmp/seccomp_test_should_be_blocked` from a previous run made `touch` take the
 `utimensat` path. LandlockBackend can enforce paths (`LANDLOCK_RULE_PATH_BENEATH`)
-and has no file-write test at all. Open: (1) does the policy overclaim, or is
+and already tests it
+(`test_write_outside_workspace_gets_eacces`, real-exec: non-zero exit + EACCES +
+file-not-created — this session initially and wrongly claimed landlock had no
+file-write test; it did, and better than the misfiled seccomp test). Open: (1) does the policy overclaim, or is
 seccomp the wrong backend to trust for it, (2) move the test to the landlock
 suite? Details + the fix I got wrong in `lessons.md`. **Deterministic, not a
 flake** (proven both ways): the test passes iff a stale
@@ -57,6 +60,15 @@ flake** (proven both ways): the test passes iff a stale
 machine and fresh CI checkout. Any "green" fast-suite number quoted for this
 head is only valid on a box that already ran the suite — re-verify from a clean
 `/tmp` before trusting it.
+
+**Resolution (2026-10-02)**: user ruled no overclaims — `L3-FILE-W-001`'s description now states
+plainly that its `/tmp/**` list is a grant ceiling that landlock scopes by path and seccomp-bpf
+cannot scope at all, with a `ceiling:` annotation recording the measurement and upgrade path.
+`TestSeccompBackend::test_sandbox_blocks_file_write` was **retired, not relocated** — the landlock
+suite already covers the capability with stronger assertions, so moving it would have duplicated
+coverage rather than preserved it. `scripts/test.sh fast` is now **5965 passed / 37 skipped /
+0 failed from a clean `/tmp`**, which the earlier number in this file was not. Landlock real-exec
+still skips on this host, so that coverage is verified in the `landlock-real-exec` CI job.
 
 # ═══ SESSION HISTORY ═══
 

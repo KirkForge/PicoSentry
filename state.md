@@ -70,6 +70,11 @@ coverage rather than preserved it. `scripts/test.sh fast` is now **5965 passed /
 0 failed from a clean `/tmp`**, which the earlier number in this file was not. Landlock real-exec
 still skips on this host, so that coverage is verified in the `landlock-real-exec` CI job.
 
+Tracked forward as **WO9.0.0-010** (`docs/workorders/WO9.0.0-010-landlock-per-policy-write-paths.md`,
+P1/M): the remaining enforcement gap, with the full probe ledger (P1-P8: what was measured and
+what each result means) and six traps for whoever picks it up — notably *clean `/tmp` before quoting
+any green fast-suite number*, and *zero grep hits means wrong needle, not absence*.
+
 # ═══ SESSION HISTORY ═══
 
 ## Session 2026-08-22 (n): WO7.0.0 execution wave — 34/34 DONE, 3 waves of 2 subagents — COMPLETE

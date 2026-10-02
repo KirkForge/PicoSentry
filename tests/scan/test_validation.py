@@ -33,6 +33,18 @@ def _discover_fixtures_cached():
     return discover_fixtures()
 
 
+@functools.cache
+def _run_validation_cached():
+    """run_validation() scores all 5,667 fixtures — measured 213s per call.
+
+    The read-only consumers (shape / precision-recall floor / negative-FP
+    sanity) only inspect the result, so compute it once and share it. The
+    determinism test deliberately calls run_validation() uncached twice; it
+    must observe two independent runs, so it does NOT use this wrapper.
+    """
+    return run_validation()
+
+
 def test_discover_fixtures_finds_positive_and_negative() -> None:
     """Both positive and negative fixture buckets are discovered."""
     fixtures = _discover_fixtures_cached()
@@ -53,20 +65,26 @@ def test_discover_fixtures_under_repo_root() -> None:
 # ── Validation report shape ──────────────────────────────────────────────
 
 
-@pytest.mark.timeout(180)
 @pytest.mark.slow
 def test_validation_report_is_deterministic() -> None:
-    """Two back-to-back runs produce identical reports (no randomness)."""
+    """Two back-to-back runs produce identical reports (no randomness).
+
+    Deliberately calls run_validation() uncached twice — this test is the
+    reason _run_validation_cached exists rather than replacing it. Two real
+    passes over 5,667 fixtures measure ~425s, which is why the per-test
+    timeout(180) cap that used to sit here was removed: it predated the
+    corpus reaching 5,667 fixtures and could not fit even one pass (213s).
+    The nightly profile's own --timeout=900 now governs.
+    """
     r1 = run_validation()
     r2 = run_validation()
     assert r1.to_dict() == r2.to_dict()
 
 
-@pytest.mark.timeout(180)
 @pytest.mark.slow
 def test_validation_report_has_required_fields() -> None:
     """ValidationReport always exposes the headline fields used by README + CLI."""
-    r = run_validation()
+    r = _run_validation_cached()
     d = r.to_dict()
     for key in (
         "total_fixtures",
@@ -106,7 +124,6 @@ def test_empty_metrics_have_zero_precision_recall() -> None:
 # ── Headline precision/recall floor (the regression canary) ──────────────
 
 
-@pytest.mark.timeout(180)
 @pytest.mark.slow
 def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
     """Every fixture passes and every expected rule fires.
@@ -125,7 +142,7 @@ def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
     ~6pp recall headroom below current reality for corpus growth, tight
     enough that a metadata-FP regression of the old scale cannot pass.
     """
-    r = run_validation()
+    r = _run_validation_cached()
     if r.mean_precision < 0.94 or r.mean_recall < 0.84:
         msg_lines = [f"mean_precision={r.mean_precision:.2%} mean_recall={r.mean_recall:.2%}"]
         for name, outcome, details in r.fixture_results:
@@ -134,14 +151,13 @@ def test_validation_passes_at_100_percent_on_current_fixtures() -> None:
         raise AssertionError("Validation below floor:\n" + "\n".join(msg_lines))
 
 
-@pytest.mark.timeout(180)
 @pytest.mark.slow
 def test_validation_at_least_one_negative_fixture_produces_no_findings() -> None:
     """At least one negative fixture exists and produces zero findings across
     all rules. This is the FP-rate sanity check: a scanner that fires on
     every clean project is broken, regardless of how good it is on positives.
     """
-    r = run_validation()
+    r = _run_validation_cached()
     neg_pass = [r2 for r2 in r.fixture_results if r2[1] == "PASS"]
     assert neg_pass, "No negative fixtures passed — every clean project triggers a rule"
 

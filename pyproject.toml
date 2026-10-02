@@ -63,7 +63,12 @@ serve = [
     "fastapi>=0.104.0",
     "uvicorn[standard]>=0.24.0",
     "pydantic>=2.0.0",
-    "PyJWT>=2.8.0",
+    # >=2.15.0: 2.13.0 carries 12 advisories (PYSEC-2026-4140/4141/4142/4143/
+    # 4144/4145/4146/4147/4148/4149/4150/4151/4152) — empty-oct-JWK auth bypass,
+    # JWKS redirect header leak, uncaught RecursionError DoS, PEM ReDoS, and an
+    # incomplete algorithm-confusion fix. 2.15.0 is the first release with the
+    # payload-parser fix.
+    "PyJWT>=2.15.0",
     "cryptography>=41.0.0",
     "bcrypt>=4.0.0",
     "pyotp>=2.9.0",

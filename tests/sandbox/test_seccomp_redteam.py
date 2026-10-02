@@ -224,8 +224,20 @@ class TestRedTeamBackendIntegrity:
         # When execve fails we still exit non-zero; the fail-closed guarantee is
         # that we do not silently fall back to an unconfined subprocess.
         assert result.exit_code in (126, 127, -1, 1)
-        assert result.degraded is False or any(e.rule_id == "L3-SANDBOX-DEGRADE" for e in result.events)
         # The verdict may be ALLOW because the seccomp filter was loaded and
         # enforced; the command simply could not be executed. The critical
         # property is that we did not fall back to an unconfined backend.
         assert not any(e.rule_id == "L3-SANDBOX-DEGRADE" for e in result.events)
+        # And the result must not carry _fallback_run's fail-closed signature
+        # (seccomp_backend.py:isolation_level="none" / guarantee="none"), which
+        # is what an actual refused fallback would look like.
+        #
+        # NOTE on `degraded` here: it is NOT "the backend degraded". On the
+        # normal exec path seccomp_backend.py sets degraded=exit_code in (126,
+        # 127) — the deliberate 126/127 ambiguity marker (child-stub infra code
+        # vs workload exit, same tradeoff docker makes). Backend degradation is
+        # reported by _fallback_run as an L3-SANDBOX-DEGRADE event instead.
+        # Conflating the two made this test red on every runner where seccomp
+        # is actually available and exec-not-found yields 127.
+        assert result.isolation_level != "none"
+        assert result.enforcement_guarantee != "none"

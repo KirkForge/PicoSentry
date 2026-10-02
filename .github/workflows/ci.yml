@@ -453,4 +453,9 @@ jobs:
           uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
           grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
       - name: Run pip-audit against lockfile
-        run: uv run --with pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc
+        # uvx, not `uv run --with`: `uv run --with pip-audit` builds an
+        # ephemeral venv and bootstraps it via `python -m ensurepip`, which
+        # exits 1 on the current runner image before pip-audit ever starts
+        # (nightly dependency-audit failed every night 2026-09-14..10-02).
+        # uvx resolves the tool without the ensurepip step.
+        run: uvx --from pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc

@@ -189,14 +189,18 @@ class TestSeccompBackend:
         assert result.overall_verdict in (Verdict.KILL, Verdict.DENY)
         # Should have evidence of violation
 
-    def test_sandbox_blocks_file_write(self):
-        """File writes outside allowed paths should be blocked."""
-        result = sandbox_run(["touch", "/tmp/seccomp_test_should_be_blocked"], allow_degraded=True)
-        if result.isolation_level == "observational_only":
-            # The portable subprocess backend cannot enforce filesystem blocks.
-            assert result.overall_verdict in (Verdict.ALLOW, Verdict.DENY, Verdict.KILL)
-        else:
-            assert result.overall_verdict in (Verdict.KILL, Verdict.DENY)
+    # NOTE: there is deliberately no file-write test here. Path-scoped write
+    # enforcement is not a seccomp-bpf capability — it filters syscalls and has
+    # no path awareness — so a test here could only ever assert something weaker
+    # and state-dependent. A previous test_sandbox_blocks_file_write wrote to a
+    # fixed /tmp path and passed only when that file already existed (absent ->
+    # open(O_CREAT), which L3-FILE-W-001's /tmp/** allows; present -> utimensat,
+    # which the syscall filter blocks), so it was red on every clean machine.
+    # The capability is covered where it actually lives:
+    # tests/sandbox/test_landlock_backend.py::test_write_outside_workspace_gets_eacces
+    # (real-exec: asserts non-zero exit, EACCES on stderr, file not created) plus
+    # test_default_policy_has_no_bare_tmp_write / test_write_paths_tightened_to_workspace
+    # for the policy->ruleset translation.
 
     def test_command_not_found(self):
         """Non-existent commands should produce error events."""

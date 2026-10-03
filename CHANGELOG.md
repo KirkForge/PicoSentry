@@ -1852,3 +1852,10 @@ Legacy repository history (archived, read-only):
 ## 2026-07-29 - Process timeout orphan fix
 
 - fix(scan): kill orphaned processes on timeout (P0-5) — add kill() fallback after terminate() + join(1) timeout in workspace scanner
+
+## 2026-10-02 - WO9.0.0-011: event-history global state diagnostic (root cause unconfirmed)
+
+- test(serve): add explicit diagnostic assertion in `test_org_stamped_event_round_trips_with_uuid_id` (WO9.0.0-011). `event_bus` is a process-global; app lifespan teardown calls `event_bus.shutdown()` (server.py:295,463) which clears `event_history` — the subscriber half is already worked around in `test_killchain_tenancy.py` (re-registers `EnhancedOrchestrator`), the history half was unguarded. The new assertion names this exact cause if history is lost between `publish()` and the query, preventing `not in []` from being reported without context. No test logic weakened; no retries added.
+- docs(workorders): create `WO9.0.0-011-events-history-global-state-flake.md` (root cause not confirmed after 5 local repro attempts on 3.10/3.11, CI rerun passed same SHA). Add row to `docs/workorders/README.md`.
+- state.md: log active WO9.0.0-011.
+

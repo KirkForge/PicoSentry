@@ -22,6 +22,7 @@ Priorities: P0 = security/correctness, do first. Every WO carries verified evide
 | [WO9.0.0-008](WO9.0.0-008-l4-profiler-garbage-spawn-exe.md) | Sandbox: L4 profiler extracts garbage executable from seccomp_trace events | P2 | S | OPEN |
 | [WO9.0.0-009](WO9.0.0-009-health-fail-open-check-raises.md) | Sandbox: HTTP /health defaults to "healthy" when check_health() raises (fail-open) | P2 | S | OPEN |
 | [WO9.0.0-010](WO9.0.0-010-landlock-per-policy-write-paths.md) | Sandbox: `L3-FILE-W-001` write paths enforced by neither backend as written (landlock narrows to workspace, seccomp does not scope at all) | P1 | M | OPEN |
+| [WO9.0.0-011](WO9.0.0-011-events-history-global-state-flake.md) | Serve: `/events/history` test depends on process-global `event_bus.event_history`, which app lifespan teardown wipes (root cause unconfirmed) | P2 | S | OPEN |
 
 ### serve / core / deploy / firewall (auditor B)
 

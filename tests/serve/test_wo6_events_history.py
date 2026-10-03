@@ -37,6 +37,17 @@ class TestEventsHistoryRoundTrip:
             org_id=str(org_id),
         )
 
+        # WO9.0.0-011: event_bus is a process-global and app lifespan teardown calls
+        # event_bus.shutdown() (server.py:295), which clears event_history — the
+        # subscriber half of that hazard is already worked around in
+        # test_killchain_tenancy.py, this history half was not. If the bus lost the
+        # event between publish() and the query, say so here; otherwise the failure
+        # surfaces as an unexplained `not in []` from the endpoint with no cause.
+        assert any(e.id == event.id for e in event_bus.get_history(limit=1000)), (
+            "history lost between publish() and query() — an app-lifespan teardown "
+            "called event_bus.shutdown(), which clears the global history"
+        )
+
         resp = client.get("/events/history", headers=_auth_headers(token))
         assert resp.status_code == 200, resp.text
         items = resp.json()

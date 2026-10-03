@@ -1571,3 +1571,8 @@ The `docker-build-arm64` job in `.github/workflows/ci.yml` builds and tests an a
 - None.
 ### Blocked
 - None.
+
+### Active (2026-10-02)
+
+- **WO9.0.0-011 (events-history global state)** — `test_org_stamped_event_round_trips_with_uuid_id` failed once in CI (run 37026978303, py3.11) with `published event id … not in []`. Root cause unconfirmed: `event_bus` is process-global, `event_bus.shutdown()` (server.py:295/463) clears `event_history` on app lifespan teardown; fixture clears it too. Added a named diagnostic to the test (must show the teardown as cause if it hits). Repro attempts locally on 3.10/3.11: green (5x). See `docs/workorders/WO9.0.0-011-events-history-global-state-flake.md`. Next: if diagnostic fires, decide ownership (do not clear history on shutdown vs keep and defend). Do not rewrite test or relax assertion.
+

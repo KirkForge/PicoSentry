@@ -10,8 +10,8 @@ on:
   # got no PR-tier CI under a main-only trigger) — WO5.0.0-026.
   pull_request:
     branches: [main, dev]
-  schedule:
-    - cron: '0 3 * * *'
+#  schedule:
+#    - cron: '0 3 * * *'
   workflow_dispatch:
 
 # A new push to the same PR/ref supersedes any in-flight run — cancel it

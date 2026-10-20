@@ -453,9 +453,11 @@ jobs:
           uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
           grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
       - name: Run pip-audit against lockfile
-        # uvx, not `uv run --with`: `uv run --with pip-audit` builds an
-        # ephemeral venv and bootstraps it via `python -m ensurepip`, which
-        # exits 1 on the current runner image before pip-audit ever starts
-        # (nightly dependency-audit failed every night 2026-09-14..10-02).
-        # uvx resolves the tool without the ensurepip step.
-        run: uvx --from pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc
+        # pip-audit, not how it is launched, is the ensurepip problem: for `-r`
+        # files it creates its own venv (requirement.py `_collect_from_files` ->
+        # ve.create) bootstrapped via `python -m ensurepip` under whatever
+        # interpreter runs it — and that ensurepip exits 1 under uv-managed
+        # CPython on the runner (nightly red every night 2026-09-14..10-02;
+        # `uv run --with` and `uvx` both die at the same inner venv step).
+        # pipx runs pip-audit on the runner's system python, whose ensurepip works.
+        run: pipx run --spec pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc

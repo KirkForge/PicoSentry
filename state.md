@@ -2,11 +2,26 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-10-02, recurring CI gates fixed; dev = 0c5a1853) ═══
+# ═══ CURRENT STATE (2026-10-20, nightly red stopped at source; main = dev = a799ed79) ═══
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 
-**Branch state**: `main` = `a0b9d9d3` (WO8.0.0-108 rider, code+tests); `dev` = `e79f0469` (1 docs-only commit ahead — WO8 completion status in README). Both green CI. Safe to ff `main` to `dev` (docs-only delta).
+**Branch state**: `main` = `dev` = `a799ed79` (dependency-audit pipx fix). Both green push CI at that exact SHA (dev run 39501228689, main run 39501898699, Security Scan 39501898727). Docs close-commit rides on dev only (md-only push skips CI by paths-ignore; safe to ff next code push). **The nightly `PicoSentry CI` cron no longer fires** — it schedules from the default branch, and main's ci.yml now has the cron commented out (d19d18dc's intent finally reached main).
+
+**2026-10-20 — recurring nightly red stopped at source (main = dev = `a799ed79`)**: the daily
+`PicoSentry CI` schedule failure (every night 2026-09-14..10-20) ran from **main**, not dev —
+GitHub schedules only the default branch's workflow, and main was 10 commits behind, still
+carrying the pre-fix `uv run --with pip-audit` and the cron itself. Two jobs died nightly:
+`dependency-audit` (ensurepip exit 1) and `nightly-tests` (cancelled at the 6h job cap, so it
+was never a real verdict). Fix: `dependency-audit` now runs `pipx run --spec pip-audit
+pip-audit` — the 2026-10-02 uvx change had only removed the OUTER `uv run --with` ensurepip;
+the traceback shows pip-audit's own `-r` venv creation (`requirement.py _collect_from_files`
+→ `ve.create`) dying in ensurepip under uv-managed CPython, one layer deeper. pipx runs on
+the runner's system python, whose ensurepip works. Then ff'd main to dev (green-before-ff,
+verified by workflowName+headSha). Honest caveat: the pipx command has not yet run on a real
+runner (job is dispatch-only now); first `workflow_dispatch` of the nightly tier exercises it.
+If nightly is ever re-enabled, `nightly-tests` must be split/trimmed — it cannot finish
+inside GitHub's 6h job cap. lessons.md 2026-10-20 has the full chain.
 
 **Completed series**:
 - **WO7.0.0**: 34/34 DONE (security/correctness wave — OSV crates.io drop, encoded-dot SSRF, gRPC audit tenancy, correlation_chains cross-tenant clobber, health probe lightweight, helm chart fix). Migrations 24 (correlation_chains UNIQUE(org_id, artifact_id)) + 25 (alerts `acknowledged` column). main ff'd to `8c3a68e2`, push CI green.

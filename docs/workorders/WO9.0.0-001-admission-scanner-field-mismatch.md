@@ -1,7 +1,7 @@
 # WO9.0.0-001 — Sandbox: Admission scanner reads wrong response field names (verdict/findings vs l3_verdict/l4_verdict/findings_count) — admission control is a complete no-op
 
 **Series:** WO9.0.0 (audit round 2026-08-23)
-**Status:** OPEN
+**Status:** DONE (2026-10-21, worktree `wo/9.0.0/p0-cluster`) — the scanner read `verdict`/`findings`; the daemon emits `l3_verdict`/`l4_verdict`/`findings_count` + an `analysis` dict, so admission control never blocked a pod. Now reads the real shape, normalizes finding severity case (findings are UPPERCASE, SEVERITY_LEVELS is lowercase — a HIGH finding scored 0), and treats a response with no verdict and no findings as UNREADABLE (deny under the fail-closed default) so the next contract drift cannot silently re-enable the no-op. The old mock daemon spoke the made-up shape the scanner read — the mock was validating the bug; it now speaks the real shape. Evidence: tests/sandbox/test_admission_scanner.py (35 passed; new TestImageScannerRealDaemonShape + TestUnreadableScanResponse).
 **Owner:** (unassigned)
 **Priority:** P0 · Effort S · Risk M
 **Scope:** `picosentry/sandbox/admission/scanner.py`, `tests/sandbox/`

@@ -124,14 +124,31 @@ class ImageScanner:
             _resp, body = safe_urlopen(req, timeout=int(self.timeout), allow_http=True)
             result = json.loads(body)
 
-            verdict = result.get("verdict", "CLEAN")
-            findings = result.get("findings", [])
+            # The daemon's /api/v1/scan response carries l3_verdict (ALLOW/DENY/
+            # KILL), l4_verdict (CLEAN/SUSPICIOUS/MALICIOUS), findings_count and
+            # an `analysis` dict holding the per-finding dicts
+            # (sandbox/daemon/handler_routes_post.py). It does NOT carry
+            # `verdict` or `findings` — reading those made the scanner see
+            # CLEAN/[] for every image, so admission control never blocked
+            # anything (WO9.0.0-001).
+            l3_verdict = str(result.get("l3_verdict") or "").upper()
+            l4_verdict = str(result.get("l4_verdict") or "").upper()
+            analysis = result.get("analysis") or {}
+            findings = analysis.get("findings") or []
 
-            if verdict == "DENY":
-                return False, (f"container '{container_name}' image '{image}' denied: {len(findings)} findings")
+            if l3_verdict in ("DENY", "KILL"):
+                return False, (
+                    f"container '{container_name}' image '{image}' denied: "
+                    f"{result.get('findings_count', len(findings))} findings"
+                )
+            if l4_verdict in ("MALICIOUS", "SUSPICIOUS"):
+                return False, (
+                    f"container '{container_name}' image '{image}' blocked: "
+                    f"{l4_verdict} behaviour, {result.get('findings_count', len(findings))} findings"
+                )
 
             blocking_findings = [
-                f for f in findings if SEVERITY_LEVELS.get(f.get("severity", "low"), 0) >= self._min_level
+                f for f in findings if SEVERITY_LEVELS.get(str(f.get("severity", "low")).lower(), 0) >= self._min_level
             ]
 
             if blocking_findings:
@@ -141,6 +158,17 @@ class ImageScanner:
                     f"{len(blocking_findings)} findings at {self.min_severity}+ severity "
                     f"({', '.join(severities[:3])})"
                 )
+
+            # An unrecognized response shape must not read as "clean". The
+            # previous field-name drift turned admission control into a
+            # no-op without any signal; if the daemon's contract changes
+            # again, deny rather than wave the pod through.
+            if not l3_verdict and not l4_verdict and not findings and self._fail_closed:
+                logger.error(
+                    "Scan response for image '%s' carried no verdict and no findings — denying (fail-closed)",
+                    image,
+                )
+                return False, f"unreadable scan response for image '{image}': no verdict and no findings"
 
             logger.debug("Image '%s' passed scan: %d findings, none blocking", image, len(findings))
             return True, ""

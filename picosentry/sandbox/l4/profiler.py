@@ -88,8 +88,35 @@ def _extract_fs_from_events(events: list[SandboxEvent]) -> list[FileOperation]:
             continue
         seen.add(path)
         op_type = _FILE_OP_MAP.get(ev.operation, "write")
-        ops.append(FileOperation(path=path, operation=op_type))
+        # A chmod event may carry the mode in its detail ("chmod 4755
+        # /usr/bin/sudo" or "mode=4755"). Without it the setuid bits are
+        # invisible to L4-PRIVESC-003 (WO9.0.0-002).
+        mode = _extract_chmod_mode(ev.detail) if op_type == "chmod" else ""
+        ops.append(FileOperation(path=path, operation=op_type, mode=mode))
     return ops
+
+
+def _extract_chmod_mode(detail: str) -> str:
+    """Pull a chmod MODE out of an event detail string.
+
+    Accepts "chmod 4755 /path", "mode=4755", and a bare "4755". Returns ""
+    when there is no mode to be had — the mode is the only evidence of a
+    setuid chmod, so it is never guessed.
+    """
+    if not detail:
+        return ""
+    text = detail.strip()
+    # "chmod 4755 /path" — the mode token must look like a mode, otherwise
+    # "chmod performed" would yield "performed" as the mode.
+    match = re.search(r"\bchmod\s+([0-7]{3,4}|[+][a-zA-Z]+)\b", text)
+    if match:
+        return match.group(1)
+    match = re.search(r"\bmode\s*[=:]\s*([0-7]{3,4}|[+][a-zA-Z]+)\b", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    if re.fullmatch(r"[0-7]{3,4}", text):
+        return text
+    return ""
 
 
 def _extract_spawns_from_events(events: list[SandboxEvent]) -> list[ProcessSpawn]:
@@ -325,7 +352,6 @@ def _extract_file_operations(output: str) -> list[FileOperation]:
         (re.compile(r'\b(?:write|writing|wrote|saving|saved)\s+(?:to\s+)?\s*"?([^\s"()]+)"?', re.IGNORECASE), "write"),
         (re.compile(r'\b(?:create|creating|mkdir)\s*"?([^\s"()]+)"?', re.IGNORECASE), "create"),
         (re.compile(r'\b(?:delete|deleting|remove|removing|rm|unlink)\s*"?([^\s"()]+)"?', re.IGNORECASE), "delete"),
-        (re.compile(r'\bchmod\s+\S+\s*"?([^\s"()]+)"?', re.IGNORECASE), "chmod"),
     ]
 
     seen: set[str] = set()
@@ -336,6 +362,21 @@ def _extract_file_operations(output: str) -> list[FileOperation]:
             if path not in seen and not path.startswith("/dev/"):
                 seen.add(path)
                 ops.append(FileOperation(path=path, operation=op_type))
+
+    # chmod carries a MODE argument ("chmod 4755 /usr/bin/sudo"). The mode is
+    # where the setuid/setgid bits live, so it is captured rather than
+    # discarded — otherwise L4-PRIVESC-003 can never see a setuid chmod
+    # (WO9.0.0-002). The mode group is optional: "chmod /path" (no mode) is
+    # still a chmod, just with no mode to report.
+    chmod_pattern = re.compile(r'\bchmod\s+(\S+)\s*"?([^\s"()]+)"?', re.IGNORECASE)
+    for match in chmod_pattern.finditer(output):
+        mode, path = match.group(1), match.group(2)
+        if path.startswith("/dev/"):
+            continue
+        if path in seen:
+            continue
+        seen.add(path)
+        ops.append(FileOperation(path=path, operation="chmod", mode=mode))
 
     strace_read = re.compile(
         r"(?:openat|open|read)\s*\([^)]*\"([^\"]+)\"",

@@ -2,7 +2,69 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-10-21, nightly red resolved end-to-end; main = dev = 37584adc) ═══
+# ═══ CURRENT STATE (2026-10-21, WO9.0.0 P0 cluster landed on dev; 4 real P0 bugs fixed, 1 closed as a false positive) ═══
+
+**Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
+
+**Branch state**: `main` = `dev` = `0ce17472` (unchanged this session). Work landed on branch
+`wo/9.0.0/p0-cluster` (off `origin/dev`) — **NOT yet merged to dev**; see "Pending / next".
+
+**WO9.0.0 P0 cluster (2026-10-21)** — the five P0 work orders were re-verified against source
+before any of them were touched. Four were real bugs and are fixed; **one was a false positive
+and is closed as such** rather than "fixed":
+
+- **WO9.0.0-101 (serve) — webhook SSRF bypass via empty `pinned_ips`** — DONE.
+  `_load_webhooks` set `pinned_ips = resolve(host) or []` with no empty-check, so a hostname that
+  did not resolve loaded with an EMPTY pin set; at dispatch `set().issubset(set())` is True, so
+  the DNS-rebind guard passed vacuously and the POST went out with no IP restriction. The load
+  path now skips an unresolvable hostname (mirroring `create()`), and the dispatch guard rejects
+  an empty pin set OR an empty current set.
+- **WO9.0.0-102 (serve) — `acknowledge_alert` broke on Postgres** — DONE.
+  `alerts.acknowledged` is a BOOLEAN column but was missing from `_BOOL_LITERAL_RE`, so
+  `SET acknowledged = 1` reached postgres as an integer literal and the endpoint 500'd on every
+  Postgres deployment. Fixed systemically (translator + portable `= TRUE` at the call site).
+  **Rider**: the acknowledge test file is now in the `postgres-live-test` CI job — the bug was
+  invisible on SQLite, which is why it shipped for two releases — and a guard test in
+  `tests/test_ci_paths.py` pins that membership.
+- **WO9.0.0-001 (sandbox) — admission control was a complete no-op** — DONE.
+  The scanner read `verdict`/`findings`; the daemon emits `l3_verdict`/`l4_verdict`/
+  `findings_count` + an `analysis` dict, so every scan looked CLEAN and no pod was ever
+  blocked. Also fixed a severity CASE mismatch (findings are UPPERCASE, `SEVERITY_LEVELS` is
+  lowercase — every HIGH finding scored 0). An unreadable response (no verdict AND no findings)
+  now DENIES under the existing fail-closed default, so the next contract drift cannot silently
+  re-enable the no-op.
+- **WO9.0.0-002 (sandbox) — L4-PRIVESC-003 setuid-chmod detection was dead** — DONE.
+  The rule matched command prefixes ("chmod 4") against `op.path`, a FILE PATH, so it could never
+  fire. `FileOperation` now carries the chmod `mode` (which the profiler was matching with `\S+`
+  and discarding), and the rule tests the setuid (04000)/setgid (02000) bits of the octal mode.
+- **WO9.0.0-103 (deploy) — cosign double-v tag** — **NOT A BUG, false positive**, closed with the
+  re-verification. The cosign step is its own `run:` block and recomputes `TAG` WITHOUT the v
+  prefix, so `v${TAG}` is the same `:v2.2.0` the bake step pushes. The WO's proposed edit would
+  have signed `2.2.0` — a tag that does not exist — breaking every release. A test now runs the
+  REAL step bodies with stubbed docker/cosign and asserts every image reference resolves to the
+  same tag (mutation-checked).
+
+**Two of the five bugs had tests that were validating the bug**: the admission mock daemon spoke
+a made-up response shape the scanner happened to read, and the setuid-chmod test put a command
+string in the PATH field. Both mocks/assertions now build their input from the PRODUCER's
+contract. See lessons.md 2026-10-21 for the generalizable lessons.
+
+**Gates (worktree `wo/9.0.0/p0-cluster`, head `86472ab4` + status commits)**: ruff All checks
+passed · format 763 files already formatted · mypy 417 source files clean · `bash scripts/test.sh
+fast` **5995 passed / 37 skipped / 0 failed** (baseline 5965 — +30 tests, no test weakened).
+
+**Pending / next**:
+- **Merge `wo/9.0.0/p0-cluster` into `dev`** (one merge, `--no-ff`), then ff `main` once dev push
+  CI is green at the exact headSha. The branch is 5 commits on top of `origin/dev` plus the
+  WO-status/README/state/CHANGELOG close-out commits.
+- **Next WO9.0.0 wave**: the P1s (003/004/005 sandbox + 104/105/106 serve/deploy) and the P2
+  riders (006-009 + 107). WO9.0.0-011 stays open with its root cause unconfirmed.
+- **Release v2.3.0** when ready — WO7+WO8+the WO9 P0 wave warrant it.
+- **Docker push** when tooling exists (WO5-014 runbook).
+
+# ═══ SESSION HISTORY ═══
+
+## Session 2026-10-21 (a): nightly red resolved end-to-end; main = dev = 37584adc
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 

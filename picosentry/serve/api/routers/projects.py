@@ -210,7 +210,10 @@ async def acknowledge_alert(
         )
         if not alert:
             return None
-        db.execute_insert("UPDATE alerts SET acknowledged = 1 WHERE id = ?", (alert_id,))
+        # `acknowledged` is a BOOLEAN column: use the portable IS TRUE form
+        # rather than an integer literal (WO9.0.0-102). Works on SQLite and
+        # postgres without relying on the literal translator.
+        db.execute_insert("UPDATE alerts SET acknowledged = TRUE WHERE id = ?", (alert_id,))
         return alert_id
 
     if await asyncio.to_thread(_acknowledge) is None:

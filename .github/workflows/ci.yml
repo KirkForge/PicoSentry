@@ -251,7 +251,7 @@ jobs:
           PICOSHOGUN_DATABASE_URL: postgresql://picoshogun:picoshogun-test@127.0.0.1:15432/picoshogun
         run: |
           set -euo pipefail
-          FILES="tests/serve/test_org_pg_flows.py tests/serve/test_integration_auth.py tests/serve/test_integration_services.py tests/serve/services/test_backup.py"
+          FILES="tests/serve/test_org_pg_flows.py tests/serve/test_integration_auth.py tests/serve/test_integration_services.py tests/serve/services/test_backup.py tests/serve/test_wo7_acknowledge_alert.py"
           for f in $FILES; do
             db="pg_live_$(basename "$f" .py)"
             echo "::group::pytest $f (db: $db)"

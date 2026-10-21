@@ -1,7 +1,7 @@
 # WO9.0.0-002 — Sandbox: L4-PRIVESC-003 setuid chmod detection is dead — checks command string in file path
 
 **Series:** WO9.0.0 (audit round 2026-08-23)
-**Status:** OPEN
+**Status:** DONE (2026-10-21, worktree `wo/9.0.0/p0-cluster`) — the rule matched command prefixes ("chmod 4", "chmod 47") against `op.path`, a FILE PATH, so it could never fire on real data. The setuid/setgid bits live in the chmod MODE argument, which the profiler matched with `\S+` and discarded. `FileOperation` now carries a `mode` field (from the stdout chmod regex and from a file_chmod event's detail: "chmod 4755 /path", "mode=4755", or a bare mode), and the rule tests the setuid (04000) / setgid (02000) bits of the octal mode. Only numeric modes count — a symbolic "+x" says nothing about setuid, and guessing would produce false CRITICALs; a chmod with no reported mode is NOT flagged, because the mode is the only evidence. The old test used the fake path shape "chmod 4755 /usr/bin/custom" that no backend produces — it validated the bug. Evidence: tests/sandbox/test_l4_behavioral.py (82 passed; new TestSetuidChmodDetection, TestChmodModeIsProfiled, TestChmodModeFromEvents).
 **Owner:** (unassigned)
 **Priority:** P0 · Effort S · Risk L
 **Scope:** `picosentry/sandbox/l4/rules/privilege_escalation.py`, `tests/sandbox/`

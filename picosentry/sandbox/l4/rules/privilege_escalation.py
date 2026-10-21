@@ -31,7 +31,28 @@ PRIV_ESC_BINARIES = {
 }
 
 
-SETUID_PATTERNS = ("chmod 4", "chmod 2", "chmod 6", "chmod 47", "chmod 27", "chmod 67")
+# Setuid/setgid bits live in the chmod MODE argument ("4755", "6755", ...),
+# not in the file path. The rule used to substring-match command prefixes
+# ("chmod 4") against op.path — a FILE PATH — so it never fired on real data
+# (WO9.0.0-002). These are the bit masks: 04000 setuid, 02000 setgid.
+_SETUID_BIT = 0o4000
+_SETGID_BIT = 0o2000
+
+
+def _is_setuid_mode(mode: str) -> bool:
+    """True when a chmod mode carries the setuid and/or setgid bit.
+
+    Only numeric (octal) modes are considered: a symbolic mode like "+x" says
+    nothing about setuid, and guessing would produce false CRITICALs.
+    """
+    mode = (mode or "").strip()
+    if not mode or not mode.isdigit():
+        return False
+    try:
+        value = int(mode, 8)
+    except ValueError:
+        return False
+    return bool(value & (_SETUID_BIT | _SETGID_BIT))
 
 
 def detect_privilege_escalation(
@@ -68,19 +89,16 @@ def detect_privilege_escalation(
             )
 
     for op in profile.fs_ops:
-        if op.operation == "chmod":
-            for pattern in SETUID_PATTERNS:
-                if pattern in op.path:
-                    findings.append(
-                        SandboxFinding(
-                            rule_id="L4-PRIVESC-003",
-                            severity=Severity.CRITICAL,
-                            message=f"setuid/setgid chmod attempt: {op.path}",
-                            location=op.path,
-                            evidence={"operation": "chmod", "path": op.path},
-                        )
-                    )
-                    break
+        if op.operation == "chmod" and _is_setuid_mode(op.mode):
+            findings.append(
+                SandboxFinding(
+                    rule_id="L4-PRIVESC-003",
+                    severity=Severity.CRITICAL,
+                    message=f"setuid/setgid chmod attempt: chmod {op.mode} {op.path}",
+                    location=op.path,
+                    evidence={"operation": "chmod", "path": op.path, "mode": op.mode},
+                )
+            )
 
     cap_keywords = {"setcap", "getcap", "cap_setuid", "cap_net_raw", "cap_sys_admin", "cap_dac_override"}
     for spawn in profile.spawns:

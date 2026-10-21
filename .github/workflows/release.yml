@@ -153,6 +153,13 @@ jobs:
 
       - name: Sign Docker image with cosign (keyless, OIDC)
         run: |
+          # NOTE: this step's TAG is deliberately BARE (no v prefix) and the
+          # image reference adds the v itself -> :v2.2.0, the same tag the bake
+          # step pushes. Every other step in this job uses a v-prefixed TAG
+          # because it feeds docker-bake.hcl's tag list (:v<TAG>, :latest).
+          # The two spellings resolve to the SAME image — do not "unify" them
+          # without re-checking every reference (WO9.0.0-103: a WO claiming a
+          # double-v bug here was a false positive).
           TAG="${GITHUB_REF_NAME#v}"
           cosign sign --yes "docker.io/kirkforge/picodome:v${TAG}"
 

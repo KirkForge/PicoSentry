@@ -441,9 +441,14 @@ class TestL4PrivilegeEscalation:
     def test_detects_setuid_chmod(self):
         from picosentry.sandbox.l4.rules.privilege_escalation import detect_privilege_escalation
 
+        # WO9.0.0-002: the old version of this test used the path shape
+        # "chmod 4755 /usr/bin/custom" — a command string in the path field,
+        # which no backend produces. The rule matched command prefixes against
+        # op.path, so it fired on that fake shape and never on real data.
+        # The mode is the real signal.
         profile = BehavioralProfile(
             package="evil-pkg",
-            fs_ops=[FileOperation(path="chmod 4755 /usr/bin/custom", operation="chmod")],
+            fs_ops=[FileOperation(path="/usr/bin/custom", operation="chmod", mode="4755")],
             total_runtime_ms=100,
         )
         findings = detect_privilege_escalation(profile)
@@ -792,3 +797,136 @@ class TestL4DependencyConfusion:
         profile = BehavioralProfile(package="clean-pkg", total_runtime_ms=100)
         findings = detect_dependency_confusion(profile)
         assert len(findings) == 0
+
+
+class TestSetuidChmodDetection:
+    """WO9.0.0-002: L4-PRIVESC-003 (setuid/setgid chmod) was dead.
+
+    The rule matched SETUID_PATTERNS ("chmod 4", "chmod 47", ...) against
+    `op.path`, but op.path is a FILE PATH, not a command string. The mode
+    lives in the mode argument of the chmod call, which the profiler threw
+    away. So the rule could never fire on real data — a postinstall script
+    doing `chmod 4755 /usr/bin/sudo` was invisible.
+
+    The existing test_detects_setuid_chmod used the fake path shape
+    ("chmod 4755 /usr/bin/custom") that no backend ever produces, so it
+    passed while the real case was missed.
+    """
+
+    def _findings(self, fs_ops):
+        from picosentry.sandbox.l4.rules.privilege_escalation import detect_privilege_escalation
+
+        profile = BehavioralProfile(package="evil-pkg", fs_ops=fs_ops, total_runtime_ms=100)
+        return detect_privilege_escalation(profile)
+
+    def test_setuid_mode_on_real_path_is_detected(self):
+        findings = self._findings([FileOperation(path="/usr/bin/sudo", operation="chmod", mode="4755")])
+        assert any(f.rule_id == "L4-PRIVESC-003" for f in findings), (
+            "a chmod with a setuid mode must raise L4-PRIVESC-003"
+        )
+
+    def test_setgid_mode_is_detected(self):
+        findings = self._findings([FileOperation(path="/usr/bin/wall", operation="chmod", mode="6755")])
+        assert any(f.rule_id == "L4-PRIVESC-003" for f in findings)
+
+    def test_setuid_bit_only_mode_is_detected(self):
+        findings = self._findings([FileOperation(path="/tmp/x", operation="chmod", mode="4755")])
+        assert any(f.rule_id == "L4-PRIVESC-003" for f in findings)
+
+    def test_ordinary_chmod_is_not_flagged(self):
+        findings = self._findings([FileOperation(path="/usr/local/bin/tool", operation="chmod", mode="755")])
+        assert not any(f.rule_id == "L4-PRIVESC-003" for f in findings), (
+            "a plain 755 chmod must not raise a CRITICAL setuid finding"
+        )
+
+    def test_world_writable_chmod_is_not_setuid(self):
+        findings = self._findings([FileOperation(path="/tmp/x", operation="chmod", mode="777")])
+        assert not any(f.rule_id == "L4-PRIVESC-003" for f in findings)
+
+    def test_chmod_without_mode_is_not_flagged(self):
+        """No mode means no setuid evidence — do not guess."""
+        findings = self._findings([FileOperation(path="/usr/bin/sudo", operation="chmod")])
+        assert not any(f.rule_id == "L4-PRIVESC-003" for f in findings)
+
+
+class TestChmodModeIsProfiled:
+    """The profiler must carry the chmod MODE, not just the path — the mode is
+    the only thing that distinguishes a setuid chmod from an ordinary one."""
+
+    def test_chmod_mode_is_captured_from_stdout(self):
+        from picosentry.sandbox.l4.profiler import _extract_file_operations
+
+        ops = _extract_file_operations("chmod 4755 /usr/bin/sudo")
+        chmod_ops = [o for o in ops if o.operation == "chmod"]
+        assert chmod_ops, "chmod operation not extracted"
+        assert chmod_ops[0].path == "/usr/bin/sudo"
+        assert chmod_ops[0].mode == "4755", f"mode not captured: {chmod_ops[0].mode!r}"
+
+    def test_ordinary_chmod_mode_is_captured(self):
+        from picosentry.sandbox.l4.profiler import _extract_file_operations
+
+        ops = _extract_file_operations("chmod 755 /usr/local/bin/tool")
+        chmod_ops = [o for o in ops if o.operation == "chmod"]
+        assert chmod_ops[0].mode == "755"
+
+    def test_symbolic_mode_is_captured(self):
+        from picosentry.sandbox.l4.profiler import _extract_file_operations
+
+        ops = _extract_file_operations("chmod +x /usr/local/bin/tool")
+        chmod_ops = [o for o in ops if o.operation == "chmod"]
+        assert chmod_ops[0].mode == "+x"
+
+    def test_profiled_chmod_produces_setuid_finding(self):
+        """End-to-end: stdout -> profile -> rule."""
+        from picosentry.sandbox.l4.profiler import _extract_file_operations
+        from picosentry.sandbox.l4.rules.privilege_escalation import detect_privilege_escalation
+
+        ops = _extract_file_operations("chmod 4755 /usr/bin/sudo")
+        profile = BehavioralProfile(package="evil-pkg", fs_ops=ops, total_runtime_ms=100)
+        findings = detect_privilege_escalation(profile)
+        assert any(f.rule_id == "L4-PRIVESC-003" for f in findings), (
+            "the profiled chmod must reach the rule and be detected"
+        )
+
+
+class TestChmodModeFromEvents:
+    """The event path must carry the mode too, so a backend that reports
+    file_chmod events feeds the same rule as the stdout path."""
+
+    def _op(self, detail):
+        from picosentry.sandbox.l3.models import SandboxEvent, Verdict
+        from picosentry.sandbox.l4.profiler import _extract_fs_from_events
+
+        ev = SandboxEvent(
+            rule_id="L3-TEST",
+            verdict=Verdict.ALLOW,
+            operation="file_chmod",
+            detail=detail,
+            path="/usr/bin/sudo",
+        )
+        ops = _extract_fs_from_events([ev])
+        return ops[0] if ops else None
+
+    def test_chmod_command_detail_yields_mode(self):
+        op = self._op("chmod 4755 /usr/bin/sudo")
+        assert op is not None and op.mode == "4755", f"mode not extracted: {op}"
+
+    def test_mode_keyword_detail_yields_mode(self):
+        op = self._op("mode=6755")
+        assert op is not None and op.mode == "6755", f"mode not extracted: {op}"
+
+    def test_bare_numeric_detail_yields_mode(self):
+        op = self._op("4755")
+        assert op is not None and op.mode == "4755", f"mode not extracted: {op}"
+
+    def test_detail_without_mode_yields_empty_mode(self):
+        op = self._op("chmod performed")
+        assert op is not None and op.mode == "", f"mode should be empty, got {op.mode!r}"
+
+    def test_event_chmod_reaches_the_rule(self):
+        from picosentry.sandbox.l4.rules.privilege_escalation import detect_privilege_escalation
+
+        op = self._op("chmod 4755 /usr/bin/sudo")
+        profile = BehavioralProfile(package="evil-pkg", fs_ops=[op], total_runtime_ms=100)
+        findings = detect_privilege_escalation(profile)
+        assert any(f.rule_id == "L4-PRIVESC-003" for f in findings)

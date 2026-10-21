@@ -1,7 +1,7 @@
 # WO9.0.0-101 — Serve: Webhook SSRF bypass via empty `pinned_ips` from `_load_webhooks` (DNS-rebind guard disabled)
 
 **Series:** WO9.0.0 (audit round 2026-08-23)
-**Status:** OPEN
+**Status:** DONE (2026-10-21, worktree `wo/9.0.0/p0-cluster`) — `_load_webhooks` set `pinned_ips = resolve(host) or []` with no empty-check, so a hostname that did not resolve was loaded with an EMPTY pin set; at dispatch `set().issubset(set())` is True, so the guard passed vacuously and the POST went out with no IP restriction. `_load_webhooks` now skips a webhook whose hostname does not resolve (mirroring create()'s guard), and the dispatch guard rejects an empty pin set or an empty current set so an empty set can never satisfy the subset check. `pinned_ips` is now always a non-empty list in the dispatch path, so the `if wh.pinned_ips else None` copy was dead. Evidence: tests/serve/services/test_webhooks.py (19 passed; new TestEmptyPinnedIPsRejected — empty pin set, empty dispatch-time resolve, and an unresolvable hostname at load are all rejected without reaching requests.post).
 **Owner:** (unassigned)
 **Priority:** P0 · Effort S · Risk M
 **Scope:** `picosentry/serve/services/webhooks.py`, `tests/serve/`

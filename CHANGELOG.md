@@ -2,6 +2,74 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-10-21 - WO9.0.0 P0 cluster: 4 real security bugs fixed, 1 closed as a false positive
+- **Four of the five WO9.0.0 P0 work orders were real bugs and are fixed**; the fifth
+  (**WO9.0.0-103**) was a **false positive** and is closed with the re-verification rather than
+  "fixed". Every claim was re-checked against source before any of them was touched.
+- fix(serve): **webhook SSRF bypass via empty `pinned_ips`** (WO9.0.0-101). `_load_webhooks` set
+  `pinned_ips = resolve(host) or []` with no empty-check, so a hostname that did not resolve was
+  loaded with an EMPTY pin set. At dispatch the DNS-rebind guard was
+  `webhook.pinned_ips is not None and not current_ips.issubset(allowed_ips)` — and
+  `set().issubset(set())` is True, so the guard passed **vacuously** and the POST went out with no
+  IP restriction whenever DNS was dead at dispatch time. The load path now skips an unresolvable
+  hostname (mirroring `create()`'s existing guard) and the dispatch guard rejects an empty pin set
+  OR an empty current set, so an empty set can never satisfy the subset check. `pinned_ips` is now
+  always a non-empty list in the dispatch path (the `if wh.pinned_ips else None` copy was dead).
+- fix(serve): **`acknowledge_alert` returned 500 on every Postgres deployment** (WO9.0.0-102).
+  `alerts.acknowledged` is a BOOLEAN column (migration 25) but was missing from the runtime
+  boolean-literal translator, so `UPDATE alerts SET acknowledged = 1` reached postgres as an
+  integer literal against a boolean column ("operator does not exist: boolean = integer"). Fixed
+  systemically — `acknowledged` added to the translator, with a comment that the list must track
+  the BOOLEAN columns in `_schema.py` — and the call site now uses the portable `= TRUE` form, so
+  the write is correct without relying on the translator. **Rider**: the acknowledge test file is
+  now in the `postgres-live-test` CI job, because boolean-column writes are only exercised
+  against a real postgres — which is why this shipped broken for two releases — and a guard test
+  in `tests/test_ci_paths.py` pins that membership.
+- fix(sandbox): **admission control was a complete no-op** (WO9.0.0-001). The admission scanner
+  read `result.get("verdict")` and `result.get("findings")`, but the daemon's `/api/v1/scan`
+  response carries `l3_verdict` / `l4_verdict` / `findings_count` and an `analysis` dict. Every
+  scan therefore looked CLEAN with no findings and **no pod was ever blocked**, even with a
+  MALICIOUS verdict. The scanner now reads the real shape (l3 `ALLOW`/`DENY`/`KILL`, l4
+  `CLEAN`/`SUSPICIOUS`/`MALICIOUS`, per-finding severity from `analysis.findings`) and
+  normalizes finding severity case — findings serialize UPPERCASE ("HIGH") while
+  `SEVERITY_LEVELS` is keyed lowercase, so every HIGH finding scored 0 and never crossed
+  `min_severity`. **A response with no verdict AND no findings is now UNREADABLE and denies under
+  the existing fail-closed default** — the original bug was silent, so the safety net matters as
+  much as the fix.
+- fix(sandbox): **L4-PRIVESC-003 setuid-chmod detection was dead** (WO9.0.0-002). The rule matched
+  command prefixes (`"chmod 4"`, `"chmod 47"`) against `op.path`, which is a FILE PATH — the
+  setuid/setgid bits live in the chmod MODE argument, which the profiler matched with `\S+` and
+  then discarded. A postinstall script doing `chmod 4755 /usr/bin/sudo` was invisible.
+  `FileOperation` now carries a `mode` field (from the stdout chmod regex and from a `file_chmod`
+  event's detail — `"chmod 4755 /path"`, `"mode=4755"`, or a bare mode), and the rule tests the
+  setuid (04000) / setgid (02000) bits of the octal mode. Only numeric modes count (a symbolic
+  `"+x"` says nothing about setuid, and guessing would produce false CRITICALs) and a chmod with
+  no reported mode is NOT flagged — the mode is the only evidence, so it is never inferred from the
+  path.
+- **WO9.0.0-103 (release.yml cosign "double-v" tag) is a false positive — closed, not fixed.** The
+  WO's repro computed the cosign target from line 125's `TAG`, but the cosign step is its own
+  `run:` block and recomputes `TAG` on ITS line 156 as `TAG="${GITHUB_REF_NAME#v}"` — without the
+  v prefix — so its `v${TAG}` is the same `:v2.2.0` the bake step pushes. Verified by evaluating
+  every image reference in the docker job as bash would: bake `:v2.2.0`, exists-gate `:v2.2.0`,
+  cosign `:v2.2.0`, `docker run` `:v2.2.0`, for tag forms `v2.2.0` / `2.2.0` / `v2.2.0-rc1` /
+  `release-2.2.0` — all MATCH. **The WO's proposed edit would have signed `2.2.0`, a tag that does
+  not exist, breaking every release.** No code change is made; instead the cosign step says why
+  its `TAG` is bare, and a new test runs each step's REAL shell body with stubbed docker/cosign
+  and asserts every image reference resolves to the same tag (mutation-checked: applying the
+  WO's edit makes it fail with exactly the claimed symptom).
+- **Two of the five bugs had tests that were validating the bug.** The admission mock daemon
+  spoke a made-up `verdict`/`findings` response shape that the scanner happened to read, so the
+  old tests passed while the real daemon's response was never understood; and the setuid-chmod test
+  put a command string in the PATH field (`path="chmod 4755 /usr/bin/custom"`) that no backend
+  produces. Both now build their input from the **producer's** contract. Also fixed a
+  pre-existing test-isolation leak: `MockScanHandler.do_POST = alternating_post` replaced the
+  class method permanently and leaked into later tests (now `monkeypatch`), and the fixture
+  resets the handler's class-level response state on entry and exit.
+- Gates: ruff All checks passed · format 763 files already formatted · mypy 417 source files
+  clean · `bash scripts/test.sh fast` **5995 passed / 37 skipped / 0 failed** (baseline 5965 —
+  +30 tests, none weakened). Worktree `wo/9.0.0/p0-cluster` off `origin/dev`; **not yet merged to
+  dev** (see state.md "Pending / next").
+
 ## 2026-10-21 - audit extracted to its own workflow; first real run caught a real CVE (certifi); perf-ceiling flake fixed
 - **`dependency-audit` extracted from `ci.yml` to `.github/workflows/dependency-audit.yml`** — its own ~2min workflow (daily 03:00 UTC schedule + `workflow_dispatch`). Rationale: a security product's dependency-advisory feed must not be collateral of its test-suite budget, and dispatching the audit alone now costs ~2 minutes instead of the full 6h nightly (which GitHub caps and was cancelling every night — `nightly-tests` never produced a verdict). `ci.yml` keeps a pointer comment; `code_re` already matched `\.github/workflows/` so no path-filter change. `tests/test_ci_paths.py` 35 passed.
 - **The pipx tool chain is now proven on a real runner.** First dispatch (run 39520595894) failed for the right reason: pipx ran pip-audit end-to-end (no inner ensurepip crash — the 2026-10-20 diagnosis was correct) and **found a real advisory**: `certifi 2026.5.20`, PYSEC-2026-4320 (compromised eMudhra root certs under the emSign ECC Root CA G3 — MITM-able TLS interception; fix `2026.10.19` restores only unaffected emSign roots).

@@ -19,6 +19,7 @@ import re
 import shutil
 import subprocess
 import tarfile
+import tempfile
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -316,6 +317,86 @@ def test_docker_hub_carries_current_version_tag() -> None:
         pytest.skip(f"Docker Hub returned HTTP {exc.code} for {tag} — cannot verify")
     except OSError as exc:
         pytest.skip(f"cannot reach Docker Hub: {exc}")
+
+
+def test_release_docker_job_targets_one_consistent_image_tag() -> None:
+    """Every image reference in release.yml's docker job must resolve to the
+    SAME tag.
+
+    WO9.0.0-103 claimed the cosign step signs a double-v tag (``:vv2.2.0``).
+    Re-verification showed that was a false positive: the cosign step is its
+    own ``run:`` block and recomputes ``TAG`` WITHOUT the v prefix
+    (``TAG="${GITHUB_REF_NAME#v}"``), so its ``v${TAG}`` is the same
+    ``:v2.2.0`` the bake step pushes. The two spellings are deliberate.
+
+    That reading is easy to get wrong, and the wrong reading already cost one
+    audit round — and "fixing" it would sign a tag that does not exist. This
+    test runs each step's real shell body with a stubbed docker/cosign, and
+    asserts every image reference the steps produce is the SAME tag. The
+    consistency is then mechanical rather than a matter of reading YAML right.
+    """
+    import shlex
+
+    import yaml
+
+    workflow = yaml.safe_load((_REPO_ROOT / ".github" / "workflows" / "release.yml").read_text())
+    docker_job = workflow["jobs"]["docker"]
+    steps = docker_job["steps"]
+
+    # A stub that records every image reference it is asked to act on.
+    record = Path(tempfile.mkdtemp()) / "refs.txt"
+    stub = Path(tempfile.mkdtemp()) / "bin"
+    stub.mkdir()
+    # The stub also answers `docker run --version` with the version the release
+    # step asserts on, so the step body runs to completion.
+    (stub / "docker").write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do case "$a" in docker.io/kirkforge/picodome:*) echo "$a" >> ' + str(record) + ";; esac; done\n"
+        'for a in "$@"; do if [ "$a" = "--version" ]; then\n'
+        '  for b in "$@"; do case "$b" in docker.io/kirkforge/picodome:*) '
+        'echo "PicoSentry (unified) ${b##*:}";; esac; done\n'
+        "fi; done\n"
+        "exit 0\n"
+    )
+    (stub / "cosign").write_text(
+        "#!/usr/bin/env bash\n"
+        'for a in "$@"; do case "$a" in docker.io/kirkforge/picodome:*) echo "$a" >> ' + str(record) + ";; esac; done\n"
+        "exit 0\n"
+    )
+    for name in ("docker", "cosign"):
+        (stub / name).chmod(0o755)
+
+    for ref_name in ("v2.2.0", "2.2.0"):
+        record.write_text("")
+        for step in steps:
+            run = step.get("run") or ""
+            if "docker.io/kirkforge/picodome:" not in run:
+                continue
+            # Run the step body verbatim (minus the bake push, which needs real
+            # buildx) so bash performs the real TAG expansion.
+            body = "\n".join(line for line in run.splitlines() if "docker buildx bake" not in line)
+            if not body.strip():
+                continue
+            script = (
+                f"set -e\nGITHUB_REF_NAME={shlex.quote(ref_name)}\n"
+                f"GITHUB_OUTPUT={shlex.quote(str(record.parent / 'gh_output'))}\n"
+                f"PATH={shlex.quote(str(stub))}:$PATH\n" + body
+            )
+            result = subprocess.run(
+                ["bash", "-c", script],
+                capture_output=True,
+                text=True,
+                timeout=30,
+                cwd=_REPO_ROOT,
+            )
+            assert result.returncode == 0, f"step failed for {ref_name}: {result.stderr}"
+
+        refs = [line for line in record.read_text().splitlines() if line.strip()]
+        assert len(refs) >= 2, f"expected several image references, found {refs}"
+        assert len(set(refs)) == 1, (
+            f"release.yml targets {len(set(refs))} different tags for {ref_name}: {sorted(set(refs))} — "
+            "every step must push/sign/verify the SAME image"
+        )
 
 
 def _load_normalizer() -> ModuleType:

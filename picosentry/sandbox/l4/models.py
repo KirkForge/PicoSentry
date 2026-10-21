@@ -54,6 +54,11 @@ class FileOperation:
     success: bool = True
     bytes_transferred: int = 0
     timestamp_ms: int = 0
+    # chmod/chown mode argument (e.g. "4755", "6755", "+x"). Empty when the
+    # backend did not report one. The setuid/setgid bits live HERE, not in
+    # the path — without it a setuid chmod is indistinguishable from an
+    # ordinary one (WO9.0.0-002).
+    mode: str = ""
 
     def to_dict(self, deterministic: bool = False) -> dict:
         d: dict = {
@@ -62,6 +67,8 @@ class FileOperation:
             "path": self.path,
             "success": self.success,
         }
+        if self.mode:
+            d["mode"] = self.mode
         if not deterministic and self.timestamp_ms:
             d["timestamp_ms"] = self.timestamp_ms
         return dict(sorted(d.items()))

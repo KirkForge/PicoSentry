@@ -1,7 +1,7 @@
 # WO9.0.0-102 — Serve: `acknowledge_alert` uses `acknowledged = 1` integer literal → breaks on Postgres (boolean column)
 
 **Series:** WO9.0.0 (audit round 2026-08-23)
-**Status:** OPEN
+**Status:** DONE (2026-10-21, worktree `wo/9.0.0/p0-cluster`) — `acknowledged` was missing from _BOOL_LITERAL_RE, so `UPDATE alerts SET acknowledged = 1` reached postgres as an integer literal against a BOOLEAN column and the acknowledge endpoint 500'd on every Postgres deployment. `acknowledged` is now in the translator (with a comment that the list must track the BOOLEAN columns in _schema.py) AND the call site uses the portable `= TRUE` form, so the write is correct without relying on the translator. Systemic rider: the acknowledge test file is now in the postgres-live CI job — boolean-column writes are only exercised against a real postgres, which is why this shipped broken for two releases — and a guard test in tests/test_ci_paths.py pins that membership. Evidence: tests/serve/test_db_postgres_commit.py (20 passed; new acknowledged = 1 / = 0 translation tests).
 **Owner:** (unassigned)
 **Priority:** P0 · Effort S · Risk L
 **Scope:** `picosentry/serve/database/manager.py`, `picosentry/serve/api/routers/projects.py`, `tests/serve/`

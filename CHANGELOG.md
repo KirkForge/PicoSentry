@@ -33,10 +33,20 @@ All notable changes to PicoSentry will be documented in this file.
   `docker stop` / systemd stop / CI teardown of the daemon pays the full kill timeout. No test
   catches it because the daemon tests mock `HTTPServer` outright. Left as its own WO to keep the
   P0 cluster's diff scoped and gated.
-- Gates: ruff clean, format 763 files, mypy 417 source files clean, `scripts/test.sh fast`
-  **5995 passed / 37 skipped / 0 failed**. Push CI **39662046225 all-green at `0009c7a0`**
+- **WO9.0.0-011 recurred and was confirmed as the known flake, not a regression**: the
+  docs-only commit `6367ed60` went red on `test-matrix (3.14)` with
+  `published event id ... not in []` — the exact symptom that WO documents (its root cause is
+  still unconfirmed). Confirmed on the evidence: no commit in this series touches `event_bus`,
+  `event_history`, `server.py` or the app lifespan; the test passes 5/5 in isolation and in the
+  whole `tests/serve/` suite on 3.14; and `gh run rerun --failed` on the SAME SHA went green
+  (run 39692526428 now `success`, all five matrix legs). The WO records this as R6-R8. It stays
+  OPEN — per AGENTS.md §6 a speculative fix here is how a security suite acquires a test that
+  asserts nothing.
+- Gates: ruff clean, format 764 files, mypy 417 source files clean, `scripts/test.sh fast`
+  **5996 passed / 37 skipped / 0 failed**. Push CI **39662046225 all-green at `0009c7a0`**
   (5-Python matrix, postgres-live 15/16/17/18, docker amd64+arm64, reproducible-build,
-  landlock-real-exec, scan-artifacts-push).
+  landlock-real-exec, scan-artifacts-push); the follow-up docs commit `6367ed60` green after
+  the WO9.0.0-011 re-run.
 
 ## 2026-10-21 - WO9.0.0 P0 cluster: 4 real security bugs fixed, 1 closed as a false positive
 - **Four of the five WO9.0.0 P0 work orders were real bugs and are fixed**; the fifth

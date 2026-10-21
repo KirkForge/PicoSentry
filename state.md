@@ -75,12 +75,21 @@ new test that waits on a spawned worker.
 catches it because the daemon tests mock `HTTPServer` outright. See
 `docs/workorders/WO9.0.0-108-daemon-sigterm-shutdown-deadlock.md`.
 
+**WO9.0.0-011 recurred (2026-10-21) — the KNOWN flake, not a new one**: the docs-only commit
+`6367ed60` went red on `test-matrix (3.14)` with `published event id ... not in []`, the exact
+symptom that WO documents (root cause still unconfirmed there). Confirmed not a regression: my
+commits touch none of `event_bus` / `event_history` / `server.py` / the app lifespan; the test
+passes 5/5 in isolation and in the whole `tests/serve/` suite on 3.14; and
+`gh run rerun --failed` on the SAME SHA went **green** (run 39692526428 now `success`, all five
+matrix legs). The WO now records this as R6-R8. Per AGENTS.md §6 it stays OPEN — no speculative
+fix.
+
 **Pending / next**:
 - **ff `main` to `dev` (`0009c7a0`)** — push CI 39662046225 is green at that exact headSha, so
   the green-before-ff rule is satisfied. `main` is still at `0ce17472`.
 - **Next WO9.0.0 wave**: the P1s (003/004/005 sandbox + 104/105/106 serve/deploy), the P2
   riders (006-009 + 107), and the new **108** (daemon SIGTERM deadlock). WO9.0.0-011 stays open
-  with its root cause unconfirmed.
+  with its root cause unconfirmed — it recurred again on 2026-10-21 (see below).
 - **Release v2.3.0** when ready — WO7+WO8+the WO9 P0 wave warrant it.
 - **Docker push** when tooling exists (WO5-014 runbook).
 

@@ -1,7 +1,7 @@
 # WO9.0.0-011 — Serve: `/events/history` round-trip test depends on process-global `event_bus.event_history`, which app lifespan teardown wipes
 
 **Series:** WO9.0.0 (audit round 2026-08-23; opened 2026-10-02 from CI run `37026978303`)
-**Status:** OPEN — **root cause NOT confirmed** (5 reproduction attempts all green; see below)
+**Status:** OPEN — **root cause NOT confirmed** (8 reproduction attempts; the 2026-10-21 recurrence on py3.14 is R6-R8 below)
 **Owner:** (unassigned)
 **Priority:** P2 · Effort S · Risk L
 **Scope:** `picosentry/serve/services/event_bus.py`, `picosentry/serve/api/server.py` (295, 463), `tests/serve/test_wo6_events_history.py`, `tests/serve/test_killchain_tenancy.py` (precedent)
@@ -39,6 +39,23 @@ The test asserts against `event_bus`, a **process-global singleton**, while othe
 | R3 | the single test, py3.11 (interpreter fetched via `uv -p 3.11`, same as failing job) | passed |
 | R4 | `tests/serve` with integration-tier markers, `-n auto --dist=loadfile`, py3.11 | **778 passed**, 0 failed |
 | R5 | CI re-run of the failed job `test-matrix (3.11)` on the same SHA | **success** |
+| R6 | CI `test-matrix (3.14)` on SHA `6367ed60` (2026-10-21, a DOCS-ONLY commit): `AssertionError: published event id 'f6c4ebc3-...' not in []` — the identical symptom and the identical named diagnostic | **failed**, then **success** on `gh run rerun --failed` of the same SHA |
+| R7 | R6's local equivalents on py3.14 at that SHA: the single test 5× consecutive | 5 passed |
+| R8 | R6's local equivalent on py3.14 at that SHA: whole `tests/serve/` with integration markers, `-n auto --dist=loadfile` | **783 passed**, 0 failed |
+
+**R6 adds two things to this WO.** First, it is a second independent CI
+recurrence on a **different Python leg** (3.14 here, 3.11 in the original) and on a
+**docs-only commit** — nothing in that commit touched `event_bus`, `event_history`,
+`server.py` or the app lifespan, so the "another test's teardown cleared the global"
+explanation is the only one consistent with the evidence, and it is not caused by
+recent work. Second, R6 is the first recurrence carrying the **named diagnostic**
+added by this WO, and it fired with the expected message — which is exactly the
+outcome deliverable 1 was added to buy: the next occurrence is now diagnosable
+rather than merely "a flake".
+
+R7/R8 are the local reproductions of R6 and are green, consistent with R1-R4:
+the ordering that fires it is not reproducible outside CI, because CI's worker
+scheduling and file-to-worker assignment differ from a local run.
 
 Per AGENTS.md §6 this is **ESCALATE: root cause unknown** — do not ship a speculative fix. One plausible flake was fixed this session (`test_sandbox_blocks_file_write`, WO9.0.0-010) and one *proposed* fix was wrong; guessing twice more here is how a security suite acquires a test that asserts nothing.
 

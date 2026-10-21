@@ -2,26 +2,45 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-10-20, nightly red stopped at source; main = dev = a799ed79) ═══
+# ═══ CURRENT STATE (2026-10-21, nightly red resolved end-to-end; main = dev = 37584adc) ═══
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 
-**Branch state**: `main` = `dev` = `a799ed79` (dependency-audit pipx fix). Both green push CI at that exact SHA (dev run 39501228689, main run 39501898699, Security Scan 39501898727). Docs close-commit rides on dev only (md-only push skips CI by paths-ignore; safe to ff next code push). **The nightly `PicoSentry CI` cron no longer fires** — it schedules from the default branch, and main's ci.yml now has the cron commented out (d19d18dc's intent finally reached main).
+**Branch state**: `main` = `dev` = `37584adc`. ALL green at that exact SHA: dev push CI
+39522593783, main push CI 39522988931, Security Scan 39522988935, **Dependency Audit
+39523014316** ("No known vulnerabilities found"). Daily `PicoSentry CI` nightly red is gone
+three ways: (1) cron removed from the default branch (d19d18dc reached main — schedules
+always run from the default branch), (2) `dependency-audit` extracted to
+`.github/workflows/dependency-audit.yml` — its own ~2min daily 03:00 UTC schedule +
+standalone `gh workflow run dependency-audit.yml` dispatch, proven green on a real runner,
+(3) `nightly-tests` stays dispatch-only until it can fit GitHub's 6h job cap (it was being
+cancelled at 6h every night — never a verdict).
 
-**2026-10-20 — recurring nightly red stopped at source (main = dev = `a799ed79`)**: the daily
-`PicoSentry CI` schedule failure (every night 2026-09-14..10-20) ran from **main**, not dev —
-GitHub schedules only the default branch's workflow, and main was 10 commits behind, still
-carrying the pre-fix `uv run --with pip-audit` and the cron itself. Two jobs died nightly:
-`dependency-audit` (ensurepip exit 1) and `nightly-tests` (cancelled at the 6h job cap, so it
-was never a real verdict). Fix: `dependency-audit` now runs `pipx run --spec pip-audit
-pip-audit` — the 2026-10-02 uvx change had only removed the OUTER `uv run --with` ensurepip;
-the traceback shows pip-audit's own `-r` venv creation (`requirement.py _collect_from_files`
-→ `ve.create`) dying in ensurepip under uv-managed CPython, one layer deeper. pipx runs on
-the runner's system python, whose ensurepip works. Then ff'd main to dev (green-before-ff,
-verified by workflowName+headSha). Honest caveat: the pipx command has not yet run on a real
-runner (job is dispatch-only now); first `workflow_dispatch` of the nightly tier exercises it.
-If nightly is ever re-enabled, `nightly-tests` must be split/trimmed — it cannot finish
-inside GitHub's 6h job cap. lessons.md 2026-10-20 has the full chain.
+**Completed this session (2026-10-20/21)**:
+- fix(ci): dependency-audit switched from `uv run --with`/`uvx` to `pipx run --spec
+  pip-audit` — the 2026-10-02 uvx change had only removed the OUTER ensurepip;
+  pip-audit's own `-r` venv creation dies in ensurepip under uv-managed CPython on the
+  runner (proven from run 39392964257: `requirement.py _collect_from_files` →
+  `ve.create` → exit 1). pipx runs on the runner's system python.
+- ci: audit extracted to its own workflow — dispatchable in ~2min instead of paying for
+  the 6h nightly; schedule independent of the nightly tier (a security product's
+  dependency-advisory feed must not be collateral of its test-suite budget).
+- fix(deps): **certifi 2026.5.20 → 2026.10.19** — PYSEC-2026-4320, caught by the audit's
+  FIRST successful runner execution (compromised eMudhra intermediates under the emSign
+  ECC Root CA G3, MITM-able TLS interception; fix restores only unaffected emSign roots).
+  Local re-audit: no known vulnerabilities. Third instance of "the audit tool that never
+  ran was hiding real CVEs" (after 2026-10-02's 18).
+- test(serve): `test_all_chains_1000_artifacts_under_500ms` measures `process_time`, not
+  wall clock — flaked 0.591s vs 0.5 on the 3.11 push leg under xdist load (rerun of the
+  same commit passed = flake confirmed before editing; local wall AND cpu ~0.045s, so the
+  gap was runner descheduling). WO7 gateway-test remedy; the CPU ceiling keeps full teeth
+  for the algorithmic regression the test guards.
+
+**Gates (final, head `37584adc`)**: ruff All checks passed · format 763 files · mypy 417
+source files clean · `bash scripts/test.sh fast` **5965 passed / 37 skipped / 0 failed**
+(127s) · `tests/test_ci_paths.py` 35 passed · both workflow files parse. lessons.md
+2026-10-20 and 2026-10-20/21 have the full chains (incl. the `gh workflow run` needs-
+default-branch trap and the empty-`$rid` poll bug).
 
 **Completed series**:
 - **WO7.0.0**: 34/34 DONE (security/correctness wave — OSV crates.io drop, encoded-dot SSRF, gRPC audit tenancy, correlation_chains cross-tenant clobber, health probe lightweight, helm chart fix). Migrations 24 (correlation_chains UNIQUE(org_id, artifact_id)) + 25 (alerts `acknowledged` column). main ff'd to `8c3a68e2`, push CI green.

@@ -12,8 +12,8 @@ Priorities: P0 = security/correctness, do first. Every WO carries verified evide
 
 | ID | Title | Pri | Effort | Final status |
 |----|-------|-----|--------|---------------|
-| [WO9.0.0-001](WO9.0.0-001-admission-scanner-field-mismatch.md) | Sandbox: admission scanner reads wrong response field names (admission control is a no-op) | P0 | S | OPEN |
-| [WO9.0.0-002](WO9.0.0-002-l4-privesc-003-dead-chmod-check.md) | Sandbox: L4-PRIVESC-003 setuid chmod detection is dead (checks op.path not command) | P0 | S | OPEN |
+| [WO9.0.0-001](WO9.0.0-001-admission-scanner-field-mismatch.md) | Sandbox: admission scanner reads wrong response field names (admission control is a no-op) | P0 | S | DONE (2026-10-21) |
+| [WO9.0.0-002](WO9.0.0-002-l4-privesc-003-dead-chmod-check.md) | Sandbox: L4-PRIVESC-003 setuid chmod detection is dead (checks op.path not command) | P0 | S | DONE (2026-10-21) |
 | [WO9.0.0-003](WO9.0.0-003-l4-container-severity-escalation-string-cmp.md) | Sandbox: L4-CONTAINER-001 severity escalation broken (string comparison not severity order) | P1 | S | OPEN |
 | [WO9.0.0-004](WO9.0.0-004-l4-exfil-003-bytes-sent-dead.md) | Sandbox: L4-EXFIL-003 large outbound transfer dead (no backend populates bytes_sent) | P1 | S | OPEN |
 | [WO9.0.0-005](WO9.0.0-005-l4-profiler-file-ops-missing-file-write.md) | Sandbox: L4 profiler _FILE_OPS missing file_write/file_open (WO8-009 incomplete) | P1 | M | OPEN |
@@ -22,21 +22,32 @@ Priorities: P0 = security/correctness, do first. Every WO carries verified evide
 | [WO9.0.0-008](WO9.0.0-008-l4-profiler-garbage-spawn-exe.md) | Sandbox: L4 profiler extracts garbage executable from seccomp_trace events | P2 | S | OPEN |
 | [WO9.0.0-009](WO9.0.0-009-health-fail-open-check-raises.md) | Sandbox: HTTP /health defaults to "healthy" when check_health() raises (fail-open) | P2 | S | OPEN |
 | [WO9.0.0-010](WO9.0.0-010-landlock-per-policy-write-paths.md) | Sandbox: `L3-FILE-W-001` write paths enforced by neither backend as written (landlock narrows to workspace, seccomp does not scope at all) | P1 | M | OPEN |
-| [WO9.0.0-011](WO9.0.0-011-events-history-global-state-flake.md) | Serve: `/events/history` test depends on process-global `event_bus.event_history`, which app lifespan teardown wipes (root cause unconfirmed) | P2 | S | OPEN |
+| [WO9.0.0-011](WO9.0.0-011-events-history-global-state-flake.md) | Serve: `/events/history` test depends on process-global `event_bus.event_history`, which app lifespan teardown wipes (root cause unconfirmed) | P2 | S | OPEN — root cause NOT confirmed |
 
 ### serve / core / deploy / firewall (auditor B)
 
 | ID | Title | Pri | Effort | Final status |
 |----|-------|-----|--------|---------------|
-| [WO9.0.0-101](WO9.0.0-101-webhook-ssrf-empty-pinned-ips.md) | Serve: webhook SSRF bypass via empty pinned_ips (no empty-check in _load_webhooks) | P0 | S | OPEN |
-| [WO9.0.0-102](WO9.0.0-102-acknowledge-alert-postgres-boolean.md) | Serve: acknowledge_alert `acknowledged = 1` breaks on Postgres (boolean = integer) | P0 | S | OPEN |
-| [WO9.0.0-103](WO9.0.0-103-release-cosign-double-v-tag.md) | Deploy: release.yml cosign signs `:vv<TAG>` (double-v — nonexistent image) | P0 | S | OPEN |
+| [WO9.0.0-101](WO9.0.0-101-webhook-ssrf-empty-pinned-ips.md) | Serve: webhook SSRF bypass via empty pinned_ips (no empty-check in _load_webhooks) | P0 | S | DONE (2026-10-21) |
+| [WO9.0.0-102](WO9.0.0-102-acknowledge-alert-postgres-boolean.md) | Serve: acknowledge_alert `acknowledged = 1` breaks on Postgres (boolean = integer) | P0 | S | DONE (2026-10-21) |
+| [WO9.0.0-103](WO9.0.0-103-release-cosign-double-v-tag.md) | Deploy: release.yml cosign signs `:vv<TAG>` (double-v — nonexistent image) | P0 | S | NOT A BUG — false positive (2026-10-21) |
 | [WO9.0.0-104](WO9.0.0-104-ci-push-no-lint-typecheck.md) | CI: push tier has no lint/typecheck (direct-to-dev skips ruff/mypy) | P1 | S | OPEN |
 | [WO9.0.0-105](WO9.0.0-105-dockerfile-server-healthcheck-imports-only.md) | Deploy: Dockerfile server HEALTHCHECK checks imports not HTTP (crashed uvicorn reports healthy) | P1 | S | OPEN |
 | [WO9.0.0-106](WO9.0.0-106-plugin-manager-iterdir-unguarded.md) | Serve: PluginManager iterdir() unguarded — OSError crashes serve boot | P1 | S | OPEN |
 | [WO9.0.0-107](WO9.0.0-107-db-backup-naive-datetime-collision.md) | Serve: db.backup() naive datetime.now() + same-second collision (WO8-103/109 missed this) | P2 | S | OPEN |
 
 Suggested batch shape: P0 cluster (001/002 sandbox + 101/102/103 serve/deploy) as 2 parallel worktrees; P1 wave (003-005 sandbox + 104-106 serve) as 2 worktrees; P2 riders (006-009 + 107) as 1 worktree.
+
+**P0 cluster executed 2026-10-21** (worktree `wo/9.0.0/p0-cluster` off `origin/dev`): 4 of the 5
+P0s were real and are fixed; **WO9.0.0-103 was a false positive** (the cosign step recomputes
+its own bare `TAG`, so `v${TAG}` is the same `:v2.2.0` the bake step pushes — the WO's repro
+used line 125's TAG value). The WO is closed with the re-verification rather than "fixed",
+and a test now evaluates release.yml's real shell steps to pin that every image reference
+resolves to the same tag (mutation-checked: applying the WO's proposed edit fails it).
+Gate: ruff/format/mypy clean · `bash scripts/test.sh fast` **5995 passed / 37 skipped /
+0 failed** (baseline 5965 — +30 tests). Every P0 claim was re-verified against source
+before fixing; two of them (001, 002) had tests that were validating the bug, because the
+mock/assertion used a field or path shape no backend ever produced.
 
 ## WO8.0.0 — Eighth series (DONE 2026-08-23 — 22/22 DONE, 6 subagent worktrees across 3 waves)
 

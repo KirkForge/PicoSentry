@@ -31,10 +31,15 @@ def test_acknowledged_and_sent_independent(client):
     """An already-sent alert can still be acknowledged; both flags are independent."""
     token, org_id, _slug = _register_with_org(client, role="admin", slug_prefix="ack-ind")
 
+    # `sent` is a BOOLEAN column. The value is passed as a PARAMETER, so
+    # psycopg2 adapts it to a real boolean — an integer literal here is a
+    # DatatypeMismatch on postgres ("column 'sent' is of type boolean but
+    # expression is of type integer"). This file is in the postgres-live CI
+    # job, which is how that surfaced (WO9.0.0-102).
     db.execute_insert(
         "INSERT INTO alerts (project_id, alert_type, severity, message, channel, org_id, sent) "
         "VALUES (?, ?, ?, ?, ?, ?, ?)",
-        ("proj2", "test", "high", "delivered alert", "syslog", org_id, 1),
+        ("proj2", "test", "high", "delivered alert", "syslog", org_id, True),
     )
     alert = db.execute_one("SELECT id, acknowledged, sent FROM alerts WHERE org_id = ? AND sent = 1", (org_id,))
     assert alert is not None

@@ -93,12 +93,17 @@ class TestAllChainsBatch:
         for i in range(1000):
             engine.ingest(_make_event(f"pkg-{i:04d}@1.0"))
 
-        start = time.perf_counter()
+        # CPU time, not wall clock: under xdist load the runner deschedules
+        # workers and wall-clock ceilings flake (run 39518904835, 3.11 leg,
+        # 0.591s vs 0.5 — local wall AND cpu are ~0.045s). An algorithmic
+        # regression burns CPU, so process_time keeps full teeth and loses
+        # the free-core/machine-load assumption (WO7 lessons: gateway test).
+        start = time.process_time()
         chains = engine.all_chains()
-        elapsed = time.perf_counter() - start
+        elapsed = time.process_time() - start
 
         assert len(chains) == 1000
-        assert elapsed < 0.5, f"all_chains with 1000 artifacts took {elapsed:.3f}s (>500ms)"
+        assert elapsed < 0.5, f"all_chains with 1000 artifacts took {elapsed:.3f}s CPU (>500ms)"
         engine.clear()
 
     def test_critical_chains_uses_all_chains(self):

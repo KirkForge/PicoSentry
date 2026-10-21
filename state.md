@@ -6,12 +6,14 @@
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 
-**Branch state**: `main` = `0ce17472` (unchanged — NOT yet ff'd, see "Pending / next").
-`dev` = `0009c7a0`, which carries the whole P0 cluster. Push CI **39662046225 green at
-that exact headSha**: 5-Python matrix (3.10/3.11/3.12/3.13/3.14), postgres-live 15/16/17/18,
-docker amd64+arm64, reproducible-build, landlock-real-exec, scan-artifacts-push — every
-job success. The merge to `dev` was `--no-ff` `7194107a`; two follow-ups rode after it
-(`218b9873` the postgres-live test fix, `0009c7a0` the CI timeouts).
+**Branch state**: `main` = `dev` = `c885eb3d` — **`main` fast-forwarded green-before-ff.**
+The ff was authorised by: dev push CI **39662046225 green at `0009c7a0`** (the P0 cluster, all
+jobs), the follow-up `6367ed60` green on **39692526428** (all five matrix legs + all four
+postgres-live legs) after the known WO9.0.0-011 flake was re-run at the same SHA, and
+`c885eb3d` being a **docs-only** commit on top of it (ci.yml `paths-ignore: '**.md'`,
+`docs/**` → CI skipped by design; the AGENTS.md rule says docs-only pushes that skip CI are
+safe to ff, and the non-doc tree at `c885eb3d` is byte-identical to the green `6367ed60`).
+Security Scan on `main` is green at `c885eb3d` (39694561006).
 
 **WO9.0.0 P0 cluster (2026-10-21)** — the five P0 work orders were re-verified against source
 before any of them was touched. Four were real bugs and are fixed; **one was a false positive
@@ -85,8 +87,6 @@ matrix legs). The WO now records this as R6-R8. Per AGENTS.md §6 it stays OPEN 
 fix.
 
 **Pending / next**:
-- **ff `main` to `dev` (`0009c7a0`)** — push CI 39662046225 is green at that exact headSha, so
-  the green-before-ff rule is satisfied. `main` is still at `0ce17472`.
 - **Next WO9.0.0 wave**: the P1s (003/004/005 sandbox + 104/105/106 serve/deploy), the P2
   riders (006-009 + 107), and the new **108** (daemon SIGTERM deadlock). WO9.0.0-011 stays open
   with its root cause unconfirmed — it recurred again on 2026-10-21 (see below).

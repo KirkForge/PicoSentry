@@ -42,6 +42,12 @@ All notable changes to PicoSentry will be documented in this file.
   (run 39692526428 now `success`, all five matrix legs). The WO records this as R6-R8. It stays
   OPEN — per AGENTS.md §6 a speculative fix here is how a security suite acquires a test that
   asserts nothing.
+- **`main` fast-forwarded to `dev` (`c885eb3d`)** — green-before-ff, as the standing rule
+  requires: dev push CI 39662046225 green at `0009c7a0` (all jobs), the follow-up `6367ed60`
+  green on 39692526428 after the known WO9.0.0-011 flake was re-run at the same SHA, and
+  `c885eb3d` is docs-only on top (ci.yml `paths-ignore: '**.md', 'docs/**'` → CI skipped by
+  design; the non-doc tree at `c885eb3d` is byte-identical to the green `6367ed60`). Security
+  Scan on `main` green at `c885eb3d` (39694561006).
 - Gates: ruff clean, format 764 files, mypy 417 source files clean, `scripts/test.sh fast`
   **5996 passed / 37 skipped / 0 failed**. Push CI **39662046225 all-green at `0009c7a0`**
   (5-Python matrix, postgres-live 15/16/17/18, docker amd64+arm64, reproducible-build,

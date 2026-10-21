@@ -416,6 +416,11 @@ jobs:
           PY
 
   # ── nightly (schedule / manual) ────────────────────────────────────────
+  # The cron is disabled (d19d18dc): this tier cannot finish inside GitHub's
+  # 6h job cap (nightly-tests was cancelled at 6h on every scheduled run).
+  # It stays dispatch-only until it can. The dependency audit moved to its
+  # own workflow (.github/workflows/dependency-audit.yml) so its ~2min
+  # schedule and dispatch no longer ride this tier.
 
   nightly-tests:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
@@ -442,22 +447,6 @@ jobs:
             .pytest-artifacts/
             coverage.xml
 
-  dependency-audit:
-    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v6
-      - name: Export uv.lock as a requirements file
-        run: |
-          uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
-          grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
-      - name: Run pip-audit against lockfile
-        # pip-audit, not how it is launched, is the ensurepip problem: for `-r`
-        # files it creates its own venv (requirement.py `_collect_from_files` ->
-        # ve.create) bootstrapped via `python -m ensurepip` under whatever
-        # interpreter runs it — and that ensurepip exits 1 under uv-managed
-        # CPython on the runner (nightly red every night 2026-09-14..10-02;
-        # `uv run --with` and `uvx` both die at the same inner venv step).
-        # pipx runs pip-audit on the runner's system python, whose ensurepip works.
-        run: pipx run --spec pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc
+  # dependency-audit moved to .github/workflows/dependency-audit.yml (2026-10-20):
+  # its own schedule + dispatch, no longer collateral of this tier's 6h cap.
+

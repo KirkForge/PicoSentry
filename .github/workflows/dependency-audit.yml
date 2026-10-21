@@ -1,0 +1,40 @@
+name: Dependency Audit
+
+# Own workflow, extracted from PicoSentry CI 2026-10-20. Two reasons:
+# 1. Dispatchability: the audit is a ~2-minute job. Verifying its tool chain
+#    used to mean dispatching the whole nightly tier (which then hit the 6h
+#    job cap and was cancelled) — one line of audit-tool debugging cost the
+#    full exhaustive suite. `gh workflow run dependency-audit.yml` now costs
+#    one 2-minute job.
+# 2. Survival: as a job inside PicoSentry CI it shared fate with the nightly
+#    tier. The 2026-10-04 minute-saving cron disable took the audit down with
+#    it, and the audit had already been red every night 2026-09-14..10-02
+#    while nightly-tests hogged the log — a security product's dependency
+#    advisory feed must not be collateral of its test-suite budget. The daily
+#    schedule here is ~2 min/day; the 6h nightly tier stays off until it can
+#    finish inside the job cap.
+
+on:
+  schedule:
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+
+jobs:
+  dependency-audit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v6
+      - name: Export uv.lock as a requirements file
+        run: |
+          uv export --frozen --no-hashes --all-extras --all-groups -o requirements-audit.txt
+          grep -v '^-e ' requirements-audit.txt > requirements-audit.clean.txt
+      - name: Run pip-audit against lockfile
+        # pip-audit, not how it is launched, is the ensurepip problem: for `-r`
+        # files it creates its own venv (requirement.py `_collect_from_files` ->
+        # ve.create) bootstrapped via `python -m ensurepip` under whatever
+        # interpreter runs it — and that ensurepip exits 1 under uv-managed
+        # CPython on the runner (nightly red every night 2026-09-14..10-02;
+        # `uv run --with` and `uvx` both die at the same inner venv step).
+        # pipx runs pip-audit on the runner's system python, whose ensurepip works.
+        run: pipx run --spec pip-audit pip-audit --no-deps -r requirements-audit.clean.txt --desc

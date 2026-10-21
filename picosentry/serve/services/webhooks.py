@@ -124,6 +124,13 @@ class WebhookManager:
                     continue
                 resolve = self.dns_resolver or _resolve_hostname
                 pinned_ips = resolve(urlparse(url).hostname or "") or []
+                # A hostname that does not resolve yields an EMPTY pin set, which
+                # is not "no restriction" but "no IP was ever checked". Loading
+                # it would let the dispatch guard pass vacuously (WO9.0.0-101).
+                # create() rejects the same case; mirror that here.
+                if not pinned_ips:
+                    logger.warning("Skipping webhook %s at load: hostname did not resolve", row["name"])
+                    continue
                 webhook = Webhook(
                     id=row["id"],
                     name=row["name"],
@@ -217,7 +224,9 @@ class WebhookManager:
                     retries=wh.retries,
                     created_at=wh.created_at,
                     org_id=wh.org_id,
-                    pinned_ips=list(wh.pinned_ips) if wh.pinned_ips else None,
+                    # Always a non-empty list: create() rejects an unresolvable
+                    # hostname and _load_webhooks skips one (WO9.0.0-101).
+                    pinned_ips=list(wh.pinned_ips or []),
                 )
                 for wh in self.webhooks.values()
                 if ("*" in wh.events or event in wh.events)
@@ -247,7 +256,11 @@ class WebhookManager:
                     continue
                 current_ips = set(_resolve_hostname(parsed.hostname) or [])
                 allowed_ips = set(webhook.pinned_ips or [])
-                if webhook.pinned_ips is not None and not current_ips.issubset(allowed_ips):
+                # An empty pin set or an empty current set must NEVER satisfy
+                # the subset check: set().issubset(set()) is True, so the old
+                # guard passed vacuously and the POST went out with no IP
+                # restriction (SSRF via DNS blip / rebind — WO9.0.0-101).
+                if not allowed_ips or not current_ips or not current_ips.issubset(allowed_ips):
                     logger.warning(
                         "Webhook %s rejected: DNS rebind detected (was %s, now %s)",
                         webhook.name,

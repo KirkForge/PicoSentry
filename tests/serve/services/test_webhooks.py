@@ -383,3 +383,120 @@ class TestWebhookWildcardEvents:
         results = manager.dispatch("chain.escalated", {"artifact_id": "x"}, org_id=1)
         assert posted == ["https://example.com/hook"]
         assert results and results[0]["success"] is True
+
+
+class TestEmptyPinnedIPsRejected:
+    """WO9.0.0-101: an empty pinned_ips set must never satisfy the DNS-rebind
+    guard. `resolve(...) or []` turns "no IPs" into "no restriction", and
+    `set().issubset(set())` is True — so a webhook with an empty pin set
+    dispatched while DNS is dead reaches requests.post with no IP check."""
+
+    def _manager_with_empty_pins(self):
+        from datetime import datetime, timezone
+
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        manager.webhooks = {}
+        manager.webhooks[42] = Webhook(
+            id=42,
+            name="empty-pin-hook",
+            url="https://example.com/hook",
+            secret="secret",
+            events=["alert"],
+            active=True,
+            retries=0,
+            created_at=datetime.now(timezone.utc),
+            org_id=1,
+            pinned_ips=[],  # loaded from DB when the hostname did not resolve
+        )
+        return manager
+
+    def test_dispatch_rejects_empty_pinned_ips(self, monkeypatch):
+        import requests
+
+        manager = self._manager_with_empty_pins()
+        posted = {"count": 0}
+
+        def _capture_post(*args, **kwargs):
+            posted["count"] += 1
+            response = requests.Response()
+            response.status_code = 200
+            return response
+
+        monkeypatch.setattr(requests, "post", _capture_post)
+        # Dispatch-time DNS is dead too: current_ips == set().
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(None),
+        )
+
+        results = manager.dispatch("alert", {"msg": "test"})
+
+        assert posted["count"] == 0, "webhook was POSTed despite an empty pinned_ips set"
+        assert len(results) == 1
+        assert results[0]["success"] is False
+        assert results[0]["status"] == 0
+
+    def test_dispatch_rejects_empty_current_ips(self, monkeypatch):
+        """Even with a non-empty pin set, a hostname that resolves to nothing
+        at dispatch time must not be delivered — there is no IP to verify."""
+        import requests
+
+        manager = self._manager_with_empty_pins()
+        manager.webhooks[42].pinned_ips = ["1.1.1.1"]
+        posted = {"count": 0}
+
+        def _capture_post(*args, **kwargs):
+            posted["count"] += 1
+            response = requests.Response()
+            response.status_code = 200
+            return response
+
+        monkeypatch.setattr(requests, "post", _capture_post)
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._resolve_hostname",
+            _fake_resolver(None),
+        )
+
+        results = manager.dispatch("alert", {"msg": "test"})
+
+        assert posted["count"] == 0
+        assert len(results) == 1
+        assert results[0]["success"] is False
+
+    def test_load_skips_webhook_with_unresolvable_host(self, monkeypatch):
+        """_load_webhooks must mirror create()'s guard: a hostname that does
+        not resolve is skipped, not loaded with an empty pin set."""
+        manager = WebhookManager(dns_resolver=_fake_resolver(["1.1.1.1"]))
+        manager.webhooks = {}
+
+        from picosentry.serve.database.manager import db
+
+        class _Row(dict):
+            def get(self, key, default=None):
+                return dict.get(self, key, default)
+
+        row = _Row(
+            {
+                "id": 4242,
+                "name": "unresolvable-hook",
+                "url": "https://example.com/hook",
+                "secret": "s",
+                "events": '["alert"]',
+                "active": 1,
+                "retries": 0,
+                "created_at": "2026-01-01T00:00:00+00:00",
+                "org_id": 1,
+            }
+        )
+
+        monkeypatch.setattr(db, "execute", lambda *a, **k: [row])
+        # The load-path resolver returns nothing for this hostname (DNS blip).
+        manager.dns_resolver = _fake_resolver(None)
+        monkeypatch.setattr(
+            "picosentry.serve.services.webhooks._is_safe_webhook_url",
+            lambda url, dns_resolver=None: (True, "OK"),
+        )
+
+        manager._load_webhooks()
+
+        assert 4242 not in manager.webhooks, "webhook with no resolvable IPs was loaded"

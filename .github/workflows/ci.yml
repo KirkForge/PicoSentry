@@ -44,6 +44,9 @@ jobs:
   changes:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 15
     outputs:
       code: ${{ steps.filter.outputs.code }}
       scan: ${{ steps.filter.outputs.scan }}
@@ -73,6 +76,9 @@ jobs:
   lint:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -83,6 +89,9 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -96,6 +105,9 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -119,6 +131,9 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && needs.changes.outputs.scan == 'true'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -139,6 +154,9 @@ jobs:
   scan-artifacts-push:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -153,6 +171,9 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -168,6 +189,9 @@ jobs:
     needs: [changes]
     if: github.event_name == 'pull_request' && needs.changes.outputs.code == 'true'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -198,6 +222,9 @@ jobs:
   test-matrix:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 30
     strategy:
       matrix:
         python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
@@ -220,6 +247,9 @@ jobs:
   postgres-live-test:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 30
     strategy:
       matrix:
         postgres-version: ['15', '16', '17', '18']
@@ -280,6 +310,9 @@ jobs:
   reproducible-build:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -326,6 +359,9 @@ jobs:
   docker-build:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Set up Docker Buildx
@@ -357,6 +393,9 @@ jobs:
   docker-build-arm64:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
       - name: Set up QEMU for arm64 emulation
@@ -382,6 +421,9 @@ jobs:
   landlock-real-exec:
     if: github.event_name == 'push'
     runs-on: ubuntu-24.04
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6
@@ -425,6 +467,9 @@ jobs:
   nightly-tests:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
+    # A hung job must not burn the 6h default cap: this leg normally
+    # finishes in minutes, so a bound well above it is pure safety.
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v6

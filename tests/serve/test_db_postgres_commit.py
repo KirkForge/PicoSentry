@@ -243,6 +243,22 @@ class TestBooleanLiteralTranslation:
         stmt = cursor.executed_sql[-1]
         assert "is_active = TRUE" in stmt and "sent = FALSE" in stmt and "enabled = TRUE" in stmt
 
+    def test_acknowledged_translates(self):
+        """WO9.0.0-102: `alerts.acknowledged` is BOOLEAN (migration 25) but was
+        missing from the translator, so `acknowledged = 1` reached postgres as an
+        integer literal and the acknowledge endpoint 500'd on every deployment."""
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("UPDATE alerts SET acknowledged = 1 WHERE id = ?", ("7",))
+        assert "acknowledged = TRUE" in cursor.executed_sql[-1]
+        assert "acknowledged = 1" not in cursor.executed_sql[-1]
+
+    def test_acknowledged_zero_translates(self):
+        conn, cursor = _strict_conn()
+        mgr = _pg_manager(conn)
+        mgr.execute("UPDATE alerts SET acknowledged = 0 WHERE id = ?", ("7",))
+        assert "acknowledged = FALSE" in cursor.executed_sql[-1]
+
     def test_integer_column_literal_untouched(self):
         conn, cursor = _strict_conn()
         mgr = _pg_manager(conn)

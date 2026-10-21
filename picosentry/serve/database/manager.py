@@ -31,7 +31,10 @@ def _adapt_datetime(dt):
 
 # Boolean columns per _schema.py DDL — compared to 1/0 literals in runtime
 # SQL (portable on SQLite, rejected by postgres BOOLEAN columns).
-_BOOL_LITERAL_RE = re.compile(r"\b(is_active|active|sent|enabled)(\s*[=!<>]+\s*)([01])\b")
+# Keep this list in sync with the BOOLEAN columns in _schema.py: sent,
+# is_active, active, enabled, acknowledged (WO9.0.0-102 — `acknowledged` was
+# missing, so every `acknowledged = 1` write 500'd on postgres).
+_BOOL_LITERAL_RE = re.compile(r"\b(is_active|active|sent|enabled|acknowledged)(\s*[=!<>]+\s*)([01])\b")
 
 
 def _convert_timestamp(val):

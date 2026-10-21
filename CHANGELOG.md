@@ -2,6 +2,42 @@
 
 All notable changes to PicoSentry will be documented in this file.
 
+## 2026-10-21 - CI jobs bounded with timeout-minutes; postgres-live caught a boolean-column bug in a test; daemon SIGTERM deadlock filed
+- **Every job in `ci.yml` now sets `timeout-minutes`.** None did before, so every job inherited
+  GitHub's 6h default cap — a hang was invisible until a human noticed and killed it. Observed:
+  the `test-matrix (3.13)` leg hung on a runner and burned three hours before being cancelled.
+  Bounds are sized from the observed green runtimes with generous headroom (15/20/30/45/180 min);
+  the integration tier finishes in ~90s, so 30 min is safety, not a way to make red go green.
+  `tests/test_ci_paths.py::test_every_ci_job_has_a_timeout` pins it so a new job cannot
+  reintroduce the unbounded default.
+- **The 3.13 hang was a runner flake, not a regression** — recorded because the reasoning matters:
+  the previous push carried the ENTIRE WO9.0.0 P0 cluster and had 3.13 green in 89s; the hanging
+  push differed by a single test parameter (`sent = 1` -> `True`) that cannot cause a 3-hour hang;
+  the re-run had 3.13 green in 88s. Worth noting: **Python 3.13 changed the default
+  multiprocessing start method to `forkserver`** (3.10 uses `fork`) — the same class as
+  WO5.0.0-035, and now a known variable for any new test that waits on a spawned worker.
+- fix(test): **the acknowledge test wrote an integer into a BOOLEAN column.** The postgres-live
+  job (18) failed on the WO9.0.0-102 merge with `psycopg2.errors.DatatypeMismatch: column "sent"
+  is of type boolean but expression is of type integer` — the test inserted `sent` as the integer
+  `1`. Harmless on SQLite (dynamically typed), fatal on postgres, and invisible because the file
+  was never in the postgres-live job's file list. Now passed as `True` (a parameter, so psycopg2
+  adapts it to a real boolean). Same bug class as WO9.0.0-102, one layer out — the WO found it
+  in production code, the postgres-live job then found it in the test that was supposed to cover
+  it. **Adding a file to a backend-specific job is expected to fail on something in that file;
+  that failure is the point of adding it.**
+- docs(workorders): **WO9.0.0-108 filed (P1, not fixed)** — the scan daemon's SIGTERM/SIGINT
+  handler calls `server.shutdown()` from the thread running `serve_forever()`, which is the
+  documented deadlock shape (a signal handler runs on the main thread, and `shutdown()` waits on an
+  event only `serve_forever()`'s exit path can set). Proven in both directions: hangs with
+  `serve_forever()` on the main thread (the daemon's shape), clean on a worker thread. Every
+  `docker stop` / systemd stop / CI teardown of the daemon pays the full kill timeout. No test
+  catches it because the daemon tests mock `HTTPServer` outright. Left as its own WO to keep the
+  P0 cluster's diff scoped and gated.
+- Gates: ruff clean, format 763 files, mypy 417 source files clean, `scripts/test.sh fast`
+  **5995 passed / 37 skipped / 0 failed**. Push CI **39662046225 all-green at `0009c7a0`**
+  (5-Python matrix, postgres-live 15/16/17/18, docker amd64+arm64, reproducible-build,
+  landlock-real-exec, scan-artifacts-push).
+
 ## 2026-10-21 - WO9.0.0 P0 cluster: 4 real security bugs fixed, 1 closed as a false positive
 - **Four of the five WO9.0.0 P0 work orders were real bugs and are fixed**; the fifth
   (**WO9.0.0-103**) was a **false positive** and is closed with the re-verification rather than

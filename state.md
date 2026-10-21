@@ -2,15 +2,19 @@
 
 *Tracked. Updated at session close. Head section = current state; below = session history.*
 
-# ═══ CURRENT STATE (2026-10-21, WO9.0.0 P0 cluster landed on dev; 4 real P0 bugs fixed, 1 closed as a false positive) ═══
+# ═══ CURRENT STATE (2026-10-21, WO9.0.0 P0 cluster merged to dev, CI green; 4 real P0 bugs fixed, 1 closed as a false positive) ═══
 
 **Version**: 2.2.0 (pyproject.toml source of truth). Released 2026-08-20, live on PyPI.
 
-**Branch state**: `main` = `dev` = `0ce17472` (unchanged this session). Work landed on branch
-`wo/9.0.0/p0-cluster` (off `origin/dev`) — **NOT yet merged to dev**; see "Pending / next".
+**Branch state**: `main` = `0ce17472` (unchanged — NOT yet ff'd, see "Pending / next").
+`dev` = `0009c7a0`, which carries the whole P0 cluster. Push CI **39662046225 green at
+that exact headSha**: 5-Python matrix (3.10/3.11/3.12/3.13/3.14), postgres-live 15/16/17/18,
+docker amd64+arm64, reproducible-build, landlock-real-exec, scan-artifacts-push — every
+job success. The merge to `dev` was `--no-ff` `7194107a`; two follow-ups rode after it
+(`218b9873` the postgres-live test fix, `0009c7a0` the CI timeouts).
 
 **WO9.0.0 P0 cluster (2026-10-21)** — the five P0 work orders were re-verified against source
-before any of them were touched. Four were real bugs and are fixed; **one was a false positive
+before any of them was touched. Four were real bugs and are fixed; **one was a false positive
 and is closed as such** rather than "fixed":
 
 - **WO9.0.0-101 (serve) — webhook SSRF bypass via empty `pinned_ips`** — DONE.
@@ -49,16 +53,34 @@ a made-up response shape the scanner happened to read, and the setuid-chmod test
 string in the PATH field. Both mocks/assertions now build their input from the PRODUCER's
 contract. See lessons.md 2026-10-21 for the generalizable lessons.
 
-**Gates (worktree `wo/9.0.0/p0-cluster`, head `86472ab4` + status commits)**: ruff All checks
-passed · format 763 files already formatted · mypy 417 source files clean · `bash scripts/test.sh
-fast` **5995 passed / 37 skipped / 0 failed** (baseline 5965 — +30 tests, no test weakened).
+**Gates (dev head `0009c7a0`)**: ruff All checks passed · format 763 files already formatted ·
+mypy 417 source files clean · `bash scripts/test.sh fast` **5995 passed / 37 skipped / 0 failed**
+(baseline 5965 — +30 tests, no test weakened) · push CI 39662046225 all-green at that headSha.
+
+**CI hardening (2026-10-21)**: the `test-matrix (3.13)` leg hung on a runner for 3h. It was a
+**runner flake**, not a regression — the previous push carried the whole P0 cluster and had 3.13
+green in 89s, the hanging push differed only by one test parameter, and the re-run had 3.13 green
+in 88s. The gap it exposed: **no job in `ci.yml` set `timeout-minutes`**, so every one inherited
+GitHub's 6h default cap and a hang was invisible until a human killed it. All 15 jobs now carry
+a bound sized from the observed green runtimes (15/20/30/45/180 min), with
+`tests/test_ci_paths.py::test_every_ci_job_has_a_timeout` pinning it so a new job cannot
+reintroduce the unbounded default. Python 3.13's default multiprocessing start method is now
+`forkserver` (3.10 uses `fork`) — the same class as WO5.0.0-035, and a known variable for any
+new test that waits on a spawned worker.
+
+**New WO9.0.0-108 (P1, found but NOT fixed)**: the scan daemon's SIGTERM/SIGINT handler calls
+`server.shutdown()` from the thread running `serve_forever()` — the documented deadlock shape
+(live repro proven both directions: hangs on the main thread, clean on a worker thread). Every
+`docker stop` / systemd stop / CI teardown of the daemon pays the full kill timeout. No test
+catches it because the daemon tests mock `HTTPServer` outright. See
+`docs/workorders/WO9.0.0-108-daemon-sigterm-shutdown-deadlock.md`.
 
 **Pending / next**:
-- **Merge `wo/9.0.0/p0-cluster` into `dev`** (one merge, `--no-ff`), then ff `main` once dev push
-  CI is green at the exact headSha. The branch is 5 commits on top of `origin/dev` plus the
-  WO-status/README/state/CHANGELOG close-out commits.
-- **Next WO9.0.0 wave**: the P1s (003/004/005 sandbox + 104/105/106 serve/deploy) and the P2
-  riders (006-009 + 107). WO9.0.0-011 stays open with its root cause unconfirmed.
+- **ff `main` to `dev` (`0009c7a0`)** — push CI 39662046225 is green at that exact headSha, so
+  the green-before-ff rule is satisfied. `main` is still at `0ce17472`.
+- **Next WO9.0.0 wave**: the P1s (003/004/005 sandbox + 104/105/106 serve/deploy), the P2
+  riders (006-009 + 107), and the new **108** (daemon SIGTERM deadlock). WO9.0.0-011 stays open
+  with its root cause unconfirmed.
 - **Release v2.3.0** when ready — WO7+WO8+the WO9 P0 wave warrant it.
 - **Docker push** when tooling exists (WO5-014 runbook).
 

@@ -35,6 +35,7 @@ Priorities: P0 = security/correctness, do first. Every WO carries verified evide
 | [WO9.0.0-105](WO9.0.0-105-dockerfile-server-healthcheck-imports-only.md) | Deploy: Dockerfile server HEALTHCHECK checks imports not HTTP (crashed uvicorn reports healthy) | P1 | S | OPEN |
 | [WO9.0.0-106](WO9.0.0-106-plugin-manager-iterdir-unguarded.md) | Serve: PluginManager iterdir() unguarded — OSError crashes serve boot | P1 | S | OPEN |
 | [WO9.0.0-107](WO9.0.0-107-db-backup-naive-datetime-collision.md) | Serve: db.backup() naive datetime.now() + same-second collision (WO8-103/109 missed this) | P2 | S | OPEN |
+| [WO9.0.0-108](WO9.0.0-108-daemon-sigterm-shutdown-deadlock.md) | Scan daemon: SIGTERM handler calls `server.shutdown()` from the thread running `serve_forever()` — deadlock | P1 | S | OPEN |
 
 Suggested batch shape: P0 cluster (001/002 sandbox + 101/102/103 serve/deploy) as 2 parallel worktrees; P1 wave (003-005 sandbox + 104-106 serve) as 2 worktrees; P2 riders (006-009 + 107) as 1 worktree.
 
